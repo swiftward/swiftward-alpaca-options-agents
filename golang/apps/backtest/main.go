@@ -1,8 +1,10 @@
-// Command backtest прогоняет ту же декларацию стратегии по истории.
+// Command backtest runs a strategy declaration over historical data. It reads
+// the same declaration the gateway enforces in live trading - there is no second
+// copy of the strategy.
 package main
 
 import "log"
 
 func main() {
-	log.Println("backtest: not implemented yet")
+	log.Println("backtest: no declaration given")
 }
