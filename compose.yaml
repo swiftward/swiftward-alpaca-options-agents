@@ -1,0 +1,63 @@
+name: swiftward-alpaca-options-agents
+
+# Local stack: everything is built from this checkout. `make up` builds and starts it.
+# compose.prod.yaml is the same stack with published images instead of builds.
+# Postgres publishes ${POSTGRES_PORT} on the host so this stack can run beside others.
+
+services:
+  postgres:
+    image: postgres:18.4-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  recorder:
+    build:
+      context: .
+      dockerfile: docker/go.Dockerfile
+      args:
+        APP: recorder
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  runner:
+    build:
+      context: .
+      dockerfile: docker/agent.Dockerfile
+    environment:
+      RECORDER_URL: http://recorder:8080
+      GATEWAY_URL: ${GATEWAY_URL}
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    depends_on:
+      recorder:
+        condition: service_started
+
+  web:
+    build:
+      context: typescript/web
+    environment:
+      RECORDER_URL: http://recorder:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      recorder:
+        condition: service_started
+
+volumes:
+  pgdata:

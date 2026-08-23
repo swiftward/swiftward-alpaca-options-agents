@@ -1,0 +1,56 @@
+name: swiftward-alpaca-options-agents-prod
+
+# Same stack as compose.yaml with one change: first-party services pull published
+# images at ${IMAGE_TAG} instead of building. Rationale for each service lives once,
+# in compose.yaml - the two files must not carry two copies of it that drift apart.
+
+services:
+  postgres:
+    image: postgres:18.4-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  recorder:
+    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/recorder:${IMAGE_TAG}
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  runner:
+    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/runner:${IMAGE_TAG}
+    environment:
+      RECORDER_URL: http://recorder:8080
+      GATEWAY_URL: ${GATEWAY_URL}
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    depends_on:
+      recorder:
+        condition: service_started
+
+  web:
+    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/web:${IMAGE_TAG}
+    environment:
+      RECORDER_URL: http://recorder:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      recorder:
+        condition: service_started
+
+volumes:
+  pgdata:

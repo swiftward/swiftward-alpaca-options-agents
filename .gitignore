@@ -1,0 +1,7 @@
+.env
+*.local
+golang/bin/
+golang/cover/
+typescript/web/node_modules/
+typescript/web/dist/
+tmp/
