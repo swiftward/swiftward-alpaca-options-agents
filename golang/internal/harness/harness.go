@@ -461,7 +461,25 @@ func working(who, tool string) string {
 }
 
 func finished(who string, took time.Duration) string {
-	return fmt.Sprintf("✅ %s · готово за %s", who, took.Round(time.Second))
+	return fmt.Sprintf("✅ %s · готово за %s", who, howLong(took))
+}
+
+// howLong writes a duration the way the room reads it, in Russian and rounded:
+// nobody in the chat needs the milliseconds, and "7s" reads as a machine.
+func howLong(took time.Duration) string {
+	switch seconds := int(took.Round(time.Second).Seconds()); {
+	case seconds < 1:
+		return "мгновение"
+	case seconds < 60:
+		return fmt.Sprintf("%d с", seconds)
+	default:
+		minutes := seconds / 60
+		rest := seconds % 60
+		if rest == 0 {
+			return fmt.Sprintf("%d мин", minutes)
+		}
+		return fmt.Sprintf("%d мин %d с", minutes, rest)
+	}
 }
 
 func refused(who string, err error) string {

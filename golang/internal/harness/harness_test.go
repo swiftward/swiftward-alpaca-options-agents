@@ -590,3 +590,17 @@ func TestTheStatusLineClosesWhenATurnCannotStart(t *testing.T) {
 	assert.Contains(t, chat.statusTexts()[0], "не начался")
 	assert.Contains(t, chat.statusTexts()[0], "agent is not answering")
 }
+
+func TestHowLongReadsLikeRussian(t *testing.T) {
+	cases := map[time.Duration]string{
+		400 * time.Millisecond:               "мгновение",
+		7 * time.Second:                      "7 с",
+		90 * time.Second:                     "1 мин 30 с",
+		4 * time.Minute:                      "4 мин",
+		2*time.Minute + 500*time.Millisecond: "2 мин 1 с",
+	}
+
+	for took, want := range cases {
+		assert.Equal(t, want, howLong(took), took.String())
+	}
+}
