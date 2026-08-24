@@ -22,14 +22,16 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/api"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/agent"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/api"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/config"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/harness"
-	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/sessiontools"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/sessiontools"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
 
 func main() {
@@ -54,6 +56,17 @@ func run(log *zap.Logger) error {
 	defer stop()
 
 	state := record.NewMemory()
+
+	// What the session asked to be woken for outlives the process: a promise the
+	// harness forgot would be worse than one it never made.
+	var wakeups *wakeup.Store
+	if cfg.WakeupFile != "" {
+		wakeups, err = wakeup.Open(cfg.WakeupFile)
+		if err != nil {
+			return err
+		}
+		log.Info("wake-ups loaded", zap.Int("standing", len(wakeups.List())), zap.String("file", cfg.WakeupFile))
+	}
 
 	// One chat serves both roles: the harness posts what the session said, and the
 	// mcp role offers the agent a way to speak when no harness is running it.
@@ -85,7 +98,12 @@ func run(log *zap.Logger) error {
 			poster = chat
 		}
 
-		handler := sessiontools.Handler(state, time.Now, poster)
+		var standing sessiontools.Wakeups
+		if wakeups != nil {
+			standing = wakeups
+		}
+
+		handler := sessiontools.Handler(state, time.Now, poster, standing)
 		group.Go(func() error { return serve(ctx, cfg.MCPAddr, handler, log.Named("mcp")) })
 	}
 
@@ -94,6 +112,12 @@ func run(log *zap.Logger) error {
 			CallTimeout: cfg.AgentCallTimeout,
 			Now:         time.Now,
 			Log:         log.Named("harness"),
+		}
+		if wakeups != nil {
+			h.Wakeups = wakeups
+		}
+		if cfg.BrokerMCPURL != "" {
+			h.Prices = marketdata.NewBroker(cfg.BrokerMCPURL)
 		}
 		if chat != nil {
 			h.Chat = chat

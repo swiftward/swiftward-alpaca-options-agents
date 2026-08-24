@@ -19,6 +19,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/agent"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
 
 // clockTick is how often the schedule is asked whether anything is due. The
@@ -33,6 +34,19 @@ type Chat interface {
 	Inbound() <-chan telegram.Message
 	Send(ctx context.Context, text string) (int, error)
 	Edit(ctx context.Context, messageID int, text string) error
+}
+
+// Wakeups holds what the session asked to be woken for. Nil means the session
+// was offered no way to ask.
+type Wakeups interface {
+	Due(now time.Time, price map[string]float64) []wakeup.Wakeup
+	Watching() []string
+}
+
+// Prices reads the last trade of the symbols a wake-up is watching. The harness
+// reads them only to know when to wake a session; it decides nothing from them.
+type Prices interface {
+	LastTrades(ctx context.Context, symbols []string) (map[string]float64, error)
 }
 
 // Conversation is one thread with the agent, held open across turns.
@@ -55,6 +69,12 @@ type Harness struct {
 	// Declaration names the sessions the clock wakes. Nil means the clock wakes
 	// nobody and the chat is the only cause.
 	Declaration *declaration.Declaration
+	// Wakeups are the session's own standing requests. Nil means it has none and
+	// was offered no way to make them.
+	Wakeups Wakeups
+	// Prices answers what a price wake-up is watching for. Nil means price
+	// wake-ups cannot fire, and the session is told so when it tries to set one.
+	Prices Prices
 	// Now is the clock. It is a field so a test is not at the mercy of the wall
 	// clock, and so the only place a time comes from is visible.
 	Now func() time.Time
@@ -75,8 +95,11 @@ type Harness struct {
 // refuses to start: a harness that runs while waking nobody looks exactly like a
 // working one.
 func (h *Harness) Run(ctx context.Context) error {
-	if h.Declaration == nil && h.Chat == nil {
-		return fmt.Errorf("the harness has no cause to wake a session: set DECLARATION, configure the chat, or run neither role")
+	// Three things can wake a session: the schedule, a person in the chat, and the
+	// session's own standing request from an earlier run. With none of them the
+	// harness would run while waking nobody, which looks exactly like working.
+	if h.Declaration == nil && h.Chat == nil && h.Wakeups == nil {
+		return fmt.Errorf("the harness has no cause to wake a session: set DECLARATION, configure the chat, allow wake-ups, or run neither role")
 	}
 	if h.CallTimeout <= 0 {
 		return fmt.Errorf("the harness needs a bound on one call to the agent: set AGENT_CALL_TIMEOUT")
@@ -89,8 +112,10 @@ func (h *Harness) Run(ctx context.Context) error {
 	if h.Chat != nil {
 		go h.postWhatTheSessionSays(ctx)
 	}
-	if h.Declaration != nil {
+	if h.Declaration != nil || h.Wakeups != nil {
 		go h.keepTheClock(ctx)
+	}
+	if h.Declaration != nil {
 		h.Log.Info("clock held",
 			zap.String("declaration", h.Declaration.Name),
 			zap.Int("sessions", len(h.Declaration.Sessions)),
@@ -112,18 +137,59 @@ func (h *Harness) keepTheClock(ctx context.Context) {
 	ticker := time.NewTicker(clockTick)
 	defer ticker.Stop()
 
-	h.fireDue(ctx)
+	h.tick(ctx)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			h.fireDue(ctx)
+			h.tick(ctx)
 		}
 	}
 }
 
+func (h *Harness) tick(ctx context.Context) {
+	h.fireWakeups(ctx)
+	h.fireDue(ctx)
+}
+
+// fireWakeups wakes the session for what it asked itself. Its own requests come
+// first: a session that asked to be woken when price crossed a level asked
+// because something needs doing before the next scheduled hour.
+func (h *Harness) fireWakeups(ctx context.Context) {
+	if h.Wakeups == nil {
+		return
+	}
+
+	var prices map[string]float64
+	if watching := h.Wakeups.Watching(); len(watching) > 0 && h.Prices != nil {
+		read, done := h.boundToAgent(ctx)
+		last, err := h.Prices.LastTrades(read, watching)
+		done()
+		if err != nil {
+			h.Log.Error("could not read the prices a wake-up is watching",
+				zap.Strings("symbols", watching), zap.Error(err))
+		}
+		prices = last
+	}
+
+	for _, due := range h.Wakeups.Due(h.Now(), prices) {
+		if turnID := h.runningTurn(); turnID != "" {
+			h.Log.Info("a wake-up came due while the agent is working",
+				zap.String("wakeup", due.ID), zap.String("turn_id", turnID))
+			// It has already been taken off the list: telling the session late is
+			// better than telling it twice while it works.
+		}
+		h.Log.Info("waking the session for its own reason",
+			zap.String("wakeup", due.ID), zap.String("cause", string(due.Cause)))
+		h.startTurnWith(ctx, due.Prompt(), "wakeup "+due.ID)
+	}
+}
+
 func (h *Harness) fireDue(ctx context.Context) {
+	if h.Declaration == nil {
+		return
+	}
 	now := h.Now().In(h.Declaration.Location())
 
 	for i := range h.Declaration.Sessions {

@@ -47,6 +47,12 @@ type Config struct {
 	// ThreadFile is where the conversation's identifier is kept between runs.
 	// Empty means a restart begins a new conversation.
 	ThreadFile string
+	// WakeupFile is where the session's standing wake-ups are kept between runs.
+	// Empty means the session is offered no way to ask for one.
+	WakeupFile string
+	// BrokerMCPURL is the broker's own server, read by the harness only to know
+	// when a price wake-up has come true.
+	BrokerMCPURL string
 	// AgentCallTimeout bounds one request to the agent. Without it a hung agent
 	// takes the chat down with it: the loop that reads messages is the same loop
 	// that talks to the agent.

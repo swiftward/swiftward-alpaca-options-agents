@@ -16,6 +16,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/agent"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
 
 // chatDouble accepts what production accepts and refuses what production
@@ -383,4 +384,157 @@ func TestASteerThatArrivesTooLateBecomesANewTurn(t *testing.T) {
 
 	turns, _, _ := conversation.seen()
 	assert.Contains(t, turns[1], "tell me the loss")
+}
+
+type wakeupsDouble struct {
+	mu       sync.Mutex
+	standing []wakeup.Wakeup
+	watching []string
+}
+
+func (w *wakeupsDouble) Due(now time.Time, price map[string]float64) []wakeup.Wakeup {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	var due []wakeup.Wakeup
+	kept := w.standing[:0]
+	for _, one := range w.standing {
+		if one.Kind == wakeup.KindAt && !now.Before(one.At) {
+			due = append(due, one)
+			continue
+		}
+		if one.Kind == wakeup.KindPrice {
+			last, ok := price[one.Symbol]
+			if ok && last <= one.Level {
+				due = append(due, one)
+				continue
+			}
+		}
+		kept = append(kept, one)
+	}
+	w.standing = kept
+
+	return due
+}
+
+func (w *wakeupsDouble) Watching() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return append([]string(nil), w.watching...)
+}
+
+type pricesDouble struct {
+	mu     sync.Mutex
+	last   map[string]float64
+	asked  [][]string
+	broken error
+}
+
+func (p *pricesDouble) LastTrades(_ context.Context, symbols []string) (map[string]float64, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.asked = append(p.asked, symbols)
+	if p.broken != nil {
+		return nil, p.broken
+	}
+
+	return p.last, nil
+}
+
+func (p *pricesDouble) timesAsked() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return len(p.asked)
+}
+
+// A session that asked to be woken must be woken, and told why it asked.
+func TestTheSessionIsWokenForItsOwnReason(t *testing.T) {
+	now := time.Date(2026, 8, 24, 15, 0, 0, 0, time.UTC)
+	standing := &wakeupsDouble{standing: []wakeup.Wakeup{{
+		ID: "w1", Kind: wakeup.KindAt, At: now.Add(-time.Minute),
+		Cause: "посмотреть, как открылась позиция",
+	}}}
+
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: conversation,
+		Wakeups:      standing,
+		CallTimeout:  2 * time.Second,
+		Now:          func() time.Time { return now },
+		Log:          zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	turns, _, _ := conversation.seen()
+	assert.Contains(t, turns[0], "посмотреть, как открылась позиция")
+}
+
+// A price wake-up needs a reading, and the harness asks only for the symbols
+// something is actually watching.
+func TestAPriceWakeUpFiresOnAReading(t *testing.T) {
+	now := time.Date(2026, 8, 24, 15, 0, 0, 0, time.UTC)
+	standing := &wakeupsDouble{
+		standing: []wakeup.Wakeup{{
+			ID: "w2", Kind: wakeup.KindPrice, Symbol: "SPY", Direction: wakeup.Below, Level: 760,
+			Cause: "цена подошла к проданному страйку",
+		}},
+		watching: []string{"SPY"},
+	}
+	prices := &pricesDouble{last: map[string]float64{"SPY": 759.5}}
+
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: conversation,
+		Wakeups:      standing,
+		Prices:       prices,
+		CallTimeout:  2 * time.Second,
+		Now:          func() time.Time { return now },
+		Log:          zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	turns, _, _ := conversation.seen()
+	assert.Contains(t, turns[0], "проданному страйку")
+	assert.Equal(t, [][]string{{"SPY"}}, prices.asked)
+}
+
+// With nothing watching a price, the broker is not asked at all: a reading
+// nobody needs is a request nobody should pay for.
+func TestNoPriceIsReadWhenNothingWatchesOne(t *testing.T) {
+	now := time.Date(2026, 8, 24, 15, 0, 0, 0, time.UTC)
+	standing := &wakeupsDouble{standing: []wakeup.Wakeup{{
+		ID: "w3", Kind: wakeup.KindAt, At: now.Add(time.Hour), Cause: "позже",
+	}}}
+	prices := &pricesDouble{}
+
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: conversation,
+		Wakeups:      standing,
+		Prices:       prices,
+		CallTimeout:  2 * time.Second,
+		Now:          func() time.Time { return now },
+		Log:          zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { return true })
+	assert.Zero(t, prices.timesAsked())
+	turns, _, _ := conversation.seen()
+	assert.Empty(t, turns)
 }

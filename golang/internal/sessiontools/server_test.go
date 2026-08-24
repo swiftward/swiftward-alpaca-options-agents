@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
 
 // The client here is the SDK's own, talking to our server over the same
@@ -23,7 +25,7 @@ import (
 func connect(t *testing.T, state *record.Memory, now func() time.Time) *mcp.ClientSession {
 	t.Helper()
 
-	server := httptest.NewServer(Handler(state, now, nil))
+	server := httptest.NewServer(Handler(state, now, nil, nil))
 	t.Cleanup(server.Close)
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
@@ -139,7 +141,7 @@ func TestPostToChatReachesTelegram(t *testing.T) {
 	}, zaptest.NewLogger(t))
 	require.NoError(t, err)
 
-	server := httptest.NewServer(Handler(record.NewMemory(), time.Now, bot))
+	server := httptest.NewServer(Handler(record.NewMemory(), time.Now, bot, nil))
 	t.Cleanup(server.Close)
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
@@ -155,4 +157,92 @@ func TestPostToChatReachesTelegram(t *testing.T) {
 	require.False(t, res.IsError, res.Content)
 	assert.Equal(t, "flatten done, no positions left", seen["text"])
 	assert.EqualValues(t, 7287, seen["message_thread_id"])
+}
+
+// The session sets its own wake-ups, sees them, and cancels them. The tools are
+// driven through the real MCP client, and the store behind them is the real one.
+func TestTheSessionManagesItsOwnWakeUps(t *testing.T) {
+	store, err := wakeup.Open(filepath.Join(t.TempDir(), "wakeups.json"))
+	require.NoError(t, err)
+
+	at := time.Date(2026, 9, 4, 13, 30, 0, 0, time.UTC)
+	server := httptest.NewServer(Handler(record.NewMemory(), func() time.Time { return at }, nil, store))
+	t.Cleanup(server.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	call := func(name string, args map[string]any) *mcp.CallToolResult {
+		t.Helper()
+		res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: args})
+		require.NoError(t, err)
+		return res
+	}
+
+	res := call("wake_me_at", map[string]any{
+		"cause": "посмотреть, как открылась позиция",
+		"at":    at.Add(time.Hour).Format(time.RFC3339),
+	})
+	require.False(t, res.IsError, res.Content)
+
+	res = call("wake_me_on_price", map[string]any{
+		"cause": "цена подошла к проданному страйку", "symbol": "SPY", "direction": "below", "level": 760.0,
+	})
+	require.False(t, res.IsError, res.Content)
+
+	standing := store.List()
+	require.Len(t, standing, 2)
+
+	res = call("list_wakeups", map[string]any{})
+	require.False(t, res.IsError, res.Content)
+	listed, err := json.Marshal(res.StructuredContent)
+	require.NoError(t, err)
+	assert.Contains(t, string(listed), "проданному страйку")
+
+	res = call("cancel_wakeup", map[string]any{"id": standing[0].ID})
+	require.False(t, res.IsError, res.Content)
+	assert.Len(t, store.List(), 1)
+
+	res = call("cancel_wakeup", map[string]any{"id": standing[0].ID})
+	assert.True(t, res.IsError, "cancelling what is already gone must not read as success")
+}
+
+// A time in the past would never fire, and a session that asked for it would
+// wait for a wake-up that cannot come.
+func TestAWakeUpInThePastIsRefused(t *testing.T) {
+	store, err := wakeup.Open(filepath.Join(t.TempDir(), "wakeups.json"))
+	require.NoError(t, err)
+
+	at := time.Date(2026, 9, 4, 13, 30, 0, 0, time.UTC)
+	server := httptest.NewServer(Handler(record.NewMemory(), func() time.Time { return at }, nil, store))
+	t.Cleanup(server.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "wake_me_at",
+		Arguments: map[string]any{"cause": "уже прошло", "at": at.Add(-time.Hour).Format(time.RFC3339)},
+	})
+	require.NoError(t, err)
+	assert.True(t, res.IsError)
+	assert.Empty(t, store.List())
+}
+
+// With no clock behind them the tools are not offered: a session that sees a
+// tool assumes something will act on it.
+func TestWakeUpToolsAreAbsentWithoutAStore(t *testing.T) {
+	session := connect(t, record.NewMemory(), time.Now)
+
+	var names []string
+	for tool, err := range session.Tools(context.Background(), nil) {
+		require.NoError(t, err)
+		names = append(names, tool.Name)
+	}
+	assert.NotContains(t, names, "wake_me_at")
+	assert.NotContains(t, names, "list_wakeups")
 }
