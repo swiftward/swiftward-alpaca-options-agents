@@ -43,6 +43,9 @@ type Config struct {
 	AgentDir     string
 	AgentSandbox string
 	AgentModel   string
+	// ThreadFile is where the conversation's identifier is kept between runs.
+	// Empty means a restart begins a new conversation.
+	ThreadFile string
 
 	// Shared.
 	DatabaseURL  string
@@ -80,6 +83,7 @@ func Load() (Config, error) {
 		AgentDir:        k.String("agent_dir"),
 		AgentSandbox:    k.String("agent_sandbox"),
 		AgentModel:      k.String("agent_model"),
+		ThreadFile:      k.String("thread_file"),
 		DatabaseURL:     k.String("database_url"),
 		GatewayURL:      k.String("gateway_url"),
 		GatewayToken:    k.String("gateway_token"),

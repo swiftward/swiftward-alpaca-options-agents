@@ -65,6 +65,8 @@ services:
       # where one is real would only stall every command.
       AGENT_SANDBOX: danger-full-access
       AGENT_MODEL: ${AGENT_MODEL}
+      # Kept in the work volume, so a restart continues the same conversation.
+      THREAD_FILE: /work/.thread
       SESSION_MCP_URL: http://app:8081
       # Set only while the gateway is not yet in front of the broker, and only on
       # a development account.

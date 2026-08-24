@@ -105,7 +105,7 @@ func run(log *zap.Logger) error {
 				Model:   cfg.AgentModel,
 				Sandbox: cfg.AgentSandbox,
 				Dir:     cfg.AgentDir,
-			})
+			}, cfg.ThreadFile)
 		}
 
 		group.Go(func() error { return h.Run(ctx) })

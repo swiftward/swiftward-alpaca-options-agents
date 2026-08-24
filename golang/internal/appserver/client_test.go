@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -139,4 +140,54 @@ func TestThreadOptionsRefuseToAsk(t *testing.T) {
 
 	chosen := ThreadOptions{ApprovalPolicy: "on-request"}.params()
 	assert.Equal(t, "on-request", chosen["approvalPolicy"], "an operator who names a policy gets it")
+}
+
+// A restart must not meet a person who wrote yesterday as a stranger, so the
+// thread identifier outlives the process.
+func TestConversationRemembersItsThread(t *testing.T) {
+	agent := fakeAgent(t, answerHandshake+`
+read line   # thread/start
+echo '{"jsonrpc":"2.0","id":2,"result":{"thread":{"id":"th-remembered"}}}'
+read line
+`)
+	client, err := Dial(context.Background(), agent, zaptest.NewLogger(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	file := filepath.Join(t.TempDir(), "state", ".thread")
+	first := NewConversation(client, ThreadOptions{}, file)
+
+	threadID, err := first.Open(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "th-remembered", threadID)
+
+	written, err := os.ReadFile(file)
+	require.NoError(t, err)
+	assert.Equal(t, "th-remembered", strings.TrimSpace(string(written)))
+}
+
+func TestConversationResumesWhatWasRemembered(t *testing.T) {
+	seen := filepath.Join(t.TempDir(), "requests.txt")
+	agent := fakeAgent(t, answerHandshake+`
+while read line; do
+  echo "$line" >> `+seen+`
+  id=$(echo "$line" | sed -n 's/.*"id":\([0-9]*\).*/\1/p')
+  echo "{\"jsonrpc\":\"2.0\",\"id\":$id,\"result\":{}}"
+done
+`)
+	client, err := Dial(context.Background(), agent, zaptest.NewLogger(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	file := filepath.Join(t.TempDir(), ".thread")
+	require.NoError(t, os.WriteFile(file, []byte("th-from-yesterday\n"), 0o600))
+
+	threadID, err := NewConversation(client, ThreadOptions{}, file).Open(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "th-from-yesterday", threadID)
+
+	raw, err := os.ReadFile(seen)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"method":"thread/resume"`)
+	assert.NotContains(t, string(raw), `"method":"thread/start"`)
 }

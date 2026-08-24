@@ -1,6 +1,11 @@
 package appserver
 
-import "context"
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+)
 
 // Conversation is one thread with the agent, opened once and continued across
 // turns. It exists so a caller states what it wants - open, take a turn, steer,
@@ -8,17 +13,33 @@ import "context"
 type Conversation struct {
 	client  *Client
 	options ThreadOptions
+	// rememberIn is where the thread identifier is kept between runs. Empty means
+	// a restart starts a new conversation, which is the right behavior only when
+	// nobody expects yesterday to be remembered.
+	rememberIn string
 
 	threadID string
 }
 
-func NewConversation(client *Client, options ThreadOptions) *Conversation {
-	return &Conversation{client: client, options: options}
+func NewConversation(client *Client, options ThreadOptions, rememberIn string) *Conversation {
+	return &Conversation{client: client, options: options, rememberIn: rememberIn}
 }
 
+// Open returns the thread this conversation runs in, opening or resuming it once.
+// A restart resumes what was remembered, so a person who wrote yesterday is not
+// met by an agent that has never heard of them.
 func (c *Conversation) Open(ctx context.Context) (string, error) {
 	if c.threadID != "" {
 		return c.threadID, nil
+	}
+
+	if remembered := c.remembered(); remembered != "" {
+		if err := c.client.ResumeThread(ctx, remembered, c.options); err == nil {
+			c.threadID = remembered
+			return remembered, nil
+		}
+		// The remembered thread is gone or unusable. Starting a fresh one is
+		// better than refusing to work, and the next write replaces the note.
 	}
 
 	threadID, err := c.client.StartThread(ctx, c.options)
@@ -26,9 +47,35 @@ func (c *Conversation) Open(ctx context.Context) (string, error) {
 		return "", err
 	}
 	c.threadID = threadID
+	c.remember(threadID)
 
 	return threadID, nil
 }
+
+func (c *Conversation) remembered() string {
+	if c.rememberIn == "" {
+		return ""
+	}
+	raw, err := os.ReadFile(c.rememberIn)
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(string(raw))
+}
+
+func (c *Conversation) remember(threadID string) {
+	if c.rememberIn == "" {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(c.rememberIn), 0o700); err != nil {
+		return
+	}
+	_ = os.WriteFile(c.rememberIn, []byte(threadID+"\n"), 0o600)
+}
+
+// ThreadID reports the thread in use, empty before the first turn.
+func (c *Conversation) ThreadID() string { return c.threadID }
 
 func (c *Conversation) Turn(ctx context.Context, text string) (string, error) {
 	threadID, err := c.Open(ctx)
