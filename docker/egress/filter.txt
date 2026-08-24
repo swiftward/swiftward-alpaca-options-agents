@@ -1,3 +1,7 @@
+# The hosts a session may reach. Everything else is refused and logged.
+# The agent's model provider:
 ^api\.openai\.com$
 ^chatgpt\.com$
 ^auth\.openai\.com$
+# The room the harness posts to and reads from:
+^api\.telegram\.org$

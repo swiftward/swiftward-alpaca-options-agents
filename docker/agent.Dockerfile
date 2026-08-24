@@ -18,15 +18,21 @@ RUN npm install -g @openai/codex@${CODEX_VERSION} \
     && command -v codex >/dev/null
 
 COPY --from=build /out/app /usr/local/bin/app
+COPY docker/agent-entrypoint.sh /usr/local/bin/entrypoint
 COPY agent/ /agent/
 COPY playbooks/ /playbooks/
+RUN chmod +x /usr/local/bin/entrypoint
 
-RUN adduser -D -u 1001 agent && mkdir -p /work && chown agent:agent /work
-USER agent
-
-# Codex keeps its login and its session files here; compose mounts a writable
-# volume over it, because the CLI refreshes the token as it runs.
+# The session runs as the same user id that owns the login on the host: that file
+# is readable by its owner alone, and a mismatch here shows up as a session that
+# cannot start. AGENT_UID is a build argument for hosts where it is not 1000.
+ARG AGENT_UID=1000
+ENV HOME=/home/agent
 ENV CODEX_HOME=/home/agent/.codex
+RUN mkdir -p ${CODEX_HOME} /work \
+    && chown -R ${AGENT_UID}:${AGENT_UID} ${HOME} /work
+USER ${AGENT_UID}
+
 WORKDIR /work
 
-ENTRYPOINT ["/usr/local/bin/app"]
+ENTRYPOINT ["/usr/local/bin/entrypoint"]

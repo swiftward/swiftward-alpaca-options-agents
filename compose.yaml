@@ -71,12 +71,15 @@ services:
     build:
       context: .
       dockerfile: docker/agent.Dockerfile
+      args:
+        AGENT_UID: ${AGENT_UID}
     networks: [internal]
     environment:
       ROLES: harness
       AGENT_COMMAND: codex
       AGENT_DIR: /work
       AGENT_SANDBOX: workspace-write
+      SESSION_MCP_URL: http://app:8081
       DECLARATION: ${DECLARATION}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
