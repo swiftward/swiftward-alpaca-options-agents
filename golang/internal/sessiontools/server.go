@@ -84,7 +84,7 @@ type noInput struct{}
 
 // Handler serves this server over Streamable HTTP. now is the clock the tools
 // stamp with; it is passed in so a test is not at the mercy of the wall clock.
-func Handler(state *record.Memory, now func() time.Time, poster Poster, wakeups Wakeups) http.Handler {
+func Handler(state record.Keeper, now func() time.Time, poster Poster, wakeups Wakeups) http.Handler {
 	server := mcp.NewServer(&mcp.Implementation{Name: name, Version: version}, nil)
 
 	mcp.AddTool(server,
@@ -97,13 +97,15 @@ func Handler(state *record.Memory, now func() time.Time, poster Poster, wakeups 
 				return nil, recordIntentOutput{}, fmt.Errorf("session, thesis, structure and max_loss are all required")
 			}
 			at := now()
-			state.AppendIntent(record.Intent{
+			if err := state.AppendIntent(ctx, record.Intent{
 				At:        at,
 				Session:   in.Session,
 				Thesis:    in.Thesis,
 				Structure: in.Structure,
 				MaxLoss:   in.MaxLoss,
-			})
+			}); err != nil {
+				return nil, recordIntentOutput{}, err
+			}
 			return nil, recordIntentOutput{RecordedAt: at}, nil
 		})
 
@@ -113,7 +115,11 @@ func Handler(state *record.Memory, now func() time.Time, poster Poster, wakeups 
 			Description: "Read the ruleset in force, the limits it declares, the intents recorded so far and the refusals returned.",
 		},
 		func(ctx context.Context, req *mcp.CallToolRequest, _ readStateInput) (*mcp.CallToolResult, record.State, error) {
-			return nil, state.Read(), nil
+			current, err := state.Read(ctx)
+			if err != nil {
+				return nil, record.State{}, err
+			}
+			return nil, current, nil
 		})
 
 	if poster != nil {

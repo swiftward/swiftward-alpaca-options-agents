@@ -15,6 +15,7 @@ import (
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/agent"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
@@ -603,4 +604,57 @@ func TestHowLongReadsLikeRussian(t *testing.T) {
 	for took, want := range cases {
 		assert.Equal(t, want, howLong(took), took.String())
 	}
+}
+
+// The record is read long after the room, so a turn is written down and closed
+// whether or not a chat is configured. Before this, the loop that closes a turn
+// ran only beside a chat, and a scheduled session left an open turn forever.
+func TestATurnIsRecordedAndClosedWithoutAChat(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+kind: trading-agent
+name: options-alpha
+version: v1
+timezone: UTC
+sessions:
+  - name: flatten
+    cause: "закрыть всё перед концом дня"
+    task: "Закрой все позиции."
+    at: "15:50"
+    within: 20m
+`), 0o600))
+
+	declared, err := declaration.Load(path)
+	require.NoError(t, err)
+
+	conversation := newConversationSpy()
+	kept := record.NewMemory()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: conversation,
+		Declaration:  declared,
+		Record:       kept,
+		CallTimeout:  2 * time.Second,
+		Now:          func() time.Time { return time.Date(2026, 8, 24, 15, 50, 0, 0, time.UTC) },
+		Log:          zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool {
+		state, err := kept.Read(ctx)
+		return err == nil && len(state.Turns) == 1
+	})
+
+	state, err := kept.Read(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, "flatten", state.Turns[0].WokenBy)
+	assert.Contains(t, state.Turns[0].Cause, "закрыть всё перед концом дня")
+
+	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
+	waitFor(t, func() bool {
+		state, err := kept.Read(ctx)
+		return err == nil && len(state.Turns) == 1 && state.Turns[0].FinishedAt != nil
+	})
 }

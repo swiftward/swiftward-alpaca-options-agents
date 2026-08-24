@@ -55,7 +55,20 @@ func run(log *zap.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	state := record.NewMemory()
+	// The record outlives the process: a judge opening the page after a restart
+	// must still see the week, not an empty screen.
+	var state record.Keeper = record.NewMemory()
+	if cfg.DatabaseURL != "" {
+		kept, err := record.Connect(ctx, cfg.DatabaseURL, cfg.RecordShows)
+		if err != nil {
+			return err
+		}
+		defer kept.Close()
+		state = kept
+		log.Info("record kept in postgres", zap.Int("shows", cfg.RecordShows))
+	} else {
+		log.Warn("no DATABASE_URL: the record lives only as long as this process")
+	}
 
 	// What the session asked to be woken for outlives the process: a promise the
 	// harness forgot would be worse than one it never made.
@@ -108,11 +121,20 @@ func run(log *zap.Logger) error {
 	}
 
 	if cfg.Has(config.RoleHarness) {
+		// A turn open at startup was interrupted by whatever ended the last
+		// process. Saying so is the answer to "did we restart mid-work?".
+		if left, err := state.CloseTurnsLeftOpen(ctx, time.Now()); err != nil {
+			return err
+		} else if left > 0 {
+			log.Warn("turns were left open by an earlier process", zap.Int("turns", left))
+		}
+
 		h := &harness.Harness{
 			CallTimeout: cfg.AgentCallTimeout,
 			Now:         time.Now,
 			Log:         log.Named("harness"),
 		}
+		h.Record = state
 		if wakeups != nil {
 			h.Wakeups = wakeups
 		}

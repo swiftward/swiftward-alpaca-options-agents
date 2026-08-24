@@ -59,7 +59,10 @@ type Config struct {
 	AgentCallTimeout time.Duration
 
 	// Shared.
-	DatabaseURL  string
+	DatabaseURL string
+	// RecordShows is how many turns, intents and refusals the page carries. The
+	// record is a week long by the end; a page is read in one screen.
+	RecordShows  int
 	GatewayURL   string
 	GatewayToken string
 
@@ -89,6 +92,11 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	shows := k.Int("record_shows")
+	if shows <= 0 {
+		shows = defaultRecordShows
+	}
+
 	return Config{
 		Roles:            roles,
 		Addr:             k.String("addr"),
@@ -104,6 +112,7 @@ func Load() (Config, error) {
 		BrokerMCPURL:     k.String("broker_mcp_url"),
 		AgentCallTimeout: callTimeout,
 		DatabaseURL:      k.String("database_url"),
+		RecordShows:      shows,
 		GatewayURL:       k.String("gateway_url"),
 		GatewayToken:     k.String("gateway_token"),
 		Telegram: telegram.Config{
@@ -130,6 +139,10 @@ func parseRoles(raw string) ([]Role, error) {
 	}
 	return out, nil
 }
+
+// defaultRecordShows is how much of the record the page carries when nobody said
+// otherwise: enough for a day of work to be read in one screen.
+const defaultRecordShows = 50
 
 // parseUserIDs reads the allowlist out of one environment string. The values
 // arrive as text and stay text until they are numbers here: an id that does not

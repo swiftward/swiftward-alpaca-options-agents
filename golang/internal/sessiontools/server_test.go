@@ -64,7 +64,8 @@ func TestRecordIntentReachesTheState(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, res.IsError, res.Content)
 
-	stored := state.Read()
+	stored, err := state.Read(context.Background())
+	require.NoError(t, err)
 	require.Len(t, stored.Intents, 1)
 	assert.Equal(t, "entry", stored.Intents[0].Session)
 	assert.Equal(t, at, stored.Intents[0].At)
@@ -84,16 +85,18 @@ func TestRecordIntentRefusesAnIncompleteIntent(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.True(t, res.IsError, "an intent without its maximum loss is not an intent")
-	assert.Empty(t, state.Read().Intents)
+	stored, err := state.Read(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, stored.Intents)
 }
 
 func TestReadStateReturnsWhatWasRecorded(t *testing.T) {
 	state := record.NewMemory()
-	state.AppendRefusal(record.Refusal{
+	require.NoError(t, state.AppendRefusal(context.Background(), record.Refusal{
 		At:       time.Date(2026, 9, 3, 18, 0, 0, 0, time.UTC),
 		Boundary: "max_loss_per_position",
 		Detail:   "structure risks 1.4% of capital, ceiling is 1%",
-	})
+	}))
 	session := connect(t, state, time.Now)
 
 	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "read_state"})

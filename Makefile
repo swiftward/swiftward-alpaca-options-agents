@@ -1,9 +1,9 @@
-# Root Makefile. Every target here delegates to golang/, typescript/ or postgres/.
+# Root Makefile. Every target here delegates to golang/, typescript/ or docker compose.
 
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
-.PHONY: help up down build test lint migrate seed fmt
+.PHONY: help up down build test test-db lint migrate fmt
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS=":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -25,6 +25,9 @@ test: ## Прогнать тесты
 	$(MAKE) -C golang test
 	$(MAKE) -C typescript test
 
+test-db: ## Прогнать тесты записи в настоящем Postgres
+	docker compose --env-file .env run --rm tests
+
 lint: ## Проверить стиль
 	$(MAKE) -C golang lint
 	$(MAKE) -C typescript lint
@@ -32,5 +35,5 @@ lint: ## Проверить стиль
 fmt: ## Отформатировать
 	$(MAKE) -C golang fmt
 
-migrate: ## Накатить миграции
-	$(MAKE) -C postgres migrate
+migrate: ## Накатить миграции (стек делает это сам при подъёме)
+	docker compose --env-file .env run --rm migrate

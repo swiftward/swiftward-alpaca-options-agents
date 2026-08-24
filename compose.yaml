@@ -2,11 +2,11 @@ name: swiftward-alpaca-options-agents
 
 # Local stack, built from this checkout. `make up` builds and starts it.
 #
-# Two networks on purpose. `internal` has no route out and no published ports.
-# The services that must reach the public internet - the app, which talks to the
-# policy gateway, and Alpaca's server, which talks to Alpaca - also sit on
-# `outbound`. The agent sits on `internal` alone, so its only ways anywhere are
-# the services beside it and the egress proxy, whose allowlist it cannot widen.
+# Two networks on purpose. `internal` has no route out and cannot publish a port.
+# The services that must reach the public internet - Alpaca's own server, and the
+# page a browser opens - also sit on `outbound`. The agent sits on `internal`
+# alone, so its only ways anywhere are the services beside it and the egress
+# proxy, whose allowlist it cannot widen.
 
 services:
   postgres:
@@ -16,8 +16,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "${POSTGRES_PORT}:5432"
     volumes:
       - pgdata:/var/lib/postgresql
     healthcheck:
@@ -25,6 +23,50 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  # The schema, applied before anything reads it. Files run in name order, and
+  # each is written to be safe to run again, so a restart is not a special case.
+  migrate:
+    image: postgres:18.4-alpine
+    networks: [internal]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./postgres/migrations:/migrations:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        for f in /migrations/*.sql; do
+          echo "-> $$f";
+          psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -f "$$f" || exit 1;
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # The database tier: the record's tests against the real Postgres, run beside
+  # it on the network that has no route out. `make test-db` starts this.
+  tests:
+    image: golang:1.27-alpine
+    networks: [internal]
+    working_dir: /src
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      GOFLAGS: -buildvcs=false
+      # This network has no route out, so every module must already be in the
+      # cache mounted below. A download here is an error, not a wait.
+      GOPROXY: "off"
+      GOCACHE: /tmp/gocache
+    volumes:
+      - ./golang:/src
+      - ./postgres:/postgres:ro
+      - ${GOMODCACHE}:/go/pkg/mod
+    command: ["go", "test", "-tags", "db", "-count=1", "./internal/record/..."]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    profiles: [test]
 
   # Alpaca's own MCP server. The account keys live here and nowhere else; no host
   # port, so the only caller is the policy gateway.
@@ -42,19 +84,40 @@ services:
   # The session's container: the harness role plus the agent it starts. It holds
   # no credential of ours; the login it does carry is Codex's own, mounted from
   # the host that performed it.
+  # The read side: the demo page and the JSON behind it. It reads the record and
+  # nothing else - no credential, no broker, no decision - so it is the one
+  # service that may sit where a browser can reach it.
+  page:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      target: page
+    networks: [internal, outbound]
+    environment:
+      ROLES: api
+      ADDR: ":8080"
+      WEB_DIR: /srv/web
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      RECORD_SHOWS: ${RECORD_SHOWS}
+    ports:
+      - "${APP_PORT}:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   agent:
     build:
       context: .
-      dockerfile: docker/agent.Dockerfile
+      dockerfile: docker/app.Dockerfile
+      target: agent
       args:
         AGENT_UID: ${AGENT_UID}
     networks: [internal]
     environment:
-      ROLES: harness,api,mcp
-      ADDR: ":8080"
+      ROLES: harness,mcp
       MCP_ADDR: ":8081"
-      WEB_DIR: /srv/web
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      RECORD_SHOWS: ${RECORD_SHOWS}
       AGENT_COMMAND: codex
       AGENT_DIR: /work
       # The container is the sandbox: root filesystem read-only, one writable
@@ -88,8 +151,6 @@ services:
       - ${CODEX_AUTH_DIR}:/mnt/codex:ro
       - codex-home:/home/agent/.codex
       - agent-work:/work
-    ports:
-      - "${APP_PORT}:8080"
     # The claims the architecture makes about this container, enforced here: it
     # cannot write outside its work directory, cannot gain privileges, and holds
     # no capability it was not given.
@@ -100,8 +161,8 @@ services:
     security_opt:
       - no-new-privileges:true
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     profiles: [session]
 
   # The only door out. Hosts not named in docker/egress/filter.txt are refused.

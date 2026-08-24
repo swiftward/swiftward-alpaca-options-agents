@@ -1,6 +1,7 @@
 package record
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -12,17 +13,22 @@ import (
 // A page reading null cannot tell "nothing happened yet" from "this field does
 // not work", so an empty state serializes as empty lists.
 func TestEmptyStateSerializesAsLists(t *testing.T) {
-	raw, err := json.Marshal(NewMemory().Read())
+	state, err := NewMemory().Read(context.Background())
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"ruleset":"none","limits":[],"intents":[],"refusals":[]}`, string(raw))
+	raw, err := json.Marshal(state)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"ruleset":"none","limits":[],"turns":[],"intents":[],"refusals":[]}`, string(raw))
 }
 
 func TestReadReturnsACopy(t *testing.T) {
 	m := NewMemory()
-	m.AppendIntent(Intent{At: time.Unix(0, 0).UTC(), Session: "entry"})
+	require.NoError(t, m.AppendIntent(context.Background(), Intent{At: time.Unix(0, 0).UTC(), Session: "entry"}))
 
-	first := m.Read()
+	first, err := m.Read(context.Background())
+	require.NoError(t, err)
 	first.Intents[0].Session = "changed by the caller"
 
-	assert.Equal(t, "entry", m.Read().Intents[0].Session)
+	again, err := m.Read(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "entry", again.Intents[0].Session)
 }

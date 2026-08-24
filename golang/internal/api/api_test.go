@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -18,13 +19,13 @@ import (
 
 func TestHealthAndState(t *testing.T) {
 	state := record.NewMemory()
-	state.AppendIntent(record.Intent{
+	require.NoError(t, state.AppendIntent(context.Background(), record.Intent{
 		At:        time.Date(2026, 9, 2, 19, 30, 0, 0, time.UTC),
 		Session:   "event",
 		Thesis:    "implied volatility collapses after the report",
 		Structure: "four legs on AVGO",
 		MaxLoss:   "1% of capital",
-	})
+	}))
 
 	handler, err := Handler(state, "", zaptest.NewLogger(t))
 	require.NoError(t, err)

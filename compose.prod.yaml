@@ -12,8 +12,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "${POSTGRES_PORT}:5432"
     volumes:
       - pgdata:/var/lib/postgresql
     healthcheck:
@@ -21,6 +19,27 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  # The schema, applied before anything reads it. Files run in name order, and
+  # each is written to be safe to run again, so a restart is not a special case.
+  migrate:
+    image: postgres:18.4-alpine
+    networks: [internal]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./postgres/migrations:/migrations:ro
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        for f in /migrations/*.sql; do
+          echo "-> $$f";
+          psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -f "$$f" || exit 1;
+        done
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   alpaca-mcp:
     image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/alpaca-mcp:${IMAGE_TAG}
@@ -31,36 +50,29 @@ services:
       ALPACA_PAPER_TRADE: ${ALPACA_PAPER}
       ALPACA_TOOLSETS: ${ALPACA_TOOLSETS}
 
-  app:
-    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/app:${IMAGE_TAG}
+  page:
+    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/page:${IMAGE_TAG}
     networks: [internal, outbound]
     environment:
-      ROLES: ${ROLES}
+      ROLES: api
       ADDR: ":8080"
-      MCP_ADDR: ":8081"
       WEB_DIR: /srv/web
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
-      GATEWAY_URL: ${GATEWAY_URL}
-      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
-      DECLARATION: ${DECLARATION:-/agent/agent.yaml}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
-      TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}
+      RECORD_SHOWS: ${RECORD_SHOWS}
     ports:
       - "${APP_PORT}:8080"
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   agent:
     image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/agent:${IMAGE_TAG}
     networks: [internal]
     environment:
-      ROLES: harness,api,mcp
-      ADDR: ":8080"
+      ROLES: harness,mcp
       MCP_ADDR: ":8081"
-      WEB_DIR: /srv/web
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      RECORD_SHOWS: ${RECORD_SHOWS}
       AGENT_COMMAND: codex
       AGENT_DIR: /work
       # The container is the sandbox: root filesystem read-only, one writable
@@ -94,8 +106,6 @@ services:
       - ${CODEX_AUTH_DIR}:/mnt/codex:ro
       - codex-home:/home/agent/.codex
       - agent-work:/work
-    ports:
-      - "${APP_PORT}:8080"
     # The claims the architecture makes about this container, enforced here: it
     # cannot write outside its work directory, cannot gain privileges, and holds
     # no capability it was not given.
@@ -106,8 +116,8 @@ services:
     security_opt:
       - no-new-privileges:true
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     profiles: [session]
 
   egress:

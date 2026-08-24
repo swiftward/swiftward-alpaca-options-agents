@@ -18,6 +18,7 @@ import (
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/agent"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
@@ -75,6 +76,9 @@ type Harness struct {
 	// Declaration names the sessions the clock wakes. Nil means the clock wakes
 	// nobody and the chat is the only cause.
 	Declaration *declaration.Declaration
+	// Record is where a turn, an intent and a refusal are written down. Nil means
+	// nothing is recorded, which is legal only in a test.
+	Record record.Keeper
 	// Wakeups are the session's own standing requests. Nil means it has none and
 	// was offered no way to make them.
 	Wakeups Wakeups
@@ -117,9 +121,9 @@ func (h *Harness) Run(ctx context.Context) error {
 	}
 	h.lastRun = map[string]time.Time{}
 
-	if h.Chat != nil {
-		go h.postWhatTheSessionSays(ctx)
-	}
+	// Followed whether or not anybody is watching the chat: this is the loop that
+	// closes a turn in the record, and the record is read long after the room.
+	go h.followTheSession(ctx)
 	if h.Declaration != nil || h.Wakeups != nil {
 		go h.keepTheClock(ctx)
 	}
@@ -304,6 +308,19 @@ func (h *Harness) startTurnWith(ctx context.Context, prompt, who, model string) 
 	h.turnStarted = h.Now()
 	h.mu.Unlock()
 
+	if h.Record != nil {
+		if err := h.Record.TurnStarted(ctx, record.Turn{
+			Ref:       turnID,
+			ThreadRef: threadID,
+			StartedAt: h.Now(),
+			WokenBy:   who,
+			Cause:     firstLine(prompt),
+			Model:     model,
+		}); err != nil {
+			h.Log.Error("could not record the turn", zap.Error(err))
+		}
+	}
+
 	go h.showTyping(ctx, turnID)
 
 	h.Log.Info("turn started",
@@ -339,10 +356,10 @@ func (h *Harness) stop(ctx context.Context) {
 	h.Log.Info("turn interrupted by a person", zap.String("turn_id", turnID))
 }
 
-// postWhatTheSessionSays is the one place the room learns what happened: whole
-// messages are posted, tool calls replace one status line rather than adding a
-// message, and the end of a turn closes that line.
-func (h *Harness) postWhatTheSessionSays(ctx context.Context) {
+// followTheSession reads the agent's stream: whole messages are posted, tool
+// calls replace one status line rather than adding a message, and the end of a
+// turn closes both that line and the turn in the record.
+func (h *Harness) followTheSession(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -385,6 +402,11 @@ func (h *Harness) finishTurn(ctx context.Context, turnID string) {
 		}
 	}
 	h.say(ctx, finished(who, h.Now().Sub(started)))
+	if h.Record != nil && turnID != "" {
+		if err := h.Record.TurnFinished(ctx, turnID, h.Now(), ""); err != nil {
+			h.Log.Error("could not close the turn in the record", zap.Error(err))
+		}
+	}
 	h.Log.Info("turn finished", zap.String("turn_id", turnID))
 }
 
@@ -518,6 +540,15 @@ func (h *Harness) updateStatus(ctx context.Context, text string) {
 // judged on whether it should have.
 func promptFor(msg telegram.Message) string {
 	return "Woken by a person in the chat.\n" + textOf(msg)
+}
+
+// firstLine is the cause: every prompt opens with why the session was woken.
+func firstLine(prompt string) string {
+	if cut := strings.IndexByte(prompt, '\n'); cut > 0 {
+		return prompt[:cut]
+	}
+
+	return prompt
 }
 
 func textOf(msg telegram.Message) string {

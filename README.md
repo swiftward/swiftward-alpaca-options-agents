@@ -18,12 +18,12 @@ The same strategy declaration is read twice: by the backtester over history, and
 
 | Path | What is in it |
 |---|---|
-| `golang/apps/app` | one binary, three roles: `harness` holds the clock, `api` serves the read side and the built page, `mcp` carries the agent's own two tools |
+| `golang/apps/app` | one binary, three roles: `harness` holds the clock, `api` serves the read side and the built page, `mcp` carries the session's own tools |
 | `golang/apps/backtest` | runs a strategy declaration over historical data |
 | `golang/internal` | packages behind those two |
 | `typescript/web` | the demo page: current limits, recent refusals, open positions |
 | `docker` | one Dockerfile per service, including the egress proxy and its allowlist |
-| `postgres/migrations` | schema |
+| `postgres/migrations` | schema, applied by the `migrate` service before anything reads it |
 | `playbooks` | strategy declarations, one file per strategy |
 | `agent` | what the agent itself reads: prompts, skills, MCP configuration |
 | `docs` | write-up and architecture |
@@ -33,7 +33,6 @@ The same strategy declaration is read twice: by the backtester over history, and
 ```
 cp .env.example .env     # fill in the keys
 make up                  # local stack, built from this checkout
-make migrate             # schema
 ```
 
 `make prod-up` runs the same stack from published images.

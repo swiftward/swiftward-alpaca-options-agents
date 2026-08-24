@@ -108,6 +108,7 @@ func TestEveryDeclaredSettingIsRead(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://agents@postgres/agents")
 	t.Setenv("GATEWAY_URL", "https://gateway.example/mcp")
 	t.Setenv("GATEWAY_TOKEN", "secret")
+	t.Setenv("RECORD_SHOWS", "25")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -127,4 +128,16 @@ func TestEveryDeclaredSettingIsRead(t *testing.T) {
 	assert.Equal(t, "https://gateway.example/mcp", cfg.GatewayURL)
 	assert.Equal(t, "secret", cfg.GatewayToken)
 	assert.Equal(t, 90*time.Second, cfg.AgentCallTimeout)
+	assert.Equal(t, 25, cfg.RecordShows)
+}
+
+// Without the setting the page still has to carry something: an unset knob that
+// means zero would serve an empty record and look like an agent that never ran.
+func TestTheRecordShowsSomethingByDefault(t *testing.T) {
+	t.Setenv("ROLES", "api")
+	t.Setenv("AGENT_CALL_TIMEOUT", "")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, defaultRecordShows, cfg.RecordShows)
 }

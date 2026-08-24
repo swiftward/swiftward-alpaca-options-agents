@@ -15,7 +15,7 @@ import (
 // Handler builds the read-side routes. webDir is the directory holding the built
 // page; when it is empty only the JSON routes are served, and the log says so,
 // because a page served from nowhere would look like a broken deployment.
-func Handler(state *record.Memory, webDir string, log *zap.Logger) (http.Handler, error) {
+func Handler(state record.Keeper, webDir string, log *zap.Logger) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -23,8 +23,15 @@ func Handler(state *record.Memory, webDir string, log *zap.Logger) (http.Handler
 	})
 
 	mux.HandleFunc("GET /state", func(w http.ResponseWriter, r *http.Request) {
+		current, err := state.Read(r.Context())
+		if err != nil {
+			log.Error("read the record", zap.Error(err))
+			http.Error(w, "the record is unavailable", http.StatusServiceUnavailable)
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(state.Read()); err != nil {
+		if err := json.NewEncoder(w).Encode(current); err != nil {
 			log.Error("encode state", zap.Error(err))
 		}
 	})
