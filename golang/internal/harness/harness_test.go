@@ -13,13 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/session"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/appserver"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 )
 
-// chatDouble stands in for the room. It accepts what production accepts and
-// refuses what production refuses - an empty message reaches Telegram from
-// neither.
+// chatDouble accepts what production accepts and refuses what production
+// refuses: an empty message reaches Telegram from neither.
 type chatDouble struct {
 	mu       sync.Mutex
 	inbound  chan telegram.Message
@@ -50,7 +49,7 @@ func (c *chatDouble) Send(_ context.Context, text string) (int, error) {
 	return c.nextID, nil
 }
 
-func (c *chatDouble) Edit(_ context.Context, messageID int, text string) error {
+func (c *chatDouble) Edit(_ context.Context, _ int, text string) error {
 	if text == "" {
 		return fmt.Errorf("refusing to edit a message to nothing")
 	}
@@ -72,38 +71,57 @@ func (c *chatDouble) statusTexts() []string {
 	return append([]string(nil), c.statuses...)
 }
 
-type sessionSpy struct {
-	mu       sync.Mutex
-	requests []session.Request
-	result   session.Result
-	err      error
-	text     []string
-	tools    []string
+type conversationSpy struct {
+	mu         sync.Mutex
+	events     chan appserver.Event
+	turns      []string
+	steered    []string
+	interrupts []string
+	turnErr    error
+	steerErr   error
+	nextTurn   int
 }
 
-func (s *sessionSpy) Run(_ context.Context, req session.Request, on session.Handlers) (session.Result, error) {
-	s.mu.Lock()
-	s.requests = append(s.requests, req)
-	s.mu.Unlock()
-
-	for _, name := range s.tools {
-		if on.Tool != nil {
-			on.Tool(name)
-		}
-	}
-	for _, t := range s.text {
-		if on.Text != nil {
-			on.Text(t)
-		}
-	}
-
-	return s.result, s.err
+func newConversationSpy() *conversationSpy {
+	return &conversationSpy{events: make(chan appserver.Event, 16)}
 }
 
-func (s *sessionSpy) seen() []session.Request {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]session.Request(nil), s.requests...)
+func (c *conversationSpy) Open(context.Context) (string, error) { return "th-1", nil }
+
+func (c *conversationSpy) Turn(_ context.Context, text string) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.turnErr != nil {
+		return "", c.turnErr
+	}
+	c.turns = append(c.turns, text)
+	c.nextTurn++
+	return fmt.Sprintf("tu-%d", c.nextTurn), nil
+}
+
+func (c *conversationSpy) Steer(_ context.Context, turnID, text string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.steerErr != nil {
+		return c.steerErr
+	}
+	c.steered = append(c.steered, turnID+": "+text)
+	return nil
+}
+
+func (c *conversationSpy) Interrupt(_ context.Context, turnID string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.interrupts = append(c.interrupts, turnID)
+	return nil
+}
+
+func (c *conversationSpy) Events() <-chan appserver.Event { return c.events }
+
+func (c *conversationSpy) seen() ([]string, []string, []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.turns...), append([]string(nil), c.steered...), append([]string(nil), c.interrupts...)
 }
 
 func waitFor(t *testing.T, condition func() bool) {
@@ -116,6 +134,20 @@ func waitFor(t *testing.T, condition func() bool) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("condition never held")
+}
+
+func start(t *testing.T) (*Harness, *chatDouble, *conversationSpy) {
+	t.Helper()
+
+	chat := newChatDouble()
+	agent := newConversationSpy()
+	h := &Harness{Chat: chat, Conversation: agent, Log: zaptest.NewLogger(t)}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go func() { _ = h.Run(ctx) }()
+
+	return h, chat, agent
 }
 
 func TestRefusesWithoutAnyCause(t *testing.T) {
@@ -135,105 +167,101 @@ func TestDeclarationFormatRefusesLoudly(t *testing.T) {
 	assert.Contains(t, err.Error(), "not implemented")
 }
 
-func TestAMessageWakesASessionAndTheChatSeesIt(t *testing.T) {
-	chat := newChatDouble()
-	agent := &sessionSpy{
-		result: session.Result{ThreadID: "t1", LastMessage: "flat"},
-		text:   []string{"closing the spread", "flat"},
-		tools:  []string{"get_option_chain"},
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	h := &Harness{Chat: chat, Sessions: agent, Sandbox: "workspace-write", Log: zaptest.NewLogger(t)}
-	go func() { _ = h.Run(ctx) }()
+func TestFirstMessageStartsATurnAndTheRoomSeesIt(t *testing.T) {
+	_, chat, agent := start(t)
 
 	chat.inbound <- telegram.Message{Text: "close everything", UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := agent.seen(); return len(turns) == 1 })
 
-	waitFor(t, func() bool { return len(chat.postedTexts()) >= 3 })
+	turns, _, _ := agent.seen()
+	assert.Contains(t, turns[0], "close everything")
+	assert.Contains(t, turns[0], "joker", "the session must be able to say who woke it")
+	assert.Equal(t, []string{"working"}, chat.postedTexts())
 
-	posted := chat.postedTexts()
-	assert.Equal(t, "working", posted[0])
-	assert.Contains(t, posted, "closing the spread")
-	assert.Contains(t, posted, "flat")
-
-	requests := agent.seen()
-	require.Len(t, requests, 1)
-	assert.Contains(t, requests[0].Prompt, "close everything")
-	assert.Contains(t, requests[0].Prompt, "joker", "the session must be able to say who woke it")
-	assert.Equal(t, "workspace-write", requests[0].Sandbox)
-	assert.Empty(t, requests[0].ThreadID, "the first session has nothing to continue")
+	agent.events <- appserver.Event{Kind: appserver.KindTool, Tool: "get_option_chain", TurnID: "tu-1"}
+	agent.events <- appserver.Event{Kind: appserver.KindText, Text: "the spread is closed", TurnID: "tu-1"}
+	agent.events <- appserver.Event{Kind: appserver.KindTurnDone, TurnID: "tu-1"}
 
 	waitFor(t, func() bool { return len(chat.statusTexts()) >= 2 })
 	assert.Contains(t, chat.statusTexts(), "working: get_option_chain")
 	assert.Contains(t, chat.statusTexts(), "done")
+	assert.Contains(t, chat.postedTexts(), "the spread is closed")
 }
 
-// Three lines typed in a row are one thing to say. Answering them as three
-// sessions costs three turns and reads as an agent that is not listening.
-func TestWaitingMessagesAreCarriedIntoOneTurn(t *testing.T) {
-	chat := newChatDouble()
-	agent := &sessionSpy{result: session.Result{ThreadID: "t1"}, text: []string{"ok"}}
+// This is the whole point of holding the conversation open: a person who writes
+// while the session works reaches the work in progress, not the next one.
+func TestAMessageDuringATurnSteersIt(t *testing.T) {
+	_, chat, agent := start(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	chat.inbound <- telegram.Message{Text: "open the spread", UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := agent.seen(); return len(turns) == 1 })
 
-	chat.inbound <- telegram.Message{Text: "close the spread", UserID: 42, Username: "joker"}
-	chat.inbound <- telegram.Message{Text: "and tell me the loss", UserID: 42, Username: "joker"}
-	chat.inbound <- telegram.Message{Text: "in dollars", UserID: 298310358, Username: "ruslan"}
+	chat.inbound <- telegram.Message{Text: "wait, half the size", UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { _, steered, _ := agent.seen(); return len(steered) == 1 })
 
-	h := &Harness{Chat: chat, Sessions: agent, Log: zaptest.NewLogger(t)}
-	go func() { _ = h.Run(ctx) }()
-
-	waitFor(t, func() bool { return len(agent.seen()) >= 1 })
-
-	requests := agent.seen()
-	require.Len(t, requests, 1, "three lines are one turn, not three")
-	assert.Contains(t, requests[0].Prompt, "close the spread")
-	assert.Contains(t, requests[0].Prompt, "and tell me the loss")
-	assert.Contains(t, requests[0].Prompt, "ruslan")
+	turns, steered, _ := agent.seen()
+	assert.Len(t, turns, 1, "the running turn takes the message; a second turn would be a different piece of work")
+	assert.Contains(t, steered[0], "tu-1: ")
+	assert.Contains(t, steered[0], "half the size")
 }
 
-func TestTheNextMessageContinuesTheSameThread(t *testing.T) {
-	chat := newChatDouble()
-	agent := &sessionSpy{result: session.Result{ThreadID: "t1"}, text: []string{"ok"}}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	h := &Harness{Chat: chat, Sessions: agent, Log: zaptest.NewLogger(t)}
-	go func() { _ = h.Run(ctx) }()
+func TestAMessageAfterTheTurnStartsANewOne(t *testing.T) {
+	_, chat, agent := start(t)
 
 	chat.inbound <- telegram.Message{Text: "what is open?", UserID: 42, Username: "joker"}
-	waitFor(t, func() bool { return len(agent.seen()) == 1 })
+	waitFor(t, func() bool { turns, _, _ := agent.seen(); return len(turns) == 1 })
+
+	agent.events <- appserver.Event{Kind: appserver.KindTurnDone, TurnID: "tu-1"}
+	waitFor(t, func() bool { return len(chat.statusTexts()) >= 1 })
 
 	chat.inbound <- telegram.Message{Text: "and the second leg?", UserID: 42, Username: "joker"}
-	waitFor(t, func() bool { return len(agent.seen()) == 2 })
+	waitFor(t, func() bool { turns, _, _ := agent.seen(); return len(turns) == 2 })
 
-	assert.Equal(t, "t1", agent.seen()[1].ThreadID)
+	_, steered, _ := agent.seen()
+	assert.Empty(t, steered, "there is no running turn to steer")
 }
 
-// A session that dies must say so in the room. Silence reads as "still working"
-// and nobody goes looking.
-func TestAFailedSessionIsReportedInTheChat(t *testing.T) {
-	chat := newChatDouble()
-	agent := &sessionSpy{err: fmt.Errorf("agent exited with status 3")}
+func TestStopInterruptsTheRunningTurn(t *testing.T) {
+	_, chat, agent := start(t)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	chat.inbound <- telegram.Message{Text: "start something long", UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := agent.seen(); return len(turns) == 1 })
 
-	h := &Harness{Chat: chat, Sessions: agent, Log: zaptest.NewLogger(t)}
-	go func() { _ = h.Run(ctx) }()
+	chat.inbound <- telegram.Message{Text: CommandStop, UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { _, _, interrupts := agent.seen(); return len(interrupts) == 1 })
 
-	chat.inbound <- telegram.Message{Text: "go", UserID: 42, Username: "joker"}
+	turns, steered, interrupts := agent.seen()
+	assert.Equal(t, []string{"tu-1"}, interrupts)
+	assert.Len(t, turns, 1, "stop is a command to the harness, not a task for the agent")
+	assert.Empty(t, steered)
+}
 
-	waitFor(t, func() bool {
-		for _, s := range chat.statusTexts() {
-			if s == "the session stopped: agent exited with status 3" {
-				return true
-			}
-		}
-		return false
-	})
+func TestStopWithNothingRunningSaysSo(t *testing.T) {
+	_, chat, agent := start(t)
+
+	chat.inbound <- telegram.Message{Text: CommandStop, UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { return len(chat.postedTexts()) >= 1 })
+
+	_, _, interrupts := agent.seen()
+	assert.Empty(t, interrupts)
+	assert.Contains(t, chat.postedTexts()[0], "ничего не выполняется")
+}
+
+// A turn that ends between the check and the steer must not swallow the message:
+// it becomes the next turn instead.
+func TestASteerThatArrivesTooLateBecomesANewTurn(t *testing.T) {
+	_, chat, agent := start(t)
+
+	chat.inbound <- telegram.Message{Text: "open the spread", UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := agent.seen(); return len(turns) == 1 })
+
+	agent.mu.Lock()
+	agent.steerErr = fmt.Errorf("turn already finished")
+	agent.mu.Unlock()
+
+	chat.inbound <- telegram.Message{Text: "then tell me the loss", UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := agent.seen(); return len(turns) == 2 })
+
+	turns, _, _ := agent.seen()
+	assert.Contains(t, turns[1], "tell me the loss")
 }

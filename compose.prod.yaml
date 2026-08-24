@@ -59,7 +59,11 @@ services:
       ROLES: harness
       AGENT_COMMAND: codex
       AGENT_DIR: /work
-      AGENT_SANDBOX: workspace-write
+      # The container is the sandbox: root filesystem read-only, one writable
+      # directory, no route out except the proxy. The agent's own sandbox needs
+      # user namespaces this container does not grant, and running two boundaries
+      # where one is real would only stall every command.
+      AGENT_SANDBOX: danger-full-access
       AGENT_MODEL: ${AGENT_MODEL}
       SESSION_MCP_URL: http://app:8081
       DECLARATION: ${DECLARATION}

@@ -10,6 +10,7 @@ package telegram
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/mymmrac/telego"
 	telegoapi "github.com/mymmrac/telego/telegoapi"
@@ -158,32 +159,78 @@ func (b *Bot) Edit(ctx context.Context, messageID int, text string) error {
 	return nil
 }
 
-// Send posts one message and returns the id Telegram gave it. A configured topic
-// is always passed: without it the message lands in the group's General tab
-// instead of the thread the team is reading.
+// Send posts one message and returns the id Telegram gave it. Text over the
+// platform's limit is sent as several messages and the LAST id is returned, so a
+// caller editing a status line edits the part people are looking at.
+//
+// A configured topic is always passed: without it the message lands in the
+// group's General tab instead of the thread the team is reading.
 func (b *Bot) Send(ctx context.Context, text string) (int, error) {
 	if text == "" {
 		return 0, fmt.Errorf("refusing to send an empty message")
 	}
 
-	params := &telego.SendMessageParams{
-		ChatID: telego.ChatID{ID: b.chatID},
-		Text:   text,
-	}
-	if b.topicID != 0 {
-		params.MessageThreadID = b.topicID
+	var lastID int
+	for _, part := range split(text, maxMessageRunes) {
+		params := &telego.SendMessageParams{
+			ChatID: telego.ChatID{ID: b.chatID},
+			Text:   part,
+		}
+		if b.topicID != 0 {
+			params.MessageThreadID = b.topicID
+		}
+
+		sent, err := b.bot.SendMessage(ctx, params)
+		if err != nil {
+			return lastID, fmt.Errorf("send telegram message: %w", err)
+		}
+		lastID = sent.MessageID
+		b.log.Info("posted to telegram", zap.Int("message_id", sent.MessageID))
 	}
 
-	sent, err := b.bot.SendMessage(ctx, params)
-	if err != nil {
-		return 0, fmt.Errorf("send telegram message: %w", err)
-	}
-	b.log.Info("posted to telegram", zap.Int("message_id", sent.MessageID))
+	return lastID, nil
+}
 
-	return sent.MessageID, nil
+// split cuts text into pieces that fit, preferring a line break and then a space
+// so a sentence is not severed mid-word. Telegram refuses a message over its
+// limit outright, and a session's answer is exactly the thing that grows.
+func split(text string, limit int) []string {
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return []string{text}
+	}
+
+	var parts []string
+	for len(runes) > limit {
+		cut := limit
+		if at := lastIndexRune(runes[:limit], '\n'); at > limit/2 {
+			cut = at + 1
+		} else if at := lastIndexRune(runes[:limit], ' '); at > limit/2 {
+			cut = at + 1
+		}
+		parts = append(parts, strings.TrimRight(string(runes[:cut]), " \n"))
+		runes = runes[cut:]
+	}
+	if rest := strings.TrimLeft(string(runes), " \n"); rest != "" {
+		parts = append(parts, rest)
+	}
+
+	return parts
+}
+
+func lastIndexRune(runes []rune, target rune) int {
+	for i := len(runes) - 1; i >= 0; i-- {
+		if runes[i] == target {
+			return i
+		}
+	}
+
+	return -1
 }
 
 const (
 	pollSeconds   = 30
 	inboundBuffer = 32
+	// Telegram refuses a message longer than this many characters.
+	maxMessageRunes = 4096
 )

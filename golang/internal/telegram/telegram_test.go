@@ -187,3 +187,50 @@ func TestEditReplacesTheStatusLine(t *testing.T) {
 	assert.EqualValues(t, 4242, seen["message_id"])
 	assert.Equal(t, "working: reading the option chain", seen["text"])
 }
+
+func TestSplitKeepsWholeLinesWhereItCan(t *testing.T) {
+	cases := map[string]struct {
+		text  string
+		limit int
+		want  []string
+	}{
+		"short_text_is_one_message": {text: "flat", limit: 10, want: []string{"flat"}},
+		"cuts_on_a_line_break":      {text: "first line\nsecond line", limit: 12, want: []string{"first line", "second line"}},
+		"cuts_on_a_space":           {text: "aaaa bbbb cccc", limit: 10, want: []string{"aaaa bbbb", "cccc"}},
+		"cuts_hard_when_it_must":    {text: "aaaaaaaaaaaa", limit: 5, want: []string{"aaaaa", "aaaaa", "aa"}},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, split(tc.text, tc.limit))
+		})
+	}
+}
+
+// A long answer must arrive whole. Telegram refuses an over-long message, so a
+// session's longest reply is exactly what would be lost.
+func TestSendSplitsALongMessage(t *testing.T) {
+	var seen []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		var one map[string]any
+		require.NoError(t, json.Unmarshal(body, &one))
+		seen = append(seen, one)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":7,"date":0,"chat":{"id":-100,"type":"supergroup"}}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	bot, err := New(Config{Token: testToken, ChatID: -100, APIServer: server.URL}, zaptest.NewLogger(t))
+	require.NoError(t, err)
+
+	long := strings.Repeat("строка ответа сессии\n", 400)
+	_, err = bot.Send(context.Background(), long)
+	require.NoError(t, err)
+
+	require.Greater(t, len(seen), 1, "one request would have been refused by Telegram")
+	for _, one := range seen {
+		assert.LessOrEqual(t, len([]rune(one["text"].(string))), 4096)
+	}
+}

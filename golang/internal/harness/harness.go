@@ -1,10 +1,10 @@
-// Package harness holds the clock and the room. It decides WHEN a session runs
+// Package harness holds the clock and the room. It decides WHEN a session works
 // and says why it woke it; it never decides what to trade - that is the session's
 // job, and the autonomy requirement rests on the difference.
 //
-// Two causes wake a session: the schedule in the declaration, and a person
-// writing in the chat. The session sees only a prompt naming its cause, so both
-// look the same from inside it.
+// Two causes reach a session: the schedule in the declaration, and a person
+// writing in the chat. A person who writes while the session is working is not
+// made to wait - the message goes into the turn already running.
 package harness
 
 import (
@@ -12,10 +12,11 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"go.uber.org/zap"
 
-	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/session"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/appserver"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 )
 
@@ -28,27 +29,32 @@ type Chat interface {
 	Edit(ctx context.Context, messageID int, text string) error
 }
 
-// Sessions starts one agent session and reports what it produced.
-type Sessions interface {
-	Run(ctx context.Context, req session.Request, on session.Handlers) (session.Result, error)
+// Conversation is one thread with the agent, held open across turns.
+type Conversation interface {
+	Open(ctx context.Context) (threadID string, err error)
+	Turn(ctx context.Context, text string) (turnID string, err error)
+	Steer(ctx context.Context, turnID, text string) error
+	Interrupt(ctx context.Context, turnID string) error
+	Events() <-chan appserver.Event
 }
 
+// Commands a person can type instead of talking to the session.
+const (
+	CommandStop = "/stop"
+)
+
 type Harness struct {
-	Chat     Chat
-	Sessions Sessions
+	Chat         Chat
+	Conversation Conversation
 	// DeclarationPath names the sessions the clock wakes. Empty means the clock
 	// wakes nobody and the chat is the only cause.
 	DeclarationPath string
-	// Dir and Sandbox are what every session is given to work in; Model overrides
-	// the agent's own choice where the operator wants a cheaper or stronger one.
-	Dir     string
-	Sandbox string
-	Model   string
-	Log     *zap.Logger
+	Log             *zap.Logger
 
-	// threadID carries the conversation forward: the next session continues the
-	// last one rather than meeting the day from nothing.
+	mu       sync.Mutex
 	threadID string
+	turnID   string
+	statusID int
 }
 
 // Run holds both causes until ctx ends. With neither a declaration nor a chat it
@@ -73,106 +79,192 @@ func (h *Harness) Run(ctx context.Context) error {
 }
 
 func (h *Harness) serveChat(ctx context.Context) error {
-	group := make(chan error, 1)
-	go func() { group <- h.Chat.Listen(ctx) }()
+	listening := make(chan error, 1)
+	go func() { listening <- h.Chat.Listen(ctx) }()
+	go h.postWhatTheSessionSays(ctx)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case err := <-group:
+		case err := <-listening:
 			return err
 		case msg, ok := <-h.Chat.Inbound():
 			if !ok {
 				return nil
 			}
-			h.runForPeople(ctx, append([]telegram.Message{msg}, h.drainWaiting()...))
+			h.handle(ctx, msg)
 		}
 	}
 }
 
-// drainWaiting takes everything already waiting in the chat without blocking.
-// Three lines typed in a row are one thing to say, and answering them as three
-// sessions costs three turns and reads as an agent that is not listening.
-func (h *Harness) drainWaiting() []telegram.Message {
-	var waiting []telegram.Message
-	for {
-		select {
-		case msg, ok := <-h.Chat.Inbound():
-			if !ok {
-				return waiting
-			}
-			waiting = append(waiting, msg)
-		default:
-			return waiting
+func (h *Harness) handle(ctx context.Context, msg telegram.Message) {
+	if strings.TrimSpace(msg.Text) == CommandStop {
+		h.stop(ctx)
+		return
+	}
+
+	if turnID := h.runningTurn(); turnID != "" {
+		if err := h.Conversation.Steer(ctx, turnID, textOf(msg)); err != nil {
+			// The turn ended between the check and the call. Nothing is lost: the
+			// message becomes the next turn instead of vanishing into a finished one.
+			h.Log.Info("could not reach the running turn, starting a new one", zap.Error(err))
+		} else {
+			h.Log.Info("message went into the running turn", zap.String("turn_id", turnID))
+			return
 		}
 	}
+
+	h.startTurn(ctx, msg)
 }
 
-// runForPeople runs one session for everything said so far and reports it as it
-// goes. Anything written while it runs waits and is served next: two sessions on
-// one account would close each other's positions.
-func (h *Harness) runForPeople(ctx context.Context, msgs []telegram.Message) {
+func (h *Harness) startTurn(ctx context.Context, msg telegram.Message) {
+	threadID, err := h.openThread(ctx)
+	if err != nil {
+		h.Log.Error("could not open a conversation with the agent", zap.Error(err))
+		h.say(ctx, "не удалось начать разговор с агентом: "+err.Error())
+		return
+	}
+
 	status, err := h.Chat.Send(ctx, "working")
 	if err != nil {
 		h.Log.Error("could not open a status line in the chat", zap.Error(err))
 	}
 
-	on := session.Handlers{
-		Text: func(text string) {
-			if _, err := h.Chat.Send(ctx, text); err != nil {
-				h.Log.Error("could not post what the session said", zap.Error(err))
-			}
-		},
-		Tool: func(name string) {
-			if status == 0 {
+	turnID, err := h.Conversation.Turn(ctx, promptFor(msg))
+	if err != nil {
+		h.Log.Error("could not start a turn", zap.Error(err))
+		h.say(ctx, "агент не взял задачу: "+err.Error())
+		return
+	}
+
+	h.mu.Lock()
+	h.turnID = turnID
+	h.statusID = status
+	h.mu.Unlock()
+
+	h.Log.Info("turn started",
+		zap.String("thread_id", threadID),
+		zap.String("turn_id", turnID),
+		zap.String("from", msg.Username))
+}
+
+func (h *Harness) stop(ctx context.Context) {
+	turnID := h.runningTurn()
+	if turnID == "" {
+		h.say(ctx, "сейчас ничего не выполняется")
+		return
+	}
+	if err := h.Conversation.Interrupt(ctx, turnID); err != nil {
+		h.Log.Error("could not interrupt the turn", zap.Error(err))
+		h.say(ctx, "остановить не удалось: "+err.Error())
+		return
+	}
+	h.Log.Info("turn interrupted by a person", zap.String("turn_id", turnID))
+}
+
+// postWhatTheSessionSays is the one place the room learns what happened: whole
+// messages are posted, tool calls replace one status line rather than adding a
+// message, and the end of a turn closes that line.
+func (h *Harness) postWhatTheSessionSays(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case ev, ok := <-h.Conversation.Events():
+			if !ok {
 				return
 			}
-			if err := h.Chat.Edit(ctx, status, "working: "+name); err != nil {
-				h.Log.Debug("could not update the status line", zap.Error(err))
+			switch ev.Kind {
+			case appserver.KindText:
+				h.say(ctx, ev.Text)
+			case appserver.KindTool:
+				h.updateStatus(ctx, "working: "+ev.Tool)
+			case appserver.KindTurnDone:
+				h.finishTurn(ctx, ev.TurnID)
 			}
-		},
+		}
 	}
+}
 
-	result, runErr := h.Sessions.Run(ctx, session.Request{
-		Prompt:   promptFor(msgs),
-		ThreadID: h.threadID,
-		Dir:      h.Dir,
-		Sandbox:  h.Sandbox,
-		Model:    h.Model,
-	}, on)
-
-	if result.ThreadID != "" {
-		h.threadID = result.ThreadID
+func (h *Harness) finishTurn(ctx context.Context, turnID string) {
+	h.mu.Lock()
+	if turnID != "" && turnID != h.turnID {
+		h.mu.Unlock()
+		return
 	}
-	h.Log.Info("session finished",
-		zap.String("thread_id", result.ThreadID),
-		zap.Int("messages_carried", len(msgs)))
+	h.turnID = ""
+	status := h.statusID
+	h.statusID = 0
+	h.mu.Unlock()
 
-	final := "done"
-	if runErr != nil {
-		h.Log.Error("session ended badly", zap.Error(runErr))
-		final = "the session stopped: " + runErr.Error()
-	}
 	if status != 0 {
-		if err := h.Chat.Edit(ctx, status, final); err != nil {
+		if err := h.Chat.Edit(ctx, status, "done"); err != nil {
 			h.Log.Debug("could not close the status line", zap.Error(err))
 		}
+	}
+	h.Log.Info("turn finished", zap.String("turn_id", turnID))
+}
+
+func (h *Harness) openThread(ctx context.Context) (string, error) {
+	h.mu.Lock()
+	existing := h.threadID
+	h.mu.Unlock()
+	if existing != "" {
+		return existing, nil
+	}
+
+	threadID, err := h.Conversation.Open(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	h.mu.Lock()
+	h.threadID = threadID
+	h.mu.Unlock()
+
+	return threadID, nil
+}
+
+func (h *Harness) runningTurn() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.turnID
+}
+
+func (h *Harness) say(ctx context.Context, text string) {
+	if strings.TrimSpace(text) == "" {
+		return
+	}
+	if _, err := h.Chat.Send(ctx, text); err != nil {
+		h.Log.Error("could not post what the session said", zap.Error(err))
+	}
+}
+
+func (h *Harness) updateStatus(ctx context.Context, text string) {
+	h.mu.Lock()
+	status := h.statusID
+	h.mu.Unlock()
+	if status == 0 {
+		return
+	}
+	if err := h.Chat.Edit(ctx, status, text); err != nil {
+		h.Log.Debug("could not update the status line", zap.Error(err))
 	}
 }
 
 // promptFor names the cause. A session that cannot say why it ran cannot be
 // judged on whether it should have.
-func promptFor(msgs []telegram.Message) string {
-	lines := make([]string, 0, len(msgs)+1)
-	lines = append(lines, "Woken by a person in the chat.")
-	for _, msg := range msgs {
-		who := msg.Username
-		if who == "" {
-			who = fmt.Sprintf("user %d", msg.UserID)
-		}
-		lines = append(lines, fmt.Sprintf("From %s: %s", who, msg.Text))
+func promptFor(msg telegram.Message) string {
+	return "Woken by a person in the chat.\n" + textOf(msg)
+}
+
+func textOf(msg telegram.Message) string {
+	who := msg.Username
+	if who == "" {
+		who = fmt.Sprintf("user %d", msg.UserID)
 	}
 
-	return strings.Join(lines, "\n")
+	return fmt.Sprintf("From %s: %s", who, msg.Text)
 }

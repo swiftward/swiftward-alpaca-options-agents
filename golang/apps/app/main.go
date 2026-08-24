@@ -18,10 +18,10 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/api"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/appserver"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/config"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/harness"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/mcpserver"
-	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/session"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/store"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 )
@@ -85,16 +85,29 @@ func run(log *zap.Logger) error {
 
 	if cfg.Has(config.RoleHarness) {
 		h := &harness.Harness{
-			Sessions:        session.Runner{Command: cfg.AgentCommand, Log: log.Named("session")},
 			DeclarationPath: cfg.DeclarationPath,
-			Dir:             cfg.AgentDir,
-			Sandbox:         cfg.AgentSandbox,
-			Model:           cfg.AgentModel,
 			Log:             log.Named("harness"),
 		}
 		if chat != nil {
 			h.Chat = chat
 		}
+
+		// The agent is held open for the whole run: that is what lets a person
+		// reach work already in progress instead of waiting for it to end.
+		if cfg.DeclarationPath == "" || chat != nil {
+			client, err := appserver.Dial(ctx, cfg.AgentCommand, log.Named("agent"))
+			if err != nil {
+				return err
+			}
+			defer func() { _ = client.Close() }()
+
+			h.Conversation = appserver.NewConversation(client, appserver.ThreadOptions{
+				Model:   cfg.AgentModel,
+				Sandbox: cfg.AgentSandbox,
+				Dir:     cfg.AgentDir,
+			})
+		}
+
 		group.Go(func() error { return h.Run(ctx) })
 	}
 
