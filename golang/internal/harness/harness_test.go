@@ -296,15 +296,16 @@ func TestFirstMessageStartsATurnAndTheRoomSeesIt(t *testing.T) {
 	turns, _, _ := conversation.seen()
 	assert.Contains(t, turns[0], "close everything")
 	assert.Contains(t, turns[0], "joker", "the session must be able to say who woke it")
-	assert.Equal(t, []string{"working"}, chat.postedTexts())
+	require.Len(t, chat.postedTexts(), 1)
+	assert.Contains(t, chat.postedTexts()[0], "joker", "the room sees one line naming who the turn runs for")
 
 	conversation.events <- agent.Event{Kind: agent.KindTool, Tool: "get_option_chain", TurnID: "tu-1"}
 	conversation.events <- agent.Event{Kind: agent.KindText, Text: "the spread is closed", TurnID: "tu-1"}
 	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
 
 	waitFor(t, func() bool { return len(chat.statusTexts()) >= 2 })
-	assert.Contains(t, chat.statusTexts(), "working: get_option_chain")
-	assert.Contains(t, chat.statusTexts(), "done")
+	assert.Contains(t, chat.statusTexts(), "⏳ joker · get_option_chain", "the same line changes as the turn works")
+	assert.Contains(t, chat.statusTexts()[len(chat.statusTexts())-1], "✅ joker · готово")
 	assert.Contains(t, chat.postedTexts(), "the spread is closed")
 }
 
@@ -537,4 +538,24 @@ func TestNoPriceIsReadWhenNothingWatchesOne(t *testing.T) {
 	assert.Zero(t, prices.timesAsked())
 	turns, _, _ := conversation.seen()
 	assert.Empty(t, turns)
+}
+
+// A turn that cannot start must not leave the room reading a line that says it
+// is working.
+func TestTheStatusLineClosesWhenATurnCannotStart(t *testing.T) {
+	chat := newChatDouble()
+	conversation := newConversationSpy()
+	conversation.turnErr = fmt.Errorf("agent is not answering")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{Chat: chat, Conversation: conversation, CallTimeout: time.Second, Now: time.Now, Log: zaptest.NewLogger(t)}
+	go func() { _ = h.Run(ctx) }()
+
+	chat.inbound <- telegram.Message{Text: "go", UserID: 42, Username: "joker"}
+
+	waitFor(t, func() bool { return len(chat.statusTexts()) >= 1 })
+	assert.Contains(t, chat.statusTexts()[0], "не начался")
+	assert.Contains(t, chat.statusTexts()[0], "agent is not answering")
 }

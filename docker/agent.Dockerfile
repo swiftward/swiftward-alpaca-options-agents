@@ -4,6 +4,13 @@
 #
 # It holds no broker credential, no database and no docker socket. Its only ways
 # out are the services beside it and the egress proxy.
+FROM node:22-alpine AS web
+WORKDIR /src
+COPY typescript/web/package*.json ./
+RUN npm ci
+COPY typescript/web/ ./
+RUN npm run build
+
 FROM golang:1.27-alpine AS build
 WORKDIR /src
 COPY golang/go.mod golang/go.sum ./
@@ -18,6 +25,7 @@ RUN npm install -g @openai/codex@${CODEX_VERSION} \
     && command -v codex >/dev/null
 
 COPY --from=build /out/app /usr/local/bin/app
+COPY --from=web /src/dist /srv/web
 COPY docker/agent-entrypoint.sh /usr/local/bin/entrypoint
 COPY agent/ /agent/
 COPY playbooks/ /playbooks/

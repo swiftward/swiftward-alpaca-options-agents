@@ -39,31 +39,6 @@ services:
       ALPACA_PAPER_TRADE: ${ALPACA_PAPER}
       ALPACA_TOOLSETS: ${ALPACA_TOOLSETS}
 
-  # Our three roles. `harness` stays out until a declaration exists: it refuses to
-  # start without one rather than running while waking nobody.
-  app:
-    build:
-      context: .
-      dockerfile: docker/app.Dockerfile
-    networks: [internal, outbound]
-    environment:
-      ROLES: ${ROLES}
-      ADDR: ":8080"
-      MCP_ADDR: ":8081"
-      WEB_DIR: /srv/web
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
-      GATEWAY_URL: ${GATEWAY_URL}
-      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
-      DECLARATION: ${DECLARATION:-/agent/agent.yaml}
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
-      TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}
-    ports:
-      - "${APP_PORT}:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   # The session's container: the harness role plus the agent it starts. It holds
   # no credential of ours; the login it does carry is Codex's own, mounted from
   # the host that performed it.
@@ -75,7 +50,11 @@ services:
         AGENT_UID: ${AGENT_UID}
     networks: [internal]
     environment:
-      ROLES: harness
+      ROLES: harness,api,mcp
+      ADDR: ":8080"
+      MCP_ADDR: ":8081"
+      WEB_DIR: /srv/web
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       AGENT_COMMAND: codex
       AGENT_DIR: /work
       # The container is the sandbox: root filesystem read-only, one writable
@@ -90,7 +69,7 @@ services:
       # One request to the agent may take this long. Past it the chat is told,
       # rather than the whole room waiting on a session that stopped answering.
       AGENT_CALL_TIMEOUT: ${AGENT_CALL_TIMEOUT}
-      SESSION_MCP_URL: http://app:8081
+      SESSION_MCP_URL: http://127.0.0.1:8081
       # Set only while the gateway is not yet in front of the broker, and only on
       # a development account.
       BROKER_MCP_URL: ${BROKER_MCP_URL}
@@ -103,15 +82,17 @@ services:
       GATEWAY_TOKEN: ${GATEWAY_TOKEN}
       HTTP_PROXY: http://egress:8888
       HTTPS_PROXY: http://egress:8888
-      NO_PROXY: app,alpaca-mcp,postgres,egress,localhost,127.0.0.1
+      NO_PROXY: alpaca-mcp,postgres,egress,localhost,127.0.0.1
       CODEX_HOME: /home/agent/.codex
     volumes:
       - ${CODEX_AUTH_DIR}:/mnt/codex:ro
       - codex-home:/home/agent/.codex
       - agent-work:/work
+    ports:
+      - "${APP_PORT}:8080"
     depends_on:
-      app:
-        condition: service_started
+      postgres:
+        condition: service_healthy
     profiles: [session]
 
   # The only door out. Hosts not named in docker/egress/filter.txt are refused.

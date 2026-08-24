@@ -84,11 +84,13 @@ type Harness struct {
 	CallTimeout time.Duration
 	Log         *zap.Logger
 
-	mu       sync.Mutex
-	threadID string
-	turnID   string
-	statusID int
-	lastRun  map[string]time.Time
+	mu          sync.Mutex
+	threadID    string
+	turnID      string
+	statusID    int
+	turnFor     string
+	turnStarted time.Time
+	lastRun     map[string]time.Time
 }
 
 // Run holds both causes until ctx ends. With neither a declaration nor a chat it
@@ -268,7 +270,7 @@ func (h *Harness) startTurnWith(ctx context.Context, prompt, who string) {
 		return
 	}
 
-	status, err := h.status(ctx, "working")
+	status, err := h.status(ctx, working(who, ""))
 	if err != nil {
 		h.Log.Error("could not open a status line in the chat", zap.Error(err))
 	}
@@ -278,13 +280,20 @@ func (h *Harness) startTurnWith(ctx context.Context, prompt, who string) {
 	done()
 	if err != nil {
 		h.Log.Error("could not start a turn", zap.Error(err))
-		h.say(ctx, "агент не взял задачу: "+err.Error())
+		// The line that said the turn was starting must not keep saying it.
+		if status != 0 && h.Chat != nil {
+			if editErr := h.Chat.Edit(ctx, status, refused(who, err)); editErr != nil {
+				h.Log.Debug("could not close the status line", zap.Error(editErr))
+			}
+		}
 		return
 	}
 
 	h.mu.Lock()
 	h.turnID = turnID
 	h.statusID = status
+	h.turnFor = who
+	h.turnStarted = h.Now()
 	h.mu.Unlock()
 
 	h.Log.Info("turn started",
@@ -336,7 +345,7 @@ func (h *Harness) postWhatTheSessionSays(ctx context.Context) {
 			case agent.KindText:
 				h.say(ctx, ev.Text)
 			case agent.KindTool:
-				h.updateStatus(ctx, "working: "+ev.Tool)
+				h.updateStatus(ctx, working(h.runningFor(), ev.Tool))
 			case agent.KindTurnDone:
 				h.finishTurn(ctx, ev.TurnID)
 			}
@@ -352,11 +361,13 @@ func (h *Harness) finishTurn(ctx context.Context, turnID string) {
 	}
 	h.turnID = ""
 	status := h.statusID
+	who := h.turnFor
+	started := h.turnStarted
 	h.statusID = 0
 	h.mu.Unlock()
 
 	if status != 0 && h.Chat != nil {
-		if err := h.Chat.Edit(ctx, status, "done"); err != nil {
+		if err := h.Chat.Edit(ctx, status, finished(who, h.Now().Sub(started))); err != nil {
 			h.Log.Debug("could not close the status line", zap.Error(err))
 		}
 	}
@@ -388,6 +399,35 @@ func (h *Harness) openThread(ctx context.Context) (string, error) {
 // to be slow, and cutting it here would silence the room over the agent's fault.
 func (h *Harness) boundToAgent(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(ctx, h.CallTimeout)
+}
+
+// runningFor is the name the current turn runs under: a session's name, or the
+// person who wrote.
+func (h *Harness) runningFor() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.turnFor
+}
+
+// working and finished are the two lines the room sees for one turn. The status
+// line is edited in place rather than re-posted: a turn is one thing happening,
+// and it should read as one line changing, not as a column of fragments.
+func working(who, tool string) string {
+	head := "⏳ " + who
+	if tool != "" {
+		return head + " · " + tool
+	}
+
+	return head + " · думает"
+}
+
+func finished(who string, took time.Duration) string {
+	return fmt.Sprintf("✅ %s · готово за %s", who, took.Round(time.Second))
+}
+
+func refused(who string, err error) string {
+	return fmt.Sprintf("⚠️ %s · не начался: %s", who, err)
 }
 
 func (h *Harness) runningTurn() string {

@@ -6,9 +6,8 @@ Five services, two networks, one binary with three roles. The shape exists to ma
 
 | Service | What it is | Where it can go |
 |---|---|---|
-| `app` | our binary, running any of three roles | the gateway, Postgres, the internet |
+| `agent` | our binary running all three roles, and the agent it starts | the broker's server, Postgres, and the egress proxy |
 | `alpaca-mcp` | Alpaca's own MCP server, pinned to a released version | Alpaca |
-| `agent` | the trading session: the `harness` role and the agent it starts | only the services beside it, and the egress proxy |
 | `egress` | forward proxy with a host allowlist (`docker/egress/filter.txt`) | the hosts it allows |
 | `postgres` | state | nowhere |
 
@@ -20,7 +19,9 @@ The policy gateway is not in this stack. It is a network service addressed by `G
 
 The agent sits on `internal` alone. Everything it can do is therefore enumerable: call the services beside it, or ask the proxy, which answers only for the hosts in its allowlist and logs every refusal. Widening that list is a change to this repository, not a decision the session can make.
 
-`app` and `alpaca-mcp` also sit on `outbound`, because one talks to the gateway and the other to Alpaca.
+`alpaca-mcp` also sits on `outbound`, because it talks to Alpaca.
+
+The three roles run in one process on purpose. The tools a session calls, the clock that wakes it and the page that shows what it did all read and write the same state; splitting them across processes would mean copying that state between them, and a copy drifts. When the state moves to Postgres the split becomes free, and only then is it worth making.
 
 ## The three roles
 
