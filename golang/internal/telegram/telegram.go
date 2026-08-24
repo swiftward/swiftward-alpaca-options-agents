@@ -113,9 +113,14 @@ func (b *Bot) Listen(ctx context.Context) error {
 				continue
 			}
 			if msg.Chat.ID != b.chatID {
+				b.log.Info("message from another chat, ignored",
+					zap.Int64("chat_id", msg.Chat.ID))
 				continue
 			}
 			if b.topicID != 0 && msg.MessageThreadID != b.topicID {
+				b.log.Info("message from another topic, ignored",
+					zap.Int("topic_id", msg.MessageThreadID),
+					zap.Int("listening_to", b.topicID))
 				continue
 			}
 			if msg.From == nil || !b.allowed[msg.From.ID] {

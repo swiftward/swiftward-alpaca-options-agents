@@ -5,6 +5,7 @@ package config
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/knadh/koanf/providers/env"
@@ -62,6 +63,11 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	allowUserIDs, err := parseUserIDs(k.String("telegram_allow_user_ids"))
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
 		Roles:           roles,
 		Addr:            k.String("addr"),
@@ -78,7 +84,7 @@ func Load() (Config, error) {
 			Token:        k.String("telegram_bot_token"),
 			ChatID:       k.Int64("telegram_chat_id"),
 			TopicID:      k.Int("telegram_topic_id"),
-			AllowUserIDs: k.Int64s("telegram_allow_user_ids"),
+			AllowUserIDs: allowUserIDs,
 		},
 	}, nil
 }
@@ -96,6 +102,31 @@ func parseRoles(raw string) ([]Role, error) {
 			return nil, fmt.Errorf("unknown role %q: expected harness, api or mcp", part)
 		}
 	}
+	return out, nil
+}
+
+// parseUserIDs reads the allowlist out of one environment string. The values
+// arrive as text and stay text until they are numbers here: an id that does not
+// parse REFUSES the whole configuration, because the alternative is a shorter
+// allowlist than the operator wrote and no sign of it.
+func parseUserIDs(raw string) ([]int64, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+
+	var out []int64
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		id, err := strconv.ParseInt(part, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("TELEGRAM_ALLOW_USER_IDS holds %q, which is not a user id", part)
+		}
+		out = append(out, id)
+	}
+
 	return out, nil
 }
 
