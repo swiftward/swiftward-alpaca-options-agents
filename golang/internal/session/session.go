@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"go.uber.org/zap"
@@ -31,6 +32,9 @@ type Request struct {
 	// Sandbox is the agent's own sandbox mode; the caller names it so a reading
 	// session and a working session are not the same by accident.
 	Sandbox string
+	// Model overrides the agent's configured model. Empty leaves the agent's own
+	// choice alone.
+	Model string
 }
 
 // Result is what a finished session leaves behind.
@@ -91,7 +95,13 @@ func (r Runner) args(req Request) []string {
 	}
 	args = append(args, "--json", "--skip-git-repo-check")
 	if req.Sandbox != "" {
-		args = append(args, "-s", req.Sandbox)
+		// The sandbox goes in as a configuration override rather than the -s flag:
+		// resuming a thread does not accept that flag, and a session that continues
+		// a conversation must be bounded exactly like the one that started it.
+		args = append(args, "-c", "sandbox_mode="+strconv.Quote(req.Sandbox))
+	}
+	if req.Model != "" {
+		args = append(args, "-m", req.Model)
 	}
 	// The prompt arrives on stdin: a session's reason can be long, and an argument
 	// list is the wrong place for text a person wrote.

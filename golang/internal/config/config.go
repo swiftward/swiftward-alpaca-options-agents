@@ -38,9 +38,11 @@ type Config struct {
 	DeclarationPath string
 	// AgentCommand is the agent binary the harness starts.
 	AgentCommand string
-	// AgentDir and AgentSandbox are what every session is given to work in.
+	// AgentDir and AgentSandbox are what every session is given to work in;
+	// AgentModel overrides the agent's own configured model.
 	AgentDir     string
 	AgentSandbox string
+	AgentModel   string
 
 	// Shared.
 	DatabaseURL  string
@@ -77,6 +79,7 @@ func Load() (Config, error) {
 		AgentCommand:    k.String("agent_command"),
 		AgentDir:        k.String("agent_dir"),
 		AgentSandbox:    k.String("agent_sandbox"),
+		AgentModel:      k.String("agent_model"),
 		DatabaseURL:     k.String("database_url"),
 		GatewayURL:      k.String("gateway_url"),
 		GatewayToken:    k.String("gateway_token"),

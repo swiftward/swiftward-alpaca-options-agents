@@ -73,7 +73,7 @@ func TestResumeContinuesTheSameThread(t *testing.T) {
 
 	_, err := Runner{Command: agent, Log: zaptest.NewLogger(t)}.Run(
 		context.Background(),
-		Request{Prompt: "and what about the second leg?", ThreadID: "01a03463", Sandbox: "read-only"},
+		Request{Prompt: "and what about the second leg?", ThreadID: "01a03463", Sandbox: "read-only", Model: "gpt-5.6-sol-mini"},
 		Handlers{},
 	)
 	require.NoError(t, err)
@@ -82,7 +82,12 @@ func TestResumeContinuesTheSameThread(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(got), "exec resume 01a03463")
 	assert.Contains(t, string(got), "--json")
-	assert.Contains(t, string(got), "-s read-only")
+	// The agent refuses -s on a resumed thread, so the bound travels as a
+	// configuration override instead - and it must travel, or a continuing
+	// session would be less bounded than the one that started it.
+	assert.Contains(t, string(got), `-c sandbox_mode="read-only"`)
+	assert.NotContains(t, string(got), "-s read-only")
+	assert.Contains(t, string(got), "-m gpt-5.6-sol-mini")
 }
 
 func TestRunRefusesWithoutAPrompt(t *testing.T) {

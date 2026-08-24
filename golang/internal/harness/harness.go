@@ -39,9 +39,11 @@ type Harness struct {
 	// DeclarationPath names the sessions the clock wakes. Empty means the clock
 	// wakes nobody and the chat is the only cause.
 	DeclarationPath string
-	// Dir and Sandbox are what every session is given to work in.
+	// Dir and Sandbox are what every session is given to work in; Model overrides
+	// the agent's own choice where the operator wants a cheaper or stronger one.
 	Dir     string
 	Sandbox string
+	Model   string
 	Log     *zap.Logger
 
 	// threadID carries the conversation forward: the next session continues the
@@ -137,6 +139,7 @@ func (h *Harness) runForPeople(ctx context.Context, msgs []telegram.Message) {
 		ThreadID: h.threadID,
 		Dir:      h.Dir,
 		Sandbox:  h.Sandbox,
+		Model:    h.Model,
 	}, on)
 
 	if result.ThreadID != "" {

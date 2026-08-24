@@ -89,6 +89,7 @@ func run(log *zap.Logger) error {
 			DeclarationPath: cfg.DeclarationPath,
 			Dir:             cfg.AgentDir,
 			Sandbox:         cfg.AgentSandbox,
+			Model:           cfg.AgentModel,
 			Log:             log.Named("harness"),
 		}
 		if chat != nil {

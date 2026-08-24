@@ -79,6 +79,7 @@ services:
       AGENT_COMMAND: codex
       AGENT_DIR: /work
       AGENT_SANDBOX: workspace-write
+      AGENT_MODEL: ${AGENT_MODEL}
       SESSION_MCP_URL: http://app:8081
       DECLARATION: ${DECLARATION}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
