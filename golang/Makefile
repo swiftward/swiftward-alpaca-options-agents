@@ -1,6 +1,6 @@
 .PHONY: build test test-db lint fmt
 
-APPS := app backtest
+APPS := app
 
 build: ## Собрать все приложения в bin/
 	@for app in $(APPS); do go build -o bin/$$app ./apps/$$app; done

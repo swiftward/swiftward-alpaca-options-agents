@@ -12,20 +12,16 @@ The agent trades defined-risk options structures on Alpaca. Every broker call pa
 - **refuses in a form a program can act on** - the refusal names the boundary that stopped it, so the agent adjusts instead of retrying;
 - **accepts a limit change on a running session** - an operator tightens a ceiling and the live agent sees the new one without a restart.
 
-The same strategy declaration is read twice: by the backtester over history, and by the gateway during live trading.
-
 ## Layout
 
 | Path | What is in it |
 |---|---|
 | `golang/apps/app` | one binary, three roles: `harness` holds the clock, `api` serves the read side and the built page, `mcp` carries the session's own tools |
-| `golang/apps/backtest` | runs a strategy declaration over historical data |
-| `golang/internal` | packages behind those two |
-| `typescript/web` | the demo page: current limits, recent refusals, open positions |
+| `golang/internal` | the packages behind it |
+| `typescript/web` | the demo page: what the agent did, what it meant to do, where it was stopped |
 | `docker` | one Dockerfile per service, including the egress proxy and its allowlist |
 | `postgres/migrations` | schema, applied by the `migrate` service before anything reads it |
-| `playbooks` | strategy declarations, one file per strategy |
-| `agent` | what the agent itself reads: prompts, skills, MCP configuration |
+| `agent` | what the agent itself reads: its instructions and the declaration of when it wakes |
 | `docs` | write-up and architecture |
 
 ## Running it

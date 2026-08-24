@@ -32,7 +32,6 @@ RUN npm install -g @openai/codex@${CODEX_VERSION} \
 COPY --from=build /out/app /usr/local/bin/app
 COPY docker/agent-entrypoint.sh /usr/local/bin/entrypoint
 COPY agent/ /agent/
-COPY playbooks/ /playbooks/
 RUN chmod +x /usr/local/bin/entrypoint
 
 # The session runs as the same user id that owns the login on the host: that file
