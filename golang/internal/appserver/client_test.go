@@ -202,3 +202,26 @@ func TestDialGivesUpOnASilentServer(t *testing.T) {
 	require.Error(t, err)
 	assert.Less(t, time.Since(start), 5*time.Second)
 }
+
+// Opening must not wait forever on a thread the agent will not resume: the whole
+// program waits on this call before the room is served.
+func TestOpenGivesUpOnASilentResume(t *testing.T) {
+	agent := fakeAgent(t, answerHandshake+`
+read line   # thread/resume - never answered
+sleep 30
+`)
+	client, err := Dial(context.Background(), agent, 2*time.Second, zaptest.NewLogger(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	file := filepath.Join(t.TempDir(), ".thread")
+	require.NoError(t, os.WriteFile(file, []byte("th-stuck\n"), 0o600))
+
+	start := time.Now()
+	_, err = NewConversation(client, ThreadOptions{}, file, 300*time.Millisecond).Open(context.Background())
+	require.Error(t, err)
+	assert.Less(t, time.Since(start), 5*time.Second, "the bound on one request did not fire")
+
+	_, statErr := os.Stat(file)
+	assert.True(t, os.IsNotExist(statErr), "a thread that will not resume must not be remembered into the next start")
+}

@@ -47,8 +47,10 @@ func (c *Conversation) Open(ctx context.Context) (string, error) {
 			c.threadID = remembered
 			return remembered, nil
 		}
-		// The remembered thread is gone or unusable. Starting a fresh one is
-		// better than refusing to work, and the next write replaces the note.
+		// The remembered thread is gone, stuck, or refuses to resume. Forget it
+		// before starting a fresh one: keeping the note would make every later
+		// start pay the same wait for the same thread that never comes back.
+		c.forget()
 	}
 
 	startCtx, done := c.bounded(ctx)
@@ -94,6 +96,13 @@ func (c *Conversation) remember(threadID string) {
 		return
 	}
 	_ = os.WriteFile(c.rememberIn, []byte(threadID+"\n"), 0o600)
+}
+
+func (c *Conversation) forget() {
+	if c.rememberIn == "" {
+		return
+	}
+	_ = os.Remove(c.rememberIn)
 }
 
 // ThreadID reports the thread in use, empty before the first turn.
