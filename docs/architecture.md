@@ -28,7 +28,9 @@ The agent sits on `internal` alone. Everything it can do is therefore enumerable
 
 - **`harness`** holds the clock. It decides *when* a session runs and records *why* it woke it. It never decides what to trade - the session does, and the autonomy requirement rests on that line. With no declaration it refuses to start: a harness that runs while waking nobody looks exactly like a working one.
 - **`api`** serves the read side: `/healthz`, `/state`, and the built page from `WEB_DIR`. It decides nothing.
-- **`mcp`** is our own MCP server, carrying the two tools Alpaca's cannot: `record_intent`, which a session calls *before* it orders anything, and `read_state`, which the next session calls to learn what already happened. A judge can see fills anywhere; only the first of these says what the session meant to do.
+- **`mcp`** is our own MCP server, carrying what Alpaca's cannot: `record_intent`, which a session calls *before* it orders anything; `read_state`, which the next session calls to learn what already happened; and `post_to_chat`, which tells the people watching. A judge can see fills anywhere; only the first of these says what the session meant to do.
+
+  `post_to_chat` exists only when a chat is configured. An agent that can see a tool assumes it works, so an unconfigured channel offers no tool rather than one that fails.
 
 ## Credentials
 

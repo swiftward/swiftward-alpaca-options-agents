@@ -9,6 +9,8 @@ import (
 
 	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/v2"
+
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 )
 
 // Role is one of the three jobs this binary performs. Which ones run is chosen
@@ -38,6 +40,10 @@ type Config struct {
 	DatabaseURL  string
 	GatewayURL   string
 	GatewayToken string
+
+	// The chat the session posts to. Absent means the agent is offered no way to
+	// post at all, rather than a tool that fails when called.
+	Telegram telegram.Config
 }
 
 func Load() (Config, error) {
@@ -60,6 +66,11 @@ func Load() (Config, error) {
 		DatabaseURL:     k.String("database_url"),
 		GatewayURL:      k.String("gateway_url"),
 		GatewayToken:    k.String("gateway_token"),
+		Telegram: telegram.Config{
+			Token:   k.String("telegram_bot_token"),
+			ChatID:  k.Int64("telegram_chat_id"),
+			TopicID: k.Int("telegram_topic_id"),
+		},
 	}, nil
 }
 

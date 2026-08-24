@@ -35,9 +35,24 @@ type recordIntentOutput struct {
 
 type readStateInput struct{}
 
+type postToChatInput struct {
+	Text string `json:"text" jsonschema:"what the people watching this session should read"`
+}
+
+type postToChatOutput struct {
+	MessageID int `json:"message_id" jsonschema:"the id Telegram gave the message"`
+}
+
+// Poster is the chat this session can reach. A nil one means no chat was
+// configured, and the tool is then not offered at all: an agent that can see a
+// tool assumes it works.
+type Poster interface {
+	Send(ctx context.Context, text string) (int, error)
+}
+
 // Handler serves this server over Streamable HTTP. now is the clock the tools
 // stamp with; it is passed in so a test is not at the mercy of the wall clock.
-func Handler(state *store.Memory, now func() time.Time) http.Handler {
+func Handler(state *store.Memory, now func() time.Time, poster Poster) http.Handler {
 	server := mcp.NewServer(&mcp.Implementation{Name: name, Version: version}, nil)
 
 	mcp.AddTool(server,
@@ -68,6 +83,21 @@ func Handler(state *store.Memory, now func() time.Time) http.Handler {
 		func(ctx context.Context, req *mcp.CallToolRequest, _ readStateInput) (*mcp.CallToolResult, store.State, error) {
 			return nil, state.Read(), nil
 		})
+
+	if poster != nil {
+		mcp.AddTool(server,
+			&mcp.Tool{
+				Name:        "post_to_chat",
+				Description: "Tell the people watching this session something they should read now.",
+			},
+			func(ctx context.Context, req *mcp.CallToolRequest, in postToChatInput) (*mcp.CallToolResult, postToChatOutput, error) {
+				id, err := poster.Send(ctx, in.Text)
+				if err != nil {
+					return nil, postToChatOutput{}, err
+				}
+				return nil, postToChatOutput{MessageID: id}, nil
+			})
+	}
 
 	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
 }

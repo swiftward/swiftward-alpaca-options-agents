@@ -22,6 +22,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/harness"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/mcpserver"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/store"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 )
 
 func main() {
@@ -57,7 +58,18 @@ func run(log *zap.Logger) error {
 	}
 
 	if cfg.Has(config.RoleMCP) {
-		handler := mcpserver.Handler(state, time.Now)
+		var poster mcpserver.Poster
+		if cfg.Telegram.Configured() {
+			bot, err := telegram.New(cfg.Telegram, log.Named("telegram"))
+			if err != nil {
+				return err
+			}
+			poster = bot
+		} else {
+			log.Info("no telegram chat configured: the session is offered no way to post")
+		}
+
+		handler := mcpserver.Handler(state, time.Now, poster)
 		group.Go(func() error { return serve(ctx, cfg.MCPAddr, handler, log.Named("mcp")) })
 	}
 
