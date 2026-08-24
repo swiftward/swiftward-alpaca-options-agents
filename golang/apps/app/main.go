@@ -96,7 +96,7 @@ func run(log *zap.Logger) error {
 		// The agent is held open for the whole run: that is what lets a person
 		// reach work already in progress instead of waiting for it to end.
 		if cfg.DeclarationPath == "" || chat != nil {
-			client, err := appserver.Dial(ctx, cfg.AgentCommand, log.Named("agent"))
+			client, err := appserver.Dial(ctx, cfg.AgentCommand, cfg.AgentCallTimeout, log.Named("agent"))
 			if err != nil {
 				return err
 			}
@@ -111,6 +111,7 @@ func run(log *zap.Logger) error {
 			// The conversation is opened before the room does: resuming a long
 			// thread takes as long as it takes, and doing it under the first
 			// message would answer that message with a timeout.
+			log.Info("opening the conversation with the agent")
 			threadID, err := conversation.Open(ctx)
 			if err != nil {
 				return err

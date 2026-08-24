@@ -33,7 +33,7 @@ echo '{"jsonrpc":"2.0","id":1,"result":{"userAgent":"fake"}}'
 func TestDialCompletesTheHandshake(t *testing.T) {
 	agent := fakeAgent(t, answerHandshake+"\nread line\n")
 
-	client, err := Dial(context.Background(), agent, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 }
@@ -51,7 +51,7 @@ echo '{"method":"turn/completed","params":{"threadId":"th-1","turn":{"id":"tu-1"
 read line
 `)
 
-	client, err := Dial(context.Background(), agent, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -98,7 +98,7 @@ while read line; do
 done
 `)
 
-	client, err := Dial(context.Background(), agent, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -124,7 +124,7 @@ echo '{"jsonrpc":"2.0","id":2,"error":{"code":-32602,"message":"turn already fin
 read line
 `)
 
-	client, err := Dial(context.Background(), agent, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -150,7 +150,7 @@ read line   # thread/start
 echo '{"jsonrpc":"2.0","id":2,"result":{"thread":{"id":"th-remembered"}}}'
 read line
 `)
-	client, err := Dial(context.Background(), agent, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -175,7 +175,7 @@ while read line; do
   echo "{\"jsonrpc\":\"2.0\",\"id\":$id,\"result\":{}}"
 done
 `)
-	client, err := Dial(context.Background(), agent, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -190,4 +190,15 @@ done
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), `"method":"thread/resume"`)
 	assert.NotContains(t, string(raw), `"method":"thread/start"`)
+}
+
+// A server that starts and never answers must fail, not hang: a hang leaves
+// nothing in the log and looks like the whole program is thinking.
+func TestDialGivesUpOnASilentServer(t *testing.T) {
+	agent := fakeAgent(t, "sleep 30\n")
+
+	start := time.Now()
+	_, err := Dial(context.Background(), agent, 300*time.Millisecond, zaptest.NewLogger(t))
+	require.Error(t, err)
+	assert.Less(t, time.Since(start), 5*time.Second)
 }

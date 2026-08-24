@@ -15,6 +15,7 @@ import (
 	"io"
 	"os/exec"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -56,7 +57,11 @@ type Client struct {
 
 // Dial starts the agent's protocol server and completes the handshake. command
 // is the agent binary; it is a parameter so a test drives a real process.
-func Dial(ctx context.Context, command string, log *zap.Logger) (*Client, error) {
+//
+// handshakeTimeout bounds the first request. Without it a server that starts but
+// never answers leaves the whole program waiting with nothing in the log - the
+// failure looks like a hang, not like a fault.
+func Dial(ctx context.Context, command string, handshakeTimeout time.Duration, log *zap.Logger) (*Client, error) {
 	cmd := exec.CommandContext(ctx, command, "app-server", "--listen", "stdio://")
 
 	stdin, err := cmd.StdinPipe()
@@ -82,11 +87,20 @@ func Dial(ctx context.Context, command string, log *zap.Logger) (*Client, error)
 	}
 	go c.read(stdout)
 
-	if _, err := c.call(ctx, "initialize", map[string]any{
+	handshakeCtx := ctx
+	if handshakeTimeout > 0 {
+		var done context.CancelFunc
+		handshakeCtx, done = context.WithTimeout(ctx, handshakeTimeout)
+		defer done()
+	}
+
+	if _, err := c.call(handshakeCtx, "initialize", map[string]any{
 		"clientInfo": map[string]string{"name": clientName, "title": clientName, "version": clientVersion},
 	}); err != nil {
-		_ = c.Close()
-		return nil, err
+		// A server that did not answer the handshake will not answer a polite
+		// shutdown either, so it is killed rather than waited for.
+		c.kill()
+		return nil, fmt.Errorf("the agent did not answer the handshake: %w", err)
 	}
 
 	return c, nil
@@ -96,6 +110,18 @@ func Dial(ctx context.Context, command string, log *zap.Logger) (*Client, error)
 // rather than stalling the agent, and the loss is logged: a chat that lags behind
 // is better than a session that stops to wait for it.
 func (c *Client) Events() <-chan Event { return c.events }
+
+// kill ends the process without waiting for it to agree.
+func (c *Client) kill() {
+	c.closeOnce.Do(func() {
+		_ = c.stdin.Close()
+		if c.cmd.Process != nil {
+			_ = c.cmd.Process.Kill()
+		}
+		_ = c.cmd.Wait()
+		close(c.events)
+	})
+}
 
 func (c *Client) Close() error {
 	var err error
