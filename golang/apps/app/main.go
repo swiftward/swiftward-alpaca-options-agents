@@ -20,6 +20,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/api"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/appserver"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/config"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/harness"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/mcpserver"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/store"
@@ -85,17 +86,24 @@ func run(log *zap.Logger) error {
 
 	if cfg.Has(config.RoleHarness) {
 		h := &harness.Harness{
-			DeclarationPath: cfg.DeclarationPath,
-			CallTimeout:     cfg.AgentCallTimeout,
-			Log:             log.Named("harness"),
+			CallTimeout: cfg.AgentCallTimeout,
+			Now:         time.Now,
+			Log:         log.Named("harness"),
 		}
 		if chat != nil {
 			h.Chat = chat
 		}
+		if cfg.DeclarationPath != "" {
+			declared, err := declaration.Load(cfg.DeclarationPath)
+			if err != nil {
+				return err
+			}
+			h.Declaration = declared
+		}
 
 		// The agent is held open for the whole run: that is what lets a person
 		// reach work already in progress instead of waiting for it to end.
-		if cfg.DeclarationPath == "" || chat != nil {
+		{
 			client, err := appserver.Dial(ctx, cfg.AgentCommand, cfg.AgentCallTimeout, log.Named("agent"))
 			if err != nil {
 				return err

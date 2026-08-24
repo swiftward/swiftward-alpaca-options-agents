@@ -10,7 +10,6 @@ package harness
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -18,8 +17,14 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/appserver"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 )
+
+// clockTick is how often the schedule is asked whether anything is due. The
+// declaration speaks in minutes, so asking more often would only repeat the same
+// question.
+const clockTick = time.Minute
 
 // Chat is the room the session works in. The agent never holds this - the
 // harness posts what the session said and passes on what a person wrote.
@@ -47,9 +52,12 @@ const (
 type Harness struct {
 	Chat         Chat
 	Conversation Conversation
-	// DeclarationPath names the sessions the clock wakes. Empty means the clock
-	// wakes nobody and the chat is the only cause.
-	DeclarationPath string
+	// Declaration names the sessions the clock wakes. Nil means the clock wakes
+	// nobody and the chat is the only cause.
+	Declaration *declaration.Declaration
+	// Now is the clock. It is a field so a test is not at the mercy of the wall
+	// clock, and so the only place a time comes from is visible.
+	Now func() time.Time
 	// CallTimeout bounds one request to the agent. The loop that reads the chat is
 	// the loop that talks to the agent, so an unbounded call takes the room down
 	// with the session.
@@ -60,36 +68,87 @@ type Harness struct {
 	threadID string
 	turnID   string
 	statusID int
+	lastRun  map[string]time.Time
 }
 
 // Run holds both causes until ctx ends. With neither a declaration nor a chat it
 // refuses to start: a harness that runs while waking nobody looks exactly like a
 // working one.
 func (h *Harness) Run(ctx context.Context) error {
-	if h.DeclarationPath == "" && h.Chat == nil {
+	if h.Declaration == nil && h.Chat == nil {
 		return fmt.Errorf("the harness has no cause to wake a session: set DECLARATION, configure the chat, or run neither role")
 	}
-	if h.Chat != nil && h.CallTimeout <= 0 {
+	if h.CallTimeout <= 0 {
 		return fmt.Errorf("the harness needs a bound on one call to the agent: set AGENT_CALL_TIMEOUT")
 	}
+	if h.Now == nil {
+		return fmt.Errorf("the harness has no clock")
+	}
+	h.lastRun = map[string]time.Time{}
 
-	if h.DeclarationPath != "" {
-		raw, err := os.ReadFile(h.DeclarationPath)
-		if err != nil {
-			return fmt.Errorf("read declaration %s: %w", h.DeclarationPath, err)
-		}
-		h.Log.Info("declaration read", zap.String("path", h.DeclarationPath), zap.Int("bytes", len(raw)))
+	if h.Chat != nil {
+		go h.postWhatTheSessionSays(ctx)
+	}
+	if h.Declaration != nil {
+		go h.keepTheClock(ctx)
+		h.Log.Info("clock held",
+			zap.String("declaration", h.Declaration.Name),
+			zap.Int("sessions", len(h.Declaration.Sessions)),
+			zap.String("timezone", h.Declaration.Location().String()))
+	}
 
-		return fmt.Errorf("declaration format is not implemented yet: nothing can be scheduled from %s", h.DeclarationPath)
+	if h.Chat == nil {
+		<-ctx.Done()
+		return nil
 	}
 
 	return h.serveChat(ctx)
 }
 
+// keepTheClock wakes the sessions the declaration names. It checks once a minute
+// because the declaration speaks in minutes; a finer tick would only ask the same
+// question more often.
+func (h *Harness) keepTheClock(ctx context.Context) {
+	ticker := time.NewTicker(clockTick)
+	defer ticker.Stop()
+
+	h.fireDue(ctx)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			h.fireDue(ctx)
+		}
+	}
+}
+
+func (h *Harness) fireDue(ctx context.Context) {
+	now := h.Now().In(h.Declaration.Location())
+
+	for i := range h.Declaration.Sessions {
+		session := &h.Declaration.Sessions[i]
+		if !session.Due(now, h.lastRun[session.Name]) {
+			continue
+		}
+		if turnID := h.runningTurn(); turnID != "" {
+			// Two sessions on one account close each other's positions. The due
+			// session is not lost: it stays due until the running turn ends.
+			h.Log.Info("session is due but the agent is working",
+				zap.String("session", session.Name),
+				zap.String("turn_id", turnID))
+			return
+		}
+
+		h.lastRun[session.Name] = now
+		h.Log.Info("waking a session", zap.String("session", session.Name), zap.String("cause", session.Cause))
+		h.startTurnWith(ctx, session.Prompt(), session.Name)
+	}
+}
+
 func (h *Harness) serveChat(ctx context.Context) error {
 	listening := make(chan error, 1)
 	go func() { listening <- h.Chat.Listen(ctx) }()
-	go h.postWhatTheSessionSays(ctx)
 
 	for {
 		select {
@@ -130,6 +189,10 @@ func (h *Harness) handle(ctx context.Context, msg telegram.Message) {
 }
 
 func (h *Harness) startTurn(ctx context.Context, msg telegram.Message) {
+	h.startTurnWith(ctx, promptFor(msg), msg.Username)
+}
+
+func (h *Harness) startTurnWith(ctx context.Context, prompt, who string) {
 	agentCtx, done := h.boundToAgent(ctx)
 	threadID, err := h.openThread(agentCtx)
 	done()
@@ -139,13 +202,13 @@ func (h *Harness) startTurn(ctx context.Context, msg telegram.Message) {
 		return
 	}
 
-	status, err := h.Chat.Send(ctx, "working")
+	status, err := h.status(ctx, "working")
 	if err != nil {
 		h.Log.Error("could not open a status line in the chat", zap.Error(err))
 	}
 
 	agentCtx, done = h.boundToAgent(ctx)
-	turnID, err := h.Conversation.Turn(agentCtx, promptFor(msg))
+	turnID, err := h.Conversation.Turn(agentCtx, prompt)
 	done()
 	if err != nil {
 		h.Log.Error("could not start a turn", zap.Error(err))
@@ -161,7 +224,17 @@ func (h *Harness) startTurn(ctx context.Context, msg telegram.Message) {
 	h.Log.Info("turn started",
 		zap.String("thread_id", threadID),
 		zap.String("turn_id", turnID),
-		zap.String("from", msg.Username))
+		zap.String("from", who))
+}
+
+// status opens the line the tool calls will rewrite. With no chat there is no
+// line, and that is a legal state: the clock can wake sessions in silence.
+func (h *Harness) status(ctx context.Context, text string) (int, error) {
+	if h.Chat == nil {
+		return 0, nil
+	}
+
+	return h.Chat.Send(ctx, text)
 }
 
 func (h *Harness) stop(ctx context.Context) {
@@ -216,7 +289,7 @@ func (h *Harness) finishTurn(ctx context.Context, turnID string) {
 	h.statusID = 0
 	h.mu.Unlock()
 
-	if status != 0 {
+	if status != 0 && h.Chat != nil {
 		if err := h.Chat.Edit(ctx, status, "done"); err != nil {
 			h.Log.Debug("could not close the status line", zap.Error(err))
 		}
@@ -259,7 +332,7 @@ func (h *Harness) runningTurn() string {
 }
 
 func (h *Harness) say(ctx context.Context, text string) {
-	if strings.TrimSpace(text) == "" {
+	if h.Chat == nil || strings.TrimSpace(text) == "" {
 		return
 	}
 	if _, err := h.Chat.Send(ctx, text); err != nil {
@@ -271,7 +344,7 @@ func (h *Harness) updateStatus(ctx context.Context, text string) {
 	h.mu.Lock()
 	status := h.statusID
 	h.mu.Unlock()
-	if status == 0 {
+	if status == 0 || h.Chat == nil {
 		return
 	}
 	if err := h.Chat.Edit(ctx, status, text); err != nil {

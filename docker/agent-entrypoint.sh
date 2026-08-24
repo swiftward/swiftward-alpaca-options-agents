@@ -43,4 +43,11 @@ fi
     fi
 } > "${CODEX_HOME}/config.toml"
 
+# The session reads its instructions from the directory it works in, and keeps
+# its notes beside them. Instructions are replaced on every start - they belong
+# to this image; notes are created once and never overwritten - they belong to
+# the session.
+mkdir -p /work/notes
+cp /agent/AGENTS.md /work/AGENTS.md
+
 exec /usr/local/bin/app "$@"

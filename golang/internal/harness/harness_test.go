@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/appserver"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 )
 
@@ -156,7 +157,7 @@ func start(t *testing.T) (*Harness, *chatDouble, *conversationSpy) {
 
 	chat := newChatDouble()
 	agent := newConversationSpy()
-	h := &Harness{Chat: chat, Conversation: agent, CallTimeout: 2 * time.Second, Log: zaptest.NewLogger(t)}
+	h := &Harness{Chat: chat, Conversation: agent, CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t)}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -168,7 +169,7 @@ func start(t *testing.T) (*Harness, *chatDouble, *conversationSpy) {
 // The loop that reads the chat is the loop that talks to the agent, so a call
 // with no bound takes the room down with a session that stopped answering.
 func TestRefusesWithoutACallBound(t *testing.T) {
-	h := &Harness{Chat: newChatDouble(), Conversation: newConversationSpy(), Log: zaptest.NewLogger(t)}
+	h := &Harness{Chat: newChatDouble(), Conversation: newConversationSpy(), Now: time.Now, Log: zaptest.NewLogger(t)}
 	err := h.Run(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "AGENT_CALL_TIMEOUT")
@@ -183,7 +184,7 @@ func TestAHungAgentDoesNotWedgeTheRoom(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	h := &Harness{Chat: chat, Conversation: agent, CallTimeout: 300 * time.Millisecond, Log: zaptest.NewLogger(t)}
+	h := &Harness{Chat: chat, Conversation: agent, CallTimeout: 300 * time.Millisecond, Now: time.Now, Log: zaptest.NewLogger(t)}
 	go func() { _ = h.Run(ctx) }()
 
 	chat.inbound <- telegram.Message{Text: "start something", UserID: 42, Username: "joker"}
@@ -200,14 +201,88 @@ func TestRefusesWithoutAnyCause(t *testing.T) {
 	assert.Contains(t, err.Error(), "no cause to wake a session")
 }
 
-func TestDeclarationFormatRefusesLoudly(t *testing.T) {
+// The clock wakes a session on its own, with no chat and nobody typing: that is
+// what the hackathon means by autonomous.
+func TestTheClockWakesASessionWithoutAnybody(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "agent.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("kind: trading-agent\n"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(`
+kind: trading-agent
+name: options-alpha
+version: v1
+timezone: UTC
+sessions:
+  - name: flatten
+    cause: "закрыть всё перед концом дня"
+    task: "Закрой все позиции."
+    at: "15:50"
+`), 0o600))
 
-	h := &Harness{DeclarationPath: path, Log: zaptest.NewLogger(t)}
-	err := h.Run(context.Background())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+	declared, err := declaration.Load(path)
+	require.NoError(t, err)
+
+	agent := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: agent,
+		Declaration:  declared,
+		CallTimeout:  2 * time.Second,
+		Now:          func() time.Time { return time.Date(2026, 8, 24, 15, 50, 0, 0, time.UTC) },
+		Log:          zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { turns, _, _ := agent.seen(); return len(turns) == 1 })
+
+	turns, _, _ := agent.seen()
+	assert.Contains(t, turns[0], "закрыть всё перед концом дня", "the session must carry why it was woken")
+	assert.Contains(t, turns[0], "Закрой все позиции")
+}
+
+// Two sessions on one account close each other's positions, so a due session
+// waits rather than starting beside a running one.
+func TestADueSessionWaitsForTheRunningTurn(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: defend
+    cause: "проверка правил защиты"
+    task: "Проверь позиции."
+    every: 30m
+    between: ["09:40", "15:55"]
+`), 0o600))
+
+	declared, err := declaration.Load(path)
+	require.NoError(t, err)
+
+	chat := newChatDouble()
+	agent := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat:         chat,
+		Conversation: agent,
+		Declaration:  declared,
+		CallTimeout:  2 * time.Second,
+		Now:          func() time.Time { return time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC) },
+		Log:          zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { turns, _, _ := agent.seen(); return len(turns) == 1 })
+
+	// A person writes while the scheduled session runs: that message steers the
+	// running turn instead of starting a second one.
+	chat.inbound <- telegram.Message{Text: "close it", UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { _, steered, _ := agent.seen(); return len(steered) == 1 })
+
+	turns, _, _ := agent.seen()
+	assert.Len(t, turns, 1)
 }
 
 func TestFirstMessageStartsATurnAndTheRoomSeesIt(t *testing.T) {
