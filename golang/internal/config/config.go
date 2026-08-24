@@ -33,8 +33,13 @@ type Config struct {
 	// MCP role.
 	MCPAddr string
 
-	// Harness role. Empty means the role cannot run: there is nothing to wake for.
+	// Harness role. With no declaration and no chat there is nothing to wake for.
 	DeclarationPath string
+	// AgentCommand is the agent binary the harness starts.
+	AgentCommand string
+	// AgentDir and AgentSandbox are what every session is given to work in.
+	AgentDir     string
+	AgentSandbox string
 
 	// Shared.
 	DatabaseURL  string
@@ -63,13 +68,17 @@ func Load() (Config, error) {
 		WebDir:          k.String("web_dir"),
 		MCPAddr:         k.String("mcp_addr"),
 		DeclarationPath: k.String("declaration"),
+		AgentCommand:    k.String("agent_command"),
+		AgentDir:        k.String("agent_dir"),
+		AgentSandbox:    k.String("agent_sandbox"),
 		DatabaseURL:     k.String("database_url"),
 		GatewayURL:      k.String("gateway_url"),
 		GatewayToken:    k.String("gateway_token"),
 		Telegram: telegram.Config{
-			Token:   k.String("telegram_bot_token"),
-			ChatID:  k.Int64("telegram_chat_id"),
-			TopicID: k.Int("telegram_topic_id"),
+			Token:        k.String("telegram_bot_token"),
+			ChatID:       k.Int64("telegram_chat_id"),
+			TopicID:      k.Int("telegram_topic_id"),
+			AllowUserIDs: k.Int64s("telegram_allow_user_ids"),
 		},
 	}, nil
 }

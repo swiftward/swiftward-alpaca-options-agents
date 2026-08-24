@@ -56,6 +56,17 @@ services:
     image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/agent:${IMAGE_TAG}
     networks: [internal]
     environment:
+      ROLES: harness
+      AGENT_COMMAND: codex
+      AGENT_DIR: /work
+      AGENT_SANDBOX: workspace-write
+      DECLARATION: ${DECLARATION}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}
+      TELEGRAM_ALLOW_USER_IDS: ${TELEGRAM_ALLOW_USER_IDS}
+      GATEWAY_URL: ${GATEWAY_URL}
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
       HTTP_PROXY: http://egress:8888
       HTTPS_PROXY: http://egress:8888
       NO_PROXY: app,alpaca-mcp,postgres,egress,localhost,127.0.0.1

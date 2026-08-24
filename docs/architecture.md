@@ -8,7 +8,7 @@ Five services, two networks, one binary with three roles. The shape exists to ma
 |---|---|---|
 | `app` | our binary, running any of three roles | the gateway, Postgres, the internet |
 | `alpaca-mcp` | Alpaca's own MCP server, pinned to a released version | Alpaca |
-| `agent` | the trading session: `codex` and nothing else | only the services beside it, and the egress proxy |
+| `agent` | the trading session: the `harness` role and the agent it starts | only the services beside it, and the egress proxy |
 | `egress` | forward proxy with a host allowlist (`docker/egress/filter.txt`) | the hosts it allows |
 | `postgres` | state | nowhere |
 
@@ -26,7 +26,9 @@ The agent sits on `internal` alone. Everything it can do is therefore enumerable
 
 `ROLES` selects them; they share one process and one in-memory state.
 
-- **`harness`** holds the clock. It decides *when* a session runs and records *why* it woke it. It never decides what to trade - the session does, and the autonomy requirement rests on that line. With no declaration it refuses to start: a harness that runs while waking nobody looks exactly like a working one.
+- **`harness`** decides *when* a session runs and says *why* it woke it. It never decides what to trade - the session does, and the autonomy requirement rests on that line. Two causes wake a session: the schedule in the declaration, and a person writing in the chat. With neither it refuses to start, because a harness that runs while waking nobody looks exactly like a working one.
+
+  The harness runs the agent as a child process and reads its event stream: every message the session produces is posted to the chat, and each tool call replaces one status line rather than adding a message. A person writing back wakes the next session on the same thread, so the conversation continues rather than restarting. **The agent knows nothing about the chat** - that is what makes a session woken by the clock and one woken by a person the same thing from inside.
 - **`api`** serves the read side: `/healthz`, `/state`, and the built page from `WEB_DIR`. It decides nothing.
 - **`mcp`** is our own MCP server, carrying what Alpaca's cannot: `record_intent`, which a session calls *before* it orders anything; `read_state`, which the next session calls to learn what already happened; and `post_to_chat`, which tells the people watching. A judge can see fills anywhere; only the first of these says what the session meant to do.
 

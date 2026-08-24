@@ -1,9 +1,10 @@
-// Package telegram carries the session's messages to the people watching it.
+// Package telegram is the room the session works in: everything it says is
+// posted there, and what a person writes back reaches the session.
 //
-// It is a one-way channel today: the agent posts, the chat reads. Inbound
-// messages need a live session to deliver them into, which arrives with the
-// harness; until then the bot polls nothing, because a reader nobody consumes is
-// a leak dressed as a feature.
+// The agent knows nothing about any of this. The harness reads the session's
+// output and posts it; the harness reads the chat and gives it to the session.
+// Keeping the channel out of the agent's tools is what makes a session started
+// by the clock and a session started by a person the same thing.
 package telegram
 
 import (
@@ -22,17 +23,30 @@ type Config struct {
 	Token   string
 	ChatID  int64
 	TopicID int
+	// AllowUserIDs are the people whose messages reach the session. Empty means
+	// nobody: an open channel into a trading agent is not a default.
+	AllowUserIDs []int64
 	// APIServer overrides Telegram's own address. Empty means the real one.
 	APIServer string
 }
 
 func (c Config) Configured() bool { return c.Token != "" && c.ChatID != 0 }
 
+// Message is what a person wrote in the chat, after the allowlist.
+type Message struct {
+	Text     string
+	UserID   int64
+	Username string
+}
+
 type Bot struct {
 	bot     *telego.Bot
 	chatID  int64
 	topicID int
+	allowed map[int64]bool
 	log     *zap.Logger
+
+	inbound chan Message
 }
 
 func New(cfg Config, log *zap.Logger) (*Bot, error) {
@@ -52,7 +66,91 @@ func New(cfg Config, log *zap.Logger) (*Bot, error) {
 		return nil, fmt.Errorf("create telegram bot: %w", err)
 	}
 
-	return &Bot{bot: bot, chatID: cfg.ChatID, topicID: cfg.TopicID, log: log}, nil
+	allowed := make(map[int64]bool, len(cfg.AllowUserIDs))
+	for _, id := range cfg.AllowUserIDs {
+		allowed[id] = true
+	}
+
+	return &Bot{
+		bot:     bot,
+		chatID:  cfg.ChatID,
+		topicID: cfg.TopicID,
+		allowed: allowed,
+		log:     log,
+		inbound: make(chan Message, inboundBuffer),
+	}, nil
+}
+
+// Inbound is the stream of messages from people allowed to talk to the session.
+func (b *Bot) Inbound() <-chan Message { return b.inbound }
+
+// Listen polls until ctx ends. It drops anything from another chat, another
+// topic or a sender nobody allowed, and says so in the log: a message silently
+// ignored looks the same as a message lost.
+func (b *Bot) Listen(ctx context.Context) error {
+	updates, err := b.bot.UpdatesViaLongPolling(ctx, &telego.GetUpdatesParams{
+		Timeout:        pollSeconds,
+		AllowedUpdates: []string{"message"},
+	})
+	if err != nil {
+		return fmt.Errorf("start telegram polling: %w", err)
+	}
+
+	b.log.Info("listening", zap.Int64("chat_id", b.chatID), zap.Int("topic_id", b.topicID))
+
+	for {
+		select {
+		case <-ctx.Done():
+			close(b.inbound)
+			return nil
+		case update, ok := <-updates:
+			if !ok {
+				close(b.inbound)
+				return nil
+			}
+			msg := update.Message
+			if msg == nil || msg.Text == "" {
+				continue
+			}
+			if msg.Chat.ID != b.chatID {
+				continue
+			}
+			if b.topicID != 0 && msg.MessageThreadID != b.topicID {
+				continue
+			}
+			if msg.From == nil || !b.allowed[msg.From.ID] {
+				b.log.Warn("message from someone not allowed to talk to the session",
+					zap.Int64("chat_id", msg.Chat.ID))
+				continue
+			}
+
+			select {
+			case b.inbound <- Message{Text: msg.Text, UserID: msg.From.ID, Username: msg.From.Username}:
+			default:
+				b.log.Error("inbound buffer is full, message dropped", zap.String("from", msg.From.Username))
+			}
+		}
+	}
+}
+
+// Edit replaces the text of a message this bot sent. The harness uses it for the
+// one line that says what the session is doing right now, so the chat carries a
+// changing status instead of a page of tool names.
+func (b *Bot) Edit(ctx context.Context, messageID int, text string) error {
+	if text == "" {
+		return fmt.Errorf("refusing to edit a message to nothing")
+	}
+
+	_, err := b.bot.EditMessageText(ctx, &telego.EditMessageTextParams{
+		ChatID:    telego.ChatID{ID: b.chatID},
+		MessageID: messageID,
+		Text:      text,
+	})
+	if err != nil {
+		return fmt.Errorf("edit telegram message %d: %w", messageID, err)
+	}
+
+	return nil
 }
 
 // Send posts one message and returns the id Telegram gave it. A configured topic
@@ -79,3 +177,8 @@ func (b *Bot) Send(ctx context.Context, text string) (int, error) {
 
 	return sent.MessageID, nil
 }
+
+const (
+	pollSeconds   = 30
+	inboundBuffer = 32
+)

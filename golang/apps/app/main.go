@@ -21,6 +21,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/config"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/harness"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/mcpserver"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/session"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/store"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 )
@@ -47,6 +48,19 @@ func run(log *zap.Logger) error {
 	defer stop()
 
 	state := store.NewMemory()
+
+	// One chat serves both roles: the harness posts what the session said, and the
+	// mcp role offers the agent a way to speak when no harness is running it.
+	var chat *telegram.Bot
+	if cfg.Telegram.Configured() {
+		chat, err = telegram.New(cfg.Telegram, log.Named("telegram"))
+		if err != nil {
+			return err
+		}
+	} else {
+		log.Info("no chat configured: nothing will be posted and nobody can write to a session")
+	}
+
 	group, ctx := errgroup.WithContext(ctx)
 
 	if cfg.Has(config.RoleAPI) {
@@ -59,14 +73,10 @@ func run(log *zap.Logger) error {
 
 	if cfg.Has(config.RoleMCP) {
 		var poster mcpserver.Poster
-		if cfg.Telegram.Configured() {
-			bot, err := telegram.New(cfg.Telegram, log.Named("telegram"))
-			if err != nil {
-				return err
-			}
-			poster = bot
-		} else {
-			log.Info("no telegram chat configured: the session is offered no way to post")
+		if chat != nil && !cfg.Has(config.RoleHarness) {
+			// With a harness running, everything the session says is already posted;
+			// a tool for it as well would double every message.
+			poster = chat
 		}
 
 		handler := mcpserver.Handler(state, time.Now, poster)
@@ -74,7 +84,17 @@ func run(log *zap.Logger) error {
 	}
 
 	if cfg.Has(config.RoleHarness) {
-		group.Go(func() error { return harness.Run(ctx, cfg.DeclarationPath, log.Named("harness")) })
+		h := &harness.Harness{
+			Sessions:        session.Runner{Command: cfg.AgentCommand, Log: log.Named("session")},
+			DeclarationPath: cfg.DeclarationPath,
+			Dir:             cfg.AgentDir,
+			Sandbox:         cfg.AgentSandbox,
+			Log:             log.Named("harness"),
+		}
+		if chat != nil {
+			h.Chat = chat
+		}
+		group.Go(func() error { return h.Run(ctx) })
 	}
 
 	log.Info("started", zap.Any("roles", cfg.Roles))
