@@ -54,7 +54,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       GATEWAY_URL: ${GATEWAY_URL}
       GATEWAY_TOKEN: ${GATEWAY_TOKEN}
-      DECLARATION: ${DECLARATION}
+      DECLARATION: ${DECLARATION:-/agent/agent.yaml}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}
@@ -93,7 +93,7 @@ services:
       # Set only while the gateway is not yet in front of the broker, and only on
       # a development account.
       BROKER_MCP_URL: ${BROKER_MCP_URL}
-      DECLARATION: ${DECLARATION}
+      DECLARATION: ${DECLARATION:-/agent/agent.yaml}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}

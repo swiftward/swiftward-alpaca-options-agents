@@ -116,3 +116,23 @@ func TestDueEveryInsideItsWindow(t *testing.T) {
 	assert.False(t, defend.Due(at(t, "2026-08-24 10:00"), start), "twenty minutes is not thirty")
 	assert.True(t, defend.Due(at(t, "2026-08-24 10:10"), start), "thirty minutes have passed")
 }
+
+// The declaration this project actually runs must load, and every session in it
+// must carry a cause: it is the file the whole week depends on.
+func TestTheDeclarationWeShipLoads(t *testing.T) {
+	// The real file, not a copy of it: a copy would drift from what ships.
+	d, err := Load("../../../agent/agent.yaml")
+	require.NoError(t, err)
+
+	assert.Equal(t, "America/New_York", d.Location().String())
+	names := map[string]bool{}
+	for i := range d.Sessions {
+		s := &d.Sessions[i]
+		names[s.Name] = true
+		assert.NotEmpty(t, s.Cause, s.Name)
+		assert.NotEmpty(t, s.Task, s.Name)
+	}
+	for _, want := range []string{"open-check", "entry", "defend", "flatten"} {
+		assert.True(t, names[want], "session %s is missing", want)
+	}
+}
