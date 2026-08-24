@@ -1,0 +1,3 @@
+^api\.openai\.com$
+^chatgpt\.com$
+^auth\.openai\.com$

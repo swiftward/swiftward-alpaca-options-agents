@@ -1,12 +1,17 @@
 name: swiftward-alpaca-options-agents
 
-# Local stack: everything is built from this checkout. `make up` builds and starts it.
-# compose.prod.yaml is the same stack with published images instead of builds.
-# Postgres publishes ${POSTGRES_PORT} on the host so this stack can run beside others.
+# Local stack, built from this checkout. `make up` builds and starts it.
+#
+# Two networks on purpose. `internal` has no route out and no published ports.
+# The services that must reach the public internet - the app, which talks to the
+# policy gateway, and Alpaca's server, which talks to Alpaca - also sit on
+# `outbound`. The agent sits on `internal` alone, so its only ways anywhere are
+# the services beside it and the egress proxy, whose allowlist it cannot widen.
 
 services:
   postgres:
     image: postgres:18.4-alpine
+    networks: [internal]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -14,50 +19,82 @@ services:
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 20
 
-  recorder:
+  # Alpaca's own MCP server. The account keys live here and nowhere else; no host
+  # port, so the only caller is the policy gateway.
+  alpaca-mcp:
     build:
       context: .
-      dockerfile: docker/go.Dockerfile
-      args:
-        APP: recorder
+      dockerfile: docker/alpaca-mcp.Dockerfile
+    networks: [internal, outbound]
     environment:
+      ALPACA_API_KEY: ${ALPACA_API_KEY_ID}
+      ALPACA_SECRET_KEY: ${ALPACA_API_SECRET_KEY}
+      ALPACA_PAPER_TRADE: ${ALPACA_PAPER}
+      ALPACA_TOOLSETS: ${ALPACA_TOOLSETS}
+
+  # Our three roles. `harness` stays out until a declaration exists: it refuses to
+  # start without one rather than running while waking nobody.
+  app:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    networks: [internal, outbound]
+    environment:
+      ROLES: ${ROLES}
+      ADDR: ":8080"
+      MCP_ADDR: ":8081"
+      WEB_DIR: /srv/web
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      GATEWAY_URL: ${GATEWAY_URL}
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+      DECLARATION: ${DECLARATION}
     ports:
-      - "8080:8080"
+      - "${APP_PORT}:8080"
     depends_on:
       postgres:
         condition: service_healthy
 
-  runner:
+  # The session's container. It holds the agent and no credential of ours; the
+  # login it does carry is Codex's own, mounted from the host that logged in.
+  agent:
     build:
       context: .
       dockerfile: docker/agent.Dockerfile
+    networks: [internal]
     environment:
-      RECORDER_URL: http://recorder:8080
-      GATEWAY_URL: ${GATEWAY_URL}
-      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      HTTP_PROXY: http://egress:8888
+      HTTPS_PROXY: http://egress:8888
+      NO_PROXY: app,alpaca-mcp,postgres,egress,localhost,127.0.0.1
+      CODEX_HOME: /home/agent/.codex
+    volumes:
+      - ${CODEX_AUTH_DIR}:/mnt/codex:ro
+      - codex-home:/home/agent/.codex
+      - agent-work:/work
     depends_on:
-      recorder:
+      app:
         condition: service_started
+    profiles: [session]
 
-  web:
+  # The only door out. Hosts not named in docker/egress/filter.txt are refused.
+  egress:
     build:
-      context: typescript/web
-    environment:
-      RECORDER_URL: http://recorder:8080
-    ports:
-      - "3000:3000"
-    depends_on:
-      recorder:
-        condition: service_started
+      context: .
+      dockerfile: docker/egress.Dockerfile
+    networks: [internal, outbound]
+
+networks:
+  internal:
+    internal: true
+  outbound:
 
 volumes:
   pgdata:
+  codex-home:
+  agent-work:

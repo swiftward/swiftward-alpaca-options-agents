@@ -18,11 +18,11 @@ The same strategy declaration is read twice: by the backtester over history, and
 
 | Path | What is in it |
 |---|---|
-| `golang/apps/runner` | schedules sessions and starts them |
-| `golang/apps/recorder` | stores what each session decided, what was refused, what filled |
+| `golang/apps/app` | one binary, three roles: `harness` holds the clock, `api` serves the read side and the built page, `mcp` carries the agent's own two tools |
 | `golang/apps/backtest` | runs a strategy declaration over historical data |
-| `golang/internal` | packages behind those three |
+| `golang/internal` | packages behind those two |
 | `typescript/web` | the demo page: current limits, recent refusals, open positions |
+| `docker` | one Dockerfile per service, including the egress proxy and its allowlist |
 | `postgres/migrations` | schema |
 | `playbooks` | strategy declarations, one file per strategy |
 | `agent` | what the agent itself reads: prompts, skills, MCP configuration |

@@ -7,6 +7,7 @@ name: swiftward-alpaca-options-agents-prod
 services:
   postgres:
     image: postgres:18.4-alpine
+    networks: [internal]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -14,43 +15,67 @@ services:
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 20
 
-  recorder:
-    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/recorder:${IMAGE_TAG}
+  alpaca-mcp:
+    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/alpaca-mcp:${IMAGE_TAG}
+    networks: [internal, outbound]
     environment:
+      ALPACA_API_KEY: ${ALPACA_API_KEY_ID}
+      ALPACA_SECRET_KEY: ${ALPACA_API_SECRET_KEY}
+      ALPACA_PAPER_TRADE: ${ALPACA_PAPER}
+      ALPACA_TOOLSETS: ${ALPACA_TOOLSETS}
+
+  app:
+    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/app:${IMAGE_TAG}
+    networks: [internal, outbound]
+    environment:
+      ROLES: ${ROLES}
+      ADDR: ":8080"
+      MCP_ADDR: ":8081"
+      WEB_DIR: /srv/web
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      GATEWAY_URL: ${GATEWAY_URL}
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+      DECLARATION: ${DECLARATION}
     ports:
-      - "8080:8080"
+      - "${APP_PORT}:8080"
     depends_on:
       postgres:
         condition: service_healthy
 
-  runner:
-    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/runner:${IMAGE_TAG}
+  agent:
+    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/agent:${IMAGE_TAG}
+    networks: [internal]
     environment:
-      RECORDER_URL: http://recorder:8080
-      GATEWAY_URL: ${GATEWAY_URL}
-      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      HTTP_PROXY: http://egress:8888
+      HTTPS_PROXY: http://egress:8888
+      NO_PROXY: app,alpaca-mcp,postgres,egress,localhost,127.0.0.1
+      CODEX_HOME: /home/agent/.codex
+    volumes:
+      - ${CODEX_AUTH_DIR}:/mnt/codex:ro
+      - codex-home:/home/agent/.codex
+      - agent-work:/work
     depends_on:
-      recorder:
+      app:
         condition: service_started
+    profiles: [session]
 
-  web:
-    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/web:${IMAGE_TAG}
-    environment:
-      RECORDER_URL: http://recorder:8080
-    ports:
-      - "3000:3000"
-    depends_on:
-      recorder:
-        condition: service_started
+  egress:
+    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/egress:${IMAGE_TAG}
+    networks: [internal, outbound]
+
+networks:
+  internal:
+    internal: true
+  outbound:
 
 volumes:
   pgdata:
+  codex-home:
+  agent-work:
