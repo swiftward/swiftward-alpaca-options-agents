@@ -4,7 +4,7 @@
 //
 // The in-memory implementation exists so the stack runs before Postgres does;
 // it is replaced, not extended, once the schema is wired.
-package store
+package record
 
 import (
 	"sync"

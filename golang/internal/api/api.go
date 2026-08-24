@@ -9,13 +9,13 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/store"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 )
 
 // Handler builds the read-side routes. webDir is the directory holding the built
 // page; when it is empty only the JSON routes are served, and the log says so,
 // because a page served from nowhere would look like a broken deployment.
-func Handler(state *store.Memory, webDir string, log *zap.Logger) (http.Handler, error) {
+func Handler(state *record.Memory, webDir string, log *zap.Logger) (http.Handler, error) {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {

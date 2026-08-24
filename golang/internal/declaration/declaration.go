@@ -36,6 +36,10 @@ type Session struct {
 	Task string `yaml:"task"`
 	// At fires once a day at this local time, "15:50".
 	At string `yaml:"at"`
+	// Within is how late this session may still start: an entry window survives a
+	// restart at 14:35, and does not survive one at 18:00. Required with At,
+	// because how late is too late differs per session and cannot be guessed here.
+	Within string `yaml:"within"`
 	// Days limits At to these weekdays; empty means every day the market is open.
 	Days []string `yaml:"days"`
 	// Every fires repeatedly, "30m", inside Between.
@@ -44,6 +48,7 @@ type Session struct {
 	Between []string `yaml:"between"`
 
 	at       time.Duration
+	within   time.Duration
 	every    time.Duration
 	from, to time.Duration
 	days     map[time.Weekday]bool
@@ -123,6 +128,15 @@ func (s *Session) check() error {
 		if s.at, err = parseClock(s.At); err != nil {
 			return fmt.Errorf("session %q: at %q: %w", s.Name, s.At, err)
 		}
+		if s.Within == "" {
+			return fmt.Errorf("session %q says when it starts but not how late it may still start: set within, for example 45m", s.Name)
+		}
+		if s.within, err = time.ParseDuration(s.Within); err != nil {
+			return fmt.Errorf("session %q: within %q is not a duration: %w", s.Name, s.Within, err)
+		}
+		if s.within <= 0 {
+			return fmt.Errorf("session %q may be started %s late, which is never", s.Name, s.within)
+		}
 	}
 	if hasEvery {
 		if s.every, err = time.ParseDuration(s.Every); err != nil {
@@ -168,10 +182,12 @@ func (s *Session) Due(now, last time.Time) bool {
 		time.Duration(now.Minute())*time.Minute
 
 	if s.At != "" {
-		if sinceMidnight < s.at {
+		// Late is allowed, but only as late as the session says it stays useful:
+		// an entry window survives a restart minutes later and means nothing hours
+		// later.
+		if sinceMidnight < s.at || sinceMidnight > s.at+s.within {
 			return false
 		}
-		// Once a day: today's firing counts even if the process started late.
 		return last.IsZero() || last.YearDay() != now.YearDay() || last.Year() != now.Year()
 	}
 

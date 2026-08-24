@@ -1,4 +1,4 @@
-package appserver
+package agent
 
 // ThreadOptions are the bounds a conversation runs under. They are set when the
 // thread opens and again when it is resumed: a continued conversation that lost

@@ -4,7 +4,7 @@
 //
 // It never reaches the broker. Orders go through the policy gateway and the
 // broker's own MCP server, which is what the hackathon requires.
-package mcpserver
+package sessiontools
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/store"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 )
 
 const (
@@ -52,7 +52,7 @@ type Poster interface {
 
 // Handler serves this server over Streamable HTTP. now is the clock the tools
 // stamp with; it is passed in so a test is not at the mercy of the wall clock.
-func Handler(state *store.Memory, now func() time.Time, poster Poster) http.Handler {
+func Handler(state *record.Memory, now func() time.Time, poster Poster) http.Handler {
 	server := mcp.NewServer(&mcp.Implementation{Name: name, Version: version}, nil)
 
 	mcp.AddTool(server,
@@ -65,7 +65,7 @@ func Handler(state *store.Memory, now func() time.Time, poster Poster) http.Hand
 				return nil, recordIntentOutput{}, fmt.Errorf("session, thesis, structure and max_loss are all required")
 			}
 			at := now()
-			state.AppendIntent(store.Intent{
+			state.AppendIntent(record.Intent{
 				At:        at,
 				Session:   in.Session,
 				Thesis:    in.Thesis,
@@ -80,7 +80,7 @@ func Handler(state *store.Memory, now func() time.Time, poster Poster) http.Hand
 			Name:        "read_state",
 			Description: "Read the ruleset in force, the limits it declares, the intents recorded so far and the refusals returned.",
 		},
-		func(ctx context.Context, req *mcp.CallToolRequest, _ readStateInput) (*mcp.CallToolResult, store.State, error) {
+		func(ctx context.Context, req *mcp.CallToolRequest, _ readStateInput) (*mcp.CallToolResult, record.State, error) {
 			return nil, state.Read(), nil
 		})
 

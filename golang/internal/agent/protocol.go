@@ -5,7 +5,7 @@
 // session started as a command takes its task once and cannot be told anything
 // until it finishes; a session held by this protocol accepts a new message in the
 // middle of the turn and acts on it at the next step.
-package appserver
+package agent
 
 import (
 	"bufio"

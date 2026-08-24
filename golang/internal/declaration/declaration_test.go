@@ -29,6 +29,7 @@ sessions:
     cause: "окно входа во второй половине сессии"
     task: "Оцени условия входа и открой позицию, если они сошлись."
     at: "14:20"
+    within: 45m
     days: [mon, tue, wed, thu, fri]
   - name: defend
     cause: "проверка правил защиты"
@@ -60,14 +61,15 @@ func TestLoadRefusesWhatCannotRun(t *testing.T) {
 		"no_sessions":       {body: "kind: trading-agent\nname: a\ntimezone: UTC\n", want: "wakes nobody"},
 		"no_timezone":       {body: "kind: trading-agent\nname: a\nsessions: [{name: s, cause: c, task: t, at: \"10:00\"}]\n", want: "timezone"},
 		"unknown_timezone":  {body: "kind: trading-agent\nname: a\ntimezone: Mars/Olympus\nsessions: [{name: s, cause: c, task: t, at: \"10:00\"}]\n", want: "Mars/Olympus"},
-		"no_cause":          {body: "kind: trading-agent\nname: a\ntimezone: UTC\nsessions: [{name: s, task: t, at: \"10:00\"}]\n", want: "no cause"},
-		"no_task":           {body: "kind: trading-agent\nname: a\ntimezone: UTC\nsessions: [{name: s, cause: c, at: \"10:00\"}]\n", want: "no task"},
-		"both_at_and_every": {body: "kind: trading-agent\nname: a\ntimezone: UTC\nsessions: [{name: s, cause: c, task: t, at: \"10:00\", every: 30m, between: [\"09:00\",\"10:00\"]}]\n", want: "one way to wake"},
+		"no_cause":          {body: "kind: trading-agent\nname: a\ntimezone: UTC\nsessions: [{name: s, task: t, at: \"10:00\", within: 1h}]\n", want: "no cause"},
+		"no_within":         {body: "kind: trading-agent\nname: a\ntimezone: UTC\nsessions: [{name: s, cause: c, task: t, at: \"10:00\"}]\n", want: "how late it may still start"},
+		"no_task":           {body: "kind: trading-agent\nname: a\ntimezone: UTC\nsessions: [{name: s, cause: c, at: \"10:00\", within: 1h}]\n", want: "no task"},
+		"both_at_and_every": {body: "kind: trading-agent\nname: a\ntimezone: UTC\nsessions: [{name: s, cause: c, task: t, at: \"10:00\", within: 1h, every: 30m, between: [\"09:00\",\"10:00\"]}]\n", want: "one way to wake"},
 		"neither":           {body: "kind: trading-agent\nname: a\ntimezone: UTC\nsessions: [{name: s, cause: c, task: t}]\n", want: "nothing would wake it"},
 		"every_too_small":   {body: "kind: trading-agent\nname: a\ntimezone: UTC\nsessions: [{name: s, cause: c, task: t, every: 5s, between: [\"09:00\",\"10:00\"]}]\n", want: "takes longer than that"},
 		"window_backwards":  {body: "kind: trading-agent\nname: a\ntimezone: UTC\nsessions: [{name: s, cause: c, task: t, every: 30m, between: [\"15:00\",\"09:00\"]}]\n", want: "ends before it starts"},
-		"bad_day":           {body: "kind: trading-agent\nname: a\ntimezone: UTC\nsessions: [{name: s, cause: c, task: t, at: \"10:00\", days: [funday]}]\n", want: "not a weekday"},
-		"unknown_field":     {body: "kind: trading-agent\nname: a\ntimezone: UTC\nprofit: yes\nsessions: [{name: s, cause: c, task: t, at: \"10:00\"}]\n", want: "field profit"},
+		"bad_day":           {body: "kind: trading-agent\nname: a\ntimezone: UTC\nsessions: [{name: s, cause: c, task: t, at: \"10:00\", within: 1h, days: [funday]}]\n", want: "not a weekday"},
+		"unknown_field":     {body: "kind: trading-agent\nname: a\ntimezone: UTC\nprofit: yes\nsessions: [{name: s, cause: c, task: t, at: \"10:00\", within: 1h}]\n", want: "field profit"},
 	}
 
 	for name, tc := range cases {
@@ -100,8 +102,10 @@ func TestDueOnceADay(t *testing.T) {
 	assert.True(t, entry.Due(at(t, "2026-08-25 14:20"), monday), "a new day")
 	assert.False(t, entry.Due(at(t, "2026-08-29 14:20"), monday), "saturday is not a trading day")
 
-	// A process that starts late still runs today's session rather than skipping it.
-	assert.True(t, entry.Due(at(t, "2026-08-24 15:40"), time.Time{}))
+	// A process that starts late still runs today's session while the window it
+	// serves is open, and not after it closed.
+	assert.True(t, entry.Due(at(t, "2026-08-24 15:00"), time.Time{}), "forty minutes late is still the entry window")
+	assert.False(t, entry.Due(at(t, "2026-08-24 18:00"), time.Time{}), "hours late is a different day's decision")
 }
 
 func TestDueEveryInsideItsWindow(t *testing.T) {

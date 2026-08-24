@@ -16,7 +16,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/appserver"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/agent"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 )
@@ -41,7 +41,7 @@ type Conversation interface {
 	Turn(ctx context.Context, text string) (turnID string, err error)
 	Steer(ctx context.Context, turnID, text string) error
 	Interrupt(ctx context.Context, turnID string) error
-	Events() <-chan appserver.Event
+	Events() <-chan agent.Event
 }
 
 // Commands a person can type instead of talking to the session.
@@ -267,11 +267,11 @@ func (h *Harness) postWhatTheSessionSays(ctx context.Context) {
 				return
 			}
 			switch ev.Kind {
-			case appserver.KindText:
+			case agent.KindText:
 				h.say(ctx, ev.Text)
-			case appserver.KindTool:
+			case agent.KindTool:
 				h.updateStatus(ctx, "working: "+ev.Tool)
-			case appserver.KindTurnDone:
+			case agent.KindTurnDone:
 				h.finishTurn(ctx, ev.TurnID)
 			}
 		}

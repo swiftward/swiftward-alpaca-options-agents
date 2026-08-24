@@ -13,17 +13,22 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	// The timezone database travels with the binary. Trading hours are New York's,
+	// and a slim image carries no zone files - without this the declaration fails
+	// to load with "unknown time zone", which is a deployment detail dressed as a
+	// configuration error.
+	_ "time/tzdata"
 
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/api"
-	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/appserver"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/agent"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/config"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/harness"
-	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/mcpserver"
-	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/store"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/sessiontools"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 )
 
@@ -48,7 +53,7 @@ func run(log *zap.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	state := store.NewMemory()
+	state := record.NewMemory()
 
 	// One chat serves both roles: the harness posts what the session said, and the
 	// mcp role offers the agent a way to speak when no harness is running it.
@@ -73,14 +78,14 @@ func run(log *zap.Logger) error {
 	}
 
 	if cfg.Has(config.RoleMCP) {
-		var poster mcpserver.Poster
+		var poster sessiontools.Poster
 		if chat != nil && !cfg.Has(config.RoleHarness) {
 			// With a harness running, everything the session says is already posted;
 			// a tool for it as well would double every message.
 			poster = chat
 		}
 
-		handler := mcpserver.Handler(state, time.Now, poster)
+		handler := sessiontools.Handler(state, time.Now, poster)
 		group.Go(func() error { return serve(ctx, cfg.MCPAddr, handler, log.Named("mcp")) })
 	}
 
@@ -104,13 +109,13 @@ func run(log *zap.Logger) error {
 		// The agent is held open for the whole run: that is what lets a person
 		// reach work already in progress instead of waiting for it to end.
 		{
-			client, err := appserver.Dial(ctx, cfg.AgentCommand, cfg.AgentCallTimeout, log.Named("agent"))
+			client, err := agent.Dial(ctx, cfg.AgentCommand, cfg.AgentCallTimeout, log.Named("agent"))
 			if err != nil {
 				return err
 			}
 			defer func() { _ = client.Close() }()
 
-			conversation := appserver.NewConversation(client, appserver.ThreadOptions{
+			conversation := agent.NewConversation(client, agent.ThreadOptions{
 				Model:   cfg.AgentModel,
 				Sandbox: cfg.AgentSandbox,
 				Dir:     cfg.AgentDir,

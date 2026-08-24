@@ -12,6 +12,7 @@ sessions:
   - name: open-check
     cause: "рынок открылся полчаса назад, смотрим, с чем работаем"
     at: "10:00"
+    within: 2h
     days: [mon, tue, wed, thu, fri]
     task: |
       Проверь часы рынка. Если он закрыт - скажи это и закончи.
@@ -23,6 +24,7 @@ sessions:
   - name: entry
     cause: "окно входа во второй половине сессии"
     at: "14:20"
+    within: 45m
     days: [mon, tue, wed, thu, fri]
     task: |
       Правило входа: продажа вертикального put-спреда на SPY с истечением сегодня.
@@ -48,6 +50,7 @@ sessions:
   - name: flatten
     cause: "закрыть всё перед концом торгового дня"
     at: "15:50"
+    within: 20m
     days: [mon, tue, wed, thu, fri]
     task: |
       Закрой все открытые позиции по опционам, истекающим сегодня.
