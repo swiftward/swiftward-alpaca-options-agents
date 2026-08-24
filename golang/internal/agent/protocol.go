@@ -165,12 +165,19 @@ func (c *Client) ResumeThread(ctx context.Context, threadID string, opts ThreadO
 }
 
 // StartTurn gives the conversation something to do and returns the turn's
-// identifier, which is what steering and interrupting need.
-func (c *Client) StartTurn(ctx context.Context, threadID, text string) (string, error) {
-	raw, err := c.call(ctx, "turn/start", map[string]any{
+// identifier, which is what steering and interrupting need. An empty model
+// leaves the one the thread was opened with; naming one lets a cheap session
+// cost what it is worth.
+func (c *Client) StartTurn(ctx context.Context, threadID, text, model string) (string, error) {
+	params := map[string]any{
 		"threadId": threadID,
 		"input":    []map[string]string{{"type": "text", "text": text}},
-	})
+	}
+	if model != "" {
+		params["model"] = model
+	}
+
+	raw, err := c.call(ctx, "turn/start", params)
 	if err != nil {
 		return "", err
 	}

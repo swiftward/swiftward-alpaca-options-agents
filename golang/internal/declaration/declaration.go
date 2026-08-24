@@ -34,6 +34,10 @@ type Session struct {
 	Cause string `yaml:"cause"`
 	// Task is what it is asked to do.
 	Task string `yaml:"task"`
+	// Model names the model this session is worth. Empty leaves the one the
+	// conversation was opened with: a session that only reads the news does not
+	// need the one that trades.
+	Model string `yaml:"model"`
 	// At fires once a day at this local time, "15:50".
 	At string `yaml:"at"`
 	// Within is how late this session may still start: an entry window survives a

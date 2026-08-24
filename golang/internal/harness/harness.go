@@ -53,7 +53,7 @@ type Prices interface {
 // Conversation is one thread with the agent, held open across turns.
 type Conversation interface {
 	Open(ctx context.Context) (threadID string, err error)
-	Turn(ctx context.Context, text string) (turnID string, err error)
+	Turn(ctx context.Context, text, model string) (turnID string, err error)
 	Steer(ctx context.Context, turnID, text string) error
 	Interrupt(ctx context.Context, turnID string) error
 	Events() <-chan agent.Event
@@ -185,7 +185,7 @@ func (h *Harness) fireWakeups(ctx context.Context) {
 		}
 		h.Log.Info("waking the session for its own reason",
 			zap.String("wakeup", due.ID), zap.String("cause", string(due.Cause)))
-		h.startTurnWith(ctx, due.Prompt(), "wakeup "+due.ID)
+		h.startTurnWith(ctx, due.Prompt(), "wakeup "+due.ID, "")
 	}
 }
 
@@ -211,7 +211,7 @@ func (h *Harness) fireDue(ctx context.Context) {
 
 		h.lastRun[session.Name] = now
 		h.Log.Info("waking a session", zap.String("session", session.Name), zap.String("cause", session.Cause))
-		h.startTurnWith(ctx, session.Prompt(), session.Name)
+		h.startTurnWith(ctx, session.Prompt(), session.Name, session.Model)
 	}
 }
 
@@ -258,10 +258,12 @@ func (h *Harness) handle(ctx context.Context, msg telegram.Message) {
 }
 
 func (h *Harness) startTurn(ctx context.Context, msg telegram.Message) {
-	h.startTurnWith(ctx, promptFor(msg), msg.Username)
+	h.startTurnWith(ctx, promptFor(msg), msg.Username, "")
 }
 
-func (h *Harness) startTurnWith(ctx context.Context, prompt, who string) {
+// startTurnWith runs one turn. model names the model this particular turn is
+// worth: a session that only reads the news does not need the one that trades.
+func (h *Harness) startTurnWith(ctx context.Context, prompt, who, model string) {
 	agentCtx, done := h.boundToAgent(ctx)
 	threadID, err := h.openThread(agentCtx)
 	done()
@@ -277,7 +279,7 @@ func (h *Harness) startTurnWith(ctx context.Context, prompt, who string) {
 	}
 
 	agentCtx, done = h.boundToAgent(ctx)
-	turnID, err := h.Conversation.Turn(agentCtx, prompt)
+	turnID, err := h.Conversation.Turn(agentCtx, prompt, model)
 	done()
 	if err != nil {
 		h.Log.Error("could not start a turn", zap.Error(err))

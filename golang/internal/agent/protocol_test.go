@@ -62,7 +62,7 @@ read line
 	require.NoError(t, err)
 	assert.Equal(t, "th-1", threadID)
 
-	turnID, err := client.StartTurn(ctx, threadID, "entry session: the window is open")
+	turnID, err := client.StartTurn(ctx, threadID, "entry session: the window is open", "")
 	require.NoError(t, err)
 	assert.Equal(t, "tu-1", turnID)
 
@@ -224,4 +224,27 @@ sleep 30
 
 	_, statErr := os.Stat(file)
 	assert.True(t, os.IsNotExist(statErr), "a thread that will not resume must not be remembered into the next start")
+}
+
+// A cheap session must actually run cheap: the model it names has to reach the
+// agent, or the saving is imaginary.
+func TestATurnCanNameItsModel(t *testing.T) {
+	seen := filepath.Join(t.TempDir(), "requests.txt")
+	agent := fakeAgent(t, answerHandshake+`
+while read line; do
+  echo "$line" >> `+seen+`
+  id=$(echo "$line" | sed -n 's/.*"id":\([0-9]*\).*/\1/p')
+  echo "{\"jsonrpc\":\"2.0\",\"id\":$id,\"result\":{\"turn\":{\"id\":\"tu-1\"}}}"
+done
+`)
+	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	_, err = client.StartTurn(context.Background(), "th-1", "read the news", "gpt-5.6-luna")
+	require.NoError(t, err)
+
+	raw, err := os.ReadFile(seen)
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"model":"gpt-5.6-luna"`)
 }

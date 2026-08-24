@@ -96,6 +96,7 @@ type conversationSpy struct {
 	mu         sync.Mutex
 	events     chan agent.Event
 	turns      []string
+	models     []string
 	steered    []string
 	interrupts []string
 	turnErr    error
@@ -109,10 +110,11 @@ func newConversationSpy() *conversationSpy {
 
 func (c *conversationSpy) Open(context.Context) (string, error) { return "th-1", nil }
 
-func (c *conversationSpy) Turn(ctx context.Context, text string) (string, error) {
+func (c *conversationSpy) Turn(ctx context.Context, text, model string) (string, error) {
 	if c.hang != nil {
 		c.mu.Lock()
 		c.turns = append(c.turns, text)
+		c.models = append(c.models, model)
 		c.mu.Unlock()
 		select {
 		case <-c.hang:
@@ -128,6 +130,7 @@ func (c *conversationSpy) Turn(ctx context.Context, text string) (string, error)
 		return "", c.turnErr
 	}
 	c.turns = append(c.turns, text)
+	c.models = append(c.models, model)
 	c.nextTurn++
 	return fmt.Sprintf("tu-%d", c.nextTurn), nil
 }

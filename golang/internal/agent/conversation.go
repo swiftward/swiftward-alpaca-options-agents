@@ -108,13 +108,13 @@ func (c *Conversation) forget() {
 // ThreadID reports the thread in use, empty before the first turn.
 func (c *Conversation) ThreadID() string { return c.threadID }
 
-func (c *Conversation) Turn(ctx context.Context, text string) (string, error) {
+func (c *Conversation) Turn(ctx context.Context, text, model string) (string, error) {
 	threadID, err := c.Open(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	return c.client.StartTurn(ctx, threadID, text)
+	return c.client.StartTurn(ctx, threadID, text, model)
 }
 
 func (c *Conversation) Steer(ctx context.Context, turnID, text string) error {
