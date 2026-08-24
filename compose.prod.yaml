@@ -96,6 +96,15 @@ services:
       - agent-work:/work
     ports:
       - "${APP_PORT}:8080"
+    # The claims the architecture makes about this container, enforced here: it
+    # cannot write outside its work directory, cannot gain privileges, and holds
+    # no capability it was not given.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     depends_on:
       postgres:
         condition: service_healthy

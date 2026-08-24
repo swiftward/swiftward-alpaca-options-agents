@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,4 +86,45 @@ func TestARefusedCallTimeoutNamesItself(t *testing.T) {
 	_, err := Load()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not a duration")
+}
+
+// Every field the process acts on is read from the environment. A field declared
+// and never filled is the quietest defect there is: the feature simply is not
+// offered, and nothing says why.
+func TestEveryDeclaredSettingIsRead(t *testing.T) {
+	t.Setenv("ROLES", "harness,api,mcp")
+	t.Setenv("AGENT_CALL_TIMEOUT", "90s")
+	t.Setenv("ADDR", ":8080")
+	t.Setenv("MCP_ADDR", ":8081")
+	t.Setenv("WEB_DIR", "/srv/web")
+	t.Setenv("DECLARATION", "/agent/agent.yaml")
+	t.Setenv("AGENT_COMMAND", "codex")
+	t.Setenv("AGENT_DIR", "/work")
+	t.Setenv("AGENT_SANDBOX", "danger-full-access")
+	t.Setenv("AGENT_MODEL", "gpt-5.6-luna")
+	t.Setenv("THREAD_FILE", "/work/.thread")
+	t.Setenv("WAKEUP_FILE", "/work/wakeups.json")
+	t.Setenv("BROKER_MCP_URL", "http://alpaca-mcp:8000/mcp")
+	t.Setenv("DATABASE_URL", "postgres://agents@postgres/agents")
+	t.Setenv("GATEWAY_URL", "https://gateway.example/mcp")
+	t.Setenv("GATEWAY_TOKEN", "secret")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	assert.Equal(t, ":8080", cfg.Addr)
+	assert.Equal(t, ":8081", cfg.MCPAddr)
+	assert.Equal(t, "/srv/web", cfg.WebDir)
+	assert.Equal(t, "/agent/agent.yaml", cfg.DeclarationPath)
+	assert.Equal(t, "codex", cfg.AgentCommand)
+	assert.Equal(t, "/work", cfg.AgentDir)
+	assert.Equal(t, "danger-full-access", cfg.AgentSandbox)
+	assert.Equal(t, "gpt-5.6-luna", cfg.AgentModel)
+	assert.Equal(t, "/work/.thread", cfg.ThreadFile)
+	assert.Equal(t, "/work/wakeups.json", cfg.WakeupFile)
+	assert.Equal(t, "http://alpaca-mcp:8000/mcp", cfg.BrokerMCPURL)
+	assert.Equal(t, "postgres://agents@postgres/agents", cfg.DatabaseURL)
+	assert.Equal(t, "https://gateway.example/mcp", cfg.GatewayURL)
+	assert.Equal(t, "secret", cfg.GatewayToken)
+	assert.Equal(t, 90*time.Second, cfg.AgentCallTimeout)
 }

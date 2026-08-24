@@ -100,6 +100,8 @@ func Load() (Config, error) {
 		AgentSandbox:     k.String("agent_sandbox"),
 		AgentModel:       k.String("agent_model"),
 		ThreadFile:       k.String("thread_file"),
+		WakeupFile:       k.String("wakeup_file"),
+		BrokerMCPURL:     k.String("broker_mcp_url"),
 		AgentCallTimeout: callTimeout,
 		DatabaseURL:      k.String("database_url"),
 		GatewayURL:       k.String("gateway_url"),

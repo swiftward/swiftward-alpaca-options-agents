@@ -139,6 +139,20 @@ func (b *Bot) Listen(ctx context.Context) error {
 	}
 }
 
+// Delete removes a message this bot sent. The harness uses it to take down the
+// line that said work was in progress: once it is over, that line is noise, and
+// Telegram cannot move a message to the bottom where people are looking.
+func (b *Bot) Delete(ctx context.Context, messageID int) error {
+	if err := b.bot.DeleteMessage(ctx, &telego.DeleteMessageParams{
+		ChatID:    telego.ChatID{ID: b.chatID},
+		MessageID: messageID,
+	}); err != nil {
+		return fmt.Errorf("delete telegram message %d: %w", messageID, err)
+	}
+
+	return nil
+}
+
 // Edit replaces the text of a message this bot sent. The harness uses it for the
 // one line that says what the session is doing right now, so the chat carries a
 // changing status instead of a page of tool names.

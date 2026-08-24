@@ -26,6 +26,7 @@ type chatDouble struct {
 	inbound  chan telegram.Message
 	posted   []string
 	statuses []string
+	deleted  []int
 	nextID   int
 }
 
@@ -51,6 +52,14 @@ func (c *chatDouble) Send(_ context.Context, text string) (int, error) {
 	return c.nextID, nil
 }
 
+func (c *chatDouble) Delete(_ context.Context, messageID int) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.deleted = append(c.deleted, messageID)
+
+	return nil
+}
+
 func (c *chatDouble) Edit(_ context.Context, _ int, text string) error {
 	if text == "" {
 		return fmt.Errorf("refusing to edit a message to nothing")
@@ -65,6 +74,13 @@ func (c *chatDouble) postedTexts() []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return append([]string(nil), c.posted...)
+}
+
+func (c *chatDouble) deletedIDs() []int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return append([]int(nil), c.deleted...)
 }
 
 func (c *chatDouble) statusTexts() []string {
@@ -303,9 +319,12 @@ func TestFirstMessageStartsATurnAndTheRoomSeesIt(t *testing.T) {
 	conversation.events <- agent.Event{Kind: agent.KindText, Text: "the spread is closed", TurnID: "tu-1"}
 	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
 
-	waitFor(t, func() bool { return len(chat.statusTexts()) >= 2 })
+	waitFor(t, func() bool { return len(chat.statusTexts()) >= 1 && len(chat.deletedIDs()) >= 1 })
 	assert.Contains(t, chat.statusTexts(), "⏳ joker · get_option_chain", "the same line changes as the turn works")
-	assert.Contains(t, chat.statusTexts()[len(chat.statusTexts())-1], "✅ joker · готово")
+
+	posted := chat.postedTexts()
+	assert.Contains(t, posted[len(posted)-1], "✅ joker · готово", "the result belongs at the bottom, where the reader is")
+	assert.NotEmpty(t, chat.deletedIDs(), "the line that tracked the work comes down")
 	assert.Contains(t, chat.postedTexts(), "the spread is closed")
 }
 
@@ -333,7 +352,7 @@ func TestAMessageAfterTheTurnStartsANewOne(t *testing.T) {
 	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
 
 	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
-	waitFor(t, func() bool { return len(chat.statusTexts()) >= 1 })
+	waitFor(t, func() bool { return len(chat.deletedIDs()) >= 1 })
 
 	chat.inbound <- telegram.Message{Text: "and the second leg?", UserID: 42, Username: "joker"}
 	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 2 })

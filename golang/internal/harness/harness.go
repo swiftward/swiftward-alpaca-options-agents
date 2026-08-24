@@ -34,6 +34,7 @@ type Chat interface {
 	Inbound() <-chan telegram.Message
 	Send(ctx context.Context, text string) (int, error)
 	Edit(ctx context.Context, messageID int, text string) error
+	Delete(ctx context.Context, messageID int) error
 }
 
 // Wakeups holds what the session asked to be woken for. Nil means the session
@@ -366,11 +367,15 @@ func (h *Harness) finishTurn(ctx context.Context, turnID string) {
 	h.statusID = 0
 	h.mu.Unlock()
 
+	// The line that tracked the work comes down, and the result goes to the
+	// bottom: by the end the session may have written a page, and a mark left at
+	// the top of it says nothing to anyone reading downward.
 	if status != 0 && h.Chat != nil {
-		if err := h.Chat.Edit(ctx, status, finished(who, h.Now().Sub(started))); err != nil {
-			h.Log.Debug("could not close the status line", zap.Error(err))
+		if err := h.Chat.Delete(ctx, status); err != nil {
+			h.Log.Debug("could not take down the status line", zap.Error(err))
 		}
 	}
+	h.say(ctx, finished(who, h.Now().Sub(started)))
 	h.Log.Info("turn finished", zap.String("turn_id", turnID))
 }
 
