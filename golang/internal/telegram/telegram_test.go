@@ -234,3 +234,44 @@ func TestSendSplitsALongMessage(t *testing.T) {
 		assert.LessOrEqual(t, len([]rune(one["text"].(string))), 4096)
 	}
 }
+
+// Telegram rate-limits a chatty bot rather than refusing it. A session's own
+// words are what would be lost, and the harness has nowhere else to put them.
+func TestABusyTelegramIsRetried(t *testing.T) {
+	var attempts int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.Header().Set("Content-Type", "application/json")
+		if attempts < 3 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"ok":false,"error_code":429,"description":"Too Many Requests: retry after 1"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"ok":true,"result":{"message_id":11,"date":0,"chat":{"id":-100,"type":"supergroup"}}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	bot, err := New(Config{Token: testToken, ChatID: -100, APIServer: server.URL}, zaptest.NewLogger(t))
+	require.NoError(t, err)
+
+	id, err := bot.Send(context.Background(), "the spread is closed")
+	require.NoError(t, err)
+	assert.Equal(t, 11, id)
+	assert.Equal(t, 3, attempts, "it kept trying while Telegram was merely busy")
+}
+
+func TestATelegramThatKeepsRefusingIsReported(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"ok":false,"error_code":400,"description":"Bad Request: chat not found"}`))
+	}))
+	t.Cleanup(server.Close)
+
+	bot, err := New(Config{Token: testToken, ChatID: -100, APIServer: server.URL}, zaptest.NewLogger(t))
+	require.NoError(t, err)
+
+	_, err = bot.Send(context.Background(), "anybody there?")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "chat not found")
+}

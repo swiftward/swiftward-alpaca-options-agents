@@ -27,6 +27,10 @@ import (
 // question.
 const clockTick = time.Minute
 
+// typingRefresh is how often the typing cue is renewed; Telegram drops it after
+// about five seconds.
+const typingRefresh = 4 * time.Second
+
 // Chat is the room the session works in. The agent never holds this - the
 // harness posts what the session said and passes on what a person wrote.
 type Chat interface {
@@ -35,6 +39,7 @@ type Chat interface {
 	Send(ctx context.Context, text string) (int, error)
 	Edit(ctx context.Context, messageID int, text string) error
 	Delete(ctx context.Context, messageID int) error
+	Typing(ctx context.Context) error
 }
 
 // Wakeups holds what the session asked to be woken for. Nil means the session
@@ -299,6 +304,8 @@ func (h *Harness) startTurnWith(ctx context.Context, prompt, who, model string) 
 	h.turnStarted = h.Now()
 	h.mu.Unlock()
 
+	go h.showTyping(ctx, turnID)
+
 	h.Log.Info("turn started",
 		zap.String("thread_id", threadID),
 		zap.String("turn_id", turnID),
@@ -415,6 +422,30 @@ func (h *Harness) runningFor() string {
 	defer h.mu.Unlock()
 
 	return h.turnFor
+}
+
+// showTyping holds the chat's own "typing" cue while this turn runs. Telegram
+// clears it after a few seconds, so it is repeated; it stops as soon as the turn
+// this was started for is no longer the one running.
+func (h *Harness) showTyping(ctx context.Context, turnID string) {
+	if h.Chat == nil {
+		return
+	}
+
+	ticker := time.NewTicker(typingRefresh)
+	defer ticker.Stop()
+
+	for h.runningTurn() == turnID {
+		if err := h.Chat.Typing(ctx); err != nil {
+			h.Log.Debug("could not show the typing cue", zap.Error(err))
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 // working and finished are the two lines the room sees for one turn. The status

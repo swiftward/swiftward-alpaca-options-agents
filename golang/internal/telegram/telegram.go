@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/mymmrac/telego"
 	telegoapi "github.com/mymmrac/telego/telegoapi"
@@ -161,16 +162,34 @@ func (b *Bot) Edit(ctx context.Context, messageID int, text string) error {
 		return fmt.Errorf("refusing to edit a message to nothing")
 	}
 
-	_, err := b.bot.EditMessageText(ctx, &telego.EditMessageTextParams{
-		ChatID:    telego.ChatID{ID: b.chatID},
-		MessageID: messageID,
-		Text:      text,
+	err := b.retrying(ctx, func() error {
+		_, editErr := b.bot.EditMessageText(ctx, &telego.EditMessageTextParams{
+			ChatID:    telego.ChatID{ID: b.chatID},
+			MessageID: messageID,
+			Text:      text,
+		})
+		return editErr
 	})
 	if err != nil {
 		return fmt.Errorf("edit telegram message %d: %w", messageID, err)
 	}
 
 	return nil
+}
+
+// Typing shows the "typing…" cue in the chat. Telegram clears it after a few
+// seconds, so a caller that wants it held calls again; the harness does that
+// while a turn runs, and stops when it ends.
+func (b *Bot) Typing(ctx context.Context) error {
+	params := &telego.SendChatActionParams{
+		ChatID: telego.ChatID{ID: b.chatID},
+		Action: telego.ChatActionTyping,
+	}
+	if b.topicID != 0 {
+		params.MessageThreadID = b.topicID
+	}
+
+	return b.bot.SendChatAction(ctx, params)
 }
 
 // Send posts one message and returns the id Telegram gave it. Text over the
@@ -194,7 +213,12 @@ func (b *Bot) Send(ctx context.Context, text string) (int, error) {
 			params.MessageThreadID = b.topicID
 		}
 
-		sent, err := b.bot.SendMessage(ctx, params)
+		var sent *telego.Message
+		err := b.retrying(ctx, func() error {
+			var sendErr error
+			sent, sendErr = b.bot.SendMessage(ctx, params)
+			return sendErr
+		})
 		if err != nil {
 			return lastID, fmt.Errorf("send telegram message: %w", err)
 		}
@@ -242,9 +266,39 @@ func lastIndexRune(runes []rune, target rune) int {
 	return -1
 }
 
+// retrying repeats a call while Telegram is merely busy. Telegram rate-limits a
+// chatty bot rather than refusing it, and a session's own words are exactly what
+// would be lost: the harness has nowhere else to put them.
+func (b *Bot) retrying(ctx context.Context, call func() error) error {
+	var err error
+	for attempt := range sendAttempts {
+		if err = call(); err == nil {
+			return nil
+		}
+		if attempt == sendAttempts-1 {
+			break
+		}
+
+		wait := time.Duration(attempt+1) * retryPause
+		b.log.Warn("telegram is busy, trying again", zap.Duration("in", wait), zap.Error(err))
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(wait):
+		}
+	}
+
+	return err
+}
+
 const (
 	pollSeconds   = 30
 	inboundBuffer = 32
 	// Telegram refuses a message longer than this many characters.
 	maxMessageRunes = 4096
+	// A busy Telegram is retried this many times, waiting a little longer each
+	// time. Past that the caller is told, because a message nobody can send is
+	// news the log should carry.
+	sendAttempts = 3
+	retryPause   = time.Second
 )

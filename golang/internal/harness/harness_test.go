@@ -27,6 +27,7 @@ type chatDouble struct {
 	posted   []string
 	statuses []string
 	deleted  []int
+	typed    int
 	nextID   int
 }
 
@@ -50,6 +51,14 @@ func (c *chatDouble) Send(_ context.Context, text string) (int, error) {
 	c.nextID++
 	c.posted = append(c.posted, text)
 	return c.nextID, nil
+}
+
+func (c *chatDouble) Typing(context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.typed++
+
+	return nil
 }
 
 func (c *chatDouble) Delete(_ context.Context, messageID int) error {
