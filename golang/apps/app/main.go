@@ -102,11 +102,22 @@ func run(log *zap.Logger) error {
 			}
 			defer func() { _ = client.Close() }()
 
-			h.Conversation = appserver.NewConversation(client, appserver.ThreadOptions{
+			conversation := appserver.NewConversation(client, appserver.ThreadOptions{
 				Model:   cfg.AgentModel,
 				Sandbox: cfg.AgentSandbox,
 				Dir:     cfg.AgentDir,
-			}, cfg.ThreadFile)
+			}, cfg.ThreadFile, cfg.AgentCallTimeout)
+
+			// The conversation is opened before the room does: resuming a long
+			// thread takes as long as it takes, and doing it under the first
+			// message would answer that message with a timeout.
+			threadID, err := conversation.Open(ctx)
+			if err != nil {
+				return err
+			}
+			log.Info("conversation ready", zap.String("thread_id", threadID))
+
+			h.Conversation = conversation
 		}
 
 		group.Go(func() error { return h.Run(ctx) })

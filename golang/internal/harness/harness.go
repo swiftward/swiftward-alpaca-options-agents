@@ -107,16 +107,16 @@ func (h *Harness) serveChat(ctx context.Context) error {
 }
 
 func (h *Harness) handle(ctx context.Context, msg telegram.Message) {
-	ctx, cancel := context.WithTimeout(ctx, h.CallTimeout)
-	defer cancel()
-
 	if strings.TrimSpace(msg.Text) == CommandStop {
 		h.stop(ctx)
 		return
 	}
 
 	if turnID := h.runningTurn(); turnID != "" {
-		if err := h.Conversation.Steer(ctx, turnID, textOf(msg)); err != nil {
+		agentCtx, done := h.boundToAgent(ctx)
+		err := h.Conversation.Steer(agentCtx, turnID, textOf(msg))
+		done()
+		if err != nil {
 			// The turn ended between the check and the call. Nothing is lost: the
 			// message becomes the next turn instead of vanishing into a finished one.
 			h.Log.Info("could not reach the running turn, starting a new one", zap.Error(err))
@@ -130,7 +130,9 @@ func (h *Harness) handle(ctx context.Context, msg telegram.Message) {
 }
 
 func (h *Harness) startTurn(ctx context.Context, msg telegram.Message) {
-	threadID, err := h.openThread(ctx)
+	agentCtx, done := h.boundToAgent(ctx)
+	threadID, err := h.openThread(agentCtx)
+	done()
 	if err != nil {
 		h.Log.Error("could not open a conversation with the agent", zap.Error(err))
 		h.say(ctx, "не удалось начать разговор с агентом: "+err.Error())
@@ -142,7 +144,9 @@ func (h *Harness) startTurn(ctx context.Context, msg telegram.Message) {
 		h.Log.Error("could not open a status line in the chat", zap.Error(err))
 	}
 
-	turnID, err := h.Conversation.Turn(ctx, promptFor(msg))
+	agentCtx, done = h.boundToAgent(ctx)
+	turnID, err := h.Conversation.Turn(agentCtx, promptFor(msg))
+	done()
 	if err != nil {
 		h.Log.Error("could not start a turn", zap.Error(err))
 		h.say(ctx, "агент не взял задачу: "+err.Error())
@@ -166,7 +170,10 @@ func (h *Harness) stop(ctx context.Context) {
 		h.say(ctx, "сейчас ничего не выполняется")
 		return
 	}
-	if err := h.Conversation.Interrupt(ctx, turnID); err != nil {
+	agentCtx, done := h.boundToAgent(ctx)
+	err := h.Conversation.Interrupt(agentCtx, turnID)
+	done()
+	if err != nil {
 		h.Log.Error("could not interrupt the turn", zap.Error(err))
 		h.say(ctx, "остановить не удалось: "+err.Error())
 		return
@@ -235,6 +242,13 @@ func (h *Harness) openThread(ctx context.Context) (string, error) {
 	h.mu.Unlock()
 
 	return threadID, nil
+}
+
+// boundToAgent bounds ONE request to the agent. Only the agent's own calls carry
+// this bound: posting to the chat is a different service with a different reason
+// to be slow, and cutting it here would silence the room over the agent's fault.
+func (h *Harness) boundToAgent(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, h.CallTimeout)
 }
 
 func (h *Harness) runningTurn() string {
