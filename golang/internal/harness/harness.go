@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -49,7 +50,11 @@ type Harness struct {
 	// DeclarationPath names the sessions the clock wakes. Empty means the clock
 	// wakes nobody and the chat is the only cause.
 	DeclarationPath string
-	Log             *zap.Logger
+	// CallTimeout bounds one request to the agent. The loop that reads the chat is
+	// the loop that talks to the agent, so an unbounded call takes the room down
+	// with the session.
+	CallTimeout time.Duration
+	Log         *zap.Logger
 
 	mu       sync.Mutex
 	threadID string
@@ -63,6 +68,9 @@ type Harness struct {
 func (h *Harness) Run(ctx context.Context) error {
 	if h.DeclarationPath == "" && h.Chat == nil {
 		return fmt.Errorf("the harness has no cause to wake a session: set DECLARATION, configure the chat, or run neither role")
+	}
+	if h.Chat != nil && h.CallTimeout <= 0 {
+		return fmt.Errorf("the harness needs a bound on one call to the agent: set AGENT_CALL_TIMEOUT")
 	}
 
 	if h.DeclarationPath != "" {
@@ -99,6 +107,9 @@ func (h *Harness) serveChat(ctx context.Context) error {
 }
 
 func (h *Harness) handle(ctx context.Context, msg telegram.Message) {
+	ctx, cancel := context.WithTimeout(ctx, h.CallTimeout)
+	defer cancel()
+
 	if strings.TrimSpace(msg.Text) == CommandStop {
 		h.stop(ctx)
 		return

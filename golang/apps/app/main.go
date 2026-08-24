@@ -86,6 +86,7 @@ func run(log *zap.Logger) error {
 	if cfg.Has(config.RoleHarness) {
 		h := &harness.Harness{
 			DeclarationPath: cfg.DeclarationPath,
+			CallTimeout:     cfg.AgentCallTimeout,
 			Log:             log.Named("harness"),
 		}
 		if chat != nil {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/v2"
@@ -46,6 +47,10 @@ type Config struct {
 	// ThreadFile is where the conversation's identifier is kept between runs.
 	// Empty means a restart begins a new conversation.
 	ThreadFile string
+	// AgentCallTimeout bounds one request to the agent. Without it a hung agent
+	// takes the chat down with it: the loop that reads messages is the same loop
+	// that talks to the agent.
+	AgentCallTimeout time.Duration
 
 	// Shared.
 	DatabaseURL  string
@@ -73,20 +78,26 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	callTimeout, err := parseTimeout(k.String("agent_call_timeout"), roles)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return Config{
-		Roles:           roles,
-		Addr:            k.String("addr"),
-		WebDir:          k.String("web_dir"),
-		MCPAddr:         k.String("mcp_addr"),
-		DeclarationPath: k.String("declaration"),
-		AgentCommand:    k.String("agent_command"),
-		AgentDir:        k.String("agent_dir"),
-		AgentSandbox:    k.String("agent_sandbox"),
-		AgentModel:      k.String("agent_model"),
-		ThreadFile:      k.String("thread_file"),
-		DatabaseURL:     k.String("database_url"),
-		GatewayURL:      k.String("gateway_url"),
-		GatewayToken:    k.String("gateway_token"),
+		Roles:            roles,
+		Addr:             k.String("addr"),
+		WebDir:           k.String("web_dir"),
+		MCPAddr:          k.String("mcp_addr"),
+		DeclarationPath:  k.String("declaration"),
+		AgentCommand:     k.String("agent_command"),
+		AgentDir:         k.String("agent_dir"),
+		AgentSandbox:     k.String("agent_sandbox"),
+		AgentModel:       k.String("agent_model"),
+		ThreadFile:       k.String("thread_file"),
+		AgentCallTimeout: callTimeout,
+		DatabaseURL:      k.String("database_url"),
+		GatewayURL:       k.String("gateway_url"),
+		GatewayToken:     k.String("gateway_token"),
 		Telegram: telegram.Config{
 			Token:        k.String("telegram_bot_token"),
 			ChatID:       k.Int64("telegram_chat_id"),
@@ -135,6 +146,34 @@ func parseUserIDs(raw string) ([]int64, error) {
 	}
 
 	return out, nil
+}
+
+// parseTimeout reads the bound on one call to the agent. The harness cannot run
+// without it and says so rather than inventing a number: a deadline chosen here
+// would silently outrank the one an operator wrote.
+func parseTimeout(raw string, roles []Role) (time.Duration, error) {
+	needed := false
+	for _, role := range roles {
+		if role == RoleHarness {
+			needed = true
+		}
+	}
+	if strings.TrimSpace(raw) == "" {
+		if needed {
+			return 0, fmt.Errorf("AGENT_CALL_TIMEOUT is required by the harness role, for example 30s")
+		}
+		return 0, nil
+	}
+
+	timeout, err := time.ParseDuration(strings.TrimSpace(raw))
+	if err != nil {
+		return 0, fmt.Errorf("AGENT_CALL_TIMEOUT holds %q, which is not a duration: %w", raw, err)
+	}
+	if timeout <= 0 {
+		return 0, fmt.Errorf("AGENT_CALL_TIMEOUT is %s: a call with no time to complete never completes", timeout)
+	}
+
+	return timeout, nil
 }
 
 func (c Config) Has(role Role) bool {

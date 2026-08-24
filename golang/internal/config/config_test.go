@@ -46,6 +46,7 @@ func TestHas(t *testing.T) {
 // every message is dropped and the channel looks broken rather than closed.
 func TestAllowedUserIDsAreReadFromOneEnvString(t *testing.T) {
 	t.Setenv("ROLES", "harness")
+	t.Setenv("AGENT_CALL_TIMEOUT", "30s")
 	t.Setenv("TELEGRAM_BOT_TOKEN", "123456789:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
 	t.Setenv("TELEGRAM_CHAT_ID", "-1003770330300")
 	t.Setenv("TELEGRAM_TOPIC_ID", "7543")
@@ -57,4 +58,31 @@ func TestAllowedUserIDsAreReadFromOneEnvString(t *testing.T) {
 	assert.EqualValues(t, -1003770330300, cfg.Telegram.ChatID)
 	assert.Equal(t, 7543, cfg.Telegram.TopicID)
 	assert.Equal(t, []int64{3813730, 298310358}, cfg.Telegram.AllowUserIDs)
+}
+
+func TestCallTimeoutIsRequiredByTheHarness(t *testing.T) {
+	t.Setenv("ROLES", "harness")
+	t.Setenv("AGENT_CALL_TIMEOUT", "")
+
+	_, err := Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "AGENT_CALL_TIMEOUT")
+}
+
+func TestCallTimeoutIsNotRequiredWithoutTheHarness(t *testing.T) {
+	t.Setenv("ROLES", "api,mcp")
+	t.Setenv("AGENT_CALL_TIMEOUT", "")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.Zero(t, cfg.AgentCallTimeout)
+}
+
+func TestARefusedCallTimeoutNamesItself(t *testing.T) {
+	t.Setenv("ROLES", "harness")
+	t.Setenv("AGENT_CALL_TIMEOUT", "half a minute")
+
+	_, err := Load()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a duration")
 }

@@ -72,6 +72,9 @@ func (c *chatDouble) statusTexts() []string {
 }
 
 type conversationSpy struct {
+	// hang, when set, makes every turn block until it is closed - the shape of an
+	// agent that stopped answering.
+	hang       chan struct{}
 	mu         sync.Mutex
 	events     chan appserver.Event
 	turns      []string
@@ -88,7 +91,19 @@ func newConversationSpy() *conversationSpy {
 
 func (c *conversationSpy) Open(context.Context) (string, error) { return "th-1", nil }
 
-func (c *conversationSpy) Turn(_ context.Context, text string) (string, error) {
+func (c *conversationSpy) Turn(ctx context.Context, text string) (string, error) {
+	if c.hang != nil {
+		c.mu.Lock()
+		c.turns = append(c.turns, text)
+		c.mu.Unlock()
+		select {
+		case <-c.hang:
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+		return "", fmt.Errorf("the agent never answered")
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.turnErr != nil {
@@ -141,13 +156,41 @@ func start(t *testing.T) (*Harness, *chatDouble, *conversationSpy) {
 
 	chat := newChatDouble()
 	agent := newConversationSpy()
-	h := &Harness{Chat: chat, Conversation: agent, Log: zaptest.NewLogger(t)}
+	h := &Harness{Chat: chat, Conversation: agent, CallTimeout: 2 * time.Second, Log: zaptest.NewLogger(t)}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	go func() { _ = h.Run(ctx) }()
 
 	return h, chat, agent
+}
+
+// The loop that reads the chat is the loop that talks to the agent, so a call
+// with no bound takes the room down with a session that stopped answering.
+func TestRefusesWithoutACallBound(t *testing.T) {
+	h := &Harness{Chat: newChatDouble(), Conversation: newConversationSpy(), Log: zaptest.NewLogger(t)}
+	err := h.Run(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "AGENT_CALL_TIMEOUT")
+}
+
+func TestAHungAgentDoesNotWedgeTheRoom(t *testing.T) {
+	chat := newChatDouble()
+	agent := newConversationSpy()
+	agent.hang = make(chan struct{})
+	t.Cleanup(func() { close(agent.hang) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{Chat: chat, Conversation: agent, CallTimeout: 300 * time.Millisecond, Log: zaptest.NewLogger(t)}
+	go func() { _ = h.Run(ctx) }()
+
+	chat.inbound <- telegram.Message{Text: "start something", UserID: 42, Username: "joker"}
+	chat.inbound <- telegram.Message{Text: "and this one after it", UserID: 42, Username: "joker"}
+
+	// The second message is only ever handled if the first call gave up in time.
+	waitFor(t, func() bool { turns, _, _ := agent.seen(); return len(turns) >= 2 })
 }
 
 func TestRefusesWithoutAnyCause(t *testing.T) {

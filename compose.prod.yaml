@@ -67,6 +67,9 @@ services:
       AGENT_MODEL: ${AGENT_MODEL}
       # Kept in the work volume, so a restart continues the same conversation.
       THREAD_FILE: /work/.thread
+      # One request to the agent may take this long. Past it the chat is told,
+      # rather than the whole room waiting on a session that stopped answering.
+      AGENT_CALL_TIMEOUT: ${AGENT_CALL_TIMEOUT}
       SESSION_MCP_URL: http://app:8081
       # Set only while the gateway is not yet in front of the broker, and only on
       # a development account.
