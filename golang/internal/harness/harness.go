@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -83,15 +84,33 @@ func (h *Harness) serveChat(ctx context.Context) error {
 			if !ok {
 				return nil
 			}
-			h.runForPerson(ctx, msg)
+			h.runForPeople(ctx, append([]telegram.Message{msg}, h.drainWaiting()...))
 		}
 	}
 }
 
-// runForPerson runs one session and reports it as it goes. Messages that arrive
-// while it runs wait in the chat's buffer and are served in order: two sessions
-// on one account would close each other's positions.
-func (h *Harness) runForPerson(ctx context.Context, msg telegram.Message) {
+// drainWaiting takes everything already waiting in the chat without blocking.
+// Three lines typed in a row are one thing to say, and answering them as three
+// sessions costs three turns and reads as an agent that is not listening.
+func (h *Harness) drainWaiting() []telegram.Message {
+	var waiting []telegram.Message
+	for {
+		select {
+		case msg, ok := <-h.Chat.Inbound():
+			if !ok {
+				return waiting
+			}
+			waiting = append(waiting, msg)
+		default:
+			return waiting
+		}
+	}
+}
+
+// runForPeople runs one session for everything said so far and reports it as it
+// goes. Anything written while it runs waits and is served next: two sessions on
+// one account would close each other's positions.
+func (h *Harness) runForPeople(ctx context.Context, msgs []telegram.Message) {
 	status, err := h.Chat.Send(ctx, "working")
 	if err != nil {
 		h.Log.Error("could not open a status line in the chat", zap.Error(err))
@@ -114,7 +133,7 @@ func (h *Harness) runForPerson(ctx context.Context, msg telegram.Message) {
 	}
 
 	result, runErr := h.Sessions.Run(ctx, session.Request{
-		Prompt:   promptFor(msg),
+		Prompt:   promptFor(msgs),
 		ThreadID: h.threadID,
 		Dir:      h.Dir,
 		Sandbox:  h.Sandbox,
@@ -123,6 +142,9 @@ func (h *Harness) runForPerson(ctx context.Context, msg telegram.Message) {
 	if result.ThreadID != "" {
 		h.threadID = result.ThreadID
 	}
+	h.Log.Info("session finished",
+		zap.String("thread_id", result.ThreadID),
+		zap.Int("messages_carried", len(msgs)))
 
 	final := "done"
 	if runErr != nil {
@@ -138,11 +160,16 @@ func (h *Harness) runForPerson(ctx context.Context, msg telegram.Message) {
 
 // promptFor names the cause. A session that cannot say why it ran cannot be
 // judged on whether it should have.
-func promptFor(msg telegram.Message) string {
-	who := msg.Username
-	if who == "" {
-		who = fmt.Sprintf("user %d", msg.UserID)
+func promptFor(msgs []telegram.Message) string {
+	lines := make([]string, 0, len(msgs)+1)
+	lines = append(lines, "Woken by a person in the chat.")
+	for _, msg := range msgs {
+		who := msg.Username
+		if who == "" {
+			who = fmt.Sprintf("user %d", msg.UserID)
+		}
+		lines = append(lines, fmt.Sprintf("From %s: %s", who, msg.Text))
 	}
 
-	return fmt.Sprintf("Woken by a person in the chat.\nFrom %s: %s", who, msg.Text)
+	return strings.Join(lines, "\n")
 }

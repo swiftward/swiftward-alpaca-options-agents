@@ -170,6 +170,31 @@ func TestAMessageWakesASessionAndTheChatSeesIt(t *testing.T) {
 	assert.Contains(t, chat.statusTexts(), "done")
 }
 
+// Three lines typed in a row are one thing to say. Answering them as three
+// sessions costs three turns and reads as an agent that is not listening.
+func TestWaitingMessagesAreCarriedIntoOneTurn(t *testing.T) {
+	chat := newChatDouble()
+	agent := &sessionSpy{result: session.Result{ThreadID: "t1"}, text: []string{"ok"}}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	chat.inbound <- telegram.Message{Text: "close the spread", UserID: 42, Username: "joker"}
+	chat.inbound <- telegram.Message{Text: "and tell me the loss", UserID: 42, Username: "joker"}
+	chat.inbound <- telegram.Message{Text: "in dollars", UserID: 298310358, Username: "ruslan"}
+
+	h := &Harness{Chat: chat, Sessions: agent, Log: zaptest.NewLogger(t)}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { return len(agent.seen()) >= 1 })
+
+	requests := agent.seen()
+	require.Len(t, requests, 1, "three lines are one turn, not three")
+	assert.Contains(t, requests[0].Prompt, "close the spread")
+	assert.Contains(t, requests[0].Prompt, "and tell me the loss")
+	assert.Contains(t, requests[0].Prompt, "ruslan")
+}
+
 func TestTheNextMessageContinuesTheSameThread(t *testing.T) {
 	chat := newChatDouble()
 	agent := &sessionSpy{result: session.Result{ThreadID: "t1"}, text: []string{"ok"}}
