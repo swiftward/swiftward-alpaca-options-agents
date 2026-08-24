@@ -85,6 +85,9 @@ services:
       AGENT_SANDBOX: danger-full-access
       AGENT_MODEL: ${AGENT_MODEL}
       SESSION_MCP_URL: http://app:8081
+      # Set only while the gateway is not yet in front of the broker, and only on
+      # a development account.
+      BROKER_MCP_URL: ${BROKER_MCP_URL}
       DECLARATION: ${DECLARATION}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}

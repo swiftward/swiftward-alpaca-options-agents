@@ -33,6 +33,14 @@ fi
         echo "url = \"${GATEWAY_URL}\""
         echo "bearer_token_env_var = \"GATEWAY_TOKEN\""
     fi
+    # Development only: the broker's own server, reached without the gateway in
+    # front of it. The judged account is never wired this way - every order it
+    # sees goes through the gateway, which is what declares the limits.
+    if [ -n "${BROKER_MCP_URL}" ]; then
+        echo ""
+        echo "[mcp_servers.broker]"
+        echo "url = \"${BROKER_MCP_URL}\""
+    fi
 } > "${CODEX_HOME}/config.toml"
 
 exec /usr/local/bin/app "$@"
