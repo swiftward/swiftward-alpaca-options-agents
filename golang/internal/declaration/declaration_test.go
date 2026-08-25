@@ -121,23 +121,37 @@ func TestDueEveryInsideItsWindow(t *testing.T) {
 	assert.True(t, defend.Due(at(t, "2026-08-24 10:10"), start), "thirty minutes have passed")
 }
 
-// The declaration this project actually runs must load, and every session in it
-// must carry a cause: it is the file the whole week depends on.
-func TestTheDeclarationWeShipLoads(t *testing.T) {
-	// The real file, not a copy of it: a copy would drift from what ships.
-	d, err := Load("../../../agent/agent.yaml")
+// EVERY declaration this project ships must load, and every session in it must
+// carry a cause and a task. A declaration that only one agent reads is still one
+// the week depends on, and a broken one is discovered when that agent wakes
+// nobody all day.
+func TestEveryDeclarationWeShipLoads(t *testing.T) {
+	// The real files, not copies: a copy would drift from what ships.
+	shipped, err := filepath.Glob("../../../agent/*.yaml")
 	require.NoError(t, err)
+	require.NotEmpty(t, shipped, "no declarations found: the path this test reads has moved")
 
-	assert.Equal(t, "America/New_York", d.Location().String())
-	names := map[string]bool{}
-	for i := range d.Sessions {
-		s := &d.Sessions[i]
-		names[s.Name] = true
-		assert.NotEmpty(t, s.Cause, s.Name)
-		assert.NotEmpty(t, s.Task, s.Name)
-	}
-	for _, want := range []string{"open-check", "entry", "defend", "flatten"} {
-		assert.True(t, names[want], "session %s is missing", want)
+	for _, path := range shipped {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			d, err := Load(path)
+			require.NoError(t, err)
+
+			assert.Equal(t, "America/New_York", d.Location().String())
+			assert.NotEmpty(t, d.Name)
+			names := map[string]bool{}
+			for i := range d.Sessions {
+				s := &d.Sessions[i]
+				assert.False(t, names[s.Name], "two sessions named %s", s.Name)
+				names[s.Name] = true
+				assert.NotEmpty(t, s.Cause, s.Name)
+				assert.NotEmpty(t, s.Task, s.Name)
+			}
+			// Whatever else a declaration carries, it has to be able to open a
+			// position, defend one, and end the day.
+			for _, want := range []string{"entry", "defend", "flatten"} {
+				assert.True(t, names[want], "session %s is missing", want)
+			}
+		})
 	}
 }
 

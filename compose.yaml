@@ -8,6 +8,90 @@ name: swiftward-alpaca-options-agents
 # alone, so its only ways anywhere are the services beside it and the egress
 # proxy, whose allowlist it cannot widen.
 
+x-broker-service: &broker-service
+  restart: unless-stopped
+  build:
+    context: .
+    dockerfile: docker/alpaca-mcp.Dockerfile
+  networks: [internal, outbound]
+
+x-broker-environment: &broker-environment
+  ALPACA_PAPER_TRADE: ${ALPACA_PAPER}
+  ALPACA_TOOLSETS: ${ALPACA_TOOLSETS}
+
+x-agent-service: &agent-service
+  build:
+    context: .
+    dockerfile: docker/app.Dockerfile
+    target: agent
+    args:
+      AGENT_UID: ${AGENT_UID}
+  networks: [internal]
+  # The claims the architecture makes about this container, enforced here: it
+  # cannot write outside its work directory, cannot gain privileges, and holds
+  # no capability it was not given.
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+  profiles: [session]
+
+# Everything an agent needs that does NOT depend on which account it trades.
+# What does depend on the account - the record, the broker's server, the
+# declaration, and whether it speaks in the room - is set on each agent, and is
+# the whole difference between them.
+x-agent-environment: &agent-environment
+  ROLES: harness,mcp
+  MCP_ADDR: ":8081"
+  SESSION_MCP_URL: http://127.0.0.1:8081
+  RECORD_SHOWS: ${RECORD_SHOWS}
+  AGENT_COMMAND: codex
+  AGENT_DIR: /work
+  # The container is the sandbox: root filesystem read-only, one writable
+  # directory, no route out except the proxy. The agent's own sandbox needs
+  # user namespaces this container does not grant, and running two boundaries
+  # where one is real would only stall every command.
+  AGENT_SANDBOX: danger-full-access
+  AGENT_MODEL: ${AGENT_MODEL}
+  AGENT_REASONING_EFFORT: ${AGENT_REASONING_EFFORT}
+  # Kept in the work volume, so a restart continues the same conversation.
+  THREAD_FILE: /work/.thread
+  WAKEUP_FILE: /work/wakeups.json
+  # One request to the agent may take this long. Past it the chat is told,
+  # rather than the whole room waiting on a session that stopped answering.
+  AGENT_CALL_TIMEOUT: ${AGENT_CALL_TIMEOUT}
+  THREAD_RESUME_LIMIT: ${THREAD_RESUME_LIMIT}
+  # Дольше этого один ход не живёт: за ним ждут другие сессии, и защита,
+  # которая не отработала из-за длинного перебора, хуже перебора.
+  TURN_LIMIT: ${TURN_LIMIT}
+  # Пауза между тем, что комната слышит от сессии. Тринадцать сессий по
+  # четыре реплики - это отказ Telegram, за которым ждёт нужный ответ.
+  SAY_EVERY: ${SAY_EVERY}
+  # The volatility history the entry rules compare against. It is worth what
+  # its length is, so it starts on the first day and is never paused.
+  VOLATILITY_UNDERLYINGS: ${VOLATILITY_UNDERLYINGS}
+  VOLATILITY_EVERY: ${VOLATILITY_EVERY}
+  # How often the account's own value is written down: the week is judged on
+  # the line those readings draw.
+  ACCOUNT_EVERY: ${ACCOUNT_EVERY}
+  # The ladder that walks an unfilled structure toward the price the book
+  # shows. It finishes what a session started and can open nothing.
+  EXECUTION_EVERY: ${EXECUTION_EVERY}
+  EXECUTION_STEP: ${EXECUTION_STEP}
+  EXECUTION_PATIENCE: ${EXECUTION_PATIENCE}
+  GATEWAY_URL: ${GATEWAY_URL}
+  GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+  HTTP_PROXY: http://egress:8888
+  HTTPS_PROXY: http://egress:8888
+  NO_PROXY: alpaca-mcp,alpaca-mcp-near,postgres,egress,localhost,127.0.0.1
+  CODEX_HOME: /home/agent/.codex
+
 services:
   postgres:
     image: postgres:18.4-alpine
@@ -32,16 +116,12 @@ services:
     networks: [internal]
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      RECORD_DATABASES: ${RECORD_DATABASES}
     volumes:
       - ./postgres/migrations:/migrations:ro
-    entrypoint:
-      - /bin/sh
-      - -c
-      - >-
-        for f in /migrations/*.sql; do
-          echo "-> $$f";
-          psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -f "$$f" || exit 1;
-        done
+      - ./postgres/migrate.sh:/migrate.sh:ro
+    entrypoint: ["/bin/sh", "/migrate.sh"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,7 +133,7 @@ services:
     networks: [internal]
     working_dir: /src
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DATABASE}?sslmode=disable
       BROKER_MCP_URL: http://alpaca-mcp:8000/mcp
       GOFLAGS: -buildvcs=false
       # This network has no route out, so every module must already be in the
@@ -73,16 +153,20 @@ services:
   # Alpaca's own MCP server. The account keys live here and nowhere else; no host
   # port, so the only caller is the policy gateway.
   alpaca-mcp:
-    restart: unless-stopped
-    build:
-      context: .
-      dockerfile: docker/alpaca-mcp.Dockerfile
-    networks: [internal, outbound]
+    <<: *broker-service
     environment:
+      <<: *broker-environment
       ALPACA_API_KEY: ${ALPACA_API_KEY_ID}
       ALPACA_SECRET_KEY: ${ALPACA_API_SECRET_KEY}
-      ALPACA_PAPER_TRADE: ${ALPACA_PAPER}
-      ALPACA_TOOLSETS: ${ALPACA_TOOLSETS}
+
+  # The second account. Its keys are the only thing that differs: one server
+  # holds one account's keys, given at startup, so an account needs a server.
+  alpaca-mcp-near:
+    <<: *broker-service
+    environment:
+      <<: *broker-environment
+      ALPACA_API_KEY: ${ALPACA_NEAR_API_KEY_ID}
+      ALPACA_SECRET_KEY: ${ALPACA_NEAR_API_SECRET_KEY}
 
   # The session's container: the harness role plus the agent it starts. It holds
   # no credential of ours; the login it does carry is Codex's own, mounted from
@@ -117,85 +201,41 @@ services:
         condition: service_completed_successfully
 
   agent:
-    build:
-      context: .
-      dockerfile: docker/app.Dockerfile
-      target: agent
-      args:
-        AGENT_UID: ${AGENT_UID}
-    networks: [internal]
+    <<: *agent-service
     environment:
-      ROLES: harness,mcp
-      MCP_ADDR: ":8081"
+      <<: *agent-environment
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
-      RECORD_SHOWS: ${RECORD_SHOWS}
-      AGENT_COMMAND: codex
-      AGENT_DIR: /work
-      # The container is the sandbox: root filesystem read-only, one writable
-      # directory, no route out except the proxy. The agent's own sandbox needs
-      # user namespaces this container does not grant, and running two boundaries
-      # where one is real would only stall every command.
-      AGENT_SANDBOX: danger-full-access
-      AGENT_MODEL: ${AGENT_MODEL}
-      AGENT_REASONING_EFFORT: ${AGENT_REASONING_EFFORT}
-      # Kept in the work volume, so a restart continues the same conversation.
-      THREAD_FILE: /work/.thread
-      WAKEUP_FILE: /work/wakeups.json
-      # One request to the agent may take this long. Past it the chat is told,
-      # rather than the whole room waiting on a session that stopped answering.
-      AGENT_CALL_TIMEOUT: ${AGENT_CALL_TIMEOUT}
-      THREAD_RESUME_LIMIT: ${THREAD_RESUME_LIMIT}
-      # Дольше этого один ход не живёт: за ним ждут другие сессии, и защита,
-      # которая не отработала из-за длинного перебора, хуже перебора.
-      TURN_LIMIT: ${TURN_LIMIT}
-      # Пауза между тем, что комната слышит от сессии. Тринадцать сессий по
-      # четыре реплики - это отказ Telegram, за которым ждёт нужный ответ.
-      SAY_EVERY: ${SAY_EVERY}
-      SESSION_MCP_URL: http://127.0.0.1:8081
       # Set only while the gateway is not yet in front of the broker, and only on
       # a development account.
       BROKER_MCP_URL: ${BROKER_MCP_URL}
-      # The volatility history the entry rules compare against. It is worth what
-      # its length is, so it starts on the first day and is never paused.
-      VOLATILITY_UNDERLYINGS: ${VOLATILITY_UNDERLYINGS}
-      VOLATILITY_EVERY: ${VOLATILITY_EVERY}
-      # How often the account's own value is written down: the week is judged on
-      # the line those readings draw.
-      ACCOUNT_EVERY: ${ACCOUNT_EVERY}
-      # The ladder that walks an unfilled structure toward the price the book
-      # shows. It finishes what a session started and can open nothing.
-      EXECUTION_EVERY: ${EXECUTION_EVERY}
-      EXECUTION_STEP: ${EXECUTION_STEP}
-      EXECUTION_PATIENCE: ${EXECUTION_PATIENCE}
       DECLARATION: ${DECLARATION:-/agent/agent.yaml}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}
       TELEGRAM_ALLOW_USER_IDS: ${TELEGRAM_ALLOW_USER_IDS}
-      GATEWAY_URL: ${GATEWAY_URL}
-      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
-      HTTP_PROXY: http://egress:8888
-      HTTPS_PROXY: http://egress:8888
-      NO_PROXY: alpaca-mcp,postgres,egress,localhost,127.0.0.1
-      CODEX_HOME: /home/agent/.codex
     volumes:
       - ${CODEX_AUTH_DIR}:/mnt/codex:ro
       - codex-home:/home/agent/.codex
       - agent-work:/work
-    # The claims the architecture makes about this container, enforced here: it
-    # cannot write outside its work directory, cannot gain privileges, and holds
-    # no capability it was not given.
-    restart: unless-stopped
-    read_only: true
-    tmpfs:
-      - /tmp
-    cap_drop: [ALL]
-    security_opt:
-      - no-new-privileges:true
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    profiles: [session]
+
+  # The second account: the same engine selling NEARER the money. It keeps its
+  # own record, because a shared one would let this agent's restart close the
+  # other's live turns and let either skip a session the other already ran.
+  #
+  # It says nothing in the room on purpose. Two agents narrating into one topic
+  # is unreadable, and the comparison is read from the two records, not from the
+  # chat.
+  agent-near:
+    <<: *agent-service
+    environment:
+      <<: *agent-environment
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
+      BROKER_MCP_URL: http://alpaca-mcp-near:8000/mcp
+      DECLARATION: /agent/experiment-near.yaml
+    volumes:
+      - ${CODEX_AUTH_DIR}:/mnt/codex:ro
+      - codex-home-near:/home/agent/.codex
+      - agent-near-work:/work
 
   # The only door out. Hosts not named in docker/egress/filter.txt are refused.
   egress:
@@ -214,3 +254,5 @@ volumes:
   pgdata:
   codex-home:
   agent-work:
+  codex-home-near:
+  agent-near-work:
