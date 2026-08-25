@@ -808,3 +808,43 @@ sessions:
 
 	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
 }
+
+// A person in the chat is not a session. Reading their name as one would let a
+// chat name that matches a session silence that session for the day.
+func TestOnlyDeclaredSessionsCountAsHavingRun(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: entry
+    cause: "окно входа"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+`), 0o600))
+
+	declared, err := declaration.Load(path)
+	require.NoError(t, err)
+
+	at := time.Date(2026, 8, 25, 14, 40, 0, 0, time.UTC)
+	kept := record.NewMemory()
+	require.NoError(t, kept.TurnStarted(context.Background(), record.Turn{
+		Ref: "turn-1", ThreadRef: "th-1", StartedAt: at.Add(-time.Hour),
+		WokenBy: "wakeup w1", Cause: "своя причина",
+	}))
+
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: conversation, Declaration: declared, Record: kept,
+		CallTimeout: 2 * time.Second, Now: func() time.Time { return at },
+		Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+}

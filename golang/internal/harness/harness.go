@@ -163,11 +163,21 @@ func (h *Harness) whatAlreadyRanToday(ctx context.Context) map[string]time.Time 
 			zap.Error(err))
 		return map[string]time.Time{}
 	}
-	if len(last) > 0 {
-		h.Log.Info("sessions that already ran today", zap.Int("sessions", len(last)))
+	// A turn is also woken by a person and by a wake-up, and those names are not
+	// session names. Keeping them would let a chat name that happens to match a
+	// session silence that session for the day.
+	ran := map[string]time.Time{}
+	for i := range h.Declaration.Sessions {
+		name := h.Declaration.Sessions[i].Name
+		if at, found := last[name]; found {
+			ran[name] = at
+		}
+	}
+	if len(ran) > 0 {
+		h.Log.Info("sessions that already ran today", zap.Int("sessions", len(ran)))
 	}
 
-	return last
+	return ran
 }
 
 // keepTheClock wakes the sessions the declaration names. It checks once a minute
