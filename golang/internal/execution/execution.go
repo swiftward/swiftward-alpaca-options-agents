@@ -16,6 +16,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,6 +31,8 @@ import (
 // answers, what walking the price saved, is asked afterwards.
 type Keeper interface {
 	AppendExecutionStep(ctx context.Context, step record.ExecutionStep) error
+	// NoteFill writes a fill down once and answers whether this call wrote it.
+	NoteFill(ctx context.Context, step record.ExecutionStep) (bool, error)
 }
 
 // Broker is what the ladder needs: what is in the book, what the legs are worth,
@@ -61,10 +64,22 @@ type Ladder struct {
 	// fills: a fill is what the session already planned for, and a turn spent
 	// acknowledging it changes nothing. Nil tells nobody.
 	Wake func(ctx context.Context, cause string)
+	// Say puts one line in front of the person watching. Fills go here and
+	// nowhere else: the session already knows what it asked for, and a turn spent
+	// acknowledging a fill changes nothing - but a fill is the only thing on the
+	// whole screen that actually happened. Nil says nothing.
+	Say func(ctx context.Context, line string)
 	// Reads bounds how many recent orders are examined.
 	Reads int
 	Now   func() time.Time
 	Log   *zap.Logger
+
+	// watching is when this ladder started looking. A fill older than that is
+	// history: it is written down, because the record is worth having, and it is
+	// NOT said, because the room is for what just happened. Without this every
+	// redeployment reads the day's fills back into the room as news - which is
+	// exactly what one did on 25 August, eighteen lines at once.
+	watching time.Time
 }
 
 // Run walks orders until ctx ends.
@@ -84,6 +99,7 @@ func (l *Ladder) Run(ctx context.Context) error {
 	if l.Reads <= 0 {
 		l.Reads = defaultReads
 	}
+	l.watching = l.Now()
 
 	ticker := time.NewTicker(l.Every)
 	defer ticker.Stop()
@@ -111,6 +127,9 @@ func (l *Ladder) step(ctx context.Context) {
 
 	var cancelled []marketdata.Order
 	for _, order := range orders {
+		if order.Status == "filled" || order.FilledQuantity > 0 {
+			l.report(ctx, order)
+		}
 		if !working(order) {
 			continue
 		}
@@ -144,6 +163,65 @@ func (l *Ladder) step(ctx context.Context) {
 	if len(cancelled) > 0 && l.Wake != nil {
 		l.Wake(ctx, whatDidNotHappen(cancelled))
 	}
+}
+
+// report says a fill once. What makes it once is the record, not this process:
+// the ladder meets the same filled order on every pass and forgets everything it
+// held in memory when it restarts.
+func (l *Ladder) report(ctx context.Context, order marketdata.Order) {
+	if l.Record == nil {
+		return
+	}
+
+	price := order.FilledPrice
+	first, err := l.Record.NoteFill(ctx, record.ExecutionStep{
+		OrderRef: order.ID, At: l.Now(), Action: "filled",
+		Was: order.LimitPrice, Became: &price,
+	})
+	if err != nil {
+		l.Log.Error("could not write a fill down",
+			zap.String("order", order.ID), zap.Error(err))
+		return
+	}
+	if !first || l.Say == nil {
+		return
+	}
+	if order.FilledAt == nil || !order.FilledAt.After(l.watching) {
+		return
+	}
+
+	l.Say(ctx, whatFilled(order))
+}
+
+// whatFilled is a fill in one line, in the words a person reads: the underlying
+// and the strikes, not the fifteen characters the industry names a contract by.
+func whatFilled(order marketdata.Order) string {
+	kind, strikes := "", make([]string, 0, len(order.Legs))
+	underlying := ""
+	for _, leg := range order.Legs {
+		contract, known := marketdata.ContractFrom(leg.Symbol)
+		if !known {
+			// Nothing is guessed: a wrong strike in the room is worse than none.
+			return fmt.Sprintf("✔ исполнено %.0f по %.2f", order.FilledQuantity, order.FilledPrice)
+		}
+		if underlying == "" {
+			underlying = leg.Symbol[:len(leg.Symbol)-15]
+			kind = contract.Type
+		}
+		strikes = append(strikes, strconv.FormatFloat(contract.Strike, 'f', -1, 64))
+	}
+
+	money := "кредит"
+	price := order.FilledPrice
+	if price > 0 {
+		money = "дебет"
+	}
+	if price < 0 {
+		price = -price
+	}
+
+	return fmt.Sprintf("✔ %s %s %s ×%.0f, %s %.2f",
+		underlying, strings.Join(strikes, "/"), kind, order.FilledQuantity, money, price)
 }
 
 // whatDidNotHappen is what the session is told when its orders were cancelled

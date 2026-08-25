@@ -240,6 +240,7 @@ func run(log *zap.Logger) error {
 			ladder.Wake = func(ctx context.Context, cause string) {
 				running.Tell(ctx, cause, "execution")
 			}
+			ladder.Say = running.Post
 		}
 		log.Info("walking unfilled structures toward the book",
 			zap.Duration("every", cfg.ExecutionEvery),

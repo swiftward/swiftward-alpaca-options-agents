@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap/zaptest"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 )
 
 type brokerDouble struct {
@@ -497,4 +498,95 @@ func TestAPartlyFilledOrderIsNotCalledUnfilled(t *testing.T) {
 	require.Len(t, told, 1)
 	assert.Contains(t, told[0], "20 из 50")
 	assert.NotContains(t, told[0], "не исполнилась вовсе")
+}
+
+// A fill reaches the room once, however many times the ladder meets it. It polls
+// every forty-five seconds and forgets everything it holds when the process
+// restarts, so the record is what makes a fill new - not this process's memory.
+func TestAFillIsSaidOnceHoweverOftenItIsSeen(t *testing.T) {
+	at := time.Date(2026, 8, 25, 15, 30, 0, 0, time.UTC)
+	order := spread("o-1", -0.30, "filled", at.Add(-2*time.Minute))
+	order.Quantity, order.FilledQuantity, order.FilledPrice = 50, 50, -0.28
+	filled := at.Add(-time.Minute)
+	order.FilledAt = &filled
+	broker := &brokerDouble{orders: []marketdata.Order{order}}
+
+	var said []string
+	kept := record.NewMemory()
+	for range 3 {
+		rungs := ladder(broker, at, t)
+		rungs.Record = kept
+		rungs.watching = at.Add(-time.Hour)
+		rungs.Say = func(_ context.Context, line string) { said = append(said, line) }
+		rungs.step(context.Background())
+	}
+
+	require.Len(t, said, 1, "three passes over one filled order is one line")
+	assert.Equal(t, "✔ QQQ 701/700 put ×50, кредит 0.28", said[0])
+
+	state, err := kept.Read(context.Background())
+	require.NoError(t, err)
+	fills := 0
+	for _, step := range state.Steps {
+		if step.Action == "filled" {
+			fills++
+			require.NotNil(t, step.Became)
+			assert.InDelta(t, -0.28, *step.Became, 1e-9, "the record keeps the price it filled at")
+		}
+	}
+	assert.Equal(t, 1, fills)
+}
+
+// Closing a position costs money, and the line has to say so: the same number
+// with the wrong word turns a loss into a gain on the screen.
+func TestAFillThatCostMoneyIsCalledADebit(t *testing.T) {
+	at := time.Date(2026, 8, 25, 15, 30, 0, 0, time.UTC)
+	order := spread("o-1", 0.09, "filled", at.Add(-2*time.Minute))
+	order.Quantity, order.FilledQuantity, order.FilledPrice = 1, 1, 0.07
+	filled := at.Add(-time.Minute)
+	order.FilledAt = &filled
+	broker := &brokerDouble{orders: []marketdata.Order{order}}
+
+	var said []string
+	rungs := ladder(broker, at, t)
+	rungs.Record = record.NewMemory()
+	rungs.watching = at.Add(-time.Hour)
+	rungs.Say = func(_ context.Context, line string) { said = append(said, line) }
+	rungs.step(context.Background())
+
+	require.Len(t, said, 1)
+	assert.Contains(t, said[0], "дебет 0.07")
+}
+
+// A fill from before this ladder started looking is written down and NOT said.
+// Every redeployment would otherwise read the whole day back into the room as
+// news, which is what one did on 25 August: eighteen lines at once, none of them
+// newer than six hours.
+func TestAFillOlderThanTheLadderIsKeptButNotSaid(t *testing.T) {
+	at := time.Date(2026, 8, 25, 20, 12, 0, 0, time.UTC)
+	earlier := at.Add(-6 * time.Hour)
+	order := spread("o-1", -0.30, "filled", earlier)
+	order.Quantity, order.FilledQuantity, order.FilledPrice = 50, 50, -0.28
+	order.FilledAt = &earlier
+	broker := &brokerDouble{orders: []marketdata.Order{order}}
+
+	said := 0
+	kept := record.NewMemory()
+	rungs := ladder(broker, at, t)
+	rungs.Record = kept
+	rungs.watching = at
+	rungs.Say = func(context.Context, string) { said++ }
+	rungs.step(context.Background())
+
+	assert.Zero(t, said, "six hours old is not news")
+
+	state, err := kept.Read(context.Background())
+	require.NoError(t, err)
+	fills := 0
+	for _, step := range state.Steps {
+		if step.Action == "filled" {
+			fills++
+		}
+	}
+	assert.Equal(t, 1, fills, "it is still written down: the record is worth having")
 }

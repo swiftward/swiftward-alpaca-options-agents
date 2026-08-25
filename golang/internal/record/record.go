@@ -94,6 +94,11 @@ type Keeper interface {
 	AppendIntent(ctx context.Context, intent Intent) error
 	TurnStarted(ctx context.Context, turn Turn) error
 	AppendExecutionStep(ctx context.Context, step ExecutionStep) error
+	// NoteFill writes a fill down once and answers whether this call was the one
+	// that wrote it. The ladder meets the same filled order on every pass and
+	// forgets everything it held in memory when the process restarts, so what
+	// makes a fill new is the record, not the ladder.
+	NoteFill(ctx context.Context, step ExecutionStep) (bool, error)
 	CallStarted(ctx context.Context, call ToolCall) error
 	CallFinished(ctx context.Context, ref string, finishedAt time.Time, status, failure, answer string) error
 	TurnFinished(ctx context.Context, ref string, finishedAt time.Time, failure string) error
@@ -187,6 +192,23 @@ func (m *Memory) AppendExecutionStep(_ context.Context, step ExecutionStep) erro
 	m.state.Steps = append(m.state.Steps, step)
 
 	return nil
+}
+
+// NoteFill refuses a second fill for the same order, exactly as the database
+// does. A double that accepted what the real one refuses would let the ladder
+// announce a trade twice and the tier would still report ok.
+func (m *Memory) NoteFill(_ context.Context, step ExecutionStep) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, kept := range m.state.Steps {
+		if kept.Action == "filled" && kept.OrderRef == step.OrderRef {
+			return false, nil
+		}
+	}
+	step.Action = "filled"
+	m.state.Steps = append(m.state.Steps, step)
+
+	return true, nil
 }
 
 func (m *Memory) CallStarted(_ context.Context, call ToolCall) error {

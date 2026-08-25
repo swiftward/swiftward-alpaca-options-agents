@@ -89,6 +89,22 @@ func (p *Postgres) AppendExecutionStep(ctx context.Context, step ExecutionStep) 
 	return nil
 }
 
+func (p *Postgres) NoteFill(ctx context.Context, step ExecutionStep) (bool, error) {
+	tag, err := p.pool.Exec(ctx,
+		`INSERT INTO execution_steps (order_ref, at, action, was, became)
+		 VALUES (@order, @at, 'filled', @was, @became)
+		 ON CONFLICT DO NOTHING`,
+		pgx.NamedArgs{
+			"order": step.OrderRef, "at": step.At,
+			"was": step.Was, "became": step.Became,
+		})
+	if err != nil {
+		return false, fmt.Errorf("record the fill on %s: %w", step.OrderRef, err)
+	}
+
+	return tag.RowsAffected() == 1, nil
+}
+
 func (p *Postgres) CallStarted(ctx context.Context, call ToolCall) error {
 	_, err := p.pool.Exec(ctx,
 		`INSERT INTO tool_calls (call_ref, turn_ref, server, tool, arguments, started_at, status)

@@ -765,6 +765,11 @@ func (h *Harness) sayWhatWasHeldBack(ctx context.Context) {
 	h.say(ctx, text)
 }
 
+// Post puts one line in the room from something that is not a session - a fill
+// the ladder saw, and nothing else so far. It carries no throttle: what is
+// throttled is a session thinking out loud, and a fill is the opposite of that.
+func (h *Harness) Post(ctx context.Context, text string) { h.say(ctx, text) }
+
 func (h *Harness) say(ctx context.Context, text string) {
 	if h.Chat == nil || strings.TrimSpace(text) == "" {
 		return
