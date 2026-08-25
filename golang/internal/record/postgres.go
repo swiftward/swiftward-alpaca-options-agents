@@ -109,7 +109,7 @@ func (p *Postgres) CloseTurnsLeftOpen(ctx context.Context, at time.Time) (int, e
 }
 
 func (p *Postgres) Read(ctx context.Context) (State, error) {
-	state := State{Ruleset: "none", Limits: []string{}, Turns: []Turn{}, Intents: []Intent{}, Refusals: []Refusal{}}
+	state := State{Turns: []Turn{}, Intents: []Intent{}, Refusals: []Refusal{}}
 
 	turns, err := p.pool.Query(ctx,
 		`SELECT turn_ref, thread_ref, started_at, finished_at, woken_by, cause, model, failure

@@ -42,10 +42,11 @@ type Turn struct {
 	Failure    string     `json:"failure,omitempty"`
 }
 
-// State is everything the page shows at once.
+// State is everything the page shows at once. The limits in force are not here
+// yet: they are the gateway's envelope, and the gateway is not in front of the
+// broker. A field standing empty until then would read as an agent under no
+// limits at all.
 type State struct {
-	Ruleset  string    `json:"ruleset"`
-	Limits   []string  `json:"limits"`
 	Turns    []Turn    `json:"turns"`
 	Intents  []Intent  `json:"intents"`
 	Refusals []Refusal `json:"refusals"`
@@ -77,7 +78,7 @@ type Memory struct {
 }
 
 func NewMemory() *Memory {
-	return &Memory{state: State{Ruleset: "none"}}
+	return &Memory{}
 }
 
 func (m *Memory) Read(context.Context) (State, error) {
@@ -87,8 +88,6 @@ func (m *Memory) Read(context.Context) (State, error) {
 	// The copies start empty rather than nil: a reader that sees null cannot tell
 	// "nothing recorded" from "this field is not implemented".
 	out := State{
-		Ruleset:  m.state.Ruleset,
-		Limits:   append(make([]string, 0, len(m.state.Limits)), m.state.Limits...),
 		Turns:    append(make([]Turn, 0, len(m.state.Turns)), m.state.Turns...),
 		Intents:  append(make([]Intent, 0, len(m.state.Intents)), m.state.Intents...),
 		Refusals: append(make([]Refusal, 0, len(m.state.Refusals)), m.state.Refusals...),

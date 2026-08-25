@@ -3,15 +3,42 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Options agent — limits in force</title>
+    <title>Options agent — what it did and why</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='14'>📈</text></svg>" />
+    <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <main>
-      <h1>Limits in force</h1>
-      <p id="ruleset">loading…</p>
-      <ul id="limits"></ul>
-      <h2>Recent refusals</h2>
-      <ul id="refusals"></ul>
+      <header>
+        <h1>Options agent</h1>
+        <p class="lede">
+          An autonomous options trading agent on Alpaca paper trading. It is woken by a schedule
+          and by its own standing requests, it states what it means to do before it orders
+          anything, and every broker call passes a policy gateway that can refuse it.
+        </p>
+        <p id="freshness" class="freshness">reading the record…</p>
+      </header>
+
+      <section>
+        <h2>Turns</h2>
+        <p class="explains">One run of the agent: when it ran, what woke it, and how long it took.</p>
+        <ol id="turns" class="cards"></ol>
+      </section>
+
+      <section>
+        <h2>Intents</h2>
+        <p class="explains">
+          Written before the order, never after. A fill can be read anywhere; only this says what
+          the agent meant to do and the loss it accepted.
+        </p>
+        <ol id="intents" class="cards"></ol>
+      </section>
+
+      <section>
+        <h2>Refusals</h2>
+        <p class="explains">Where a boundary stopped an order, and what it said.</p>
+        <ol id="refusals" class="cards"></ol>
+      </section>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

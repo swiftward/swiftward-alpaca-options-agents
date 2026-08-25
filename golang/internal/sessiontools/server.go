@@ -112,7 +112,7 @@ func Handler(state record.Keeper, now func() time.Time, poster Poster, wakeups W
 	mcp.AddTool(server,
 		&mcp.Tool{
 			Name:        "read_state",
-			Description: "Read the ruleset in force, the limits it declares, the intents recorded so far and the refusals returned.",
+			Description: "Read what earlier sessions did: their turns, the intents they recorded before ordering, and the refusals they were given.",
 		},
 		func(ctx context.Context, req *mcp.CallToolRequest, _ readStateInput) (*mcp.CallToolResult, record.State, error) {
 			current, err := state.Read(ctx)
