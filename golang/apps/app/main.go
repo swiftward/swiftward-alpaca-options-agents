@@ -19,18 +19,21 @@ import (
 	// configuration error.
 	_ "time/tzdata"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/agent"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/api"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/config"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/db"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/harness"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/sessiontools"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/volatility"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
 
@@ -57,13 +60,21 @@ func run(log *zap.Logger) error {
 
 	// The record outlives the process: a judge opening the page after a restart
 	// must still see the week, not an empty screen.
-	var state record.Keeper = record.NewMemory()
+	var pool *pgxpool.Pool
 	if cfg.DatabaseURL != "" {
-		kept, err := record.Connect(ctx, cfg.DatabaseURL, cfg.RecordShows)
+		pool, err = db.Open(ctx, cfg.DatabaseURL)
 		if err != nil {
 			return err
 		}
-		defer kept.Close()
+		defer pool.Close()
+	}
+
+	var state record.Keeper = record.NewMemory()
+	if pool != nil {
+		kept, err := record.NewPostgres(pool, cfg.RecordShows)
+		if err != nil {
+			return err
+		}
 		state = kept
 		log.Info("record kept in postgres", zap.Int("shows", cfg.RecordShows))
 	} else {
@@ -93,6 +104,14 @@ func run(log *zap.Logger) error {
 		log.Info("no chat configured: nothing will be posted and nobody can write to a session")
 	}
 
+	// The volatility history is kept by whichever process holds the clock: it is
+	// the one that runs all day, and the reading is mechanical - no session is
+	// woken for it.
+	var series *volatility.Postgres
+	if pool != nil {
+		series = volatility.NewPostgres(pool)
+	}
+
 	group, ctx := errgroup.WithContext(ctx)
 
 	if cfg.Has(config.RoleAPI) {
@@ -116,8 +135,36 @@ func run(log *zap.Logger) error {
 			standing = wakeups
 		}
 
-		handler := sessiontools.Handler(state, time.Now, poster, standing)
+		tools := sessiontools.Tools{
+			Record:  state,
+			Now:     time.Now,
+			Chat:    poster,
+			Wakeups: standing,
+		}
+		if series != nil {
+			tools.Volatility = series
+		}
+
+		handler := tools.Handler()
 		group.Go(func() error { return serve(ctx, cfg.MCPAddr, handler, log.Named("mcp")) })
+	}
+
+	if cfg.Has(config.RoleHarness) && len(cfg.VolatilityUnderlyings) > 0 {
+		if series == nil || cfg.BrokerMCPURL == "" {
+			return errors.New("VOLATILITY_UNDERLYINGS is set but the recorder has no database or no broker to read")
+		}
+		recorder := &volatility.Recorder{
+			Market:      marketdata.NewBroker(cfg.BrokerMCPURL),
+			Store:       series,
+			Underlyings: cfg.VolatilityUnderlyings,
+			Every:       cfg.VolatilityEvery,
+			Now:         time.Now,
+			Log:         log.Named("volatility"),
+		}
+		log.Info("keeping the volatility history",
+			zap.Strings("underlyings", cfg.VolatilityUnderlyings),
+			zap.Duration("every", cfg.VolatilityEvery))
+		group.Go(func() error { return recorder.Run(ctx) })
 	}
 
 	if cfg.Has(config.RoleHarness) {

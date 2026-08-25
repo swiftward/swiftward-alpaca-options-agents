@@ -5,28 +5,26 @@ package record
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/db"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/db/dbtest"
 )
 
 // The record is proved against a real Postgres, on its own database, under the
 // migrations the stack applies. A pool the test built itself would prove that
 // the test can write rows, not that the schema the stack ships accepts them.
 func TestPostgresKeepsTheRecord(t *testing.T) {
-	admin := os.Getenv("DATABASE_URL")
-	require.NotEmpty(t, admin, "DATABASE_URL: this tier has nothing to say without a database")
-
-	url := freshDatabase(t, admin)
-	kept, err := Connect(context.Background(), url, 2)
+	pool, err := db.Open(context.Background(), dbtest.Fresh(t))
 	require.NoError(t, err)
-	t.Cleanup(kept.Close)
+	t.Cleanup(pool.Close)
+
+	kept, err := NewPostgres(pool, 2)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	started := time.Date(2026, 9, 3, 18, 20, 0, 0, time.UTC)
@@ -87,66 +85,4 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 	again, err := kept.CloseTurnsLeftOpen(ctx, started.Add(5*time.Hour))
 	require.NoError(t, err)
 	assert.Zero(t, again, "a closed turn is not closed twice")
-}
-
-// freshDatabase gives the test a database of its own, carrying the schema from
-// the migrations the stack ships, and takes it away afterwards.
-func freshDatabase(t *testing.T, admin string) string {
-	t.Helper()
-
-	ctx := context.Background()
-	name := fmt.Sprintf("record_test_%d", time.Now().UnixNano())
-	server, err := pgx.Connect(ctx, admin)
-	require.NoError(t, err)
-	defer server.Close(ctx)
-
-	_, err = server.Exec(ctx, "CREATE DATABASE "+name)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		drop, err := pgx.Connect(ctx, admin)
-		require.NoError(t, err)
-		defer drop.Close(ctx)
-		_, err = drop.Exec(ctx, "DROP DATABASE "+name+" WITH (FORCE)")
-		require.NoError(t, err)
-	})
-
-	url := replaceDatabase(t, admin, name)
-	fresh, err := pgx.Connect(ctx, url)
-	require.NoError(t, err)
-	defer fresh.Close(ctx)
-
-	files, err := filepath.Glob(migrationsDir())
-	require.NoError(t, err)
-	require.NotEmpty(t, files, "no migrations found: the tier would prove nothing")
-	for _, file := range files {
-		sql, err := os.ReadFile(file)
-		require.NoError(t, err)
-		_, err = fresh.Exec(ctx, string(sql))
-		require.NoError(t, err, file)
-	}
-
-	return url
-}
-
-// migrationsDir finds the migrations whether the tier runs from this checkout
-// or from the stack, where the repository root is not above the module.
-func migrationsDir() string {
-	if _, err := os.Stat("/postgres/migrations"); err == nil {
-		return filepath.Join("/postgres", "migrations", "*.sql")
-	}
-
-	return filepath.Join("..", "..", "..", "postgres", "migrations", "*.sql")
-}
-
-func replaceDatabase(t *testing.T, url, name string) string {
-	t.Helper()
-
-	cut := strings.LastIndex(url, "/")
-	require.Positive(t, cut, "DATABASE_URL names no database")
-	rest := ""
-	if query := strings.Index(url[cut:], "?"); query >= 0 {
-		rest = url[cut+query:]
-	}
-
-	return url[:cut+1] + name + rest
 }

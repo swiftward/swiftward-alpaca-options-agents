@@ -109,6 +109,8 @@ func TestEveryDeclaredSettingIsRead(t *testing.T) {
 	t.Setenv("GATEWAY_URL", "https://gateway.example/mcp")
 	t.Setenv("GATEWAY_TOKEN", "secret")
 	t.Setenv("RECORD_SHOWS", "25")
+	t.Setenv("VOLATILITY_UNDERLYINGS", "spy, avgo")
+	t.Setenv("VOLATILITY_EVERY", "5m")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -129,6 +131,34 @@ func TestEveryDeclaredSettingIsRead(t *testing.T) {
 	assert.Equal(t, "secret", cfg.GatewayToken)
 	assert.Equal(t, 90*time.Second, cfg.AgentCallTimeout)
 	assert.Equal(t, 25, cfg.RecordShows)
+	assert.Equal(t, []string{"SPY", "AVGO"}, cfg.VolatilityUnderlyings)
+	assert.Equal(t, 5*time.Minute, cfg.VolatilityEvery)
+}
+
+// A deployment that records volatility says how often. Choosing an interval here
+// would silently outrank the one an operator wrote.
+func TestRecordingVolatilityWithoutAnIntervalIsRefused(t *testing.T) {
+	t.Setenv("ROLES", "harness")
+	t.Setenv("AGENT_CALL_TIMEOUT", "90s")
+	t.Setenv("VOLATILITY_UNDERLYINGS", "SPY")
+	t.Setenv("VOLATILITY_EVERY", "")
+
+	_, err := Load()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "VOLATILITY_EVERY")
+}
+
+func TestWatchingNothingNeedsNoInterval(t *testing.T) {
+	t.Setenv("ROLES", "api")
+	t.Setenv("AGENT_CALL_TIMEOUT", "")
+	t.Setenv("VOLATILITY_UNDERLYINGS", "")
+
+	cfg, err := Load()
+
+	require.NoError(t, err)
+	assert.Empty(t, cfg.VolatilityUnderlyings)
+	assert.Zero(t, cfg.VolatilityEvery)
 }
 
 // Without the setting the page still has to carry something: an unset knob that

@@ -17,6 +17,7 @@ import (
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/volatility"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
 
@@ -25,7 +26,7 @@ import (
 func connect(t *testing.T, state *record.Memory, now func() time.Time) *mcp.ClientSession {
 	t.Helper()
 
-	server := httptest.NewServer(Handler(state, now, nil, nil))
+	server := httptest.NewServer(Tools{Record: state, Now: now}.Handler())
 	t.Cleanup(server.Close)
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
@@ -144,7 +145,7 @@ func TestPostToChatReachesTelegram(t *testing.T) {
 	}, zaptest.NewLogger(t))
 	require.NoError(t, err)
 
-	server := httptest.NewServer(Handler(record.NewMemory(), time.Now, bot, nil))
+	server := httptest.NewServer(Tools{Record: record.NewMemory(), Now: time.Now, Chat: bot}.Handler())
 	t.Cleanup(server.Close)
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
@@ -169,7 +170,7 @@ func TestTheSessionManagesItsOwnWakeUps(t *testing.T) {
 	require.NoError(t, err)
 
 	at := time.Date(2026, 9, 4, 13, 30, 0, 0, time.UTC)
-	server := httptest.NewServer(Handler(record.NewMemory(), func() time.Time { return at }, nil, store))
+	server := httptest.NewServer(Tools{Record: record.NewMemory(), Now: func() time.Time { return at }, Wakeups: store}.Handler())
 	t.Cleanup(server.Close)
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
@@ -219,7 +220,7 @@ func TestAWakeUpInThePastIsRefused(t *testing.T) {
 	require.NoError(t, err)
 
 	at := time.Date(2026, 9, 4, 13, 30, 0, 0, time.UTC)
-	server := httptest.NewServer(Handler(record.NewMemory(), func() time.Time { return at }, nil, store))
+	server := httptest.NewServer(Tools{Record: record.NewMemory(), Now: func() time.Time { return at }, Wakeups: store}.Handler())
 	t.Cleanup(server.Close)
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
@@ -248,4 +249,67 @@ func TestWakeUpToolsAreAbsentWithoutAStore(t *testing.T) {
 	}
 	assert.NotContains(t, names, "wake_me_at")
 	assert.NotContains(t, names, "list_wakeups")
+}
+
+type volatilityDouble struct {
+	summary    volatility.Summary
+	underlying string
+	since      time.Time
+}
+
+func (v *volatilityDouble) Summarise(_ context.Context, underlying string, since time.Time) (volatility.Summary, error) {
+	v.underlying = underlying
+	v.since = since
+	return v.summary, nil
+}
+
+func TestTheSessionCanAskWhereVolatilityStands(t *testing.T) {
+	at := time.Date(2026, 9, 3, 18, 0, 0, 0, time.UTC)
+	series := &volatilityDouble{summary: volatility.Summary{
+		Underlying: "SPY", Samples: 240, Latest: 0.164, Lowest: 0.101, Median: 0.129, Highest: 0.180, Rank: 79.7,
+	}}
+	server := httptest.NewServer(Tools{
+		Record: record.NewMemory(), Now: func() time.Time { return at }, Volatility: series,
+	}.Handler())
+	t.Cleanup(server.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "read_volatility_history",
+		Arguments: map[string]any{"underlying": "spy", "days": 7},
+	})
+	require.NoError(t, err)
+	require.False(t, res.IsError, res.Content)
+
+	assert.Equal(t, "SPY", series.underlying, "the broker names symbols in upper case and so does the history")
+	assert.Equal(t, at.AddDate(0, 0, -7), series.since)
+
+	var answered volatility.Summary
+	require.NoError(t, json.Unmarshal(mustJSON(t, res.StructuredContent), &answered))
+	assert.InDelta(t, 79.7, answered.Rank, 1e-9)
+	assert.Equal(t, 240, answered.Samples)
+}
+
+// A deployment that records no volatility offers no tool for it: an agent that
+// can see a tool assumes it answers.
+func TestWithoutAHistoryTheToolIsNotOffered(t *testing.T) {
+	session := connect(t, record.NewMemory(), time.Now)
+
+	tools, err := session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+
+	for _, tool := range tools.Tools {
+		assert.NotEqual(t, "read_volatility_history", tool.Name)
+	}
+}
+
+func mustJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	require.NoError(t, err)
+	return raw
 }

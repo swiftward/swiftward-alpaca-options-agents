@@ -1,6 +1,7 @@
-// Package mcpserver is the MCP server this project runs for its own agent. It
+// Package sessiontools is the MCP server this project runs for its own agent. It
 // carries what the broker's server cannot: the intent a session states before it
-// orders anything, and the state that same session reads when it wakes again.
+// orders anything, the record that same session reads when it wakes again, the
+// wake-ups it sets for itself, and the volatility history nobody sells.
 //
 // It never reaches the broker. Orders go through the policy gateway and the
 // broker's own MCP server, which is what the hackathon requires.
@@ -10,11 +11,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/volatility"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
 
@@ -35,6 +38,15 @@ type recordIntentOutput struct {
 }
 
 type readStateInput struct{}
+
+type volatilityInput struct {
+	Underlying string `json:"underlying" jsonschema:"the symbol whose option volatility to look at, for example SPY"`
+	Days       int    `json:"days,omitempty" jsonschema:"how many days back to look; the whole recorded history if left out"`
+}
+
+// defaultVolatilityDays is how far back the history is read when the session did
+// not say. The record starts on kickoff day, so this is the whole of it.
+const defaultVolatilityDays = 30
 
 type postToChatInput struct {
 	Text string `json:"text" jsonschema:"what the people watching this session should read"`
@@ -82,9 +94,34 @@ type cancelWakeupInput struct {
 
 type noInput struct{}
 
-// Handler serves this server over Streamable HTTP. now is the clock the tools
-// stamp with; it is passed in so a test is not at the mercy of the wall clock.
-func Handler(state record.Keeper, now func() time.Time, poster Poster, wakeups Wakeups) http.Handler {
+// Volatility is the history of what the market charged for options. A nil one
+// means nothing has been recorded on this deployment and the tool is not
+// offered: an agent that can see a tool assumes it answers.
+type Volatility interface {
+	Summarise(ctx context.Context, underlying string, since time.Time) (volatility.Summary, error)
+}
+
+// Tools is what this session is given. A field left nil is a tool the session is
+// never shown, which is the only honest way to offer something this deployment
+// cannot do.
+type Tools struct {
+	// Record is where an intent is written and the past is read.
+	Record record.Keeper
+	// Now is the clock the tools stamp with. It is a field so a test is not at the
+	// mercy of the wall clock.
+	Now func() time.Time
+	// Chat is offered only when no harness is running: with one, everything the
+	// session says is already posted, and a tool as well would double it.
+	Chat Poster
+	// Wakeups are the session's own standing requests.
+	Wakeups Wakeups
+	// Volatility answers where today's implied volatility sits in its own history.
+	Volatility Volatility
+}
+
+// Handler serves these tools over Streamable HTTP.
+func (t Tools) Handler() http.Handler {
+	state, now, poster, wakeups := t.Record, t.Now, t.Chat, t.Wakeups
 	server := mcp.NewServer(&mcp.Implementation{Name: name, Version: version}, nil)
 
 	mcp.AddTool(server,
@@ -121,6 +158,29 @@ func Handler(state record.Keeper, now func() time.Time, poster Poster, wakeups W
 			}
 			return nil, current, nil
 		})
+
+	if t.Volatility != nil {
+		mcp.AddTool(server,
+			&mcp.Tool{
+				Name:        "read_volatility_history",
+				Description: "Ask where the implied volatility of an underlying sits inside its own recent history: the latest reading, the lowest, the median, the highest, and its rank from 0 to 100.",
+			},
+			func(ctx context.Context, req *mcp.CallToolRequest, in volatilityInput) (*mcp.CallToolResult, volatility.Summary, error) {
+				if in.Underlying == "" {
+					return nil, volatility.Summary{}, fmt.Errorf("underlying is required")
+				}
+				days := in.Days
+				if days <= 0 {
+					days = defaultVolatilityDays
+				}
+				summary, err := t.Volatility.Summarise(ctx, strings.ToUpper(in.Underlying),
+					now().AddDate(0, 0, -days))
+				if err != nil {
+					return nil, volatility.Summary{}, err
+				}
+				return nil, summary, nil
+			})
+	}
 
 	if poster != nil {
 		mcp.AddTool(server,

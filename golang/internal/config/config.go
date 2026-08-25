@@ -53,6 +53,11 @@ type Config struct {
 	// BrokerMCPURL is the broker's own server, read by the harness only to know
 	// when a price wake-up has come true.
 	BrokerMCPURL string
+	// VolatilityUnderlyings are the symbols whose option volatility is recorded
+	// all day. Empty means the history is not kept on this deployment.
+	VolatilityUnderlyings []string
+	// VolatilityEvery is how often a reading is taken.
+	VolatilityEvery time.Duration
 	// AgentCallTimeout bounds one request to the agent. Without it a hung agent
 	// takes the chat down with it: the loop that reads messages is the same loop
 	// that talks to the agent.
@@ -92,29 +97,38 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	underlyings := parseSymbols(k.String("volatility_underlyings"))
+
+	every, err := parseEvery(k.String("volatility_every"), underlyings)
+	if err != nil {
+		return Config{}, err
+	}
+
 	shows := k.Int("record_shows")
 	if shows <= 0 {
 		shows = defaultRecordShows
 	}
 
 	return Config{
-		Roles:            roles,
-		Addr:             k.String("addr"),
-		WebDir:           k.String("web_dir"),
-		MCPAddr:          k.String("mcp_addr"),
-		DeclarationPath:  k.String("declaration"),
-		AgentCommand:     k.String("agent_command"),
-		AgentDir:         k.String("agent_dir"),
-		AgentSandbox:     k.String("agent_sandbox"),
-		AgentModel:       k.String("agent_model"),
-		ThreadFile:       k.String("thread_file"),
-		WakeupFile:       k.String("wakeup_file"),
-		BrokerMCPURL:     k.String("broker_mcp_url"),
-		AgentCallTimeout: callTimeout,
-		DatabaseURL:      k.String("database_url"),
-		RecordShows:      shows,
-		GatewayURL:       k.String("gateway_url"),
-		GatewayToken:     k.String("gateway_token"),
+		Roles:                 roles,
+		VolatilityUnderlyings: underlyings,
+		VolatilityEvery:       every,
+		Addr:                  k.String("addr"),
+		WebDir:                k.String("web_dir"),
+		MCPAddr:               k.String("mcp_addr"),
+		DeclarationPath:       k.String("declaration"),
+		AgentCommand:          k.String("agent_command"),
+		AgentDir:              k.String("agent_dir"),
+		AgentSandbox:          k.String("agent_sandbox"),
+		AgentModel:            k.String("agent_model"),
+		ThreadFile:            k.String("thread_file"),
+		WakeupFile:            k.String("wakeup_file"),
+		BrokerMCPURL:          k.String("broker_mcp_url"),
+		AgentCallTimeout:      callTimeout,
+		DatabaseURL:           k.String("database_url"),
+		RecordShows:           shows,
+		GatewayURL:            k.String("gateway_url"),
+		GatewayToken:          k.String("gateway_token"),
 		Telegram: telegram.Config{
 			Token:        k.String("telegram_bot_token"),
 			ChatID:       k.Int64("telegram_chat_id"),
@@ -143,6 +157,41 @@ func parseRoles(raw string) ([]Role, error) {
 // defaultRecordShows is how much of the record the page carries when nobody said
 // otherwise: enough for a day of work to be read in one screen.
 const defaultRecordShows = 50
+
+// parseSymbols reads the list of underlyings, upper-cased because that is how
+// the broker names them and how the history is keyed.
+func parseSymbols(raw string) []string {
+	var symbols []string
+	for _, part := range strings.Split(raw, ",") {
+		if trimmed := strings.ToUpper(strings.TrimSpace(part)); trimmed != "" {
+			symbols = append(symbols, trimmed)
+		}
+	}
+
+	return symbols
+}
+
+// parseEvery reads how often a volatility reading is taken. A deployment that
+// records nothing needs no interval; one that records says how often, rather
+// than inheriting a number chosen here.
+func parseEvery(raw string, underlyings []string) (time.Duration, error) {
+	if len(underlyings) == 0 {
+		return 0, nil
+	}
+	if strings.TrimSpace(raw) == "" {
+		return 0, fmt.Errorf("VOLATILITY_UNDERLYINGS is set: say how often to read it with VOLATILITY_EVERY, for example 5m")
+	}
+
+	every, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("VOLATILITY_EVERY is not a duration: %w", err)
+	}
+	if every <= 0 {
+		return 0, fmt.Errorf("VOLATILITY_EVERY must be longer than nothing")
+	}
+
+	return every, nil
+}
 
 // parseUserIDs reads the allowlist out of one environment string. The values
 // arrive as text and stay text until they are numbers here: an id that does not

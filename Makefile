@@ -3,7 +3,7 @@
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
-.PHONY: help up down build test test-db lint migrate fmt
+.PHONY: help up down build test test-db test-broker lint migrate fmt
 
 help: ## Показать список целей
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS=":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -27,6 +27,9 @@ test: ## Прогнать тесты
 
 test-db: ## Прогнать тесты записи в настоящем Postgres
 	docker compose --env-file .env run --rm tests
+
+test-broker: ## Прогнать тесты против сервера брокера на счёте для разработки
+	docker compose --env-file .env run --rm tests go test -tags broker -count=1 ./internal/marketdata/...
 
 lint: ## Проверить стиль
 	$(MAKE) -C golang lint

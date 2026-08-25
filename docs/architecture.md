@@ -6,7 +6,7 @@ Six services, two networks, one binary with three roles. The shape exists to mak
 
 | Service | What it is | Where it can go |
 |---|---|---|
-| `agent` | our binary holding the clock and the session's tools, and the agent it starts | the broker's server, Postgres, and the egress proxy |
+| `agent` | our binary holding the clock, the volatility history and the session's tools, and the agent it starts | the broker's server, Postgres, and the egress proxy |
 | `page` | the same binary serving the read side and the built page | Postgres |
 | `migrate` | applies `postgres/migrations` in name order, then exits | Postgres |
 | `alpaca-mcp` | Alpaca's own MCP server, pinned to a released version | Alpaca |
@@ -40,6 +40,14 @@ The agent sits on `internal` alone. Everything it can do is therefore enumerable
 Three tables, and each answers its own question: `turns` - when a session ran and why; `intents` - what it meant to do before it ordered anything; `refusals` - where a boundary stopped it. The harness writes a turn when it starts one and closes it when the agent's stream ends, whether or not a chat is watching; `record_intent` writes the second; the gateway's refusal writes the third.
 
 It lives in Postgres because it is the evidence: a restart must not empty the page a judge is reading. `RECORD_SHOWS` bounds how many rows of each kind that page carries.
+
+## The volatility history
+
+Two of the three entry rules compare today's implied volatility with its own past, and the broker answers only for today. So the process holding the clock reads the option closest to the money on each watched underlying every few minutes while the market is open, and writes it to `volatility_samples`. The session asks `read_volatility_history` where the latest reading sits in that series.
+
+Nothing here decides anything: the reading is mechanical, no session is woken for it, and what a rank of 80 means is the session's to say.
+
+`VOLATILITY_UNDERLYINGS` and `VOLATILITY_EVERY` turn it on. The series is worth what its length is, so it starts on the first day of the event and is never paused.
 
 ## Where the bound is
 

@@ -36,6 +36,12 @@ Defined risk only. Every position states the largest loss it can produce before 
 - **Convexity** - before a scheduled macro release, buy movement rather than sell it, and close it the same session.
 - **Defence** - close a position when the loss reaches twice the premium received, when price crosses the short strike, or when less than two hours of life remain.
 
+## Asking whether options are expensive today
+
+`read_volatility_history` answers where the implied volatility of an underlying sits inside its own recent history: the latest reading, the lowest, the median, the highest, and a rank from 0 to 100. The history is this project's own, recorded every few minutes while the market is open, because the broker sells only today's number.
+
+Two things follow. A rank near 100 means options are dear by their own recent standard, which is when selling premium pays; a rank near 0 means the opposite. And a history of a few hundred readings is a few days, not a year - say which when you lean on it, and do not call a week a regime.
+
 ## Waking yourself
 
 You are woken by the schedule, by a person in the chat, and by what you asked for yourself. The last one is yours to manage:

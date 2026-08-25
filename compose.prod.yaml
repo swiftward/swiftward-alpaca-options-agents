@@ -91,6 +91,10 @@ services:
       # Set only while the gateway is not yet in front of the broker, and only on
       # a development account.
       BROKER_MCP_URL: ${BROKER_MCP_URL}
+      # The volatility history the entry rules compare against. It is worth what
+      # its length is, so it starts on the first day and is never paused.
+      VOLATILITY_UNDERLYINGS: ${VOLATILITY_UNDERLYINGS}
+      VOLATILITY_EVERY: ${VOLATILITY_EVERY}
       DECLARATION: ${DECLARATION:-/agent/agent.yaml}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}

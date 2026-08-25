@@ -18,26 +18,15 @@ type Postgres struct {
 	shows int
 }
 
-// Connect opens the pool and checks it answers, so a bad address is a startup
-// error rather than a page that is empty for reasons nobody can see.
-func Connect(ctx context.Context, url string, shows int) (*Postgres, error) {
+// NewPostgres keeps the record in the database behind pool. shows bounds what
+// the page carries.
+func NewPostgres(pool *pgxpool.Pool, shows int) (*Postgres, error) {
 	if shows <= 0 {
 		return nil, fmt.Errorf("the record must show at least one row of each kind")
 	}
 
-	pool, err := pgxpool.New(ctx, url)
-	if err != nil {
-		return nil, fmt.Errorf("open the record: %w", err)
-	}
-	if err := pool.Ping(ctx); err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("reach the record: %w", err)
-	}
-
 	return &Postgres{pool: pool, shows: shows}, nil
 }
-
-func (p *Postgres) Close() { p.pool.Close() }
 
 func (p *Postgres) AppendIntent(ctx context.Context, intent Intent) error {
 	_, err := p.pool.Exec(ctx,

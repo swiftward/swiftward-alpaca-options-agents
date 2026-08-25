@@ -53,6 +53,7 @@ services:
     working_dir: /src
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      BROKER_MCP_URL: http://alpaca-mcp:8000/mcp
       GOFLAGS: -buildvcs=false
       # This network has no route out, so every module must already be in the
       # cache mounted below. A download here is an error, not a wait.
@@ -62,7 +63,7 @@ services:
       - ./golang:/src
       - ./postgres:/postgres:ro
       - ${GOMODCACHE}:/go/pkg/mod
-    command: ["go", "test", "-tags", "db", "-count=1", "./internal/record/..."]
+    command: ["go", "test", "-tags", "db", "-count=1", "./internal/record/...", "./internal/volatility/..."]
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -136,6 +137,10 @@ services:
       # Set only while the gateway is not yet in front of the broker, and only on
       # a development account.
       BROKER_MCP_URL: ${BROKER_MCP_URL}
+      # The volatility history the entry rules compare against. It is worth what
+      # its length is, so it starts on the first day and is never paused.
+      VOLATILITY_UNDERLYINGS: ${VOLATILITY_UNDERLYINGS}
+      VOLATILITY_EVERY: ${VOLATILITY_EVERY}
       DECLARATION: ${DECLARATION:-/agent/agent.yaml}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
