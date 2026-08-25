@@ -101,6 +101,9 @@ services:
       # Дольше этого один ход не живёт: за ним ждут другие сессии, и защита,
       # которая не отработала из-за длинного перебора, хуже перебора.
       TURN_LIMIT: ${TURN_LIMIT}
+      # Пауза между тем, что комната слышит от сессии. Тринадцать сессий по
+      # четыре реплики - это отказ Telegram, за которым ждёт нужный ответ.
+      SAY_EVERY: ${SAY_EVERY}
       SESSION_MCP_URL: http://127.0.0.1:8081
       # Set only while the gateway is not yet in front of the broker, and only on
       # a development account.

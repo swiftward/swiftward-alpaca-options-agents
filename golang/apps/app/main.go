@@ -182,6 +182,7 @@ func run(log *zap.Logger) error {
 		running = &harness.Harness{
 			CallTimeout:  cfg.AgentCallTimeout,
 			TurnLimit:    cfg.TurnLimit,
+			SayEvery:     cfg.SayEvery,
 			DefaultModel: cfg.AgentModel,
 			Now:          time.Now,
 			Log:          log.Named("harness"),

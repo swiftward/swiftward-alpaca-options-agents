@@ -71,6 +71,9 @@ type Config struct {
 	VolatilityUnderlyings []string
 	// VolatilityEvery is how often a reading is taken.
 	VolatilityEvery time.Duration
+	// SayEvery is the pause between what the room hears from one session. Empty
+	// means everything is posted, which a busy day turns into a rate limit.
+	SayEvery time.Duration
 	// TurnLimit bounds how long one turn may run before the harness interrupts it.
 	// Empty means a turn runs until the agent ends it.
 	TurnLimit time.Duration
@@ -125,6 +128,11 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	sayEvery, err := parseTurnLimit(k.String("say_every"))
+	if err != nil {
+		return Config{}, fmt.Errorf("SAY_EVERY is not a duration: %w", err)
+	}
+
 	shows := k.Int("record_shows")
 	if shows <= 0 {
 		shows = defaultRecordShows
@@ -168,6 +176,7 @@ func Load() (Config, error) {
 		BrokerMCPURL:          k.String("broker_mcp_url"),
 		AgentCallTimeout:      callTimeout,
 		TurnLimit:             turnLimit,
+		SayEvery:              sayEvery,
 		DatabaseURL:           k.String("database_url"),
 		RecordShows:           shows,
 		AccountEvery:          accountEvery,

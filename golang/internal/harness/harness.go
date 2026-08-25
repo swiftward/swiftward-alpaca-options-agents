@@ -95,6 +95,12 @@ type Harness struct {
 	// Now is the clock. It is a field so a test is not at the mercy of the wall
 	// clock, and so the only place a time comes from is visible.
 	Now func() time.Time
+	// SayEvery is how often the room hears the session think out loud. A session
+	// says several things per turn and thirteen of them run all day; Telegram
+	// answers a chatty bot with "too many requests" and the answer that mattered
+	// waits behind the chatter. What is held back is not lost: the last thing said
+	// is always posted when the turn ends, and everything is in the record.
+	SayEvery time.Duration
 	// TurnLimit bounds how long one turn may run before it is interrupted. The
 	// sessions behind it are waiting: a scan that outlives its window starves the
 	// defence, and a defence that never runs is worse than a scan that never
@@ -107,6 +113,8 @@ type Harness struct {
 	Log         *zap.Logger
 
 	mu          sync.Mutex
+	lastSaid    time.Time
+	heldBack    string
 	threadID    string
 	turnID      string
 	statusID    int
@@ -492,7 +500,7 @@ func (h *Harness) followTheSession(ctx context.Context) {
 			}
 			switch ev.Kind {
 			case agent.KindText:
-				h.say(ctx, ev.Text)
+				h.sayInTurn(ctx, ev.Text)
 			case agent.KindToolStarted:
 				h.callStarted(ctx, ev)
 				h.updateStatus(ctx, working(h.runningFor(), ev.Call.Named()))
@@ -565,6 +573,10 @@ func (h *Harness) finishTurn(ctx context.Context, turnID string) {
 	started := h.turnStarted
 	h.statusID = 0
 	h.mu.Unlock()
+
+	// Whatever the pause swallowed is said now: the last thing a turn said is the
+	// answer, and it must not be the thing that got held back.
+	h.sayWhatWasHeldBack(ctx)
 
 	// The line that tracked the work comes down, and the result goes to the
 	// bottom: by the end the session may have written a page, and a mark left at
@@ -696,6 +708,46 @@ func (h *Harness) RunningTurn() (ref string, wokenBy string) {
 	defer h.mu.Unlock()
 
 	return h.turnID, h.turnFor
+}
+
+// sayInTurn posts what the session said, unless it said something moments ago -
+// then it is held until either the pause has passed or the turn ends.
+func (h *Harness) sayInTurn(ctx context.Context, text string) {
+	if strings.TrimSpace(text) == "" {
+		return
+	}
+	if h.SayEvery <= 0 {
+		h.say(ctx, text)
+		return
+	}
+
+	h.mu.Lock()
+	quiet := h.Now().Sub(h.lastSaid) >= h.SayEvery
+	if quiet {
+		h.lastSaid = h.Now()
+		h.heldBack = ""
+	} else {
+		h.heldBack = text
+	}
+	h.mu.Unlock()
+
+	if quiet {
+		h.say(ctx, text)
+	}
+}
+
+// sayWhatWasHeldBack posts the last thing a turn said if the pause swallowed it.
+// The final word of a turn is the one the room actually needs.
+func (h *Harness) sayWhatWasHeldBack(ctx context.Context) {
+	h.mu.Lock()
+	text := h.heldBack
+	h.heldBack = ""
+	if text != "" {
+		h.lastSaid = h.Now()
+	}
+	h.mu.Unlock()
+
+	h.say(ctx, text)
 }
 
 func (h *Harness) say(ctx context.Context, text string) {

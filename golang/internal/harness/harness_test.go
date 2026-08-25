@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -918,4 +919,51 @@ func TestATurnInsideItsLimitIsLeftAlone(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 
 	assert.Empty(t, conversation.interrupted())
+}
+
+// Thirteen sessions saying four things each is a rate limit, and the answer that
+// matters waits behind the chatter. What a session says in quick succession is
+// thinned - but the last thing it said is always posted, because that is the
+// answer.
+func TestChatterIsThinnedAndTheLastWordSurvives(t *testing.T) {
+	conversation := newConversationSpy()
+	chat := newChatDouble()
+	at := time.Date(2026, 8, 25, 17, 49, 0, 0, time.UTC)
+	now := at
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Record: record.NewMemory(),
+		SayEvery: 20 * time.Second, CallTimeout: 2 * time.Second,
+		Now: func() time.Time { return now }, Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	chat.inbound <- telegram.Message{Text: "посмотри позиции", Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	for _, said := range []string{"проверяю часы", "смотрю счёт", "читаю цепочку", "вошёл в TSLA"} {
+		conversation.events <- agent.Event{Kind: agent.KindText, Text: said, TurnID: "tu-1"}
+	}
+	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
+
+	waitFor(t, func() bool {
+		for _, posted := range chat.postedTexts() {
+			if strings.Contains(posted, "вошёл в TSLA") {
+				return true
+			}
+		}
+		return false
+	})
+
+	said := chat.postedTexts()
+	middle := 0
+	for _, posted := range said {
+		if strings.Contains(posted, "смотрю счёт") || strings.Contains(posted, "читаю цепочку") {
+			middle++
+		}
+	}
+	assert.Zero(t, middle, "the chatter between the first word and the answer is held back")
 }
