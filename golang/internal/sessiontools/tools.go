@@ -16,6 +16,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/volatility"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
@@ -38,6 +39,10 @@ type recordIntentOutput struct {
 }
 
 type readStateInput struct{}
+
+type scheduleOutput struct {
+	Sessions []declaration.Scheduled `json:"sessions" jsonschema:"every session that wakes you, in the order declared"`
+}
 
 type volatilityInput struct {
 	Underlying string `json:"underlying" jsonschema:"the symbol whose option volatility to look at, for example SPY"`
@@ -101,6 +106,12 @@ type Volatility interface {
 	Summarise(ctx context.Context, underlying string, since time.Time) (volatility.Summary, error)
 }
 
+// Schedule is what the declaration says wakes this agent. Nil means no schedule
+// is held here and the tool is not offered.
+type Schedule interface {
+	Schedule() []declaration.Scheduled
+}
+
 // Tools is what this session is given. A field left nil is a tool the session is
 // never shown, which is the only honest way to offer something this deployment
 // cannot do.
@@ -117,6 +128,8 @@ type Tools struct {
 	Wakeups Wakeups
 	// Volatility answers where today's implied volatility sits in its own history.
 	Volatility Volatility
+	// Schedule answers when this agent will be woken and why.
+	Schedule Schedule
 }
 
 // Handler serves these tools over Streamable HTTP.
@@ -158,6 +171,17 @@ func (t Tools) Handler() http.Handler {
 			}
 			return nil, current, nil
 		})
+
+	if t.Schedule != nil {
+		mcp.AddTool(server,
+			&mcp.Tool{
+				Name:        "read_schedule",
+				Description: "Read when you will be woken and why, as declared. This is the whole schedule: nothing else wakes you except a person writing to you and the wake-ups you set yourself.",
+			},
+			func(ctx context.Context, req *mcp.CallToolRequest, _ noInput) (*mcp.CallToolResult, scheduleOutput, error) {
+				return nil, scheduleOutput{Sessions: t.Schedule.Schedule()}, nil
+			})
+	}
 
 	if t.Volatility != nil {
 		mcp.AddTool(server,

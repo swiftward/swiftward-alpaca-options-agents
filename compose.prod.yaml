@@ -14,6 +14,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -42,6 +43,7 @@ services:
         condition: service_healthy
 
   alpaca-mcp:
+    restart: unless-stopped
     image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/alpaca-mcp:${IMAGE_TAG}
     networks: [internal, outbound]
     environment:
@@ -59,8 +61,16 @@ services:
       WEB_DIR: /srv/web
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       RECORD_SHOWS: ${RECORD_SHOWS}
+      # The read side asks the broker what the account is worth. It only reads:
+      # the money questions have no order in them.
+      BROKER_MCP_URL: ${BROKER_MCP_URL}
+      ORDERS_SHOWN: ${ORDERS_SHOWN}
+      HISTORY_DAYS: ${HISTORY_DAYS}
     ports:
       - "${APP_PORT}:8080"
+    # The week runs unattended: a machine that reboots at three in the morning
+    # must come back with the agent running, not with it waiting to be started.
+    restart: unless-stopped
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -95,6 +105,9 @@ services:
       # its length is, so it starts on the first day and is never paused.
       VOLATILITY_UNDERLYINGS: ${VOLATILITY_UNDERLYINGS}
       VOLATILITY_EVERY: ${VOLATILITY_EVERY}
+      # How often the account's own value is written down: the week is judged on
+      # the line those readings draw.
+      ACCOUNT_EVERY: ${ACCOUNT_EVERY}
       DECLARATION: ${DECLARATION:-/agent/agent.yaml}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
@@ -113,6 +126,7 @@ services:
     # The claims the architecture makes about this container, enforced here: it
     # cannot write outside its work directory, cannot gain privileges, and holds
     # no capability it was not given.
+    restart: unless-stopped
     read_only: true
     tmpfs:
       - /tmp
@@ -125,6 +139,7 @@ services:
     profiles: [session]
 
   egress:
+    restart: unless-stopped
     image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/egress:${IMAGE_TAG}
     networks: [internal, outbound]
 

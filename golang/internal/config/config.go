@@ -53,6 +53,13 @@ type Config struct {
 	// BrokerMCPURL is the broker's own server, read by the harness only to know
 	// when a price wake-up has come true.
 	BrokerMCPURL string
+	// AccountEvery is how often the account's value is written down. Zero means
+	// no history is kept here.
+	AccountEvery time.Duration
+	// OrdersShown bounds the order list the page carries; HistoryDays is how far
+	// back its equity line is drawn.
+	OrdersShown int
+	HistoryDays int
 	// VolatilityUnderlyings are the symbols whose option volatility is recorded
 	// all day. Empty means the history is not kept on this deployment.
 	VolatilityUnderlyings []string
@@ -109,6 +116,21 @@ func Load() (Config, error) {
 		shows = defaultRecordShows
 	}
 
+	accountEvery, err := parseAccountEvery(k.String("account_every"))
+	if err != nil {
+		return Config{}, err
+	}
+
+	ordersShown := k.Int("orders_shown")
+	if ordersShown <= 0 {
+		ordersShown = defaultOrdersShown
+	}
+
+	historyDays := k.Int("history_days")
+	if historyDays <= 0 {
+		historyDays = defaultHistoryDays
+	}
+
 	return Config{
 		Roles:                 roles,
 		VolatilityUnderlyings: underlyings,
@@ -127,6 +149,9 @@ func Load() (Config, error) {
 		AgentCallTimeout:      callTimeout,
 		DatabaseURL:           k.String("database_url"),
 		RecordShows:           shows,
+		AccountEvery:          accountEvery,
+		OrdersShown:           ordersShown,
+		HistoryDays:           historyDays,
 		GatewayURL:            k.String("gateway_url"),
 		GatewayToken:          k.String("gateway_token"),
 		Telegram: telegram.Config{
@@ -157,6 +182,31 @@ func parseRoles(raw string) ([]Role, error) {
 // defaultRecordShows is how much of the record the page carries when nobody said
 // otherwise: enough for a day of work to be read in one screen.
 const defaultRecordShows = 50
+
+// defaultOrdersShown and defaultHistoryDays are what the page carries when
+// nobody said otherwise: a day of orders, and the length of the event.
+const (
+	defaultOrdersShown = 25
+	defaultHistoryDays = 14
+)
+
+// parseAccountEvery reads how often the account's value is written down. Empty
+// means the history is not kept on this deployment.
+func parseAccountEvery(raw string) (time.Duration, error) {
+	if strings.TrimSpace(raw) == "" {
+		return 0, nil
+	}
+
+	every, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("ACCOUNT_EVERY is not a duration: %w", err)
+	}
+	if every <= 0 {
+		return 0, fmt.Errorf("ACCOUNT_EVERY must be longer than nothing")
+	}
+
+	return every, nil
+}
 
 // parseSymbols reads the list of underlyings, upper-cased because that is how
 // the broker names them and how the history is keyed.

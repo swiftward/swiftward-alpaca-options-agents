@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Options agent — what it did and why</title>
+    <title>Options agent — the account and the reasoning behind it</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='14'>📈</text></svg>" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
@@ -12,24 +12,43 @@
       <header>
         <h1>Options agent</h1>
         <p class="lede">
-          An autonomous options trading agent on Alpaca paper trading. It is woken by a schedule
-          and by its own standing requests, it states what it means to do before it orders
-          anything, and every broker call passes a policy gateway that can refuse it.
+          An autonomous options trading agent on Alpaca paper trading. A schedule and its own
+          standing requests decide when it runs; it decides what to trade, and it states what it
+          means to do before it orders anything.
         </p>
-        <p id="freshness" class="freshness">reading the record…</p>
+        <p id="freshness" class="freshness">reading…</p>
       </header>
 
+      <section id="account-section">
+        <h2>The account</h2>
+        <dl id="account" class="figures"></dl>
+        <figure id="equity-figure">
+          <svg id="equity" viewBox="0 0 720 160" preserveAspectRatio="none" role="img"
+               aria-label="Account equity over the recorded period"></svg>
+          <figcaption id="equity-caption"></figcaption>
+        </figure>
+      </section>
+
       <section>
-        <h2>Turns</h2>
-        <p class="explains">One run of the agent: when it ran, what woke it, and how long it took.</p>
-        <ol id="turns" class="cards"></ol>
+        <h2>Open positions</h2>
+        <p class="explains">What the agent is holding right now, valued by the broker.</p>
+        <div class="scrolls"><table id="positions"></table></div>
+      </section>
+
+      <section>
+        <h2>Orders</h2>
+        <p class="explains">
+          Everything sent to the broker, filled or not. A spread is one order with its legs, because
+          that is how it was sent.
+        </p>
+        <div class="scrolls"><table id="orders"></table></div>
       </section>
 
       <section>
         <h2>Intents</h2>
         <p class="explains">
-          Written before the order, never after. A fill can be read anywhere; only this says what
-          the agent meant to do and the loss it accepted.
+          Written before the order, never after. A fill can be read anywhere; only this says what the
+          agent meant to do and the loss it accepted.
         </p>
         <ol id="intents" class="cards"></ol>
       </section>
@@ -38,6 +57,12 @@
         <h2>Refusals</h2>
         <p class="explains">Where a boundary stopped an order, and what it said.</p>
         <ol id="refusals" class="cards"></ol>
+      </section>
+
+      <section>
+        <h2>Turns</h2>
+        <p class="explains">One run of the agent: when it ran, what woke it, and how long it took.</p>
+        <ol id="turns" class="cards"></ol>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>

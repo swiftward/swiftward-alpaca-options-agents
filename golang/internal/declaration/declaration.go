@@ -220,3 +220,57 @@ var weekdays = map[string]time.Weekday{
 	"sun": time.Sunday, "mon": time.Monday, "tue": time.Tuesday, "wed": time.Wednesday,
 	"thu": time.Thursday, "fri": time.Friday, "sat": time.Saturday,
 }
+
+// Scheduled is one session as the agent itself should see it: when it will be
+// woken and why. The task is not here - the session receives its task when it is
+// woken, and reading a task it has not been given would invite it to act early.
+type Scheduled struct {
+	Name  string `json:"name" jsonschema:"how this session is named when it wakes you"`
+	Cause string `json:"cause" jsonschema:"why it wakes you"`
+	When  string `json:"when" jsonschema:"when it fires, in the declaration's own timezone"`
+	Model string `json:"model,omitempty" jsonschema:"the model this session runs on, when it differs"`
+}
+
+// Schedule is what wakes this agent, in its own words. It exists so a session
+// can answer "will I wake at the open?" by reading the declaration rather than
+// by guessing - the same reason its limits are discovered rather than told.
+func (d *Declaration) Schedule() []Scheduled {
+	schedule := make([]Scheduled, 0, len(d.Sessions))
+	for i := range d.Sessions {
+		session := &d.Sessions[i]
+		schedule = append(schedule, Scheduled{
+			Name:  session.Name,
+			Cause: session.Cause,
+			When:  session.when(d.Timezone),
+			Model: session.Model,
+		})
+	}
+
+	return schedule
+}
+
+// when says the schedule in a sentence rather than in fields, because that is
+// what the session repeats back to whoever asks.
+func (s *Session) when(timezone string) string {
+	var says strings.Builder
+	switch {
+	case s.At != "":
+		says.WriteString("at " + s.At)
+		if s.Within != "" {
+			says.WriteString(", still valid for " + s.Within + " after that")
+		}
+	case s.Every != "":
+		says.WriteString("every " + s.Every)
+		if len(s.Between) == 2 {
+			says.WriteString(" between " + s.Between[0] + " and " + s.Between[1])
+		}
+	}
+	if len(s.Days) > 0 {
+		says.WriteString(", on " + strings.Join(s.Days, ", "))
+	}
+	if timezone != "" {
+		says.WriteString(" (" + timezone + ")")
+	}
+
+	return says.String()
+}

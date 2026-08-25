@@ -42,6 +42,30 @@ func TestTheBrokerStillAnswersInTheShapesWeRead(t *testing.T) {
 		assert.False(t, contract.Expiration.IsZero())
 	}
 
+	account, err := broker.Account(ctx)
+	require.NoError(t, err)
+	assert.NotEmpty(t, account.Number)
+	assert.Equal(t, "ACTIVE", account.Status)
+	assert.Positive(t, account.Equity)
+	assert.Positive(t, account.BuyingPower)
+
+	// Empty is the normal state of a development account between measurements;
+	// what matters is that a held position reads without error.
+	positions, err := broker.Positions(ctx)
+	require.NoError(t, err)
+	for _, position := range positions {
+		assert.NotEmpty(t, position.Symbol)
+		assert.NotZero(t, position.Quantity)
+	}
+
+	orders, err := broker.Orders(ctx, 5)
+	require.NoError(t, err)
+	for _, order := range orders {
+		assert.NotEmpty(t, order.ID)
+		assert.NotEmpty(t, order.Status)
+		require.NotNil(t, order.SubmittedAt, "an order the broker accepted carries when it was sent")
+	}
+
 	quotes, err := broker.Quotes(ctx, []string{contracts[0].Symbol})
 	require.NoError(t, err)
 	quote, answered := quotes[contracts[0].Symbol]

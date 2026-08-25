@@ -48,6 +48,92 @@ type Quote struct {
 	Delta             *float64
 }
 
+// Account is the money: what the account is worth, what is free, and what it was
+// worth at yesterday's close, which is what the day's result is measured from.
+type Account struct {
+	Number              string  `json:"number"`
+	Status              string  `json:"status"`
+	Equity              float64 `json:"equity"`
+	EquityYesterday     float64 `json:"equity_yesterday"`
+	Cash                float64 `json:"cash"`
+	BuyingPower         float64 `json:"buying_power"`
+	OptionsBuyingPower  float64 `json:"options_buying_power"`
+	PositionMarketValue float64 `json:"position_market_value"`
+}
+
+// Position is one holding, as the broker values it right now.
+type Position struct {
+	Symbol            string  `json:"symbol"`
+	AssetClass        string  `json:"asset_class"`
+	Side              string  `json:"side"`
+	Quantity          float64 `json:"quantity"`
+	AverageEntryPrice float64 `json:"average_entry_price"`
+	CurrentPrice      float64 `json:"current_price"`
+	MarketValue       float64 `json:"market_value"`
+	CostBasis         float64 `json:"cost_basis"`
+	UnrealizedPL      float64 `json:"unrealized_pl"`
+	// UnrealizedPLFraction is the broker's own ratio, not a percentage: 0.0002 is
+	// two hundredths of a percent. The page multiplies; nothing here does.
+	UnrealizedPLFraction float64 `json:"unrealized_pl_fraction"`
+}
+
+// Order is what was sent to the broker and what became of it. A spread is one
+// order with legs, which is how it was sent and how it should be read.
+type Order struct {
+	ID             string  `json:"id"`
+	Symbol         string  `json:"symbol"`
+	Side           string  `json:"side"`
+	Type           string  `json:"type"`
+	Class          string  `json:"class"`
+	Status         string  `json:"status"`
+	PositionIntent string  `json:"position_intent"`
+	Quantity       float64 `json:"quantity"`
+	// Notional is what a crypto order names instead of a quantity: the money to
+	// spend rather than the amount to buy.
+	Notional       float64    `json:"notional"`
+	FilledQuantity float64    `json:"filled_quantity"`
+	LimitPrice     float64    `json:"limit_price"`
+	FilledPrice    float64    `json:"filled_price"`
+	SubmittedAt    *time.Time `json:"submitted_at"`
+	FilledAt       *time.Time `json:"filled_at"`
+	CanceledAt     *time.Time `json:"canceled_at"`
+	Legs           []Order    `json:"legs,omitempty"`
+}
+
+// Account reads the money.
+func (b *Broker) Account(ctx context.Context) (Account, error) {
+	var answer accountAnswer
+	if err := b.call(ctx, "get_account_info", map[string]any{}, &answer); err != nil {
+		return Account{}, err
+	}
+
+	return answer.account()
+}
+
+// Positions reads what is held right now.
+func (b *Broker) Positions(ctx context.Context) ([]Position, error) {
+	var answer positionsAnswer
+	if err := b.call(ctx, "get_all_positions", map[string]any{}, &answer); err != nil {
+		return nil, err
+	}
+
+	return answer.positions()
+}
+
+// Orders reads the most recent orders, newest first, whatever became of them:
+// a cancelled order is as much a fact as a filled one.
+func (b *Broker) Orders(ctx context.Context, limit int) ([]Order, error) {
+	var answer ordersAnswer
+	err := b.call(ctx, "get_orders", map[string]any{
+		"status": "all", "limit": limit, "direction": "desc", "nested": true,
+	}, &answer)
+	if err != nil {
+		return nil, err
+	}
+
+	return answer.orders()
+}
+
 // LastTrades returns the last traded price of each symbol it could read. A
 // symbol the broker did not answer for is absent rather than zero: zero is a
 // price, and a wake-up must not fire on a missing reading.

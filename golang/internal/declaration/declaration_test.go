@@ -140,3 +140,38 @@ func TestTheDeclarationWeShipLoads(t *testing.T) {
 		assert.True(t, names[want], "session %s is missing", want)
 	}
 }
+
+// A session that cannot read its own schedule answers "nothing will wake me" to
+// the person who wrote the schedule. This is what it reads instead.
+func TestTheScheduleReadsAsSentences(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+kind: trading-agent
+name: options-alpha
+timezone: America/New_York
+sessions:
+  - name: entry
+    cause: "окно входа"
+    task: "Проверь вход."
+    at: "14:20"
+    within: 45m
+    days: [mon, tue, wed, thu, fri]
+  - name: news-watch
+    cause: "новости"
+    task: "Прочитай ленту."
+    every: 30m
+    between: ["09:35", "15:45"]
+    model: gpt-5.6-luna
+`), 0o600))
+
+	declared, err := Load(path)
+	require.NoError(t, err)
+
+	schedule := declared.Schedule()
+
+	require.Len(t, schedule, 2)
+	assert.Equal(t, "entry", schedule[0].Name)
+	assert.Equal(t, "at 14:20, still valid for 45m after that, on mon, tue, wed, thu, fri (America/New_York)", schedule[0].When)
+	assert.Equal(t, "every 30m between 09:35 and 15:45 (America/New_York)", schedule[1].When)
+	assert.Equal(t, "gpt-5.6-luna", schedule[1].Model)
+}

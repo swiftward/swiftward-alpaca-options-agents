@@ -280,6 +280,10 @@ func (c *Client) read(stdout io.Reader) {
 			c.deliver(*msg.ID, msg.Result, msg.Error)
 			continue
 		}
+		if msg.Method != "" {
+			c.log.Debug("event from the agent",
+				zap.String("method", msg.Method), zap.ByteString("params", msg.Params))
+		}
 		if ev, ok := eventFrom(msg.Method, msg.Params); ok {
 			select {
 			case c.events <- ev:

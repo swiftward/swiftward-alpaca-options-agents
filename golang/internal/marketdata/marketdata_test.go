@@ -108,3 +108,82 @@ func TestQuotesCarryVolatilityAndDeltaWhenTheBrokerComputesThem(t *testing.T) {
 	assert.Nil(t, index.Delta)
 	assert.Equal(t, 13.92, index.Bid)
 }
+
+func TestTheAccountReadsAsMoney(t *testing.T) {
+	answer := decode[accountAnswer](t, `{
+	  "data": {"account_number": "PA3KVT8TYI6V", "status": "ACTIVE", "buying_power": "399997.76",
+	    "cash": "99999.44", "equity": "99999.44", "last_equity": "100000",
+	    "options_buying_power": "99999.44", "position_market_value": "0", "currency": "USD"}
+	}`)
+
+	account, err := answer.account()
+	require.NoError(t, err)
+
+	assert.Equal(t, "PA3KVT8TYI6V", account.Number)
+	assert.InDelta(t, 99999.44, account.Equity, 1e-9)
+	assert.InDelta(t, 100000, account.EquityYesterday, 1e-9)
+	assert.InDelta(t, 399997.76, account.BuyingPower, 1e-9)
+}
+
+func TestAPositionReadsAsHeld(t *testing.T) {
+	answer := decode[positionsAnswer](t, `{
+	  "data": {"result": [{"asset_class": "crypto", "avg_entry_price": "78815.73",
+	    "cost_basis": "39.143281", "current_price": "78831.6", "market_value": "39.151162",
+	    "qty": "0.000496643", "qty_available": "0.000496643", "side": "long", "symbol": "BTCUSD",
+	    "unrealized_pl": "0.007881", "unrealized_plpc": "0.0002"}]}
+	}`)
+
+	positions, err := answer.positions()
+	require.NoError(t, err)
+
+	require.Len(t, positions, 1)
+	assert.Equal(t, "BTCUSD", positions[0].Symbol)
+	assert.InDelta(t, 0.000496643, positions[0].Quantity, 1e-12)
+	assert.InDelta(t, 0.007881, positions[0].UnrealizedPL, 1e-9)
+	assert.InDelta(t, 0.0002, positions[0].UnrealizedPLFraction, 1e-9)
+}
+
+// A spread is one order with legs, because that is how it was sent. Reading it
+// as two orders would tell a reader the agent risked half a structure.
+func TestASpreadReadsAsOneOrderWithLegs(t *testing.T) {
+	answer := decode[ordersAnswer](t, `{
+	  "data": {"result": [{
+	    "id": "4530b033-9c62-416f-8783-0daadf68b1a5", "order_class": "mleg", "order_type": "limit",
+	    "status": "canceled", "qty": "1", "filled_qty": "0", "limit_price": "-0.4",
+	    "filled_avg_price": null, "side": "sell", "symbol": "",
+	    "submitted_at": "2026-08-24T22:28:48.884147Z", "filled_at": null,
+	    "canceled_at": "2026-08-24T22:29:03.155008Z",
+	    "legs": [
+	      {"id": "ef26e044", "symbol": "SPY260825P00760000", "side": "sell", "qty": "1",
+	       "filled_qty": "0", "order_type": "limit", "order_class": "mleg", "status": "canceled",
+	       "position_intent": "sell_to_open", "submitted_at": "2026-08-24T22:28:48.884147Z"},
+	      {"id": "9a1c7d21", "symbol": "SPY260825P00755000", "side": "buy", "qty": "1",
+	       "filled_qty": "0", "order_type": "limit", "order_class": "mleg", "status": "canceled",
+	       "position_intent": "buy_to_open", "submitted_at": "2026-08-24T22:28:48.884147Z"}
+	    ]}]}
+	}`)
+
+	orders, err := answer.orders()
+	require.NoError(t, err)
+
+	require.Len(t, orders, 1)
+	assert.Equal(t, "mleg", orders[0].Class)
+	assert.InDelta(t, -0.4, orders[0].LimitPrice, 1e-9, "a negative limit price is a credit")
+	require.NotNil(t, orders[0].CanceledAt)
+	require.Len(t, orders[0].Legs, 2)
+	assert.Equal(t, "SPY260825P00760000", orders[0].Legs[0].Symbol)
+	assert.Equal(t, "sell_to_open", orders[0].Legs[0].PositionIntent)
+}
+
+// A price the broker could not send is absent, not zero - but a field it sends
+// as an empty string is zero, and reading it must not fail the whole row.
+func TestAnUnreadablePriceRefusesTheRow(t *testing.T) {
+	answer := decode[positionsAnswer](t, `{
+	  "data": {"result": [{"symbol": "BTCUSD", "qty": "not a number"}]}
+	}`)
+
+	_, err := answer.positions()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "BTCUSD")
+}

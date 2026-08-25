@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -21,8 +22,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/account"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/agent"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/api"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/config"
@@ -38,7 +41,18 @@ import (
 )
 
 func main() {
-	log, err := zap.NewProduction()
+	// The level is a setting because the interesting failures are protocol-level
+	// and rare: turning the detail on must not need a new image.
+	settings := zap.NewProductionConfig()
+	if level := os.Getenv("LOG_LEVEL"); level != "" {
+		parsed, err := zapcore.ParseLevel(level)
+		if err != nil {
+			panic(err)
+		}
+		settings.Level = zap.NewAtomicLevelAt(parsed)
+	}
+
+	log, err := settings.Build()
 	if err != nil {
 		panic(err)
 	}
@@ -104,18 +118,51 @@ func run(log *zap.Logger) error {
 		log.Info("no chat configured: nothing will be posted and nobody can write to a session")
 	}
 
-	// The volatility history is kept by whichever process holds the clock: it is
-	// the one that runs all day, and the reading is mechanical - no session is
-	// woken for it.
+	// The histories are kept by whichever process holds the clock: it is the one
+	// that runs all day, and both readings are mechanical - no session is woken
+	// for either.
 	var series *volatility.Postgres
+	var line *account.Postgres
 	if pool != nil {
 		series = volatility.NewPostgres(pool)
+		line = account.NewPostgres(pool)
+	}
+
+	// The declaration is read once: the harness wakes sessions by it, and the
+	// session reads it to answer when it will be woken next.
+	var declared *declaration.Declaration
+	if cfg.DeclarationPath != "" {
+		declared, err = declaration.Load(cfg.DeclarationPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	// One broker connection serves whichever roles this process runs: the read
+	// side asks it for money, the harness for prices, the recorders for both.
+	var broker *marketdata.Broker
+	if cfg.BrokerMCPURL != "" {
+		broker = marketdata.NewBroker(cfg.BrokerMCPURL)
 	}
 
 	group, ctx := errgroup.WithContext(ctx)
 
 	if cfg.Has(config.RoleAPI) {
-		handler, err := api.Handler(state, cfg.WebDir, log.Named("api"))
+		read := api.Read{
+			Record:      state,
+			OrdersShown: cfg.OrdersShown,
+			HistoryDays: cfg.HistoryDays,
+			WebDir:      cfg.WebDir,
+			Log:         log.Named("api"),
+		}
+		if broker != nil {
+			read.Broker = broker
+		}
+		if line != nil {
+			read.History = line
+		}
+
+		handler, err := read.Handler()
 		if err != nil {
 			return err
 		}
@@ -141,6 +188,9 @@ func run(log *zap.Logger) error {
 			Chat:    poster,
 			Wakeups: standing,
 		}
+		if declared != nil {
+			tools.Schedule = declared
+		}
 		if series != nil {
 			tools.Volatility = series
 		}
@@ -149,12 +199,24 @@ func run(log *zap.Logger) error {
 		group.Go(func() error { return serve(ctx, cfg.MCPAddr, handler, log.Named("mcp")) })
 	}
 
+	if cfg.Has(config.RoleHarness) && cfg.AccountEvery > 0 {
+		if line == nil || broker == nil {
+			return errors.New("ACCOUNT_EVERY is set but the recorder has no database or no broker to read")
+		}
+		recorder := &account.Recorder{
+			Broker: broker, Store: line, Every: cfg.AccountEvery,
+			Now: time.Now, Log: log.Named("account"),
+		}
+		log.Info("keeping the account history", zap.Duration("every", cfg.AccountEvery))
+		group.Go(func() error { return recorder.Run(ctx) })
+	}
+
 	if cfg.Has(config.RoleHarness) && len(cfg.VolatilityUnderlyings) > 0 {
-		if series == nil || cfg.BrokerMCPURL == "" {
+		if series == nil || broker == nil {
 			return errors.New("VOLATILITY_UNDERLYINGS is set but the recorder has no database or no broker to read")
 		}
 		recorder := &volatility.Recorder{
-			Market:      marketdata.NewBroker(cfg.BrokerMCPURL),
+			Market:      broker,
 			Store:       series,
 			Underlyings: cfg.VolatilityUnderlyings,
 			Every:       cfg.VolatilityEvery,
@@ -185,17 +247,13 @@ func run(log *zap.Logger) error {
 		if wakeups != nil {
 			h.Wakeups = wakeups
 		}
-		if cfg.BrokerMCPURL != "" {
-			h.Prices = marketdata.NewBroker(cfg.BrokerMCPURL)
+		if broker != nil {
+			h.Prices = broker
 		}
 		if chat != nil {
 			h.Chat = chat
 		}
-		if cfg.DeclarationPath != "" {
-			declared, err := declaration.Load(cfg.DeclarationPath)
-			if err != nil {
-				return err
-			}
+		if declared != nil {
 			h.Declaration = declared
 		}
 

@@ -106,3 +106,171 @@ func (a snapshotsAnswer) quotes() map[string]Quote {
 
 	return quotes
 }
+
+type accountAnswer struct {
+	Data struct {
+		Number              string `json:"account_number"`
+		Status              string `json:"status"`
+		Equity              string `json:"equity"`
+		LastEquity          string `json:"last_equity"`
+		Cash                string `json:"cash"`
+		BuyingPower         string `json:"buying_power"`
+		OptionsBuyingPower  string `json:"options_buying_power"`
+		PositionMarketValue string `json:"position_market_value"`
+	} `json:"data"`
+}
+
+func (a accountAnswer) account() (Account, error) {
+	read := numbers{of: "the account"}
+	account := Account{
+		Number:              a.Data.Number,
+		Status:              a.Data.Status,
+		Equity:              read.field("equity", a.Data.Equity),
+		EquityYesterday:     read.field("last_equity", a.Data.LastEquity),
+		Cash:                read.field("cash", a.Data.Cash),
+		BuyingPower:         read.field("buying_power", a.Data.BuyingPower),
+		OptionsBuyingPower:  read.field("options_buying_power", a.Data.OptionsBuyingPower),
+		PositionMarketValue: read.field("position_market_value", a.Data.PositionMarketValue),
+	}
+	if read.err != nil {
+		return Account{}, read.err
+	}
+
+	return account, nil
+}
+
+type positionsAnswer struct {
+	Data struct {
+		Positions []struct {
+			Symbol              string `json:"symbol"`
+			AssetClass          string `json:"asset_class"`
+			Side                string `json:"side"`
+			Quantity            string `json:"qty"`
+			AverageEntryPrice   string `json:"avg_entry_price"`
+			CurrentPrice        string `json:"current_price"`
+			MarketValue         string `json:"market_value"`
+			CostBasis           string `json:"cost_basis"`
+			UnrealizedPL        string `json:"unrealized_pl"`
+			UnrealizedPLPercent string `json:"unrealized_plpc"`
+		} `json:"result"`
+	} `json:"data"`
+}
+
+func (a positionsAnswer) positions() ([]Position, error) {
+	positions := make([]Position, 0, len(a.Data.Positions))
+	for _, held := range a.Data.Positions {
+		read := numbers{of: held.Symbol}
+		position := Position{
+			Symbol:               held.Symbol,
+			AssetClass:           held.AssetClass,
+			Side:                 held.Side,
+			Quantity:             read.field("qty", held.Quantity),
+			AverageEntryPrice:    read.field("avg_entry_price", held.AverageEntryPrice),
+			CurrentPrice:         read.field("current_price", held.CurrentPrice),
+			MarketValue:          read.field("market_value", held.MarketValue),
+			CostBasis:            read.field("cost_basis", held.CostBasis),
+			UnrealizedPL:         read.field("unrealized_pl", held.UnrealizedPL),
+			UnrealizedPLFraction: read.field("unrealized_plpc", held.UnrealizedPLPercent),
+		}
+		if read.err != nil {
+			return nil, read.err
+		}
+		positions = append(positions, position)
+	}
+
+	return positions, nil
+}
+
+// numbers reads the numbers the broker sends as strings and remembers the first
+// field it could not read, so a row is refused whole rather than half-read with
+// a zero standing in for a price.
+type numbers struct {
+	of  string
+	err error
+}
+
+func (n *numbers) field(name, raw string) float64 {
+	if raw == "" {
+		// The broker writes "0" where it means zero and omits what does not apply.
+		return 0
+	}
+
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil && n.err == nil {
+		n.err = fmt.Errorf("read %s of %s: %w", name, n.of, err)
+	}
+
+	return value
+}
+
+type ordersAnswer struct {
+	Data struct {
+		Orders []brokerOrder `json:"result"`
+	} `json:"data"`
+}
+
+type brokerOrder struct {
+	ID             string        `json:"id"`
+	Symbol         string        `json:"symbol"`
+	Side           string        `json:"side"`
+	Type           string        `json:"order_type"`
+	Class          string        `json:"order_class"`
+	Status         string        `json:"status"`
+	Quantity       string        `json:"qty"`
+	Notional       string        `json:"notional"`
+	FilledQuantity string        `json:"filled_qty"`
+	LimitPrice     string        `json:"limit_price"`
+	FilledPrice    string        `json:"filled_avg_price"`
+	PositionIntent string        `json:"position_intent"`
+	SubmittedAt    *time.Time    `json:"submitted_at"`
+	FilledAt       *time.Time    `json:"filled_at"`
+	CanceledAt     *time.Time    `json:"canceled_at"`
+	Legs           []brokerOrder `json:"legs"`
+}
+
+func (a ordersAnswer) orders() ([]Order, error) {
+	orders := make([]Order, 0, len(a.Data.Orders))
+	for _, placed := range a.Data.Orders {
+		order, err := placed.order()
+		if err != nil {
+			return nil, err
+		}
+		orders = append(orders, order)
+	}
+
+	return orders, nil
+}
+
+func (o brokerOrder) order() (Order, error) {
+	read := numbers{of: "order " + o.ID}
+	order := Order{
+		ID:             o.ID,
+		Symbol:         o.Symbol,
+		Side:           o.Side,
+		Type:           o.Type,
+		Class:          o.Class,
+		Status:         o.Status,
+		PositionIntent: o.PositionIntent,
+		Quantity:       read.field("qty", o.Quantity),
+		Notional:       read.field("notional", o.Notional),
+		FilledQuantity: read.field("filled_qty", o.FilledQuantity),
+		LimitPrice:     read.field("limit_price", o.LimitPrice),
+		FilledPrice:    read.field("filled_avg_price", o.FilledPrice),
+		SubmittedAt:    o.SubmittedAt,
+		FilledAt:       o.FilledAt,
+		CanceledAt:     o.CanceledAt,
+	}
+	if read.err != nil {
+		return Order{}, read.err
+	}
+
+	for _, leg := range o.Legs {
+		read, err := leg.order()
+		if err != nil {
+			return Order{}, err
+		}
+		order.Legs = append(order.Legs, read)
+	}
+
+	return order, nil
+}

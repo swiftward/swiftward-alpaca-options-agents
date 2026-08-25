@@ -71,3 +71,76 @@ h2 { font-size: 1.1rem; margin: 2.5rem 0 0.25rem; }
 dl.pairs { margin: 0.35rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 0.75rem; }
 dl.pairs dt { color: var(--dim); }
 dl.pairs dd { margin: 0; }
+
+.figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin: 0 0 1.5rem;
+}
+
+.figures > div { min-width: 0; }
+
+.figures dt {
+  color: var(--dim);
+  font-size: 0.8rem;
+  text-transform: lowercase;
+}
+
+.figures dd {
+  margin: 0.1rem 0 0;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.up { color: var(--running); }
+.down { color: var(--stopped); }
+
+figure { margin: 0 0 0.5rem; }
+
+#equity[hidden] { display: none; }
+
+#equity {
+  width: 100%;
+  height: 10rem;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+}
+
+#equity polyline {
+  fill: none;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+#equity polyline.up { stroke: var(--running); }
+#equity polyline.down { stroke: var(--stopped); }
+
+figcaption {
+  margin-top: 0.35rem;
+  color: var(--dim);
+  font-size: 0.8rem;
+}
+
+.scrolls { overflow-x: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.4rem 0.75rem 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+th { color: var(--dim); font-weight: 500; }
+
+caption.empty { text-align: left; padding: 0.4rem 0; }
+
+.unavailable { color: var(--stopped); margin: 0.5rem 0 0; }
