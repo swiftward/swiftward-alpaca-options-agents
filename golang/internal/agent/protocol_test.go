@@ -178,7 +178,7 @@ read line
 	t.Cleanup(func() { _ = client.Close() })
 
 	file := filepath.Join(t.TempDir(), "state", ".thread")
-	first := NewConversation(client, ThreadOptions{}, file, 5*time.Second)
+	first := NewConversation(client, ThreadOptions{}, file, 5*time.Second, 5*time.Second)
 
 	threadID, err := first.Open(context.Background())
 	require.NoError(t, err)
@@ -205,7 +205,7 @@ done
 	file := filepath.Join(t.TempDir(), ".thread")
 	require.NoError(t, os.WriteFile(file, []byte("th-from-yesterday\n"), 0o600))
 
-	threadID, err := NewConversation(client, ThreadOptions{}, file, 5*time.Second).Open(context.Background())
+	threadID, err := NewConversation(client, ThreadOptions{}, file, 5*time.Second, 5*time.Second).Open(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, "th-from-yesterday", threadID)
 
@@ -241,7 +241,7 @@ sleep 30
 	require.NoError(t, os.WriteFile(file, []byte("th-stuck\n"), 0o600))
 
 	start := time.Now()
-	_, err = NewConversation(client, ThreadOptions{}, file, 300*time.Millisecond).Open(context.Background())
+	_, err = NewConversation(client, ThreadOptions{}, file, 300*time.Millisecond, 300*time.Millisecond).Open(context.Background())
 	require.Error(t, err)
 	assert.Less(t, time.Since(start), 5*time.Second, "the bound on one request did not fire")
 

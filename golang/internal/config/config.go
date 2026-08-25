@@ -74,6 +74,10 @@ type Config struct {
 	// SayEvery is the pause between what the room hears from one session. Empty
 	// means everything is posted, which a busy day turns into a rate limit.
 	SayEvery time.Duration
+	// ThreadResumeLimit bounds the one request that resumes an earlier
+	// conversation. The harness wakes nobody until it returns, and a fresh thread
+	// is a cheap fallback, so this is far shorter than AgentCallTimeout.
+	ThreadResumeLimit time.Duration
 	// TurnLimit bounds how long one turn may run before the harness interrupts it.
 	// Empty means a turn runs until the agent ends it.
 	TurnLimit time.Duration
@@ -123,6 +127,10 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	resumeLimit, err := parseDuration("THREAD_RESUME_LIMIT", k.String("thread_resume_limit"))
+	if err != nil {
+		return Config{}, err
+	}
 	turnLimit, err := parseTurnLimit(k.String("turn_limit"))
 	if err != nil {
 		return Config{}, err
@@ -175,6 +183,7 @@ func Load() (Config, error) {
 		WakeupFile:            k.String("wakeup_file"),
 		BrokerMCPURL:          k.String("broker_mcp_url"),
 		AgentCallTimeout:      callTimeout,
+		ThreadResumeLimit:     resumeLimit,
 		TurnLimit:             turnLimit,
 		SayEvery:              sayEvery,
 		DatabaseURL:           k.String("database_url"),
@@ -255,6 +264,25 @@ func parseExecution(every, patience string) (time.Duration, time.Duration, error
 
 // parseTurnLimit reads how long one turn may run. Empty means no bound, which is
 // legal: a deployment with one session and nobody waiting needs none.
+// parseDuration reads one declared deadline. An empty value means the operator
+// did not declare it, and every caller decides for itself whether that is legal -
+// substituting a number here would silently outrank the declaration.
+func parseDuration(name, raw string) (time.Duration, error) {
+	if strings.TrimSpace(raw) == "" {
+		return 0, nil
+	}
+
+	value, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s is not a duration: %w", name, err)
+	}
+	if value <= 0 {
+		return 0, fmt.Errorf("%s must be longer than nothing", name)
+	}
+
+	return value, nil
+}
+
 func parseTurnLimit(raw string) (time.Duration, error) {
 	if strings.TrimSpace(raw) == "" {
 		return 0, nil

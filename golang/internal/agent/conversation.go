@@ -23,12 +23,22 @@ type Conversation struct {
 	// resume that ate the whole budget would leave nothing for the fallback, and
 	// the caller would be told the agent is unreachable when it is merely busy.
 	callTimeout time.Duration
+	// resumeLimit bounds the ONE request that resumes yesterday's conversation.
+	// It is deliberately far shorter than callTimeout: continuity is worth little
+	// and a fresh thread costs nothing, while the harness wakes nobody until this
+	// returns. On 25 August a resume and a start, each bounded by the full call
+	// timeout, held the agent silent for six minutes of open market and swallowed
+	// a whole session's window.
+	resumeLimit time.Duration
 
 	threadID string
 }
 
-func NewConversation(client *Client, options ThreadOptions, rememberIn string, callTimeout time.Duration) *Conversation {
-	return &Conversation{client: client, options: options, rememberIn: rememberIn, callTimeout: callTimeout}
+func NewConversation(client *Client, options ThreadOptions, rememberIn string, callTimeout, resumeLimit time.Duration) *Conversation {
+	return &Conversation{
+		client: client, options: options, rememberIn: rememberIn,
+		callTimeout: callTimeout, resumeLimit: resumeLimit,
+	}
 }
 
 // Open returns the thread this conversation runs in, opening or resuming it once.
@@ -40,7 +50,7 @@ func (c *Conversation) Open(ctx context.Context) (string, error) {
 	}
 
 	if remembered := c.remembered(); remembered != "" {
-		resumeCtx, done := c.bounded(ctx)
+		resumeCtx, done := c.boundedBy(ctx, c.resumeLimit)
 		err := c.client.ResumeThread(resumeCtx, remembered, c.options)
 		done()
 		if err == nil {
@@ -69,11 +79,15 @@ func (c *Conversation) Open(ctx context.Context) (string, error) {
 // bounded gives one request its own deadline, taken from the parent so a shutdown
 // still cancels everything.
 func (c *Conversation) bounded(ctx context.Context) (context.Context, context.CancelFunc) {
-	if c.callTimeout <= 0 {
+	return c.boundedBy(ctx, c.callTimeout)
+}
+
+func (c *Conversation) boundedBy(ctx context.Context, limit time.Duration) (context.Context, context.CancelFunc) {
+	if limit <= 0 {
 		return context.WithCancel(ctx)
 	}
 
-	return context.WithTimeout(context.WithoutCancel(ctx), c.callTimeout)
+	return context.WithTimeout(context.WithoutCancel(ctx), limit)
 }
 
 func (c *Conversation) remembered() string {

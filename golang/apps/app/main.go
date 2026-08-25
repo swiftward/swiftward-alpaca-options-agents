@@ -324,7 +324,7 @@ func run(log *zap.Logger) error {
 				Model:   cfg.AgentModel,
 				Sandbox: cfg.AgentSandbox,
 				Dir:     cfg.AgentDir,
-			}, cfg.ThreadFile, cfg.AgentCallTimeout)
+			}, cfg.ThreadFile, cfg.AgentCallTimeout, cfg.ThreadResumeLimit)
 
 			// The conversation is opened before the room does: resuming a long
 			// thread takes as long as it takes, and doing it under the first
