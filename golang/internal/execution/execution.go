@@ -36,7 +36,7 @@ type Keeper interface {
 type Broker interface {
 	Orders(ctx context.Context, limit int) ([]marketdata.Order, error)
 	Quotes(ctx context.Context, symbols []string) (map[string]marketdata.Quote, error)
-	ReplaceOrder(ctx context.Context, id string, limit float64) error
+	ReplaceOrder(ctx context.Context, id string, limit float64, name string) error
 	CancelOrder(ctx context.Context, id string) error
 }
 
@@ -173,7 +173,9 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 		return nil
 	}
 
-	if err := l.Broker.ReplaceOrder(ctx, order.ID, next); err != nil {
+	// The name travels with the order: a replacement the broker names itself would
+	// drop the session's floor, and the next step would find nothing to obey.
+	if err := l.Broker.ReplaceOrder(ctx, order.ID, next, order.ClientID); err != nil {
 		return err
 	}
 	l.Log.Info("walked an order toward the book",

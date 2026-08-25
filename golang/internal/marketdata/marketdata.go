@@ -142,16 +142,22 @@ func (b *Broker) Orders(ctx context.Context, limit int) ([]Order, error) {
 	return answer.orders()
 }
 
-// ReplaceOrder moves an order's limit price without giving up its place: the
-// broker keeps the order and changes what it asks for. A credit is a negative
-// price, so a smaller credit is a larger number.
-func (b *Broker) ReplaceOrder(ctx context.Context, id string, limit float64) error {
-	var answer struct{}
-
-	return b.call(ctx, "replace_order_by_id", map[string]any{
+// ReplaceOrder moves an order's limit price. The broker does this by making a
+// new order that replaces the old one, and the new one is named by the broker
+// unless the caller names it - so name is passed through, or everything written
+// into the old order's name is lost at the first move.
+func (b *Broker) ReplaceOrder(ctx context.Context, id string, limit float64, name string) error {
+	arguments := map[string]any{
 		"order_id":    id,
 		"limit_price": fmt.Sprintf("%.2f", limit),
-	}, &answer)
+	}
+	if name != "" {
+		arguments["client_order_id"] = name
+	}
+
+	var answer struct{}
+
+	return b.call(ctx, "replace_order_by_id", arguments, &answer)
 }
 
 // CancelOrder takes an order out of the book.

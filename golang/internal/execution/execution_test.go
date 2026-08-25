@@ -19,6 +19,7 @@ type brokerDouble struct {
 	orders    []marketdata.Order
 	quotes    map[string]marketdata.Quote
 	replaced  map[string]float64
+	names     map[string]string
 	cancelled []string
 }
 
@@ -40,13 +41,17 @@ func (b *brokerDouble) Quotes(_ context.Context, symbols []string) (map[string]m
 	return answer, nil
 }
 
-func (b *brokerDouble) ReplaceOrder(_ context.Context, id string, limit float64) error {
+func (b *brokerDouble) ReplaceOrder(_ context.Context, id string, limit float64, name string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.replaced == nil {
 		b.replaced = map[string]float64{}
 	}
+	if b.names == nil {
+		b.names = map[string]string{}
+	}
 	b.replaced[id] = limit
+	b.names[id] = name
 	return nil
 }
 
@@ -345,4 +350,28 @@ func TestTheNamedPriceIsReadFromTheOrdersName(t *testing.T) {
 		_, named := Reservation(marketdata.Order{ClientID: name})
 		assert.False(t, named, "a name without a readable price names nothing: %q", name)
 	}
+}
+
+// The broker replaces an order by making a new one, and names the new one itself
+// unless told otherwise. Measured on the account: the session's floor, written
+// into the order's name, was gone after the first move - and with it the only
+// bound the ladder obeys. The name is carried forward.
+func TestTheNameTravelsWithEveryReplacement(t *testing.T) {
+	at := time.Date(2026, 8, 25, 15, 30, 0, 0, time.UTC)
+	order := spread("o-1", -0.13, "new", at.Add(-2*time.Minute))
+	order.ClientID = NameFor(-0.09)
+	broker := &brokerDouble{
+		orders: []marketdata.Order{order},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	ladder(broker, at, t).step(context.Background())
+
+	broker.mu.Lock()
+	defer broker.mu.Unlock()
+	assert.Equal(t, NameFor(-0.09), broker.names["o-1"],
+		"the replacement keeps the name, or the floor is lost at the first step")
 }
