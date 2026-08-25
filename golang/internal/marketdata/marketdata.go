@@ -85,7 +85,10 @@ type Position struct {
 // Order is what was sent to the broker and what became of it. A spread is one
 // order with legs, which is how it was sent and how it should be read.
 type Order struct {
-	ID             string  `json:"id"`
+	ID string `json:"id"`
+	// ClientID is the name the caller gave the order. The session writes the worst
+	// price it accepts into it, so that bound travels with the order itself.
+	ClientID       string  `json:"client_id,omitempty"`
 	Symbol         string  `json:"symbol"`
 	Side           string  `json:"side"`
 	Type           string  `json:"type"`

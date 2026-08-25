@@ -72,6 +72,9 @@ func quote(bid, ask float64) marketdata.Quote {
 func spread(id string, limit float64, status string, submitted time.Time) marketdata.Order {
 	return marketdata.Order{
 		ID: id, Class: "mleg", Status: status, LimitPrice: limit, SubmittedAt: &submitted,
+		// Every structure this project sends names the worst price it accepts; a
+		// wide one here keeps these cases about the walk itself.
+		ClientID: NameFor(-0.01),
 		Legs: []marketdata.Order{
 			{Symbol: "QQQ260826P00701000", Side: "sell", Quantity: 1},
 			{Symbol: "QQQ260826P00700000", Side: "buy", Quantity: 1},
@@ -243,5 +246,103 @@ func TestALadderWithoutItsSettingsRefusesToRun(t *testing.T) {
 	} {
 		missing.Log = zaptest.NewLogger(t)
 		require.Error(t, missing.Run(context.Background()), fmt.Sprintf("%+v", missing))
+	}
+}
+
+// The book is not a bound on what we accept. When it moves away from us, the
+// ladder stops at the price the session named and waits there - otherwise a book
+// drifting all afternoon takes the whole credit one tick at a time.
+func TestTheWalkStopsAtThePriceTheSessionNamed(t *testing.T) {
+	at := time.Date(2026, 8, 25, 15, 30, 0, 0, time.UTC)
+	order := spread("o-1", -0.13, "new", at.Add(-2*time.Minute))
+	order.ClientID = NameFor(-0.11)
+	broker := &brokerDouble{
+		orders: []marketdata.Order{order},
+		quotes: map[string]marketdata.Quote{
+			// The book would only pay two cents for this structure now.
+			"QQQ260826P00701000": quote(0.62, 0.70),
+			"QQQ260826P00700000": quote(0.55, 0.60),
+		},
+	}
+
+	ladder(broker, at, t).step(context.Background())
+
+	replaced, _ := broker.seen()
+	assert.InDelta(t, -0.12, replaced["o-1"], 1e-9, "one step toward the floor, not toward the book")
+
+	// Standing on the floor it does not move again, however far the book drifts.
+	order.LimitPrice = -0.11
+	broker.orders = []marketdata.Order{order}
+	broker.replaced = nil
+	ladder(broker, at, t).step(context.Background())
+	replaced, _ = broker.seen()
+	assert.Empty(t, replaced, "the session's worst price is where the walk ends")
+}
+
+// A book standing closer than the floor is a gift: stop there and keep the rest.
+func TestAGenerousBookIsTakenRatherThanTheFloor(t *testing.T) {
+	at := time.Date(2026, 8, 25, 15, 30, 0, 0, time.UTC)
+	order := spread("o-1", -0.13, "new", at.Add(-2*time.Minute))
+	order.ClientID = NameFor(-0.05)
+	broker := &brokerDouble{
+		orders: []marketdata.Order{order},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	ladder(broker, at, t).step(context.Background())
+
+	replaced, _ := broker.seen()
+	assert.InDelta(t, -0.12, replaced["o-1"], 1e-9)
+
+	// The book shows a credit of six cents, so the walk ends there and the four
+	// cents the session was willing to give up are not given up.
+	order.LimitPrice = -0.06
+	broker.orders = []marketdata.Order{order}
+	broker.replaced = nil
+	ladder(broker, at, t).step(context.Background())
+	replaced, _ = broker.seen()
+	assert.Empty(t, replaced)
+}
+
+// An order that names no worst price is left at the price it was placed at.
+// Inventing that number here is what a share-of-the-credit rule would do, and
+// recomputed after each move it ratchets: the whole credit goes, a cent at a
+// time, and every step looks reasonable.
+func TestAnOrderNamingNoPriceIsNotWalked(t *testing.T) {
+	at := time.Date(2026, 8, 25, 15, 30, 0, 0, time.UTC)
+	order := spread("o-1", -0.11, "new", at.Add(-2*time.Minute))
+	order.ClientID = "entry-without-a-price"
+	broker := &brokerDouble{
+		orders: []marketdata.Order{order},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.62, 0.70),
+			"QQQ260826P00700000": quote(0.55, 0.60),
+		},
+	}
+
+	ladder(broker, at, t).step(context.Background())
+
+	replaced, cancelled := broker.seen()
+	assert.Empty(t, replaced)
+	assert.Empty(t, cancelled, "patience still ends it later; this run simply leaves it alone")
+}
+
+func TestTheNamedPriceIsReadFromTheOrdersName(t *testing.T) {
+	order := marketdata.Order{ClientID: NameFor(-0.11)}
+	worst, named := Reservation(order)
+	require.True(t, named)
+	assert.InDelta(t, -0.11, worst, 1e-9)
+
+	// A name carrying other things as well still yields the price.
+	worst, named = Reservation(marketdata.Order{ClientID: "entry-1; " + NameFor(-0.09) + "; qqq"})
+	require.True(t, named)
+	assert.InDelta(t, -0.09, worst, 1e-9)
+
+	for _, name := range []string{"", "entry-1", "worst=", "worst=abc"} {
+		_, named := Reservation(marketdata.Order{ClientID: name})
+		assert.False(t, named, "a name without a readable price names nothing: %q", name)
 	}
 }

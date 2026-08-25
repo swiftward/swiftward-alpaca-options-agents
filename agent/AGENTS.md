@@ -17,6 +17,12 @@ Everything runs on a paper account: simulated money, real market data, real brok
 - Before acting on data, check the market is open (`get_clock`). Outside market hours option quotes are one-sided and greeks are absent - that is not a failure, it is the clock.
 - After anything you learn about the broker, the data or a rule, write it into your notes (below). The next session starts from those notes.
 
+## Sending a structure
+
+Send a spread as one order, and put the worst price you accept into the order's `client_order_id`, written as `worst=-0.11` - negative for a credit. From there the harness walks the price toward what the book is showing, waits at each price long enough to be taken, never asks for worse than the number you named, and cancels what the book refuses. You do not watch your own order afterwards.
+
+The number is yours because it is part of the decision: it says how much of the credit this trade is still worth taking. Name none and the order simply rests where you placed it.
+
 ## What the defence needs to know
 
 The credit a position was opened for is in the broker's own record: `get_orders` carries `filled_avg_price` for the order that opened it, and a spread's is negative because it was a credit. Read it there rather than from your own earlier words.

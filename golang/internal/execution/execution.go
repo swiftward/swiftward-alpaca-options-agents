@@ -42,8 +42,8 @@ type Ladder struct {
 	// contracts is a cent.
 	Step float64
 	// Patience is how long an order may live unfilled. Past it the order is
-	// cancelled: a structure the book will not take at its own showing price is
-	// not a structure worth chasing further.
+	// cancelled: a structure the book will not take at the worst price its session
+	// allowed is not a structure worth chasing further.
 	Patience time.Duration
 	// Reads bounds how many recent orders are examined.
 	Reads int
@@ -138,7 +138,24 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 		return nil
 	}
 
-	next := Toward(order.LimitPrice, showing, l.Step)
+	// Two bounds, and only one of them is about safety. The floor is the session's
+	// decision and is never crossed. The book is only about not paying more than
+	// the moment requires: if it stands closer than the floor, stop at the book
+	// and keep the difference.
+	floor, named := Reservation(order)
+	if !named {
+		// Nobody said how much of this credit may be given up, and this is not the
+		// place to decide it. The order keeps the price it was placed at, and
+		// patience ends it if the book never comes.
+		return nil
+	}
+
+	target := showing
+	if worseThan(showing, floor) {
+		target = floor
+	}
+
+	next := Toward(order.LimitPrice, target, l.Step)
 	if next == order.LimitPrice {
 		return nil
 	}
@@ -150,7 +167,8 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 		zap.String("order", order.ID),
 		zap.Float64("was", order.LimitPrice),
 		zap.Float64("now", next),
-		zap.Float64("showing", showing))
+		zap.Float64("showing", showing),
+		zap.Float64("floor", floor))
 
 	return nil
 }
@@ -194,18 +212,23 @@ func Showing(order marketdata.Order, quotes map[string]marketdata.Quote) (float6
 	return round(total), true
 }
 
-// Toward moves a limit one step in the direction of showing, and stops there
-// rather than passing it: the book's own price is the worst this ever asks for.
-func Toward(limit, showing, step float64) float64 {
-	if math.Abs(showing-limit) < step/2 {
-		return round(showing)
+// Toward moves a limit one step in the direction of target, and stops there
+// rather than passing it.
+func Toward(limit, target, step float64) float64 {
+	if math.Abs(target-limit) < step/2 {
+		return round(target)
 	}
-	if showing > limit {
-		return round(math.Min(limit+step, showing))
+	if target > limit {
+		return round(math.Min(limit+step, target))
 	}
 
-	return round(math.Max(limit-step, showing))
+	return round(math.Max(limit-step, target))
 }
+
+// worseThan reports whether one price gives up more than another. A credit is
+// negative and a debit positive, so "worse" is the same direction for both: the
+// larger number.
+func worseThan(price, than float64) bool { return price > than }
 
 // round keeps prices at the cent the broker quotes in; without it a walk
 // accumulates a fraction the broker will refuse.

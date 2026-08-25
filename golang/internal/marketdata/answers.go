@@ -213,6 +213,7 @@ type ordersAnswer struct {
 
 type brokerOrder struct {
 	ID             string        `json:"id"`
+	ClientID       string        `json:"client_order_id"`
 	Symbol         string        `json:"symbol"`
 	Side           string        `json:"side"`
 	Type           string        `json:"order_type"`
@@ -247,6 +248,7 @@ func (o brokerOrder) order() (Order, error) {
 	read := numbers{of: "order " + o.ID}
 	order := Order{
 		ID:             o.ID,
+		ClientID:       o.ClientID,
 		Symbol:         o.Symbol,
 		Side:           o.Side,
 		Type:           o.Type,
