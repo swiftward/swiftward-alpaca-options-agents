@@ -5,3 +5,6 @@ golang/cover/
 typescript/web/node_modules/
 typescript/web/dist/
 tmp/
+
+# Local agent settings: machine-specific, never published.
+.claude/
