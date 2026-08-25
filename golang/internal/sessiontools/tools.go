@@ -200,12 +200,12 @@ func (t Tools) Handler() http.Handler {
 			Name:        "read_state",
 			Description: "Read what earlier sessions did: their turns, the intents they recorded before ordering, and the refusals they were given.",
 		},
-		func(ctx context.Context, req *mcp.CallToolRequest, _ readStateInput) (*mcp.CallToolResult, record.State, error) {
+		func(ctx context.Context, req *mcp.CallToolRequest, _ readStateInput) (*mcp.CallToolResult, stateAnswer, error) {
 			current, err := state.Read(ctx)
 			if err != nil {
-				return nil, record.State{}, err
+				return nil, stateAnswer{}, err
 			}
-			return nil, current, nil
+			return nil, answerWith(current), nil
 		})
 
 	if t.Schedule != nil {
