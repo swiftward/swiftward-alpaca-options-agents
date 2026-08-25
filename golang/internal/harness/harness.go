@@ -305,27 +305,34 @@ func (h *Harness) fireWakeups(ctx context.Context) {
 	}
 
 	for _, due := range h.Wakeups.Due(h.Now(), prices) {
-		// A wake-up that comes due mid-turn goes INTO that turn. Starting a second
-		// one would leave the first orphaned - never closed in the record, never
-		// closed in the chat - and would put two turns on one conversation.
-		if turnID := h.runningTurn(); turnID != "" {
-			agentCtx, done := h.boundToAgent(ctx)
-			err := h.Conversation.Steer(agentCtx, turnID, due.Prompt())
-			done()
-			if err == nil {
-				h.Log.Info("a wake-up came due mid-turn and went into it",
-					zap.String("wakeup", due.ID), zap.String("turn_id", turnID))
-				continue
-			}
-			// The turn ended between the check and the call: nothing is lost, the
-			// wake-up becomes its own turn below.
-			h.Log.Info("could not reach the running turn with a wake-up, starting a new one",
-				zap.String("wakeup", due.ID), zap.Error(err))
-		}
 		h.Log.Info("waking the session for its own reason",
 			zap.String("wakeup", due.ID), zap.String("cause", string(due.Cause)))
-		h.startTurnWith(ctx, due.Prompt(), "wakeup "+due.ID, "")
+		h.Tell(ctx, due.Prompt(), "wakeup "+due.ID)
 	}
+}
+
+// Tell puts something in front of the session now. A turn already running takes
+// it as another instruction; otherwise it becomes a turn of its own.
+//
+// Starting a second turn beside a running one is what this exists to prevent: it
+// would leave the first orphaned - never closed in the record, never closed in
+// the chat - with two turns on one conversation.
+func (h *Harness) Tell(ctx context.Context, prompt, who string) {
+	if turnID := h.runningTurn(); turnID != "" {
+		agentCtx, done := h.boundToAgent(ctx)
+		err := h.Conversation.Steer(agentCtx, turnID, prompt)
+		done()
+		if err == nil {
+			h.Log.Info("said into the running turn",
+				zap.String("who", who), zap.String("turn_id", turnID))
+			return
+		}
+		// The turn ended between the check and the call: nothing is lost, this
+		// becomes its own turn below.
+		h.Log.Info("could not reach the running turn, starting a new one",
+			zap.String("who", who), zap.Error(err))
+	}
+	h.startTurnWith(ctx, prompt, who, "")
 }
 
 func (h *Harness) fireDue(ctx context.Context) {

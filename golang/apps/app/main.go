@@ -236,6 +236,11 @@ func run(log *zap.Logger) error {
 			Broker: broker, Every: cfg.ExecutionEvery, Step: step, Record: state,
 			Patience: cfg.ExecutionPatience, Now: time.Now, Log: log.Named("execution"),
 		}
+		if running != nil {
+			ladder.Wake = func(ctx context.Context, cause string) {
+				running.Tell(ctx, cause, "execution")
+			}
+		}
 		log.Info("walking unfilled structures toward the book",
 			zap.Duration("every", cfg.ExecutionEvery),
 			zap.Float64("step", step),

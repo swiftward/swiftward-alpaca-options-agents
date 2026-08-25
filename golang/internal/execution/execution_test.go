@@ -404,3 +404,72 @@ func TestTheNameTravelsWithEveryReplacement(t *testing.T) {
 	require.True(t, named, "the floor must still be readable from the name the replacement carries")
 	assert.InDelta(t, -0.09, floor, 1e-9)
 }
+
+// The session hears about an order that never happened, because only the session
+// can decide what to do instead. It does NOT hear about a fill: a fill is what it
+// already planned for, and a turn spent acknowledging one changes nothing.
+func TestACancelledOrderTellsTheSession(t *testing.T) {
+	at := time.Date(2026, 8, 25, 15, 30, 0, 0, time.UTC)
+	broker := &brokerDouble{
+		orders: []marketdata.Order{spread("o-1", -0.12, "new", at.Add(-11*time.Minute))},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	var told []string
+	rungs := ladder(broker, at, t)
+	rungs.Wake = func(_ context.Context, cause string) { told = append(told, cause) }
+	rungs.step(context.Background())
+
+	require.Len(t, told, 1)
+	assert.Contains(t, told[0], "o-1")
+	assert.Contains(t, told[0], "QQQ260826P00701000", "the session is told the structure, not a count")
+}
+
+func TestSeveralOrdersDyingTogetherAreOneTelling(t *testing.T) {
+	at := time.Date(2026, 8, 25, 15, 30, 0, 0, time.UTC)
+	first := spread("o-1", -0.12, "new", at.Add(-11*time.Minute))
+	second := spread("o-2", -0.20, "new", at.Add(-12*time.Minute))
+	broker := &brokerDouble{
+		orders: []marketdata.Order{first, second},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	var told []string
+	rungs := ladder(broker, at, t)
+	rungs.Wake = func(_ context.Context, cause string) { told = append(told, cause) }
+	rungs.step(context.Background())
+
+	require.Len(t, told, 1, "two orders dying in one pass is one situation, not two")
+	assert.Contains(t, told[0], "o-1")
+	assert.Contains(t, told[0], "o-2")
+}
+
+// A pass that cancels nothing says nothing. Without this the session would be
+// woken every forty-five seconds by a ladder that did its job quietly.
+func TestAPassThatCancelsNothingTellsNobody(t *testing.T) {
+	at := time.Date(2026, 8, 25, 15, 30, 0, 0, time.UTC)
+	order := spread("o-1", -0.35, "new", at.Add(-2*time.Minute))
+	order.ClientID = NameFor(-0.25)
+	broker := &brokerDouble{
+		orders: []marketdata.Order{order},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	told := 0
+	rungs := ladder(broker, at, t)
+	rungs.Wake = func(context.Context, string) { told++ }
+	rungs.step(context.Background())
+
+	replaced, _ := broker.seen()
+	assert.NotEmpty(t, replaced, "this pass walked an order, so it did do something")
+	assert.Zero(t, told)
+}

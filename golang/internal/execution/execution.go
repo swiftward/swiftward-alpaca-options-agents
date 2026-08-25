@@ -16,6 +16,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -55,6 +56,11 @@ type Ladder struct {
 	Patience time.Duration
 	// Record keeps every move. Nil records nothing.
 	Record Keeper
+	// Wake is how the ladder tells the session that a decision of its own was not
+	// carried out. It is called only for orders cancelled unfilled, never for
+	// fills: a fill is what the session already planned for, and a turn spent
+	// acknowledging it changes nothing. Nil tells nobody.
+	Wake func(ctx context.Context, cause string)
 	// Reads bounds how many recent orders are examined.
 	Reads int
 	Now   func() time.Time
@@ -103,6 +109,7 @@ func (l *Ladder) step(ctx context.Context) {
 		return
 	}
 
+	var cancelled []marketdata.Order
 	for _, order := range orders {
 		if !working(order) {
 			continue
@@ -122,6 +129,7 @@ func (l *Ladder) step(ctx context.Context) {
 			l.wroteDown(ctx, record.ExecutionStep{
 				OrderRef: order.ID, At: l.Now(), Action: "cancelled", Was: order.LimitPrice,
 			})
+			cancelled = append(cancelled, order)
 			continue
 		}
 
@@ -130,6 +138,34 @@ func (l *Ladder) step(ctx context.Context) {
 				zap.String("order", order.ID), zap.Error(err))
 		}
 	}
+
+	// One pass, one telling. Several orders dying together is one situation for
+	// the session to answer, not three.
+	if len(cancelled) > 0 && l.Wake != nil {
+		l.Wake(ctx, whatDidNotHappen(cancelled))
+	}
+}
+
+// whatDidNotHappen is what the session is told when its orders were cancelled
+// unfilled. It names the structures rather than summarising them: the session
+// has to decide what to do instead, and it cannot decide from a count.
+func whatDidNotHappen(orders []marketdata.Order) string {
+	lines := make([]string, 0, len(orders)+2)
+	lines = append(lines, "Заявки, которые ты отправил, не исполнились и сняты по терпению. "+
+		"Твоё решение осталось невыполненным: позиций, на которые ты рассчитывал, на счету нет.")
+	for _, order := range orders {
+		legs := make([]string, 0, len(order.Legs))
+		for _, leg := range order.Legs {
+			legs = append(legs, leg.Side+" "+leg.Symbol)
+		}
+		lines = append(lines, fmt.Sprintf("- %s по цене %.2f: %s",
+			order.ID, order.LimitPrice, strings.Join(legs, ", ")))
+	}
+	lines = append(lines, "Реши, что с этим делать: повторить по другой цене, взять другую "+
+		"конструкцию или оставить как есть. Позиции, заявки и капитал прочитай сам - "+
+		"здесь названы только те заявки, что не прошли.")
+
+	return strings.Join(lines, "\n")
 }
 
 // walk moves one order one step toward what the book is showing.
