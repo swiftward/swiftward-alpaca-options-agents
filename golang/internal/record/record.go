@@ -24,13 +24,6 @@ type Intent struct {
 	MaxLoss   string    `json:"max_loss"`
 }
 
-// Refusal is a boundary that stopped an order, and what it said.
-type Refusal struct {
-	At       time.Time `json:"at"`
-	Boundary string    `json:"boundary"`
-	Detail   string    `json:"detail"`
-}
-
 // Turn is one run of the agent: when it ran, who woke it and why.
 type Turn struct {
 	Ref        string     `json:"ref"`
@@ -58,15 +51,18 @@ type ToolCall struct {
 	Failure    string          `json:"failure,omitempty"`
 }
 
-// State is everything the page shows at once. The limits in force are not here
+// State is everything the page shows at once. A refusal is not here: it comes
+// from the gateway, the gateway is a service outside this stack with no path
+// into this database, and a section that can only be empty reads as "the agent
+// was never stopped" rather than as "we do not know". What an order runs into
+// today is in Calls - a failed call carries the broker's own words. The limits in force are not here
 // yet: they are the gateway's envelope, and the gateway is not in front of the
 // broker. A field standing empty until then would read as an agent under no
 // limits at all.
 type State struct {
-	Turns    []Turn     `json:"turns"`
-	Calls    []ToolCall `json:"calls"`
-	Intents  []Intent   `json:"intents"`
-	Refusals []Refusal  `json:"refusals"`
+	Turns   []Turn     `json:"turns"`
+	Calls   []ToolCall `json:"calls"`
+	Intents []Intent   `json:"intents"`
 }
 
 // Keeper is what the rest of the program writes to and reads from. The tools a
@@ -74,7 +70,6 @@ type State struct {
 type Keeper interface {
 	Read(ctx context.Context) (State, error)
 	AppendIntent(ctx context.Context, intent Intent) error
-	AppendRefusal(ctx context.Context, refusal Refusal) error
 	TurnStarted(ctx context.Context, turn Turn) error
 	CallStarted(ctx context.Context, call ToolCall) error
 	CallFinished(ctx context.Context, ref string, finishedAt time.Time, status, failure string) error
@@ -87,6 +82,10 @@ type Keeper interface {
 	// it died, and answers how many there were. Called once at startup: a turn
 	// that stays open forever reads as work still running.
 	CloseTurnsLeftOpen(ctx context.Context, at time.Time) (int, error)
+	// LastRuns says when each named waker last started a turn, no earlier than
+	// since. A harness that restarts inside a session's window reads this instead
+	// of assuming the session has not run: assuming would open the position twice.
+	LastRuns(ctx context.Context, since time.Time) (map[string]time.Time, error)
 }
 
 // RestartedFailure is what a turn carries when the process running it died. The
@@ -116,10 +115,9 @@ func (m *Memory) Read(context.Context) (State, error) {
 	// The copies start empty rather than nil: a reader that sees null cannot tell
 	// "nothing recorded" from "this field is not implemented".
 	out := State{
-		Calls:    append(make([]ToolCall, 0, len(m.state.Calls)), m.state.Calls...),
-		Turns:    append(make([]Turn, 0, len(m.state.Turns)), m.state.Turns...),
-		Intents:  append(make([]Intent, 0, len(m.state.Intents)), m.state.Intents...),
-		Refusals: append(make([]Refusal, 0, len(m.state.Refusals)), m.state.Refusals...),
+		Calls:   append(make([]ToolCall, 0, len(m.state.Calls)), m.state.Calls...),
+		Turns:   append(make([]Turn, 0, len(m.state.Turns)), m.state.Turns...),
+		Intents: append(make([]Intent, 0, len(m.state.Intents)), m.state.Intents...),
 	}
 
 	return out, nil
@@ -129,14 +127,6 @@ func (m *Memory) AppendIntent(_ context.Context, intent Intent) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.state.Intents = append(m.state.Intents, intent)
-
-	return nil
-}
-
-func (m *Memory) AppendRefusal(_ context.Context, refusal Refusal) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.state.Refusals = append(m.state.Refusals, refusal)
 
 	return nil
 }
@@ -208,6 +198,23 @@ func (m *Memory) CloseCallsLeftOpen(_ context.Context, at time.Time) (int, error
 	}
 
 	return closed, nil
+}
+
+func (m *Memory) LastRuns(_ context.Context, since time.Time) (map[string]time.Time, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	last := map[string]time.Time{}
+	for _, turn := range m.state.Turns {
+		if turn.StartedAt.Before(since) {
+			continue
+		}
+		if was, seen := last[turn.WokenBy]; !seen || turn.StartedAt.After(was) {
+			last[turn.WokenBy] = turn.StartedAt
+		}
+	}
+
+	return last, nil
 }
 
 func (m *Memory) TurnFinished(_ context.Context, ref string, finishedAt time.Time, failure string) error {

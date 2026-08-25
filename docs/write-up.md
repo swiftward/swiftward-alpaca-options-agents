@@ -26,7 +26,7 @@ The session carries tools the broker's server does not have:
 | Tool | What it answers |
 |---|---|
 | `record_intent` | states the thesis, the structure and the accepted loss - called *before* any order |
-| `read_state` | what earlier sessions did, meant to do, and were refused |
+| `read_state` | what earlier sessions did, meant to do, and what came back |
 | `read_schedule` | when it will be woken and why, read from the declaration rather than guessed |
 | `read_volatility_history` | where today's implied volatility sits in its own recorded history, ranked 0 to 100 |
 | `wake_me_at`, `wake_me_on_price`, `list_wakeups`, `cancel_wakeup` | its own standing requests |
@@ -55,6 +55,6 @@ What we measured on the account rather than read in a document:
 
 ## How to check any of this
 
-The page shows the account, the equity line, open positions, every order with its legs, every tool call with its arguments, the intents, the refusals and the turns. It is a read side: it decides nothing and can only read.
+The page shows the account, the equity line, open positions, every order with its legs, every tool call with its arguments and outcome, the intents and the turns. It is a read side: it decides nothing and can only read.
 
 Everything it shows comes from Postgres and from the broker, and both are the same sources the agent used.

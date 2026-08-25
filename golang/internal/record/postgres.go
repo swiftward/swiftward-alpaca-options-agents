@@ -44,17 +44,6 @@ func (p *Postgres) AppendIntent(ctx context.Context, intent Intent) error {
 	return nil
 }
 
-func (p *Postgres) AppendRefusal(ctx context.Context, refusal Refusal) error {
-	_, err := p.pool.Exec(ctx,
-		`INSERT INTO refusals (refused_at, boundary, detail) VALUES (@at, @boundary, @detail)`,
-		pgx.NamedArgs{"at": refusal.At, "boundary": refusal.Boundary, "detail": refusal.Detail})
-	if err != nil {
-		return fmt.Errorf("record the refusal: %w", err)
-	}
-
-	return nil
-}
-
 // TurnStarted records a turn. The agent's own identifier is the key: a turn
 // written twice is the same turn, not a second one.
 func (p *Postgres) TurnStarted(ctx context.Context, turn Turn) error {
@@ -113,6 +102,34 @@ func (p *Postgres) CallFinished(ctx context.Context, ref string, finishedAt time
 	return nil
 }
 
+// LastRuns reads when each waker last started a turn. The harness asks at start,
+// so a restart inside a session's window does not run that session twice.
+func (p *Postgres) LastRuns(ctx context.Context, since time.Time) (map[string]time.Time, error) {
+	rows, err := p.pool.Query(ctx,
+		`SELECT woken_by, max(started_at) FROM turns
+		  WHERE started_at >= @since GROUP BY woken_by`,
+		pgx.NamedArgs{"since": since})
+	if err != nil {
+		return nil, fmt.Errorf("read when each session last ran: %w", err)
+	}
+	defer rows.Close()
+
+	last := map[string]time.Time{}
+	for rows.Next() {
+		var wokenBy string
+		var at time.Time
+		if err := rows.Scan(&wokenBy, &at); err != nil {
+			return nil, fmt.Errorf("read when a session last ran: %w", err)
+		}
+		last[wokenBy] = at
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read when each session last ran: %w", err)
+	}
+
+	return last, nil
+}
+
 // CloseCallsLeftOpen marks what was in flight when a process died. An order in
 // that state may or may not have reached the broker; the record says unknown
 // rather than choosing.
@@ -143,7 +160,7 @@ func (p *Postgres) CloseTurnsLeftOpen(ctx context.Context, at time.Time) (int, e
 }
 
 func (p *Postgres) Read(ctx context.Context) (State, error) {
-	state := State{Turns: []Turn{}, Calls: []ToolCall{}, Intents: []Intent{}, Refusals: []Refusal{}}
+	state := State{Turns: []Turn{}, Calls: []ToolCall{}, Intents: []Intent{}}
 
 	turns, err := p.pool.Query(ctx,
 		`SELECT turn_ref, thread_ref, started_at, finished_at, woken_by, cause, model, failure
@@ -213,25 +230,6 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 	}
 	if err := intents.Err(); err != nil {
 		return State{}, fmt.Errorf("read the intents: %w", err)
-	}
-
-	refusals, err := p.pool.Query(ctx,
-		`SELECT refused_at, boundary, detail FROM refusals ORDER BY refused_at DESC LIMIT @shows`,
-		pgx.NamedArgs{"shows": p.shows})
-	if err != nil {
-		return State{}, fmt.Errorf("read the refusals: %w", err)
-	}
-	defer refusals.Close()
-
-	for refusals.Next() {
-		var refusal Refusal
-		if err := refusals.Scan(&refusal.At, &refusal.Boundary, &refusal.Detail); err != nil {
-			return State{}, fmt.Errorf("read a refusal: %w", err)
-		}
-		state.Refusals = append(state.Refusals, refusal)
-	}
-	if err := refusals.Err(); err != nil {
-		return State{}, fmt.Errorf("read the refusals: %w", err)
 	}
 
 	return state, nil

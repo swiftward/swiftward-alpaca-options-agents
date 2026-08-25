@@ -40,10 +40,6 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 		Thesis: "premium is rich into the close", Structure: "put spread on SPY expiring today",
 		MaxLoss: "1% of capital",
 	}))
-	require.NoError(t, kept.AppendRefusal(ctx, Refusal{
-		At: started.Add(2 * time.Minute), Boundary: "max_loss_per_position",
-		Detail: "structure risks 1.4% of capital, ceiling is 1%",
-	}))
 
 	require.NoError(t, kept.CallStarted(ctx, ToolCall{
 		Ref: "call-1", TurnRef: "turn-1", Server: "broker", Tool: "place_option_order",
@@ -65,8 +61,6 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 	assert.Equal(t, started.Add(90*time.Second).UTC(), state.Turns[0].FinishedAt.UTC())
 	require.Len(t, state.Intents, 1)
 	assert.Equal(t, "1% of capital", state.Intents[0].MaxLoss)
-	require.Len(t, state.Refusals, 1)
-	assert.Equal(t, "max_loss_per_position", state.Refusals[0].Boundary)
 
 	// The page carries the newest rows, and only as many as it was told to show.
 	for i := range 3 {

@@ -60,8 +60,6 @@ type Turn = {
 
 type Intent = { at: string; session: string; thesis: string; structure: string; max_loss: string }
 
-type Refusal = { at: string; boundary: string; detail: string }
-
 type ToolCall = {
   ref: string
   turn_ref: string
@@ -74,7 +72,7 @@ type ToolCall = {
   failure?: string
 }
 
-type State = { turns: Turn[]; calls: ToolCall[]; intents: Intent[]; refusals: Refusal[] }
+type State = { turns: Turn[]; calls: ToolCall[]; intents: Intent[] }
 
 // Same origin by default: the page is served by the read side that answers these
 // routes. A deployment that puts the page elsewhere sets this to that address.
@@ -102,7 +100,6 @@ async function render(): Promise<void> {
   if (state.ok) {
     fillTable('#calls', callsTable(state.value.calls))
     fill('#intents', state.value.intents, intentCard, 'no intents yet: the agent has not planned an order')
-    fill('#refusals', state.value.refusals, refusalCard, 'no refusals: no order has hit a boundary')
     fill('#turns', state.value.turns, turnCard, 'no turns yet: nothing has woken the agent')
   }
 
@@ -349,15 +346,6 @@ function intentCard(intent: Intent): HTMLElement {
       ['structure', intent.structure],
       ['max loss', intent.max_loss],
     ]),
-  )
-  return item
-}
-
-function refusalCard(refusal: Refusal): HTMLElement {
-  const item = shell()
-  item.append(
-    head([{ text: clock(refusal.at) }, { text: refusal.boundary, className: 'who down' }]),
-    body(refusal.detail),
   )
   return item
 }

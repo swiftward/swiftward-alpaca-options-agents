@@ -690,3 +690,121 @@ func TestATurnRecordsTheModelItRanOn(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "gpt-5.6-terra", state.Turns[0].Model)
 }
+
+// A wake-up that comes due while a turn runs goes into that turn. Starting a
+// second one leaves the first orphaned: never closed in the record, never closed
+// in the chat, and two turns pushing tools into one conversation.
+func TestAWakeUpDuringATurnGoesIntoIt(t *testing.T) {
+	store, err := wakeup.Open(filepath.Join(t.TempDir(), "wakeups.json"))
+	require.NoError(t, err)
+
+	at := time.Date(2026, 9, 3, 18, 0, 0, 0, time.UTC)
+	_, err = store.AddAt("проверить спред после новости", at, at.Add(-time.Minute))
+	require.NoError(t, err)
+
+	conversation := newConversationSpy()
+	chat := newChatDouble()
+	kept := record.NewMemory()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Record: kept, Wakeups: store,
+		CallTimeout: 2 * time.Second, Now: func() time.Time { return at },
+		Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	chat.inbound <- telegram.Message{Text: "посмотри позиции", Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	waitFor(t, func() bool { _, steered, _ := conversation.seen(); return len(steered) == 1 })
+
+	_, steered, _ := conversation.seen()
+	assert.Contains(t, steered[0], "проверить спред после новости")
+
+	turns, _, _ := conversation.seen()
+	assert.Len(t, turns, 1, "the wake-up must not open a second turn")
+
+	state, err := kept.Read(ctx)
+	require.NoError(t, err)
+	assert.Len(t, state.Turns, 1)
+}
+
+// A restart inside a session's window must not run that session again: on this
+// declaration that would mean a second spread on the same underlying.
+func TestARestartInsideTheWindowDoesNotRunTheSessionTwice(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: entry
+    cause: "окно входа"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+`), 0o600))
+
+	declared, err := declaration.Load(path)
+	require.NoError(t, err)
+
+	at := time.Date(2026, 8, 25, 14, 40, 0, 0, time.UTC)
+	kept := record.NewMemory()
+	require.NoError(t, kept.TurnStarted(context.Background(), record.Turn{
+		Ref: "turn-1", ThreadRef: "th-1", StartedAt: at.Add(-18 * time.Minute),
+		WokenBy: "entry", Cause: "declaration: entry",
+	}))
+
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: conversation, Declaration: declared, Record: kept,
+		CallTimeout: 2 * time.Second, Now: func() time.Time { return at },
+		Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	// Long enough for the first tick, which happens immediately.
+	time.Sleep(200 * time.Millisecond)
+
+	turns, _, _ := conversation.seen()
+	assert.Empty(t, turns, "the session already ran inside this window")
+}
+
+// The same window, with nothing recorded, does run the session: the guard above
+// must not be a harness that never wakes anybody.
+func TestAWindowWithNothingRecordedStillRuns(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: entry
+    cause: "окно входа"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+`), 0o600))
+
+	declared, err := declaration.Load(path)
+	require.NoError(t, err)
+
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: conversation, Declaration: declared, Record: record.NewMemory(),
+		CallTimeout: 2 * time.Second,
+		Now:         func() time.Time { return time.Date(2026, 8, 25, 14, 40, 0, 0, time.UTC) },
+		Log:         zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+}

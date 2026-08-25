@@ -76,8 +76,8 @@ type Harness struct {
 	// Declaration names the sessions the clock wakes. Nil means the clock wakes
 	// nobody and the chat is the only cause.
 	Declaration *declaration.Declaration
-	// Record is where a turn, an intent and a refusal are written down. Nil means
-	// nothing is recorded, which is legal only in a test.
+	// Record is where a turn, a tool call and an intent are written down. Nil
+	// means nothing is recorded, which is legal only in a test.
 	Record record.Keeper
 	// Wakeups are the session's own standing requests. Nil means it has none and
 	// was offered no way to make them.
@@ -122,7 +122,7 @@ func (h *Harness) Run(ctx context.Context) error {
 	if h.Now == nil {
 		return fmt.Errorf("the harness has no clock")
 	}
-	h.lastRun = map[string]time.Time{}
+	h.lastRun = h.whatAlreadyRanToday(ctx)
 
 	// Followed whether or not anybody is watching the chat: this is the loop that
 	// closes a turn in the record, and the record is read long after the room.
@@ -143,6 +143,31 @@ func (h *Harness) Run(ctx context.Context) error {
 	}
 
 	return h.serveChat(ctx)
+}
+
+// whatAlreadyRanToday reads which sessions have already run since midnight, so a
+// restart inside a session's window does not run that session a second time. A
+// record that cannot be read is not fatal: the harness says so and starts with
+// nothing, which is the state it had before this existed.
+func (h *Harness) whatAlreadyRanToday(ctx context.Context) map[string]time.Time {
+	if h.Record == nil || h.Declaration == nil {
+		return map[string]time.Time{}
+	}
+
+	now := h.Now().In(h.Declaration.Location())
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	last, err := h.Record.LastRuns(ctx, midnight)
+	if err != nil {
+		h.Log.Error("could not read which sessions already ran today; a session in its window may run again",
+			zap.Error(err))
+		return map[string]time.Time{}
+	}
+	if len(last) > 0 {
+		h.Log.Info("sessions that already ran today", zap.Int("sessions", len(last)))
+	}
+
+	return last
 }
 
 // keepTheClock wakes the sessions the declaration names. It checks once a minute
@@ -189,11 +214,22 @@ func (h *Harness) fireWakeups(ctx context.Context) {
 	}
 
 	for _, due := range h.Wakeups.Due(h.Now(), prices) {
+		// A wake-up that comes due mid-turn goes INTO that turn. Starting a second
+		// one would leave the first orphaned - never closed in the record, never
+		// closed in the chat - and would put two turns on one conversation.
 		if turnID := h.runningTurn(); turnID != "" {
-			h.Log.Info("a wake-up came due while the agent is working",
-				zap.String("wakeup", due.ID), zap.String("turn_id", turnID))
-			// It has already been taken off the list: telling the session late is
-			// better than telling it twice while it works.
+			agentCtx, done := h.boundToAgent(ctx)
+			err := h.Conversation.Steer(agentCtx, turnID, due.Prompt())
+			done()
+			if err == nil {
+				h.Log.Info("a wake-up came due mid-turn and went into it",
+					zap.String("wakeup", due.ID), zap.String("turn_id", turnID))
+				continue
+			}
+			// The turn ended between the check and the call: nothing is lost, the
+			// wake-up becomes its own turn below.
+			h.Log.Info("could not reach the running turn with a wake-up, starting a new one",
+				zap.String("wakeup", due.ID), zap.Error(err))
 		}
 		h.Log.Info("waking the session for its own reason",
 			zap.String("wakeup", due.ID), zap.String("cause", string(due.Cause)))

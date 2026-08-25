@@ -94,11 +94,13 @@ func TestRecordIntentRefusesAnIncompleteIntent(t *testing.T) {
 
 func TestReadStateReturnsWhatWasRecorded(t *testing.T) {
 	state := record.NewMemory()
-	require.NoError(t, state.AppendRefusal(context.Background(), record.Refusal{
-		At:       time.Date(2026, 9, 3, 18, 0, 0, 0, time.UTC),
-		Boundary: "max_loss_per_position",
-		Detail:   "structure risks 1.4% of capital, ceiling is 1%",
+	require.NoError(t, state.CallStarted(context.Background(), record.ToolCall{
+		Ref: "call-1", TurnRef: "turn-1", Server: "broker", Tool: "place_option_order",
+		StartedAt: time.Date(2026, 9, 3, 18, 0, 0, 0, time.UTC), Status: "inProgress",
 	}))
+	require.NoError(t, state.CallFinished(context.Background(), "call-1",
+		time.Date(2026, 9, 3, 18, 0, 1, 0, time.UTC), "failed",
+		"insufficient options buying power"))
 	session := connect(t, state, time.Now)
 
 	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "read_state"})
@@ -109,8 +111,10 @@ func TestReadStateReturnsWhatWasRecorded(t *testing.T) {
 	require.NoError(t, err)
 	var got record.State
 	require.NoError(t, json.Unmarshal(raw, &got))
-	require.Len(t, got.Refusals, 1)
-	assert.Equal(t, "max_loss_per_position", got.Refusals[0].Boundary)
+	require.Len(t, got.Calls, 1)
+	assert.Equal(t, "place_option_order", got.Calls[0].Tool)
+	assert.Equal(t, "insufficient options buying power", got.Calls[0].Failure,
+		"what an order ran into is what the broker said")
 }
 
 // The chat tool is offered only when a chat exists, and when it is offered the

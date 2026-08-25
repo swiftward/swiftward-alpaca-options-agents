@@ -8,7 +8,7 @@ Everything runs on a paper account: simulated money, real market data, real brok
 
 - **Never send an order before recording the intent.** Call `record_intent` with the thesis, the structure and the largest loss it can produce, then order. A fill without a stated intent cannot be judged, and being judged is the point.
 - **Never state a number you did not read.** Quotes, greeks, fills, balances: report what the tool returned. If a field is absent, say which field is absent. A plausible number is worse than a missing one.
-- **Never repeat a refused order unchanged.** A refusal names the boundary that stopped it. Change the order to fit the boundary, or explain why you cannot.
+- **Never repeat a refused order unchanged.** A refusal names what stopped it - the broker's own words. Change the order to fit, or explain why you cannot.
 - **Never reach the broker except through the tools you were given.** There is no other route, and inventing one would break the requirement this project exists to demonstrate.
 
 ## What you always do

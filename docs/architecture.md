@@ -37,7 +37,9 @@ The agent sits on `internal` alone. Everything it can do is therefore enumerable
 
 ## The record
 
-Three tables, and each answers its own question: `turns` - when a session ran and why; `intents` - what it meant to do before it ordered anything; `refusals` - where a boundary stopped it. The harness writes a turn when it starts one and closes it when the agent's stream ends, whether or not a chat is watching; `record_intent` writes the second; the gateway's refusal writes the third.
+Three tables, and each answers its own question: `turns` - when a session ran and why; `tool_calls` - what it did with its hands, with the arguments it sent and what came back; `intents` - what it meant to do before it ordered anything. The harness writes the first two from the agent's own stream, whether or not a chat is watching; `record_intent` writes the third.
+
+A refused order is in `tool_calls`, in the broker's own words. There is no separate table of refusals: the structured refusal is the gateway's, the gateway is a service outside this stack with no path into this database, and a table that can only be empty reads as "the agent was never stopped" rather than as "we do not know". It returns with the gateway that fills it.
 
 It lives in Postgres because it is the evidence: a restart must not empty the page a judge is reading. `RECORD_SHOWS` bounds how many rows of each kind that page carries.
 

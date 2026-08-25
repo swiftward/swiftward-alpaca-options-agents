@@ -72,7 +72,7 @@ type Config struct {
 
 	// Shared.
 	DatabaseURL string
-	// RecordShows is how many turns, intents and refusals the page carries. The
+	// RecordShows is how many turns, calls and intents the page carries. The
 	// record is a week long by the end; a page is read in one screen.
 	RecordShows  int
 	GatewayURL   string
