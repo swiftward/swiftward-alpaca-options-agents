@@ -155,6 +155,11 @@ services:
       # How often the account's own value is written down: the week is judged on
       # the line those readings draw.
       ACCOUNT_EVERY: ${ACCOUNT_EVERY}
+      # The ladder that walks an unfilled structure toward the price the book
+      # shows. It finishes what a session started and can open nothing.
+      EXECUTION_EVERY: ${EXECUTION_EVERY}
+      EXECUTION_STEP: ${EXECUTION_STEP}
+      EXECUTION_PATIENCE: ${EXECUTION_PATIENCE}
       DECLARATION: ${DECLARATION:-/agent/agent.yaml}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}

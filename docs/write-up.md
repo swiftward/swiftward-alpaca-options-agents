@@ -43,6 +43,10 @@ The volatility history is ours: the broker answers what an option costs now, and
 - **Flat by the close.** A session at 15:50 closes anything whose short strike sits within fifty cents of price - the positions that risk assignment - and lets the rest expire.
 - **Every call written down.** `tool_calls` carries the server, the tool, the arguments and the outcome of every call the session made. A call still in flight when a process dies is recorded as `unknown`, never as done: an order in that state may or may not have reached the broker, and the record does not choose.
 
+## Deciding and executing are different jobs
+
+The agent states the structure, the size and the price it wants. A separate module walks that order toward the price the book is showing, a tick at a time, never past it, and cancels what the book refuses. That split is deliberate: a model choosing what to trade is judgement, a limit price moving by a cent is arithmetic on a clock, and each is done by the thing that is good at it. The order is still sent by the session, through Alpaca's own MCP server.
+
 ## Alpaca's infrastructure
 
 Orders and market data go through Alpaca's own MCP server, pinned to a released version and holding the only copy of the account keys. The agent reaches it over MCP and holds no credential of its own.

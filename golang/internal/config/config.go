@@ -53,6 +53,12 @@ type Config struct {
 	// BrokerMCPURL is the broker's own server, read by the harness only to know
 	// when a price wake-up has come true.
 	BrokerMCPURL string
+	// Execution walks an unfilled structure toward the price the book shows. Zero
+	// interval means the ladder does not run and an order rests where the session
+	// placed it.
+	ExecutionEvery    time.Duration
+	ExecutionStep     float64
+	ExecutionPatience time.Duration
 	// AccountEvery is how often the account's value is written down. Zero means
 	// no history is kept here.
 	AccountEvery time.Duration
@@ -121,6 +127,12 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	executionEvery, executionPatience, err := parseExecution(
+		k.String("execution_every"), k.String("execution_patience"))
+	if err != nil {
+		return Config{}, err
+	}
+
 	ordersShown := k.Int("orders_shown")
 	if ordersShown <= 0 {
 		ordersShown = defaultOrdersShown
@@ -150,6 +162,9 @@ func Load() (Config, error) {
 		DatabaseURL:           k.String("database_url"),
 		RecordShows:           shows,
 		AccountEvery:          accountEvery,
+		ExecutionEvery:        executionEvery,
+		ExecutionStep:         k.Float64("execution_step"),
+		ExecutionPatience:     executionPatience,
 		OrdersShown:           ordersShown,
 		HistoryDays:           historyDays,
 		GatewayURL:            k.String("gateway_url"),
@@ -189,6 +204,36 @@ const (
 	defaultOrdersShown = 25
 	defaultHistoryDays = 14
 )
+
+// parseExecution reads how the ladder walks. A deployment that walks orders says
+// both how often and for how long; asking for one without the other is a bound
+// this code would have to invent, and an invented deadline silently outranks the
+// one an operator wrote.
+func parseExecution(every, patience string) (time.Duration, time.Duration, error) {
+	if strings.TrimSpace(every) == "" {
+		return 0, 0, nil
+	}
+
+	stepEvery, err := time.ParseDuration(every)
+	if err != nil {
+		return 0, 0, fmt.Errorf("EXECUTION_EVERY is not a duration: %w", err)
+	}
+	if strings.TrimSpace(patience) == "" {
+		return 0, 0, fmt.Errorf("EXECUTION_EVERY is set: say how long an order may wait with EXECUTION_PATIENCE")
+	}
+	waits, err := time.ParseDuration(patience)
+	if err != nil {
+		return 0, 0, fmt.Errorf("EXECUTION_PATIENCE is not a duration: %w", err)
+	}
+	if stepEvery <= 0 || waits <= 0 {
+		return 0, 0, fmt.Errorf("EXECUTION_EVERY and EXECUTION_PATIENCE must be longer than nothing")
+	}
+	if waits < stepEvery {
+		return 0, 0, fmt.Errorf("EXECUTION_PATIENCE (%s) is shorter than one step (%s): the order would be cancelled before it walks", waits, stepEvery)
+	}
+
+	return stepEvery, waits, nil
+}
 
 // parseAccountEvery reads how often the account's value is written down. Empty
 // means the history is not kept on this deployment.

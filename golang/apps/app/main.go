@@ -31,6 +31,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/config"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/db"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/execution"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/harness"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
@@ -62,6 +63,10 @@ func main() {
 		log.Fatal("stopped", zap.Error(err))
 	}
 }
+
+// defaultExecutionStep is one tick on these contracts: the broker quotes them in
+// cents, and a step smaller than that is refused.
+const defaultExecutionStep = 0.01
 
 func run(log *zap.Logger) error {
 	cfg, err := config.Load()
@@ -213,6 +218,27 @@ func run(log *zap.Logger) error {
 
 		handler := tools.Handler()
 		group.Go(func() error { return serve(ctx, cfg.MCPAddr, handler, log.Named("mcp")) })
+	}
+
+	// The ladder finishes what the session started: it can move a price and cancel
+	// an order, and it can open nothing.
+	if cfg.Has(config.RoleHarness) && cfg.ExecutionEvery > 0 {
+		if broker == nil {
+			return errors.New("EXECUTION_EVERY is set but there is no broker to walk orders at")
+		}
+		step := cfg.ExecutionStep
+		if step <= 0 {
+			step = defaultExecutionStep
+		}
+		ladder := &execution.Ladder{
+			Broker: broker, Every: cfg.ExecutionEvery, Step: step,
+			Patience: cfg.ExecutionPatience, Now: time.Now, Log: log.Named("execution"),
+		}
+		log.Info("walking unfilled structures toward the book",
+			zap.Duration("every", cfg.ExecutionEvery),
+			zap.Float64("step", step),
+			zap.Duration("patience", cfg.ExecutionPatience))
+		group.Go(func() error { return ladder.Run(ctx) })
 	}
 
 	if cfg.Has(config.RoleHarness) && cfg.AccountEvery > 0 {
