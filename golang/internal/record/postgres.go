@@ -73,6 +73,22 @@ func (p *Postgres) TurnFinished(ctx context.Context, ref string, finishedAt time
 	return nil
 }
 
+func (p *Postgres) AppendExecutionStep(ctx context.Context, step ExecutionStep) error {
+	_, err := p.pool.Exec(ctx,
+		`INSERT INTO execution_steps (order_ref, at, action, was, became, showing, floor)
+		 VALUES (@order, @at, @action, @was, @became, @showing, @floor)`,
+		pgx.NamedArgs{
+			"order": step.OrderRef, "at": step.At, "action": step.Action,
+			"was": step.Was, "became": step.Became,
+			"showing": step.Showing, "floor": step.Floor,
+		})
+	if err != nil {
+		return fmt.Errorf("record the execution step on %s: %w", step.OrderRef, err)
+	}
+
+	return nil
+}
+
 func (p *Postgres) CallStarted(ctx context.Context, call ToolCall) error {
 	_, err := p.pool.Exec(ctx,
 		`INSERT INTO tool_calls (call_ref, turn_ref, server, tool, arguments, started_at, status)
@@ -160,7 +176,7 @@ func (p *Postgres) CloseTurnsLeftOpen(ctx context.Context, at time.Time) (int, e
 }
 
 func (p *Postgres) Read(ctx context.Context) (State, error) {
-	state := State{Turns: []Turn{}, Calls: []ToolCall{}, Intents: []Intent{}}
+	state := State{Turns: []Turn{}, Calls: []ToolCall{}, Steps: []ExecutionStep{}, Intents: []Intent{}}
 
 	turns, err := p.pool.Query(ctx,
 		`SELECT turn_ref, thread_ref, started_at, finished_at, woken_by, cause, model, failure
@@ -210,6 +226,27 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 	}
 	if err := calls.Err(); err != nil {
 		return State{}, fmt.Errorf("read the calls: %w", err)
+	}
+
+	steps, err := p.pool.Query(ctx,
+		`SELECT order_ref, at, action, was, became, showing, floor
+		   FROM execution_steps ORDER BY at DESC LIMIT @shows`,
+		pgx.NamedArgs{"shows": p.shows})
+	if err != nil {
+		return State{}, fmt.Errorf("read the execution steps: %w", err)
+	}
+	defer steps.Close()
+
+	for steps.Next() {
+		var step ExecutionStep
+		if err := steps.Scan(&step.OrderRef, &step.At, &step.Action, &step.Was,
+			&step.Became, &step.Showing, &step.Floor); err != nil {
+			return State{}, fmt.Errorf("read an execution step: %w", err)
+		}
+		state.Steps = append(state.Steps, step)
+	}
+	if err := steps.Err(); err != nil {
+		return State{}, fmt.Errorf("read the execution steps: %w", err)
 	}
 
 	intents, err := p.pool.Query(ctx,

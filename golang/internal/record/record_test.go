@@ -17,7 +17,7 @@ func TestEmptyStateSerializesAsLists(t *testing.T) {
 	require.NoError(t, err)
 	raw, err := json.Marshal(state)
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"turns":[],"calls":[],"intents":[]}`, string(raw))
+	assert.JSONEq(t, `{"turns":[],"calls":[],"steps":[],"intents":[]}`, string(raw))
 }
 
 func TestReadReturnsACopy(t *testing.T) {

@@ -231,7 +231,7 @@ func run(log *zap.Logger) error {
 			step = defaultExecutionStep
 		}
 		ladder := &execution.Ladder{
-			Broker: broker, Every: cfg.ExecutionEvery, Step: step,
+			Broker: broker, Every: cfg.ExecutionEvery, Step: step, Record: state,
 			Patience: cfg.ExecutionPatience, Now: time.Now, Log: log.Named("execution"),
 		}
 		log.Info("walking unfilled structures toward the book",

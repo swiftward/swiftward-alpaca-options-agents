@@ -55,6 +55,20 @@ type ToolCall struct {
 	Failure    string          `json:"failure,omitempty"`
 }
 
+// ExecutionStep is one move the ladder made on an order: what the price was,
+// what it became, what the book was showing and the worst price the session
+// allowed. Kept because the question it answers - what did walking the price
+// save us - cannot be asked of a log that a redeployment throws away.
+type ExecutionStep struct {
+	OrderRef string    `json:"order_ref"`
+	At       time.Time `json:"at"`
+	Action   string    `json:"action"`
+	Was      float64   `json:"was"`
+	Became   *float64  `json:"became,omitempty"`
+	Showing  *float64  `json:"showing,omitempty"`
+	Floor    *float64  `json:"floor,omitempty"`
+}
+
 // State is everything the page shows at once. A refusal is not here: it comes
 // from the gateway, the gateway is a service outside this stack with no path
 // into this database, and a section that can only be empty reads as "the agent
@@ -64,9 +78,10 @@ type ToolCall struct {
 // broker. A field standing empty until then would read as an agent under no
 // limits at all.
 type State struct {
-	Turns   []Turn     `json:"turns"`
-	Calls   []ToolCall `json:"calls"`
-	Intents []Intent   `json:"intents"`
+	Turns   []Turn          `json:"turns"`
+	Calls   []ToolCall      `json:"calls"`
+	Steps   []ExecutionStep `json:"steps"`
+	Intents []Intent        `json:"intents"`
 }
 
 // Keeper is what the rest of the program writes to and reads from. The tools a
@@ -75,6 +90,7 @@ type Keeper interface {
 	Read(ctx context.Context) (State, error)
 	AppendIntent(ctx context.Context, intent Intent) error
 	TurnStarted(ctx context.Context, turn Turn) error
+	AppendExecutionStep(ctx context.Context, step ExecutionStep) error
 	CallStarted(ctx context.Context, call ToolCall) error
 	CallFinished(ctx context.Context, ref string, finishedAt time.Time, status, failure string) error
 	TurnFinished(ctx context.Context, ref string, finishedAt time.Time, failure string) error
@@ -120,6 +136,7 @@ func (m *Memory) Read(context.Context) (State, error) {
 	// "nothing recorded" from "this field is not implemented".
 	out := State{
 		Calls:   append(make([]ToolCall, 0, len(m.state.Calls)), m.state.Calls...),
+		Steps:   append(make([]ExecutionStep, 0, len(m.state.Steps)), m.state.Steps...),
 		Turns:   append(make([]Turn, 0, len(m.state.Turns)), m.state.Turns...),
 		Intents: append(make([]Intent, 0, len(m.state.Intents)), m.state.Intents...),
 	}
@@ -159,6 +176,14 @@ func (m *Memory) CloseTurnsLeftOpen(_ context.Context, at time.Time) (int, error
 	}
 
 	return closed, nil
+}
+
+func (m *Memory) AppendExecutionStep(_ context.Context, step ExecutionStep) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.state.Steps = append(m.state.Steps, step)
+
+	return nil
 }
 
 func (m *Memory) CallStarted(_ context.Context, call ToolCall) error {

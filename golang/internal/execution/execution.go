@@ -21,7 +21,15 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 )
+
+// Keeper is where each move is written down. Nil means the ladder's work lives
+// only in the log, which a redeployment throws away - and the question the log
+// answers, what walking the price saved, is asked afterwards.
+type Keeper interface {
+	AppendExecutionStep(ctx context.Context, step record.ExecutionStep) error
+}
 
 // Broker is what the ladder needs: what is in the book, what the legs are worth,
 // and the two verbs that move an order.
@@ -45,6 +53,8 @@ type Ladder struct {
 	// cancelled: a structure the book will not take at the worst price its session
 	// allowed is not a structure worth chasing further.
 	Patience time.Duration
+	// Record keeps every move. Nil records nothing.
+	Record Keeper
 	// Reads bounds how many recent orders are examined.
 	Reads int
 	Now   func() time.Time
@@ -109,6 +119,9 @@ func (l *Ladder) step(ctx context.Context) {
 			}
 			l.Log.Info("cancelled an order the book would not take",
 				zap.String("order", order.ID), zap.Duration("waited", age))
+			l.wroteDown(ctx, record.ExecutionStep{
+				OrderRef: order.ID, At: l.Now(), Action: "cancelled", Was: order.LimitPrice,
+			})
 			continue
 		}
 
@@ -169,8 +182,24 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 		zap.Float64("now", next),
 		zap.Float64("showing", showing),
 		zap.Float64("floor", floor))
+	l.wroteDown(ctx, record.ExecutionStep{
+		OrderRef: order.ID, At: l.Now(), Action: "walked",
+		Was: order.LimitPrice, Became: &next, Showing: &showing, Floor: &floor,
+	})
 
 	return nil
+}
+
+// wroteDown keeps a move. A record that cannot be written is said out loud and
+// does not stop the walk: the order matters more than the note about it.
+func (l *Ladder) wroteDown(ctx context.Context, step record.ExecutionStep) {
+	if l.Record == nil {
+		return
+	}
+	if err := l.Record.AppendExecutionStep(ctx, step); err != nil {
+		l.Log.Error("could not record an execution step",
+			zap.String("order", step.OrderRef), zap.Error(err))
+	}
 }
 
 // working reports whether this is one of our structures still waiting in the
