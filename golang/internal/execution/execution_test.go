@@ -473,3 +473,28 @@ func TestAPassThatCancelsNothingTellsNobody(t *testing.T) {
 	assert.NotEmpty(t, replaced, "this pass walked an order, so it did do something")
 	assert.Zero(t, told)
 }
+
+// Part of an order can fill before the rest is cancelled. Telling the session it
+// did not fill would send it to re-open a position it already holds.
+func TestAPartlyFilledOrderIsNotCalledUnfilled(t *testing.T) {
+	at := time.Date(2026, 8, 25, 15, 30, 0, 0, time.UTC)
+	order := spread("o-1", -0.12, "partially_filled", at.Add(-11*time.Minute))
+	order.Quantity = 50
+	order.FilledQuantity = 20
+	broker := &brokerDouble{
+		orders: []marketdata.Order{order},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	var told []string
+	rungs := ladder(broker, at, t)
+	rungs.Wake = func(_ context.Context, cause string) { told = append(told, cause) }
+	rungs.step(context.Background())
+
+	require.Len(t, told, 1)
+	assert.Contains(t, told[0], "20 из 50")
+	assert.NotContains(t, told[0], "не исполнилась вовсе")
+}

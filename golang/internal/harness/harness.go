@@ -9,6 +9,7 @@ package harness
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -267,9 +268,16 @@ func (h *Harness) endAnOverrunningTurn(ctx context.Context) {
 	agentCtx, done := h.boundToAgent(ctx)
 	err := h.Conversation.Interrupt(agentCtx, turnID)
 	done()
-	if err != nil {
+	// "There is no turn to interrupt" is an answer, not a fault: the turn ended
+	// between the measurement and the call. Treating it as a fault is what wedges
+	// the harness - it keeps believing a turn runs, so every session queues behind
+	// a turn that finished, and the watcher asks again every second forever.
+	if err != nil && !errors.Is(err, agent.ErrNoActiveTurn) {
 		h.Log.Error("could not interrupt the overrunning turn", zap.Error(err))
 		return
+	}
+	if err != nil {
+		h.Log.Info("the overrunning turn had already ended", zap.String("turn_id", turnID))
 	}
 
 	if h.Record != nil {

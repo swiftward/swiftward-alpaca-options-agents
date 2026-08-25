@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -78,7 +79,7 @@ type Client struct {
 
 	mu      sync.Mutex
 	nextID  int
-	waiting map[int]chan json.RawMessage
+	waiting map[int]chan answer
 
 	closeOnce sync.Once
 }
@@ -111,7 +112,7 @@ func Dial(ctx context.Context, command string, handshakeTimeout time.Duration, l
 		stdin:   stdin,
 		log:     log,
 		events:  make(chan Event, eventBuffer),
-		waiting: make(map[int]chan json.RawMessage),
+		waiting: make(map[int]chan answer),
 	}
 	go c.read(stdout)
 
@@ -246,11 +247,20 @@ func (c *Client) Interrupt(ctx context.Context, threadID, turnID string) error {
 	return err
 }
 
+// answer is one reply to one request. A refusal and a lost connection are two
+// different facts - the first says what is wrong, the second says nothing at all -
+// and a caller that cannot tell them apart treats "there is no turn to interrupt"
+// as "the agent may still be working".
+type answer struct {
+	result  json.RawMessage
+	refusal error
+}
+
 func (c *Client) call(ctx context.Context, method string, params map[string]any) (json.RawMessage, error) {
 	c.mu.Lock()
 	c.nextID++
 	id := c.nextID
-	reply := make(chan json.RawMessage, 1)
+	reply := make(chan answer, 1)
 	c.waiting[id] = reply
 	c.mu.Unlock()
 
@@ -271,11 +281,14 @@ func (c *Client) call(ctx context.Context, method string, params map[string]any)
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case raw, ok := <-reply:
+	case given, ok := <-reply:
 		if !ok {
 			return nil, fmt.Errorf("the agent stopped before answering %s", method)
 		}
-		return raw, nil
+		if given.refusal != nil {
+			return nil, fmt.Errorf("%s: %w", method, given.refusal)
+		}
+		return given.result, nil
 	}
 }
 
@@ -341,10 +354,24 @@ func (c *Client) deliver(id int, result json.RawMessage, failure *struct {
 
 	if failure != nil {
 		c.log.Error("the agent refused a request", zap.Int("id", id), zap.String("reason", failure.Message))
-		close(reply)
+		reply <- answer{refusal: refusalFrom(failure.Message)}
 		return
 	}
-	reply <- result
+	reply <- answer{result: result}
+}
+
+// ErrNoActiveTurn is the agent saying the turn is already over. It is an answer,
+// not a fault: the harness asked to interrupt a turn that had just finished.
+var ErrNoActiveTurn = errors.New("no active turn")
+
+// refusalFrom names the refusals the harness has to act on differently and passes
+// the rest through as themselves.
+func refusalFrom(reason string) error {
+	if strings.Contains(strings.ToLower(reason), "no active turn") {
+		return fmt.Errorf("%w: %s", ErrNoActiveTurn, reason)
+	}
+
+	return errors.New(reason)
 }
 
 // itemEvent is the shape both item events arrive in. Measured against the agent

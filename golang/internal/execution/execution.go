@@ -151,15 +151,21 @@ func (l *Ladder) step(ctx context.Context) {
 // has to decide what to do instead, and it cannot decide from a count.
 func whatDidNotHappen(orders []marketdata.Order) string {
 	lines := make([]string, 0, len(orders)+2)
-	lines = append(lines, "Заявки, которые ты отправил, не исполнились и сняты по терпению. "+
-		"Твоё решение осталось невыполненным: позиций, на которые ты рассчитывал, на счету нет.")
+	lines = append(lines, "Заявки, которые ты отправил, сняты по терпению: стакан не взял их "+
+		"по худшей цене, которую ты назвал. Твоё решение выполнено не так, как ты его принял.")
 	for _, order := range orders {
 		legs := make([]string, 0, len(order.Legs))
 		for _, leg := range order.Legs {
 			legs = append(legs, leg.Side+" "+leg.Symbol)
 		}
-		lines = append(lines, fmt.Sprintf("- %s по цене %.2f: %s",
-			order.ID, order.LimitPrice, strings.Join(legs, ", ")))
+		// Part of an order can fill before the rest is cancelled. Saying "did not
+		// fill" there would send the session to re-open a position it already holds.
+		got := "не исполнилась вовсе"
+		if order.FilledQuantity > 0 {
+			got = fmt.Sprintf("исполнилась частично: %.0f из %.0f", order.FilledQuantity, order.Quantity)
+		}
+		lines = append(lines, fmt.Sprintf("- %s по цене %.2f, %s: %s",
+			order.ID, order.LimitPrice, got, strings.Join(legs, ", ")))
 	}
 	lines = append(lines, "Реши, что с этим делать: повторить по другой цене, взять другую "+
 		"конструкцию или оставить как есть. Позиции, заявки и капитал прочитай сам - "+

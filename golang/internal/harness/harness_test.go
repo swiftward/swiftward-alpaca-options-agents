@@ -112,7 +112,9 @@ type conversationSpy struct {
 	interrupts []string
 	turnErr    error
 	steerErr   error
-	nextTurn   int
+	// refuseInterrupt is what the agent answers to turn/interrupt. Nil accepts it.
+	refuseInterrupt error
+	nextTurn        int
 }
 
 func newConversationSpy() *conversationSpy {
@@ -166,7 +168,7 @@ func (c *conversationSpy) Interrupt(_ context.Context, turnID string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.interrupts = append(c.interrupts, turnID)
-	return nil
+	return c.refuseInterrupt
 }
 
 func (c *conversationSpy) Events() <-chan agent.Event { return c.events }
@@ -892,6 +894,44 @@ func TestATurnThatOutlivesItsLimitIsInterrupted(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, state.Turns[0].Failure, "interrupted")
 	assert.NotNil(t, state.Turns[0].FinishedAt, "an interrupted turn is closed, not left open")
+}
+
+// The agent answering "there is no turn to interrupt" closes the turn instead of
+// leaving it open. Treated as a fault it wedges the harness: it goes on believing
+// a turn runs, every session queues behind a turn that finished, and the watcher
+// asks again every second. This happened live on 25 August and stopped the
+// schedule for ten minutes.
+func TestATurnThatEndedBeforeTheInterruptIsClosedAnyway(t *testing.T) {
+	conversation := newConversationSpy()
+	conversation.refuseInterrupt = fmt.Errorf("turn/interrupt: %w: no active turn to interrupt", agent.ErrNoActiveTurn)
+	chat := newChatDouble()
+	kept := record.NewMemory()
+	at := time.Date(2026, 8, 25, 17, 13, 0, 0, time.UTC)
+	now := at
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Record: kept,
+		TurnLimit: 5 * time.Minute, CallTimeout: 2 * time.Second,
+		Now: func() time.Time { return now }, Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	chat.inbound <- telegram.Message{Text: "посмотри все двадцать бумаг", Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	now = at.Add(6 * time.Minute)
+	waitFor(t, func() bool { return len(conversation.interrupted()) >= 1 })
+
+	waitFor(t, func() bool {
+		state, err := kept.Read(ctx)
+		return err == nil && len(state.Turns) == 1 && state.Turns[0].FinishedAt != nil
+	})
+
+	// The harness no longer holds a turn, so the next session can run.
+	assert.Empty(t, h.runningTurn(), "a turn the agent says is over is not still held")
 }
 
 // A turn inside its limit is left alone, or the harness would cut every session
