@@ -9,6 +9,7 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -266,6 +267,16 @@ func lastIndexRune(runes []rune, target rune) int {
 	return -1
 }
 
+// retryAfter reads the pause Telegram asked for, in the one shape its API uses.
+func retryAfter(err error) (time.Duration, bool) {
+	var apiErr *telegoapi.Error
+	if !errors.As(err, &apiErr) || apiErr.Parameters == nil || apiErr.Parameters.RetryAfter <= 0 {
+		return 0, false
+	}
+
+	return time.Duration(apiErr.Parameters.RetryAfter) * time.Second, true
+}
+
 // retrying repeats a call while Telegram is merely busy. Telegram rate-limits a
 // chatty bot rather than refusing it, and a session's own words are exactly what
 // would be lost: the harness has nowhere else to put them.
@@ -280,6 +291,11 @@ func (b *Bot) retrying(ctx context.Context, call func() error) error {
 		}
 
 		wait := time.Duration(attempt+1) * retryPause
+		if asked, said := retryAfter(err); said {
+			// Telegram names the pause it wants. Guessing a shorter one is what
+			// turns one rate limit into a queue of them.
+			wait = asked + retryPause
+		}
 		b.log.Warn("telegram is busy, trying again", zap.Duration("in", wait), zap.Error(err))
 		select {
 		case <-ctx.Done():
@@ -296,9 +312,9 @@ const (
 	inboundBuffer = 32
 	// Telegram refuses a message longer than this many characters.
 	maxMessageRunes = 4096
-	// A busy Telegram is retried this many times, waiting a little longer each
-	// time. Past that the caller is told, because a message nobody can send is
-	// news the log should carry.
-	sendAttempts = 3
+	// A busy Telegram is retried this many times: long enough to outlast the
+	// pause it asks for, which is seconds rather than milliseconds. Past that the
+	// caller is told, because a message nobody can send is news the log carries.
+	sendAttempts = 5
 	retryPause   = time.Second
 )

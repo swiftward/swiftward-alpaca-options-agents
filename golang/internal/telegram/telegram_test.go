@@ -3,7 +3,9 @@ package telegram
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	telegoapi "github.com/mymmrac/telego/telegoapi"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -274,4 +276,23 @@ func TestATelegramThatKeepsRefusingIsReported(t *testing.T) {
 	_, err = bot.Send(context.Background(), "anybody there?")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "chat not found")
+}
+
+// Telegram answers a chatty bot with the pause it wants. Waiting a second when
+// it asked for thirty turns one rate limit into a queue of them.
+func TestTheRetryWaitsAsLongAsTelegramAsked(t *testing.T) {
+	asked, said := retryAfter(&telegoapi.Error{
+		ErrorCode:   429,
+		Description: "Too Many Requests: retry after 27",
+		Parameters:  &telegoapi.ResponseParameters{RetryAfter: 27},
+	})
+
+	require.True(t, said)
+	assert.Equal(t, 27*time.Second, asked)
+}
+
+func TestAnOrdinaryFailureNamesNoPause(t *testing.T) {
+	_, said := retryAfter(errors.New("connection reset"))
+
+	assert.False(t, said)
 }
