@@ -71,6 +71,9 @@ type Config struct {
 	VolatilityUnderlyings []string
 	// VolatilityEvery is how often a reading is taken.
 	VolatilityEvery time.Duration
+	// TurnLimit bounds how long one turn may run before the harness interrupts it.
+	// Empty means a turn runs until the agent ends it.
+	TurnLimit time.Duration
 	// AgentCallTimeout bounds one request to the agent. Without it a hung agent
 	// takes the chat down with it: the loop that reads messages is the same loop
 	// that talks to the agent.
@@ -117,6 +120,11 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	turnLimit, err := parseTurnLimit(k.String("turn_limit"))
+	if err != nil {
+		return Config{}, err
+	}
+
 	shows := k.Int("record_shows")
 	if shows <= 0 {
 		shows = defaultRecordShows
@@ -159,6 +167,7 @@ func Load() (Config, error) {
 		WakeupFile:            k.String("wakeup_file"),
 		BrokerMCPURL:          k.String("broker_mcp_url"),
 		AgentCallTimeout:      callTimeout,
+		TurnLimit:             turnLimit,
 		DatabaseURL:           k.String("database_url"),
 		RecordShows:           shows,
 		AccountEvery:          accountEvery,
@@ -233,6 +242,24 @@ func parseExecution(every, patience string) (time.Duration, time.Duration, error
 	}
 
 	return stepEvery, waits, nil
+}
+
+// parseTurnLimit reads how long one turn may run. Empty means no bound, which is
+// legal: a deployment with one session and nobody waiting needs none.
+func parseTurnLimit(raw string) (time.Duration, error) {
+	if strings.TrimSpace(raw) == "" {
+		return 0, nil
+	}
+
+	limit, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("TURN_LIMIT is not a duration: %w", err)
+	}
+	if limit <= 0 {
+		return 0, fmt.Errorf("TURN_LIMIT must be longer than nothing")
+	}
+
+	return limit, nil
 }
 
 // parseAccountEvery reads how often the account's value is written down. Empty

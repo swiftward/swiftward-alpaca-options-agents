@@ -181,6 +181,7 @@ func run(log *zap.Logger) error {
 	if cfg.Has(config.RoleHarness) {
 		running = &harness.Harness{
 			CallTimeout:  cfg.AgentCallTimeout,
+			TurnLimit:    cfg.TurnLimit,
 			DefaultModel: cfg.AgentModel,
 			Now:          time.Now,
 			Log:          log.Named("harness"),

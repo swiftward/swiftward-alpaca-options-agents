@@ -28,6 +28,10 @@ import (
 // question.
 const clockTick = time.Minute
 
+// turnWatch is how often the running turn is measured against its limit. The
+// check reads one field under a lock, so it costs nothing to do often.
+const turnWatch = time.Second
+
 // typingRefresh is how often the typing cue is renewed; Telegram drops it after
 // about five seconds.
 const typingRefresh = 4 * time.Second
@@ -91,6 +95,11 @@ type Harness struct {
 	// Now is the clock. It is a field so a test is not at the mercy of the wall
 	// clock, and so the only place a time comes from is visible.
 	Now func() time.Time
+	// TurnLimit bounds how long one turn may run before it is interrupted. The
+	// sessions behind it are waiting: a scan that outlives its window starves the
+	// defence, and a defence that never runs is worse than a scan that never
+	// finishes. Zero means a turn runs until the agent ends it.
+	TurnLimit time.Duration
 	// CallTimeout bounds one request to the agent. The loop that reads the chat is
 	// the loop that talks to the agent, so an unbounded call takes the room down
 	// with the session.
@@ -129,6 +138,12 @@ func (h *Harness) Run(ctx context.Context) error {
 	go h.followTheSession(ctx)
 	if h.Declaration != nil || h.Wakeups != nil {
 		go h.keepTheClock(ctx)
+	}
+	// The running turn is watched on its own, much faster clock: the schedule
+	// ticks once a minute, and a turn that has overrun should not wait most of a
+	// minute to be noticed while other sessions queue behind it.
+	if h.TurnLimit > 0 {
+		go h.watchTheRunningTurn(ctx)
 	}
 	if h.Declaration != nil {
 		h.Log.Info("clock held",
@@ -202,6 +217,64 @@ func (h *Harness) tick(ctx context.Context) {
 	h.fireWakeups(ctx)
 	h.fireDue(ctx)
 }
+
+// watchTheRunningTurn ends a turn that has outlived its limit.
+func (h *Harness) watchTheRunningTurn(ctx context.Context) {
+	ticker := time.NewTicker(turnWatch)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			h.endAnOverrunningTurn(ctx)
+		}
+	}
+}
+
+// endAnOverrunningTurn interrupts a turn that has outlived its limit. What it
+// was doing is not lost: whatever it already sent to the broker stands, and the
+// record says the turn was cut and why.
+func (h *Harness) endAnOverrunningTurn(ctx context.Context) {
+	if h.TurnLimit <= 0 {
+		return
+	}
+
+	h.mu.Lock()
+	turnID, started := h.turnID, h.turnStarted
+	h.mu.Unlock()
+	if turnID == "" || started.IsZero() {
+		return
+	}
+
+	ran := h.Now().Sub(started)
+	if ran <= h.TurnLimit {
+		return
+	}
+
+	h.Log.Warn("a turn outlived its limit and is being interrupted",
+		zap.String("turn_id", turnID), zap.Duration("ran", ran), zap.Duration("limit", h.TurnLimit))
+
+	agentCtx, done := h.boundToAgent(ctx)
+	err := h.Conversation.Interrupt(agentCtx, turnID)
+	done()
+	if err != nil {
+		h.Log.Error("could not interrupt the overrunning turn", zap.Error(err))
+		return
+	}
+
+	if h.Record != nil {
+		if err := h.Record.TurnFinished(ctx, turnID, h.Now(), overranFailure); err != nil {
+			h.Log.Error("could not close the interrupted turn in the record", zap.Error(err))
+		}
+	}
+	h.say(ctx, "ход шёл дольше отведённого и был остановлен: за ним ждут другие сессии")
+	h.clearTurn(ctx)
+}
+
+// overranFailure is what the record says about a turn the harness cut short.
+const overranFailure = "the turn outlived its limit and was interrupted so the sessions behind it could run"
 
 // fireWakeups wakes the session for what it asked itself. Its own requests come
 // first: a session that asked to be woken when price crossed a level asked
@@ -462,6 +535,21 @@ func (h *Harness) callFinished(ctx context.Context, ev agent.Event) {
 	err := h.Record.CallFinished(ctx, ev.Call.Ref, h.Now(), ev.Call.Status, ev.Call.Failure, ev.Call.Answer)
 	if err != nil {
 		h.Log.Error("could not close the call", zap.String("tool", ev.Call.Named()), zap.Error(err))
+	}
+}
+
+// clearTurn forgets the running turn and takes down its status line.
+func (h *Harness) clearTurn(ctx context.Context) {
+	h.mu.Lock()
+	status := h.statusID
+	h.turnID = ""
+	h.statusID = 0
+	h.mu.Unlock()
+
+	if status != 0 && h.Chat != nil {
+		if err := h.Chat.Delete(ctx, status); err != nil {
+			h.Log.Debug("could not take down the status line", zap.Error(err))
+		}
 	}
 }
 

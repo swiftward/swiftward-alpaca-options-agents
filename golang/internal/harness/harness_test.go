@@ -155,6 +155,12 @@ func (c *conversationSpy) Steer(_ context.Context, turnID, text string) error {
 	return nil
 }
 
+func (c *conversationSpy) interrupted() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.interrupts...)
+}
+
 func (c *conversationSpy) Interrupt(_ context.Context, turnID string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -847,4 +853,69 @@ sessions:
 	go func() { _ = h.Run(ctx) }()
 
 	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+}
+
+// A turn that outlives its limit is interrupted: the sessions behind it are
+// waiting, and a defence that never runs because a scan never finished is worse
+// than a scan cut short.
+func TestATurnThatOutlivesItsLimitIsInterrupted(t *testing.T) {
+	conversation := newConversationSpy()
+	chat := newChatDouble()
+	kept := record.NewMemory()
+	at := time.Date(2026, 8, 25, 17, 13, 0, 0, time.UTC)
+	now := at
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Record: kept,
+		TurnLimit: 5 * time.Minute, CallTimeout: 2 * time.Second,
+		Now: func() time.Time { return now }, Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	chat.inbound <- telegram.Message{Text: "посмотри все двадцать бумаг", Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	// The turn is still running six minutes later.
+	now = at.Add(6 * time.Minute)
+
+	waitFor(t, func() bool { return len(conversation.interrupted()) == 1 })
+
+	waitFor(t, func() bool {
+		state, err := kept.Read(ctx)
+		return err == nil && len(state.Turns) == 1 && state.Turns[0].Failure != ""
+	})
+	state, err := kept.Read(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, state.Turns[0].Failure, "interrupted")
+	assert.NotNil(t, state.Turns[0].FinishedAt, "an interrupted turn is closed, not left open")
+}
+
+// A turn inside its limit is left alone, or the harness would cut every session
+// short and call it safety.
+func TestATurnInsideItsLimitIsLeftAlone(t *testing.T) {
+	conversation := newConversationSpy()
+	chat := newChatDouble()
+	at := time.Date(2026, 8, 25, 17, 13, 0, 0, time.UTC)
+	now := at
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Record: record.NewMemory(),
+		TurnLimit: 5 * time.Minute, CallTimeout: 2 * time.Second,
+		Now: func() time.Time { return now }, Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	chat.inbound <- telegram.Message{Text: "посмотри позиции", Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	now = at.Add(4 * time.Minute)
+	time.Sleep(300 * time.Millisecond)
+
+	assert.Empty(t, conversation.interrupted())
 }

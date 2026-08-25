@@ -144,6 +144,9 @@ services:
       # One request to the agent may take this long. Past it the chat is told,
       # rather than the whole room waiting on a session that stopped answering.
       AGENT_CALL_TIMEOUT: ${AGENT_CALL_TIMEOUT}
+      # Дольше этого один ход не живёт: за ним ждут другие сессии, и защита,
+      # которая не отработала из-за длинного перебора, хуже перебора.
+      TURN_LIMIT: ${TURN_LIMIT}
       SESSION_MCP_URL: http://127.0.0.1:8081
       # Set only while the gateway is not yet in front of the broker, and only on
       # a development account.
