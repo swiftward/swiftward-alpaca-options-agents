@@ -53,6 +53,9 @@ type ToolCall struct {
 	FinishedAt *time.Time      `json:"finished_at,omitempty"`
 	Status     string          `json:"status"`
 	Failure    string          `json:"failure,omitempty"`
+	// Answer is the beginning of what the tool said back. A broker refusal lives
+	// here: it arrives inside the answer, not as a failure of the call.
+	Answer string `json:"answer,omitempty"`
 }
 
 // ExecutionStep is one move the ladder made on an order: what the price was,
@@ -92,7 +95,7 @@ type Keeper interface {
 	TurnStarted(ctx context.Context, turn Turn) error
 	AppendExecutionStep(ctx context.Context, step ExecutionStep) error
 	CallStarted(ctx context.Context, call ToolCall) error
-	CallFinished(ctx context.Context, ref string, finishedAt time.Time, status, failure string) error
+	CallFinished(ctx context.Context, ref string, finishedAt time.Time, status, failure, answer string) error
 	TurnFinished(ctx context.Context, ref string, finishedAt time.Time, failure string) error
 	// CloseCallsLeftOpen closes tool calls a dead process left running. A call
 	// that was in flight cannot be said to have happened or not: for an order that
@@ -194,7 +197,7 @@ func (m *Memory) CallStarted(_ context.Context, call ToolCall) error {
 	return nil
 }
 
-func (m *Memory) CallFinished(_ context.Context, ref string, finishedAt time.Time, status, failure string) error {
+func (m *Memory) CallFinished(_ context.Context, ref string, finishedAt time.Time, status, failure, answer string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -203,6 +206,7 @@ func (m *Memory) CallFinished(_ context.Context, ref string, finishedAt time.Tim
 			m.state.Calls[i].FinishedAt = &finishedAt
 			m.state.Calls[i].Status = status
 			m.state.Calls[i].Failure = failure
+			m.state.Calls[i].Answer = answer
 			return nil
 		}
 	}

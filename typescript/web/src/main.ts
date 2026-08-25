@@ -77,6 +77,7 @@ type ToolCall = {
   finished_at?: string
   status: string
   failure?: string
+  answer?: string
 }
 
 type State = { turns: Turn[]; calls: ToolCall[]; intents: Intent[] }
@@ -238,15 +239,23 @@ function amount(order: Order): string {
   return order.quantity > 0 ? trim(order.quantity) : dollars(order.notional)
 }
 
+// A refusal travels inside the answer, so the answer is what this column shows;
+// the status alone would read as success on a rejected order.
+function answered(call: ToolCall): string {
+  if (call.failure) return `${call.status}: ${call.failure}`
+  if (call.answer?.startsWith('refused: ')) return call.answer
+  return call.status
+}
+
 function callsTable(calls: ToolCall[]): { head: string[]; rows: string[][]; empty: string } {
   return {
-    head: ['started', 'tool', 'asked', 'took', 'status'],
+    head: ['started', 'tool', 'asked', 'took', 'answered'],
     rows: calls.map((call) => [
       clock(call.started_at),
       call.server && call.server !== 'shell' ? `${call.server}.${call.tool}` : call.tool,
       call.arguments === undefined || call.arguments === null ? '' : JSON.stringify(call.arguments),
       call.finished_at ? took(call.started_at, call.finished_at) : '',
-      call.failure ? `${call.status}: ${call.failure}` : call.status,
+      answered(call),
     ]),
     empty: 'no tool calls recorded yet',
   }

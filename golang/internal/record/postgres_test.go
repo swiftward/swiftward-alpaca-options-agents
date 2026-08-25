@@ -50,7 +50,8 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 		Ref: "call-2", TurnRef: "turn-1", Server: "broker", Tool: "get_option_snapshot",
 		StartedAt: started.Add(40 * time.Second), Status: "inProgress",
 	}))
-	require.NoError(t, kept.CallFinished(ctx, "call-2", started.Add(41*time.Second), "completed", ""))
+	require.NoError(t, kept.CallFinished(ctx, "call-2", started.Add(41*time.Second), "completed", "",
+		`{"orders": []}`))
 
 	state, err := kept.Read(ctx)
 	require.NoError(t, err)
@@ -94,6 +95,7 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 	assert.Equal(t, RestartedFailure, byRef["call-1"].Failure)
 	assert.JSONEq(t, `{"symbol":"SPY260825P00760000","qty":1}`, string(byRef["call-1"].Arguments))
 	assert.Equal(t, "completed", byRef["call-2"].Status, "a call that ended keeps how it ended")
+	assert.Equal(t, `{"orders": []}`, byRef["call-2"].Answer, "and what it answered, where a refusal lives")
 	assert.Empty(t, byRef["call-2"].Arguments, "a call with no arguments reported carries none")
 
 	// The three later turns were never closed: this is what a process dying

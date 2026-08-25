@@ -106,7 +106,7 @@ func TestReadStateReturnsWhatWasRecorded(t *testing.T) {
 	}))
 	require.NoError(t, state.CallFinished(context.Background(), "call-1",
 		time.Date(2026, 9, 3, 18, 0, 1, 0, time.UTC), "failed",
-		"insufficient options buying power"))
+		"insufficient options buying power", ""))
 	session := connect(t, state, time.Now)
 
 	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "read_state"})

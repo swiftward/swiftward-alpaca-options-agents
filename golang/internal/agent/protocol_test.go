@@ -271,3 +271,39 @@ done
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), `"model":"gpt-5.6-luna"`)
 }
+
+// A broker refusal arrives inside the tool's answer, not as a failure of the
+// call: measured on 25 August 2026, when a rejected order was recorded as a call
+// that completed and nothing in the record could tell it from a filled one.
+func TestARefusalInsideTheAnswerIsKept(t *testing.T) {
+	event, ok := eventFrom("item/completed", []byte(`{
+	  "turnId": "tu-1",
+	  "item": {"id": "call-9", "type": "mcpToolCall", "server": "broker",
+	    "tool": "place_option_order", "status": "completed",
+	    "result": {"isError": true, "content": [
+	      {"type": "text", "text": "API rejected the order (HTTP 422): client_order_id must be unique"}
+	    ]}}
+	}`))
+
+	require.True(t, ok)
+	assert.Equal(t, KindTool, event.Kind)
+	assert.Contains(t, event.Call.Answer, "client_order_id must be unique")
+	assert.True(t, strings.HasPrefix(event.Call.Answer, "refused: "),
+		"a refusal says so, so nobody has to read the whole answer to see it")
+}
+
+// An answer that is not a refusal is kept too, but plainly, and only its
+// beginning: an option chain runs to tens of thousands of characters.
+func TestALongAnswerIsCutRatherThanKeptWhole(t *testing.T) {
+	long := strings.Repeat("x", 5000)
+	event, ok := eventFrom("item/completed", []byte(`{
+	  "turnId": "tu-1",
+	  "item": {"id": "call-10", "type": "mcpToolCall", "server": "broker",
+	    "tool": "get_option_chain", "status": "completed",
+	    "result": {"isError": false, "content": [{"type": "text", "text": "`+long+`"}]}}
+	}`))
+
+	require.True(t, ok)
+	assert.Len(t, event.Call.Answer, answerKept)
+	assert.NotContains(t, event.Call.Answer, "refused")
+}

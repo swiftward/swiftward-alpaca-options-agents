@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -55,6 +56,8 @@ type Call struct {
 	Arguments json.RawMessage
 	Status    string
 	Failure   string
+	// Answer is the beginning of what the tool said back. A refusal lives here.
+	Answer string
 }
 
 // Named is what the chat shows for a call: the tool, and the server when it is
@@ -359,7 +362,13 @@ type itemEvent struct {
 		Tool      string          `json:"tool"`
 		Arguments json.RawMessage `json:"arguments"`
 		Status    string          `json:"status"`
-		Error     *struct {
+		Result    *struct {
+			IsError bool `json:"isError"`
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"result"`
+		Error *struct {
 			Message string `json:"message"`
 		} `json:"error"`
 	} `json:"item"`
@@ -384,9 +393,49 @@ func (e itemEvent) call() Call {
 	if e.Item.Error != nil {
 		call.Failure = e.Item.Error.Message
 	}
+	call.Answer = answerOf(e)
 
 	return call
 }
+
+// answerOf keeps the beginning of what a tool answered. A broker refusal travels
+// inside the answer, not as a protocol error - measured on 25 August 2026, when a
+// rejected order was recorded as a call that completed and the record could not
+// tell it from a filled one. The whole answer is not kept: an option chain runs
+// to tens of thousands of characters and says nothing a reader needs.
+func answerOf(e itemEvent) string {
+	if e.Item.Result == nil {
+		return ""
+	}
+
+	var said strings.Builder
+	for _, part := range e.Item.Result.Content {
+		if part.Text == "" {
+			continue
+		}
+		if said.Len() > 0 {
+			said.WriteString(" ")
+		}
+		said.WriteString(part.Text)
+		if said.Len() >= answerKept {
+			break
+		}
+	}
+
+	answer := said.String()
+	if len(answer) > answerKept {
+		answer = answer[:answerKept]
+	}
+	if e.Item.Result.IsError && answer != "" {
+		return "refused: " + answer
+	}
+
+	return answer
+}
+
+// answerKept is how much of a tool's answer is written down: enough for a
+// refusal to name its reason, short enough that a chain does not fill the record.
+const answerKept = 400
 
 func eventFrom(method string, params json.RawMessage) (Event, bool) {
 	switch method {

@@ -106,11 +106,15 @@ func (p *Postgres) CallStarted(ctx context.Context, call ToolCall) error {
 	return nil
 }
 
-func (p *Postgres) CallFinished(ctx context.Context, ref string, finishedAt time.Time, status, failure string) error {
+func (p *Postgres) CallFinished(ctx context.Context, ref string, finishedAt time.Time, status, failure, answer string) error {
 	_, err := p.pool.Exec(ctx,
-		`UPDATE tool_calls SET finished_at = @finished, status = @status, failure = @failure
+		`UPDATE tool_calls
+		    SET finished_at = @finished, status = @status, failure = @failure, answer = @answer
 		  WHERE call_ref = @ref`,
-		pgx.NamedArgs{"finished": finishedAt, "status": status, "failure": nullable(failure), "ref": ref})
+		pgx.NamedArgs{
+			"finished": finishedAt, "status": status, "failure": nullable(failure),
+			"answer": nullable(answer), "ref": ref,
+		})
 	if err != nil {
 		return fmt.Errorf("close the call %s: %w", ref, err)
 	}
@@ -204,7 +208,8 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 	}
 
 	calls, err := p.pool.Query(ctx,
-		`SELECT call_ref, turn_ref, server, tool, arguments, started_at, finished_at, status, failure
+		`SELECT call_ref, turn_ref, server, tool, arguments, started_at, finished_at,
+		        status, failure, answer
 		   FROM tool_calls ORDER BY started_at DESC LIMIT @shows`,
 		pgx.NamedArgs{"shows": p.shows})
 	if err != nil {
@@ -214,13 +219,16 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 
 	for calls.Next() {
 		var call ToolCall
-		var failure *string
+		var failure, answer *string
 		if err := calls.Scan(&call.Ref, &call.TurnRef, &call.Server, &call.Tool, &call.Arguments,
-			&call.StartedAt, &call.FinishedAt, &call.Status, &failure); err != nil {
+			&call.StartedAt, &call.FinishedAt, &call.Status, &failure, &answer); err != nil {
 			return State{}, fmt.Errorf("read a call: %w", err)
 		}
 		if failure != nil {
 			call.Failure = *failure
+		}
+		if answer != nil {
+			call.Answer = *answer
 		}
 		state.Calls = append(state.Calls, call)
 	}

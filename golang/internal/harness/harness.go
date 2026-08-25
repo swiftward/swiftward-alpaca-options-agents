@@ -459,7 +459,7 @@ func (h *Harness) callFinished(ctx context.Context, ev agent.Event) {
 		return
 	}
 
-	err := h.Record.CallFinished(ctx, ev.Call.Ref, h.Now(), ev.Call.Status, ev.Call.Failure)
+	err := h.Record.CallFinished(ctx, ev.Call.Ref, h.Now(), ev.Call.Status, ev.Call.Failure, ev.Call.Answer)
 	if err != nil {
 		h.Log.Error("could not close the call", zap.String("tool", ev.Call.Named()), zap.Error(err))
 	}
