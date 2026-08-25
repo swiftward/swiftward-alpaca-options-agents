@@ -44,7 +44,7 @@ func TestPostgresKeepsTheSeries(t *testing.T) {
 	assert.InDelta(t, 0.15, summary.Latest, 1e-6)
 	assert.InDelta(t, 0.10, summary.Lowest, 1e-6)
 	assert.InDelta(t, 0.20, summary.Highest, 1e-6)
-	assert.InDelta(t, 50, summary.Rank, 1e-6)
+	assert.InDelta(t, 62.5, summary.Rank, 1e-6, "0.15 stands above two of the four readings and is one of them")
 
 	// A window that starts after the readings answers with nothing rather than
 	// with the whole series: the question was about the window.
