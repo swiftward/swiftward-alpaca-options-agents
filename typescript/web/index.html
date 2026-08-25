@@ -45,6 +45,16 @@
       </section>
 
       <section>
+        <h2>What the agent did</h2>
+        <p class="explains">
+          Every tool the session called, with what it asked for and how it ended. A call still open
+          after a restart is marked unknown: an order in flight may or may not have reached the
+          broker, and the record does not choose.
+        </p>
+        <div class="scrolls"><table id="calls"></table></div>
+      </section>
+
+      <section>
         <h2>Intents</h2>
         <p class="explains">
           Written before the order, never after. A fill can be read anywhere; only this says what the

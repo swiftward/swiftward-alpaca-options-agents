@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/volatility"
@@ -312,4 +313,51 @@ func mustJSON(t *testing.T, value any) []byte {
 	raw, err := json.Marshal(value)
 	require.NoError(t, err)
 	return raw
+}
+
+type scheduleDouble struct{ sessions []declaration.Scheduled }
+
+func (s *scheduleDouble) Schedule() []declaration.Scheduled { return s.sessions }
+
+// Asked whether it will act on its own, a session that cannot read its schedule
+// answers from its own wake-ups alone - and says no while the declaration wakes
+// it five times a day.
+func TestTheSessionCanReadItsOwnSchedule(t *testing.T) {
+	server := httptest.NewServer(Tools{
+		Record: record.NewMemory(), Now: time.Now,
+		Schedule: &scheduleDouble{sessions: []declaration.Scheduled{
+			{Name: "entry", Cause: "окно входа", When: "at 14:20, on mon, tue, wed, thu, fri (America/New_York)"},
+		}},
+	}.Handler())
+	t.Cleanup(server.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "read_schedule"})
+	require.NoError(t, err)
+	require.False(t, res.IsError, res.Content)
+
+	var answered struct {
+		Sessions []declaration.Scheduled `json:"sessions"`
+	}
+	require.NoError(t, json.Unmarshal(mustJSON(t, res.StructuredContent), &answered))
+	require.Len(t, answered.Sessions, 1)
+	assert.Equal(t, "entry", answered.Sessions[0].Name)
+	assert.Contains(t, answered.Sessions[0].When, "14:20")
+}
+
+// With no declaration there is no schedule to read, and a tool answering an
+// empty list would tell the session nothing wakes it.
+func TestWithoutADeclarationTheScheduleToolIsNotOffered(t *testing.T) {
+	session := connect(t, record.NewMemory(), time.Now)
+
+	tools, err := session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+
+	for _, tool := range tools.Tools {
+		assert.NotEqual(t, "read_schedule", tool.Name)
+	}
 }

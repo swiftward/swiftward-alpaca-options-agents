@@ -328,12 +328,16 @@ func TestFirstMessageStartsATurnAndTheRoomSeesIt(t *testing.T) {
 	require.Len(t, chat.postedTexts(), 1)
 	assert.Contains(t, chat.postedTexts()[0], "joker", "the room sees one line naming who the turn runs for")
 
-	conversation.events <- agent.Event{Kind: agent.KindTool, Tool: "get_option_chain", TurnID: "tu-1"}
+	conversation.events <- agent.Event{
+		Kind: agent.KindToolStarted, TurnID: "tu-1",
+		Call: agent.Call{Ref: "call-1", Server: "broker", Tool: "get_option_chain", Status: "inProgress"},
+	}
 	conversation.events <- agent.Event{Kind: agent.KindText, Text: "the spread is closed", TurnID: "tu-1"}
 	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
 
 	waitFor(t, func() bool { return len(chat.statusTexts()) >= 1 && len(chat.deletedIDs()) >= 1 })
-	assert.Contains(t, chat.statusTexts(), "⏳ joker · get_option_chain", "the same line changes as the turn works")
+	assert.Contains(t, chat.statusTexts(), "⏳ joker · broker.get_option_chain",
+		"the same line changes as the turn works")
 
 	posted := chat.postedTexts()
 	assert.Contains(t, posted[len(posted)-1], "✅ joker · готово", "the result belongs at the bottom, where the reader is")

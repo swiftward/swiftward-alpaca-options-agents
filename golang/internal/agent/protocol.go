@@ -29,7 +29,9 @@ const (
 	KindText Kind = "text"
 	// KindDelta is a fragment of a message still being written.
 	KindDelta Kind = "delta"
-	// KindTool is a tool the agent called.
+	// KindToolStarted is a tool the agent has begun calling.
+	KindToolStarted Kind = "tool_started"
+	// KindTool is a tool call that finished, successfully or not.
 	KindTool Kind = "tool"
 	// KindTurnDone ends a turn, successfully or not.
 	KindTurnDone Kind = "turn_done"
@@ -38,8 +40,31 @@ const (
 type Event struct {
 	Kind   Kind
 	Text   string
-	Tool   string
 	TurnID string
+	// Call is set on the two tool events: which call, on which server, with what
+	// arguments, and how it ended.
+	Call Call
+}
+
+// Call is one tool call as the agent reports it. Arguments are carried verbatim
+// so the record can say what was asked, not only what was asked for.
+type Call struct {
+	Ref       string
+	Server    string
+	Tool      string
+	Arguments json.RawMessage
+	Status    string
+	Failure   string
+}
+
+// Named is what the chat shows for a call: the tool, and the server when it is
+// not obvious from the tool alone.
+func (c Call) Named() string {
+	if c.Server == "" || c.Server == "shell" {
+		return c.Tool
+	}
+
+	return c.Server + "." + c.Tool
 }
 
 type Client struct {
@@ -319,6 +344,50 @@ func (c *Client) deliver(id int, result json.RawMessage, failure *struct {
 	reply <- result
 }
 
+// itemEvent is the shape both item events arrive in. Measured against the agent
+// on 25 August 2026: a tool call carries its server, its name, its arguments and
+// its status, and a shell command carries the command line instead of a name.
+type itemEvent struct {
+	TurnID string `json:"turnId"`
+	Item   struct {
+		ID        string          `json:"id"`
+		Type      string          `json:"type"`
+		Text      string          `json:"text"`
+		Command   string          `json:"command"`
+		Name      string          `json:"name"`
+		Server    string          `json:"server"`
+		Tool      string          `json:"tool"`
+		Arguments json.RawMessage `json:"arguments"`
+		Status    string          `json:"status"`
+		Error     *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	} `json:"item"`
+}
+
+func (e itemEvent) call() Call {
+	call := Call{
+		Ref:       e.Item.ID,
+		Server:    e.Item.Server,
+		Tool:      e.Item.Tool,
+		Arguments: e.Item.Arguments,
+		Status:    e.Item.Status,
+	}
+	if call.Tool == "" {
+		// A shell command has no tool name; the command line is what it did.
+		call.Server = "shell"
+		call.Tool = e.Item.Command
+		if call.Tool == "" {
+			call.Tool = e.Item.Name
+		}
+	}
+	if e.Item.Error != nil {
+		call.Failure = e.Item.Error.Message
+	}
+
+	return call
+}
+
 func eventFrom(method string, params json.RawMessage) (Event, bool) {
 	switch method {
 	case "item/agentMessage/delta":
@@ -331,28 +400,23 @@ func eventFrom(method string, params json.RawMessage) (Event, bool) {
 		}
 		return Event{Kind: KindDelta, Text: p.Delta, TurnID: p.TurnID}, true
 
-	case "item/completed":
-		var p struct {
-			TurnID string `json:"turnId"`
-			Item   struct {
-				Type    string `json:"type"`
-				Text    string `json:"text"`
-				Command string `json:"command"`
-				Name    string `json:"name"`
-			} `json:"item"`
-		}
+	case "item/started", "item/completed":
+		var p itemEvent
 		if json.Unmarshal(params, &p) != nil {
 			return Event{}, false
 		}
 		switch p.Item.Type {
 		case "agentMessage":
+			if method == "item/started" {
+				return Event{}, false
+			}
 			return Event{Kind: KindText, Text: p.Item.Text, TurnID: p.TurnID}, true
 		case "commandExecution", "mcpToolCall", "toolCall":
-			name := p.Item.Name
-			if name == "" {
-				name = p.Item.Command
+			kind := KindTool
+			if method == "item/started" {
+				kind = KindToolStarted
 			}
-			return Event{Kind: KindTool, Tool: name, TurnID: p.TurnID}, true
+			return Event{Kind: kind, TurnID: p.TurnID, Call: p.call()}, true
 		}
 		return Event{}, false
 

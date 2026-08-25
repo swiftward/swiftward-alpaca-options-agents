@@ -45,6 +45,17 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 		Detail: "structure risks 1.4% of capital, ceiling is 1%",
 	}))
 
+	require.NoError(t, kept.CallStarted(ctx, ToolCall{
+		Ref: "call-1", TurnRef: "turn-1", Server: "broker", Tool: "place_option_order",
+		Arguments: []byte(`{"symbol":"SPY260825P00760000","qty":1}`),
+		StartedAt: started.Add(30 * time.Second), Status: "inProgress",
+	}))
+	require.NoError(t, kept.CallStarted(ctx, ToolCall{
+		Ref: "call-2", TurnRef: "turn-1", Server: "broker", Tool: "get_option_snapshot",
+		StartedAt: started.Add(40 * time.Second), Status: "inProgress",
+	}))
+	require.NoError(t, kept.CallFinished(ctx, "call-2", started.Add(41*time.Second), "completed", ""))
+
 	state, err := kept.Read(ctx)
 	require.NoError(t, err)
 	require.Len(t, state.Turns, 1)
@@ -70,6 +81,25 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 	require.Len(t, state.Turns, 2)
 	assert.Equal(t, "turn-later-2", state.Turns[0].Ref)
 	assert.Equal(t, "turn-later-1", state.Turns[1].Ref)
+
+	// The order was in flight when the process died: it may or may not have
+	// reached the broker, and the record must not choose.
+	inFlight, err := kept.CloseCallsLeftOpen(ctx, started.Add(2*time.Minute))
+	require.NoError(t, err)
+	assert.Equal(t, 1, inFlight)
+
+	state, err = kept.Read(ctx)
+	require.NoError(t, err)
+	require.Len(t, state.Calls, 2)
+	byRef := map[string]ToolCall{}
+	for _, call := range state.Calls {
+		byRef[call.Ref] = call
+	}
+	assert.Equal(t, StatusUnknown, byRef["call-1"].Status)
+	assert.Equal(t, RestartedFailure, byRef["call-1"].Failure)
+	assert.JSONEq(t, `{"symbol":"SPY260825P00760000","qty":1}`, string(byRef["call-1"].Arguments))
+	assert.Equal(t, "completed", byRef["call-2"].Status, "a call that ended keeps how it ended")
+	assert.Empty(t, byRef["call-2"].Arguments, "a call with no arguments reported carries none")
 
 	// The three later turns were never closed: this is what a process dying
 	// mid-turn leaves behind, and startup has to answer for it.

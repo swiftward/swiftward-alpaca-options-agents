@@ -371,12 +371,48 @@ func (h *Harness) followTheSession(ctx context.Context) {
 			switch ev.Kind {
 			case agent.KindText:
 				h.say(ctx, ev.Text)
+			case agent.KindToolStarted:
+				h.callStarted(ctx, ev)
+				h.updateStatus(ctx, working(h.runningFor(), ev.Call.Named()))
 			case agent.KindTool:
-				h.updateStatus(ctx, working(h.runningFor(), ev.Tool))
+				h.callFinished(ctx, ev)
 			case agent.KindTurnDone:
 				h.finishTurn(ctx, ev.TurnID)
 			}
 		}
+	}
+}
+
+// callStarted and callFinished write down what the session did with its hands.
+// The pair is kept rather than one row at the end, so a call that was in flight
+// when the process died is visible as unknown rather than as never made.
+func (h *Harness) callStarted(ctx context.Context, ev agent.Event) {
+	if h.Record == nil || ev.Call.Ref == "" {
+		return
+	}
+
+	err := h.Record.CallStarted(ctx, record.ToolCall{
+		Ref:       ev.Call.Ref,
+		TurnRef:   ev.TurnID,
+		Server:    ev.Call.Server,
+		Tool:      ev.Call.Tool,
+		Arguments: ev.Call.Arguments,
+		StartedAt: h.Now(),
+		Status:    ev.Call.Status,
+	})
+	if err != nil {
+		h.Log.Error("could not record the call", zap.String("tool", ev.Call.Named()), zap.Error(err))
+	}
+}
+
+func (h *Harness) callFinished(ctx context.Context, ev agent.Event) {
+	if h.Record == nil || ev.Call.Ref == "" {
+		return
+	}
+
+	err := h.Record.CallFinished(ctx, ev.Call.Ref, h.Now(), ev.Call.Status, ev.Call.Failure)
+	if err != nil {
+		h.Log.Error("could not close the call", zap.String("tool", ev.Call.Named()), zap.Error(err))
 	}
 }
 

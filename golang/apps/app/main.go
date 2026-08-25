@@ -238,6 +238,15 @@ func run(log *zap.Logger) error {
 			log.Warn("turns were left open by an earlier process", zap.Int("turns", left))
 		}
 
+		// A call in flight when a process dies may or may not have reached the
+		// broker. Saying which would be a guess, so the record says unknown.
+		if left, err := state.CloseCallsLeftOpen(ctx, time.Now()); err != nil {
+			return err
+		} else if left > 0 {
+			log.Warn("tool calls were in flight when an earlier process ended",
+				zap.Int("calls", left))
+		}
+
 		h := &harness.Harness{
 			CallTimeout: cfg.AgentCallTimeout,
 			Now:         time.Now,

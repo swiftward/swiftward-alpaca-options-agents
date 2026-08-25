@@ -125,6 +125,14 @@ figcaption {
 
 .scrolls { overflow-x: auto; }
 
+/* An argument list can be long; the row stays readable and the full text is in
+   the title. */
+#calls td:nth-child(3) {
+  max-width: 28rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

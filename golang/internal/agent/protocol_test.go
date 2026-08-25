@@ -44,7 +44,8 @@ read line   # thread/start
 echo '{"jsonrpc":"2.0","id":2,"result":{"thread":{"id":"th-1"}}}'
 read line   # turn/start
 echo '{"jsonrpc":"2.0","id":3,"result":{"turn":{"id":"tu-1"}}}'
-echo '{"method":"item/completed","params":{"turnId":"tu-1","item":{"type":"commandExecution","command":"ls"}}}'
+echo '{"method":"item/started","params":{"turnId":"tu-1","item":{"id":"call-1","type":"mcpToolCall","server":"broker","tool":"get_option_chain","arguments":{"underlying_symbol":"SPY"},"status":"inProgress"}}}'
+echo '{"method":"item/completed","params":{"turnId":"tu-1","item":{"id":"call-1","type":"mcpToolCall","server":"broker","tool":"get_option_chain","arguments":{"underlying_symbol":"SPY"},"status":"completed"}}}'
 echo '{"method":"item/agentMessage/delta","params":{"turnId":"tu-1","delta":"pre"}}'
 echo '{"method":"item/completed","params":{"turnId":"tu-1","item":{"type":"agentMessage","text":"premium is rich"}}}'
 echo '{"method":"turn/completed","params":{"threadId":"th-1","turn":{"id":"tu-1"}}}'
@@ -67,23 +68,45 @@ read line
 	assert.Equal(t, "tu-1", turnID)
 
 	var kinds []Kind
-	var text, tool string
+	var text string
+	var started, finished Call
 	for ev := range client.Events() {
 		kinds = append(kinds, ev.Kind)
 		switch ev.Kind {
 		case KindText:
 			text = ev.Text
+		case KindToolStarted:
+			started = ev.Call
 		case KindTool:
-			tool = ev.Tool
+			finished = ev.Call
 		}
 		if ev.Kind == KindTurnDone {
 			break
 		}
 	}
 
-	assert.Equal(t, []Kind{KindTool, KindDelta, KindText, KindTurnDone}, kinds)
+	assert.Equal(t, []Kind{KindToolStarted, KindTool, KindDelta, KindText, KindTurnDone}, kinds)
 	assert.Equal(t, "premium is rich", text)
-	assert.Equal(t, "ls", tool)
+	assert.Equal(t, "get_option_chain", started.Tool)
+	assert.Equal(t, "broker", started.Server)
+	assert.JSONEq(t, `{"underlying_symbol":"SPY"}`, string(started.Arguments),
+		"the record says what was asked, not only which tool was asked")
+	assert.Equal(t, "call-1", finished.Ref, "the same call ends as began")
+	assert.Equal(t, "completed", finished.Status)
+	assert.Equal(t, "broker.get_option_chain", finished.Named())
+}
+
+// A shell command has no tool name. Naming it by its command line keeps the
+// record readable without inventing a name for it.
+func TestAShellCommandIsNamedByWhatItRan(t *testing.T) {
+	event, ok := eventFrom("item/started", []byte(
+		`{"turnId":"tu-1","item":{"id":"call-2","type":"commandExecution","command":"ls /work","status":"inProgress"}}`))
+
+	require.True(t, ok)
+	assert.Equal(t, KindToolStarted, event.Kind)
+	assert.Equal(t, "shell", event.Call.Server)
+	assert.Equal(t, "ls /work", event.Call.Tool)
+	assert.Equal(t, "ls /work", event.Call.Named())
 }
 
 // Steering carries the turn it means. Sending it without one would let a message

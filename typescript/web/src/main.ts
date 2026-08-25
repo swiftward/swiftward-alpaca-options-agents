@@ -62,7 +62,19 @@ type Intent = { at: string; session: string; thesis: string; structure: string; 
 
 type Refusal = { at: string; boundary: string; detail: string }
 
-type State = { turns: Turn[]; intents: Intent[]; refusals: Refusal[] }
+type ToolCall = {
+  ref: string
+  turn_ref: string
+  server: string
+  tool: string
+  arguments?: unknown
+  started_at: string
+  finished_at?: string
+  status: string
+  failure?: string
+}
+
+type State = { turns: Turn[]; calls: ToolCall[]; intents: Intent[]; refusals: Refusal[] }
 
 // Same origin by default: the page is served by the read side that answers these
 // routes. A deployment that puts the page elsewhere sets this to that address.
@@ -88,6 +100,7 @@ async function render(): Promise<void> {
   if (equity.ok) drawEquity(equity.value)
 
   if (state.ok) {
+    fillTable('#calls', callsTable(state.value.calls))
     fill('#intents', state.value.intents, intentCard, 'no intents yet: the agent has not planned an order')
     fill('#refusals', state.value.refusals, refusalCard, 'no refusals: no order has hit a boundary')
     fill('#turns', state.value.turns, turnCard, 'no turns yet: nothing has woken the agent')
@@ -157,13 +170,15 @@ function drawEquity(line: Snapshot[]): void {
   const values = line.map((point) => point.equity)
   const lowest = Math.min(...values)
   const highest = Math.max(...values)
-  const span = highest - lowest || 1
+  const span = highest - lowest
   const width = 720
   const height = 160
 
   const points = line.map((point, index) => {
     const x = (index / (line.length - 1)) * width
-    const y = height - ((point.equity - lowest) / span) * (height - 8) - 4
+    // An account that has not moved draws through the middle. Scaled to a span of
+    // zero it would lie along the floor and read as a loss of everything.
+    const y = span === 0 ? height / 2 : height - ((point.equity - lowest) / span) * (height - 8) - 4
     return `${x.toFixed(1)},${y.toFixed(1)}`
   })
 
@@ -175,7 +190,7 @@ function drawEquity(line: Snapshot[]): void {
 
   caption.textContent =
     `${line.length} readings, ${clock(line[0].recorded_at)} to ${clock(line[line.length - 1].recorded_at)}` +
-    ` · low ${dollars(lowest)} · high ${dollars(highest)}`
+    (span === 0 ? ' · unchanged so far' : ` · low ${dollars(lowest)} · high ${dollars(highest)}`)
 }
 
 function positionsTable(positions: Position[]): { head: string[]; rows: string[][]; empty: string } {
@@ -217,6 +232,20 @@ function ordersTable(orders: Order[]): { head: string[]; rows: string[][]; empty
 // showing its absent quantity as zero would read as an order for nothing.
 function amount(order: Order): string {
   return order.quantity > 0 ? trim(order.quantity) : dollars(order.notional)
+}
+
+function callsTable(calls: ToolCall[]): { head: string[]; rows: string[][]; empty: string } {
+  return {
+    head: ['started', 'tool', 'asked', 'took', 'status'],
+    rows: calls.map((call) => [
+      clock(call.started_at),
+      call.server && call.server !== 'shell' ? `${call.server}.${call.tool}` : call.tool,
+      call.arguments === undefined || call.arguments === null ? '' : JSON.stringify(call.arguments),
+      call.finished_at ? took(call.started_at, call.finished_at) : '',
+      call.failure ? `${call.status}: ${call.failure}` : call.status,
+    ]),
+    empty: 'no tool calls recorded yet',
+  }
 }
 
 // A negative limit price on a spread is a credit: the broker pays us to open it.
