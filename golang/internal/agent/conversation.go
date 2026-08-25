@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,6 +48,15 @@ func NewConversation(client *Client, options ThreadOptions, rememberIn string, c
 func (c *Conversation) Open(ctx context.Context) (string, error) {
 	if c.threadID != "" {
 		return c.threadID, nil
+	}
+
+	// A remembered thread we have no bound for is the worst of both: the harness
+	// wakes nobody until the resume answers, and nothing says when to give up.
+	// Refusing here turns a silent unbounded wait into a start that fails loudly -
+	// which is what a knob declared in one place and never passed to the process
+	// looks like from the inside.
+	if c.rememberIn != "" && c.resumeLimit <= 0 {
+		return "", errors.New("a conversation may be remembered only with a bound on resuming it: set THREAD_RESUME_LIMIT")
 	}
 
 	if remembered := c.remembered(); remembered != "" {

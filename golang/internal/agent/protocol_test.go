@@ -307,3 +307,14 @@ func TestALongAnswerIsCutRatherThanKeptWhole(t *testing.T) {
 	assert.Len(t, event.Call.Answer, answerKept)
 	assert.NotContains(t, event.Call.Answer, "refused")
 }
+
+// A knob declared in one place and never passed to the process reads as zero
+// here, and zero meant "wait forever" - so the harness woke nobody and the only
+// symptom was a log line that never arrived. It refuses to start instead.
+func TestRememberingAThreadWithoutABoundOnResumingItRefuses(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "thread")
+	_, err := NewConversation(nil, ThreadOptions{}, file, 5*time.Second, 0).Open(context.Background())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "THREAD_RESUME_LIMIT")
+}

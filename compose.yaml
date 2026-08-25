@@ -144,6 +144,7 @@ services:
       # One request to the agent may take this long. Past it the chat is told,
       # rather than the whole room waiting on a session that stopped answering.
       AGENT_CALL_TIMEOUT: ${AGENT_CALL_TIMEOUT}
+      THREAD_RESUME_LIMIT: ${THREAD_RESUME_LIMIT}
       # Дольше этого один ход не живёт: за ним ждут другие сессии, и защита,
       # которая не отработала из-за длинного перебора, хуже перебора.
       TURN_LIMIT: ${TURN_LIMIT}
