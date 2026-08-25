@@ -22,7 +22,7 @@ The agent trades defined-risk options structures on Alpaca. Every broker call pa
 | `docker` | one Dockerfile per service, including the egress proxy and its allowlist |
 | `postgres/migrations` | schema, applied by the `migrate` service before anything reads it |
 | `agent` | what the agent itself reads: its instructions and the declaration of when it wakes |
-| `docs` | write-up and architecture |
+| `docs` | the submission write-up (`write-up.md`), the architecture and what was measured on the broker |
 
 ## Running it
 
