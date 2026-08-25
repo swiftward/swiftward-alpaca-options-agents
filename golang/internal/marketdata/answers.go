@@ -117,6 +117,7 @@ type accountAnswer struct {
 		BuyingPower         string `json:"buying_power"`
 		OptionsBuyingPower  string `json:"options_buying_power"`
 		PositionMarketValue string `json:"position_market_value"`
+		OptionsTradingLevel int    `json:"options_trading_level"`
 	} `json:"data"`
 }
 
@@ -125,6 +126,7 @@ func (a accountAnswer) account() (Account, error) {
 	account := Account{
 		Number:              a.Data.Number,
 		Status:              a.Data.Status,
+		OptionsTradingLevel: a.Data.OptionsTradingLevel,
 		Equity:              read.field("equity", a.Data.Equity),
 		EquityYesterday:     read.field("last_equity", a.Data.LastEquity),
 		Cash:                read.field("cash", a.Data.Cash),

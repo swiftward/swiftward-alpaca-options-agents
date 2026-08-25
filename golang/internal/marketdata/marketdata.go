@@ -51,8 +51,13 @@ type Quote struct {
 // Account is the money: what the account is worth, what is free, and what it was
 // worth at yesterday's close, which is what the day's result is measured from.
 type Account struct {
-	Number              string  `json:"number"`
-	Status              string  `json:"status"`
+	Number string `json:"number"`
+	Status string `json:"status"`
+	// OptionsTradingLevel is what the broker allows this account to do with
+	// options: 0 none, 1 covered, 2 long, 3 spreads. The agent reads it rather
+	// than being told - a structure above the level is refused, and the level is
+	// the broker's answer, not ours.
+	OptionsTradingLevel int     `json:"options_trading_level"`
 	Equity              float64 `json:"equity"`
 	EquityYesterday     float64 `json:"equity_yesterday"`
 	Cash                float64 `json:"cash"`

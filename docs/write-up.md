@@ -38,8 +38,9 @@ The volatility history is ours: the broker answers what an option costs now, and
 - **Defined risk only.** Every position is a spread whose largest possible loss is known before it is opened. No naked short options.
 - **0.5% of capital per position, at most eight open.** Sizing is arithmetic on the account the broker reports, not a number in a prompt.
 - **Intent before order.** No order is sent before `record_intent` has stated the thesis, the structure and the maximum loss. A fill can be read anywhere; only that record says what the agent meant.
-- **Defence on a clock.** Every thirty minutes: close at twice the credit lost, close if price crosses the short strike, close under two hours to expiry, and close what has already given up 60% of its maximum profit.
-- **Flat by the close.** A session at 15:50 closes everything expiring that day.
+- **Defence on a clock.** Every thirty minutes the agent looks at what it holds and closes a position whose short strike price has crossed. Nothing else is closed early: a same-day spread lives on time decay, and closing it early pays the spread twice while collecting half of what it was opened for.
+- **A daily halt.** Down 2% from yesterday's close, the entry windows open nothing for the rest of the day.
+- **Flat by the close.** A session at 15:50 closes anything whose short strike sits within fifty cents of price - the positions that risk assignment - and lets the rest expire.
 - **Every call written down.** `tool_calls` carries the server, the tool, the arguments and the outcome of every call the session made. A call still in flight when a process dies is recorded as `unknown`, never as done: an order in that state may or may not have reached the broker, and the record does not choose.
 
 ## Alpaca's infrastructure

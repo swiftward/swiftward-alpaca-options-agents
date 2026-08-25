@@ -1,13 +1,15 @@
 # Architecture
 
-Six services, two networks, one binary with three roles. The shape exists to make one property true: **the agent cannot reach the broker except through the policy gateway, and cannot reach anything else at all.**
+Six services, two networks, one binary with three roles. The shape exists to make one property true: **the agent reaches nothing except the services beside it and the hosts the proxy allows.**
+
+Today it reaches the broker's own server directly, over `BROKER_MCP_URL`. That is the development account, and it is the one claim on this page that describes an intention rather than the running system: the policy gateway is not yet in front of the broker, so nothing between the agent and Alpaca declares a limit or refuses an order. When it is, the address changes and the agent holds no broker credential either way.
 
 ## Services
 
 | Service | What it is | Where it can go |
 |---|---|---|
 | `agent` | our binary holding the clock, the volatility history and the session's tools, and the agent it starts | the broker's server, Postgres, and the egress proxy |
-| `page` | the same binary serving the read side and the built page | Postgres |
+| `page` | the same binary serving the read side and the built page | Postgres, and the broker for the money it shows |
 | `migrate` | applies `postgres/migrations` in name order, then exits | Postgres |
 | `alpaca-mcp` | Alpaca's own MCP server, pinned to a released version | Alpaca |
 | `egress` | forward proxy with a host allowlist (`docker/egress/filter.txt`) | the hosts it allows |
@@ -30,14 +32,16 @@ The agent sits on `internal` alone. Everything it can do is therefore enumerable
 - **`harness`** decides *when* a session runs and says *why* it woke it. It never decides what to trade - the session does, and the autonomy requirement rests on that line. Two causes wake a session: the schedule in the declaration, and a person writing in the chat. With neither it refuses to start, because a harness that runs while waking nobody looks exactly like a working one.
 
   The harness runs the agent as a child process and reads its event stream: every message the session produces is posted to the chat, and each tool call replaces one status line rather than adding a message. A person writing back wakes the next session on the same thread, so the conversation continues rather than restarting. **The agent knows nothing about the chat** - that is what makes a session woken by the clock and one woken by a person the same thing from inside.
-- **`api`** serves the read side: `/healthz`, `/state`, and the built page from `WEB_DIR`. It decides nothing and reaches nothing but the record.
+- **`api`** serves the read side: `/healthz`, `/state`, `/money`, `/equity` and the built page from `WEB_DIR`. It decides nothing and orders nothing; it reads the record, and it asks the broker what the account is worth.
 - **`mcp`** is the session's own toolbox (`internal/sessiontools`), carrying what Alpaca's cannot: `record_intent`, which a session calls *before* it orders anything; `read_state`, which the next session calls to learn what already happened; and `post_to_chat`, which tells the people watching. A judge can see fills anywhere; only the first of these says what the session meant to do.
 
   `post_to_chat` exists only when a chat is configured. An agent that can see a tool assumes it works, so an unconfigured channel offers no tool rather than one that fails.
 
 ## The record
 
-Three tables, and each answers its own question: `turns` - when a session ran and why; `tool_calls` - what it did with its hands, with the arguments it sent and what came back; `intents` - what it meant to do before it ordered anything. The harness writes the first two from the agent's own stream, whether or not a chat is watching; `record_intent` writes the third.
+Five tables. Three carry what the agent did, and each answers its own question: `turns` - when a session ran and why; `tool_calls` - what it did with its hands, with the arguments it sent and what came back; `intents` - what it meant to do before it ordered anything. The harness writes the first two from the agent's own stream, whether or not a chat is watching; `record_intent` writes the third.
+
+`volatility_samples` and `account_snapshots` carry what the market and the account were worth over time, written by the recorders below.
 
 A refused order is in `tool_calls`, in the broker's own words. There is no separate table of refusals: the structured refusal is the gateway's, the gateway is a service outside this stack with no path into this database, and a table that can only be empty reads as "the agent was never stopped" rather than as "we do not know". It returns with the gateway that fills it.
 

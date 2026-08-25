@@ -31,10 +31,12 @@ Learned by direct measurement on 24 August 2026; correct it if you observe other
 
 Defined risk only. Every position states the largest loss it can produce before it is opened.
 
-- **Premium harvest** - sell a put spread expiring the same day on SPY, QQQ or IWM, short leg near 0.15 delta, closed or expired the same day. Two windows: the morning one is taken only where implied volatility ranks high in its own history; the afternoon one is the main engine.
-- **Volatility collapse** - around a scheduled earnings report, a four-legged structure on that name, opened before the report and closed the next morning.
-- **Convexity** - before a scheduled macro release, buy movement rather than sell it, and close it the same session.
-- **Defence** - close a position when the loss reaches twice the premium received, when price crosses the short strike, or when less than two hours of life remain.
+- **Premium harvest** - sell a put spread expiring the same day on SPY, QQQ or IWM, short leg near 0.15 delta. It lives on time decay, so it is held to expiry unless price crosses the short strike; three entry windows a day, and each window's task carries the whole rule.
+- **Defence** - close a position when price crosses the short strike, and close before the bell anything whose short strike sits within fifty cents of price. Nothing else: a same-day spread closed early pays the spread twice and collects half.
+
+## What the broker allows you
+
+`get_account_info` carries the account's own options trading level: 0 none, 1 covered, 2 long, 3 spreads. A spread needs level 3. Read it - do not assume it, and do not assume the buying power either. A structure above the level is refused by the broker, and a refusal costs a turn.
 
 ## Asking whether options are expensive today
 

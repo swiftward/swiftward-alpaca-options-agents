@@ -113,7 +113,8 @@ func TestTheAccountReadsAsMoney(t *testing.T) {
 	answer := decode[accountAnswer](t, `{
 	  "data": {"account_number": "PA3KVT8TYI6V", "status": "ACTIVE", "buying_power": "399997.76",
 	    "cash": "99999.44", "equity": "99999.44", "last_equity": "100000",
-	    "options_buying_power": "99999.44", "position_market_value": "0", "currency": "USD"}
+	    "options_buying_power": "99999.44", "position_market_value": "0", "currency": "USD",
+	    "options_approved_level": 3, "options_trading_level": 3}
 	}`)
 
 	account, err := answer.account()
@@ -123,6 +124,7 @@ func TestTheAccountReadsAsMoney(t *testing.T) {
 	assert.InDelta(t, 99999.44, account.Equity, 1e-9)
 	assert.InDelta(t, 100000, account.EquityYesterday, 1e-9)
 	assert.InDelta(t, 399997.76, account.BuyingPower, 1e-9)
+	assert.Equal(t, 3, account.OptionsTradingLevel, "spreads need level 3, and the broker says the level")
 }
 
 func TestAPositionReadsAsHeld(t *testing.T) {
