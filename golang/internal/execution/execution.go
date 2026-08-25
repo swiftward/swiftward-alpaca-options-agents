@@ -148,6 +148,8 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 	if !known {
 		// A leg without a two-sided quote has no price to walk toward. Leaving the
 		// order where it stands is the honest answer; patience will end it.
+		l.Log.Info("left an order alone: a leg has no two-sided quote",
+			zap.String("order", order.ID), zap.Float64("limit", order.LimitPrice))
 		return nil
 	}
 
@@ -156,6 +158,9 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 	// asking for MORE credit answers neither - it walks a marketable order away
 	// from the fill it was about to get.
 	if !worseThan(showing, order.LimitPrice) {
+		l.Log.Info("left an order alone: the book already stands better than our price",
+			zap.String("order", order.ID), zap.Float64("limit", order.LimitPrice),
+			zap.Float64("showing", showing))
 		return nil
 	}
 
@@ -168,6 +173,8 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 		// Nobody said how much of this credit may be given up, and this is not the
 		// place to decide it. The order keeps the price it was placed at, and
 		// patience ends it if the book never comes.
+		l.Log.Info("left an order alone: its name carries no worst price",
+			zap.String("order", order.ID), zap.String("name", order.ClientID))
 		return nil
 	}
 
@@ -178,6 +185,9 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 
 	next := Toward(order.LimitPrice, target, l.Step)
 	if next == order.LimitPrice {
+		l.Log.Info("left an order alone: it already stands at the price it walks toward",
+			zap.String("order", order.ID), zap.Float64("limit", order.LimitPrice),
+			zap.Float64("target", target))
 		return nil
 	}
 
