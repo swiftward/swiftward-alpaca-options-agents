@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
 )
@@ -23,6 +24,14 @@ const reservationPrefix = "worst="
 // accepts. It exists here so the one format has one author.
 func NameFor(worst float64) string {
 	return fmt.Sprintf("%s%.2f", reservationPrefix, worst)
+}
+
+// NameCarrying is the name a replacement gets: the same floor, and something the
+// broker has not seen before. Measured on the account - the broker refuses an
+// order whose name it already knows ("client_order_id must be unique"), so
+// passing the old name through refuses every step of the walk.
+func NameCarrying(worst float64, at time.Time) string {
+	return fmt.Sprintf("%s;%d", NameFor(worst), at.UnixNano())
 }
 
 // Reservation reads the worst price out of an order's name. An order that names

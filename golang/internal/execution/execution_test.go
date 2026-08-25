@@ -372,6 +372,13 @@ func TestTheNameTravelsWithEveryReplacement(t *testing.T) {
 
 	broker.mu.Lock()
 	defer broker.mu.Unlock()
-	assert.Equal(t, NameFor(-0.09), broker.names["o-1"],
-		"the replacement keeps the name, or the floor is lost at the first step")
+	carried := broker.names["o-1"]
+	assert.Contains(t, carried, NameFor(-0.09),
+		"the replacement keeps the floor, or it is lost at the first step")
+	assert.NotEqual(t, NameFor(-0.09), carried,
+		"and it is not the same name: the broker refuses a name it has already seen")
+
+	floor, named := Reservation(marketdata.Order{ClientID: carried})
+	require.True(t, named, "the floor must still be readable from the name the replacement carries")
+	assert.InDelta(t, -0.09, floor, 1e-9)
 }

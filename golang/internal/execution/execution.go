@@ -173,9 +173,10 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 		return nil
 	}
 
-	// The name travels with the order: a replacement the broker names itself would
-	// drop the session's floor, and the next step would find nothing to obey.
-	if err := l.Broker.ReplaceOrder(ctx, order.ID, next, order.ClientID); err != nil {
+	// The floor travels with the order: a replacement the broker names itself would
+	// drop it, and the next step would find nothing to obey. The name is rebuilt
+	// rather than copied, because the broker refuses a name it has already seen.
+	if err := l.Broker.ReplaceOrder(ctx, order.ID, next, NameCarrying(floor, l.Now())); err != nil {
 		return err
 	}
 	l.Log.Info("walked an order toward the book",
