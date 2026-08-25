@@ -91,6 +91,7 @@ services:
       # where one is real would only stall every command.
       AGENT_SANDBOX: danger-full-access
       AGENT_MODEL: ${AGENT_MODEL}
+      AGENT_REASONING_EFFORT: ${AGENT_REASONING_EFFORT}
       # Kept in the work volume, so a restart continues the same conversation.
       THREAD_FILE: /work/.thread
       WAKEUP_FILE: /work/wakeups.json

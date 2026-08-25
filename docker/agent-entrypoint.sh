@@ -22,6 +22,11 @@ fi
 
 {
     echo "# Written on every start from the environment. Edit compose, not this file."
+    if [ -n "${AGENT_REASONING_EFFORT}" ]; then
+        # How hard the model thinks before it answers. A trade is worth more
+        # thinking than a chat reply, and the setting belongs to the deployment.
+        echo "model_reasoning_effort = \"${AGENT_REASONING_EFFORT}\""
+    fi
     if [ -n "${SESSION_MCP_URL}" ]; then
         echo ""
         echo "[mcp_servers.session]"
