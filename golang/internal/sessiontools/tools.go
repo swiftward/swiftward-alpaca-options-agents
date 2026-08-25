@@ -165,6 +165,23 @@ func (t Tools) Handler() http.Handler {
 			}
 			at := now()
 			turn, session := t.running()
+
+			// The same structure stated twice in one turn is one decision written
+			// down twice, and a judge reads it as two. The session is told, so it
+			// orders rather than restating.
+			if turn != "" {
+				current, err := state.Read(ctx)
+				if err != nil {
+					return nil, recordIntentOutput{}, err
+				}
+				for _, already := range current.Intents {
+					if already.TurnRef == turn && already.Structure == in.Structure {
+						return nil, recordIntentOutput{}, fmt.Errorf(
+							"this turn already recorded an intent for %q at %s: order it, or state a different structure",
+							in.Structure, already.At.Format(time.RFC3339))
+					}
+				}
+			}
 			if err := state.AppendIntent(ctx, record.Intent{
 				At:        at,
 				TurnRef:   turn,

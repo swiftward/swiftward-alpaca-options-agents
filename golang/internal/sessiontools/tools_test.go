@@ -405,3 +405,69 @@ func TestAnIntentIsFiledUnderTheTurnThatProducedIt(t *testing.T) {
 	assert.Equal(t, "turn-7", stored.Intents[0].TurnRef)
 	assert.Equal(t, "entry", stored.Intents[0].Session, "the waker of the turn, not a name the model typed")
 }
+
+// One order, one intent. A session that states the same structure twice has
+// written one decision down twice, and the record would show two trades meant.
+func TestTheSameStructureIsNotRecordedTwiceInOneTurn(t *testing.T) {
+	state := record.NewMemory()
+	at := time.Date(2026, 8, 25, 15, 26, 0, 0, time.UTC)
+	server := httptest.NewServer(Tools{
+		Record: state, Now: func() time.Time { return at },
+		Running: &runningDouble{ref: "turn-9", wokenBy: "entry-call"},
+	}.Handler())
+	t.Cleanup(server.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	intent := map[string]any{
+		"thesis":    "премия дорога, движения нет",
+		"structure": "1× QQQ call credit spread 2026-08-26: sell 718 / buy 719",
+		"max_loss":  "$82",
+	}
+
+	first, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "record_intent", Arguments: intent})
+	require.NoError(t, err)
+	require.False(t, first.IsError, first.Content)
+
+	again, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "record_intent", Arguments: intent})
+	require.NoError(t, err)
+	assert.True(t, again.IsError, "the second statement of the same structure must be refused")
+
+	stored, err := state.Read(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, stored.Intents, 1)
+}
+
+// A different structure in the same turn is a different decision: the judged
+// declaration opens one position per underlying inside one turn.
+func TestADifferentStructureInTheSameTurnIsRecorded(t *testing.T) {
+	state := record.NewMemory()
+	server := httptest.NewServer(Tools{
+		Record: state, Now: time.Now,
+		Running: &runningDouble{ref: "turn-9", wokenBy: "entry"},
+	}.Handler())
+	t.Cleanup(server.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	for _, structure := range []string{"SPY 758/757", "QQQ 701/700"} {
+		res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+			Name: "record_intent",
+			Arguments: map[string]any{
+				"thesis": "премия дорога", "structure": structure, "max_loss": "$90",
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, res.IsError, res.Content)
+	}
+
+	stored, err := state.Read(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, stored.Intents, 2)
+}
