@@ -312,6 +312,28 @@ func TestAGenerousBookIsTakenRatherThanTheFloor(t *testing.T) {
 	assert.Empty(t, replaced)
 }
 
+// A book standing better than our own limit is left alone. Walking toward it
+// means asking for more credit than we already asked for, on an order that
+// should have filled - which is how three orders spent an afternoon walking from
+// -0.60 to -0.65 and never filling.
+func TestABookBetterThanOurLimitMovesNothing(t *testing.T) {
+	at := time.Date(2026, 8, 25, 15, 30, 0, 0, time.UTC)
+	order := spread("o-1", -0.60, "new", at.Add(-2*time.Minute))
+	order.ClientID = NameFor(-0.36)
+	broker := &brokerDouble{
+		orders: []marketdata.Order{order},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(2.60, 2.70),
+			"QQQ260826P00700000": quote(0.05, 0.10),
+		},
+	}
+
+	ladder(broker, at, t).step(context.Background())
+
+	replaced, _ := broker.seen()
+	assert.Empty(t, replaced, "the book pays 2.50 against our 0.60: there is nothing to concede")
+}
+
 // An order that names no worst price is left at the price it was placed at.
 // Inventing that number here is what a share-of-the-credit rule would do, and
 // recomputed after each move it ratchets: the whole credit goes, a cent at a

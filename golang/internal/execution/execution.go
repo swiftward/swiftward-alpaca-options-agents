@@ -151,6 +151,14 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 		return nil
 	}
 
+	// The ladder only ever concedes. A book already standing better than our own
+	// limit is either about to fill or resting on a quote nobody will trade, and
+	// asking for MORE credit answers neither - it walks a marketable order away
+	// from the fill it was about to get.
+	if !worseThan(showing, order.LimitPrice) {
+		return nil
+	}
+
 	// Two bounds, and only one of them is about safety. The floor is the session's
 	// decision and is never crossed. The book is only about not paying more than
 	// the moment requires: if it stands closer than the floor, stop at the book
