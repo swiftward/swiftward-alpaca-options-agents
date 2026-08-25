@@ -27,15 +27,17 @@ Learned by direct measurement on 24 August 2026; correct it if you observe other
 
 - Greeks and implied volatility come from `get_option_snapshot` (parameter `symbols`), **not** from `get_option_chain`. They appear only for contracts with a two-sided quote.
 - `get_option_chain` needs `feed=indicative` on this account; the default asks for a feed the account cannot use and the broker answers `403 OPRA agreement is not signed`.
-- Index options (SPXW) carry no greeks and no implied volatility at all, even at the money with a healthy quote. Equity and ETF options (SPY, AVGO) carry both. This is why this project trades SPY options.
+- Index options (SPXW) carry no greeks and no implied volatility at all, even at the money with a healthy quote. Equity and ETF options (SPY, QQQ, IWM) carry both. This is why this project trades ETF options.
+- **An option loses its greeks on the day it expires.** Measured 25 August 2026 at 11:25 New York: zero strikes with delta at that day's expiry on all three underlyings, twenty strikes with delta on the next. So a same-day structure cannot be chosen by delta at all, and by midday its far strikes pay almost nothing - SPY one percent out paid 3% of its risk, while the next expiration at 0.15 delta paid 10%. This is why the engine sells the next expiration and lets a position sleep overnight.
 - After the close, contracts expiring that day are still listed in the chain, but an order against them is refused: `contract "..." is expired`.
+- A position with a later expiration is meant to sleep overnight. Its loss is bounded by the width of the structure, which is why the structure is defined-risk in the first place.
 - Crypto trades around the clock, and the fee is taken in the coin: you can sell slightly less than you bought.
 
 ## The structures this project trades
 
 Defined risk only. Every position states the largest loss it can produce before it is opened.
 
-- **Premium harvest** - sell a put spread expiring the same day on SPY, QQQ or IWM, short leg near 0.15 delta. It lives on time decay, so it is held to expiry unless price crosses the short strike; three entry windows a day, and each window's task carries the whole rule.
+- **Premium harvest** - sell a put spread on SPY, QQQ or IWM, short leg near 0.15 delta, expiring on the nearest date that still carries greeks - usually tomorrow. It lives on time decay, so it is held to expiry unless price crosses the short strike; three entry windows a day, and each window's task carries the whole rule.
 - **Defence** - close a position when price crosses the short strike, and close before the bell anything whose short strike sits within fifty cents of price. Nothing else: a same-day spread closed early pays the spread twice and collects half.
 
 ## What the broker allows you
