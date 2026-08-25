@@ -36,7 +36,7 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 	require.NoError(t, kept.TurnStarted(ctx, turn), "the same turn twice is one row")
 	require.NoError(t, kept.TurnFinished(ctx, "turn-1", started.Add(90*time.Second), ""))
 	require.NoError(t, kept.AppendIntent(ctx, Intent{
-		At: started.Add(time.Minute), Session: "entry",
+		At: started.Add(time.Minute), TurnRef: "turn-1", Session: "entry",
 		Thesis: "premium is rich into the close", Structure: "put spread on SPY expiring today",
 		MaxLoss: "1% of capital",
 	}))
@@ -61,6 +61,7 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 	assert.Equal(t, started.Add(90*time.Second).UTC(), state.Turns[0].FinishedAt.UTC())
 	require.Len(t, state.Intents, 1)
 	assert.Equal(t, "1% of capital", state.Intents[0].MaxLoss)
+	assert.Equal(t, "turn-1", state.Intents[0].TurnRef, "an intent belongs to the turn that produced it")
 
 	// The page carries the newest rows, and only as many as it was told to show.
 	for i := range 3 {

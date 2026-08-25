@@ -17,11 +17,15 @@ import (
 // structure it intends to open and the loss it accepts. A judge reads fills;
 // only this says what the session meant to do.
 type Intent struct {
-	At        time.Time `json:"at"`
-	Session   string    `json:"session"`
-	Thesis    string    `json:"thesis"`
-	Structure string    `json:"structure"`
-	MaxLoss   string    `json:"max_loss"`
+	At time.Time `json:"at"`
+	// TurnRef is the turn that recorded it, and Session is the waker of that turn.
+	// Both come from the harness, not from the session: a name the model types is
+	// what it believes it is, and the record answers what it was.
+	TurnRef   string `json:"turn_ref"`
+	Session   string `json:"session"`
+	Thesis    string `json:"thesis"`
+	Structure string `json:"structure"`
+	MaxLoss   string `json:"max_loss"`
 }
 
 // Turn is one run of the agent: when it ran, who woke it and why.

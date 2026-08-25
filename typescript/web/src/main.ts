@@ -58,7 +58,14 @@ type Turn = {
   failure?: string
 }
 
-type Intent = { at: string; session: string; thesis: string; structure: string; max_loss: string }
+type Intent = {
+  at: string
+  turn_ref: string
+  session: string
+  thesis: string
+  structure: string
+  max_loss: string
+}
 
 type ToolCall = {
   ref: string

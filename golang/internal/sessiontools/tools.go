@@ -28,7 +28,6 @@ const (
 )
 
 type recordIntentInput struct {
-	Session   string `json:"session" jsonschema:"the session that is about to act, as the harness named it"`
 	Thesis    string `json:"thesis" jsonschema:"why this trade, in one sentence"`
 	Structure string `json:"structure" jsonschema:"the option structure about to be opened"`
 	MaxLoss   string `json:"max_loss" jsonschema:"the largest loss this structure can produce"`
@@ -112,6 +111,13 @@ type Schedule interface {
 	Schedule() []declaration.Scheduled
 }
 
+// Running says which turn is in flight and who woke it. Nil means nothing here
+// knows - a session running without a harness - and the intent is then recorded
+// without one rather than with a name the model invented.
+type Running interface {
+	RunningTurn() (ref string, wokenBy string)
+}
+
 // Tools is what this session is given. A field left nil is a tool the session is
 // never shown, which is the only honest way to offer something this deployment
 // cannot do.
@@ -130,6 +136,17 @@ type Tools struct {
 	Volatility Volatility
 	// Schedule answers when this agent will be woken and why.
 	Schedule Schedule
+	// Running says which turn the session is inside.
+	Running Running
+}
+
+// running names the turn an intent belongs to.
+func (t Tools) running() (ref string, wokenBy string) {
+	if t.Running == nil {
+		return "", ""
+	}
+
+	return t.Running.RunningTurn()
 }
 
 // Handler serves these tools over Streamable HTTP.
@@ -143,13 +160,15 @@ func (t Tools) Handler() http.Handler {
 			Description: "State what this session is about to do and the loss it accepts, before sending any order.",
 		},
 		func(ctx context.Context, req *mcp.CallToolRequest, in recordIntentInput) (*mcp.CallToolResult, recordIntentOutput, error) {
-			if in.Session == "" || in.Thesis == "" || in.Structure == "" || in.MaxLoss == "" {
-				return nil, recordIntentOutput{}, fmt.Errorf("session, thesis, structure and max_loss are all required")
+			if in.Thesis == "" || in.Structure == "" || in.MaxLoss == "" {
+				return nil, recordIntentOutput{}, fmt.Errorf("thesis, structure and max_loss are all required")
 			}
 			at := now()
+			turn, session := t.running()
 			if err := state.AppendIntent(ctx, record.Intent{
 				At:        at,
-				Session:   in.Session,
+				TurnRef:   turn,
+				Session:   session,
 				Thesis:    in.Thesis,
 				Structure: in.Structure,
 				MaxLoss:   in.MaxLoss,

@@ -600,6 +600,16 @@ func (h *Harness) runningTurn() string {
 	return h.turnID
 }
 
+// RunningTurn says which turn is in flight and who woke it. The session's own
+// tools ask, so an intent is filed under the turn that produced it rather than
+// under a name the model typed.
+func (h *Harness) RunningTurn() (ref string, wokenBy string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.turnID, h.turnFor
+}
+
 func (h *Harness) say(ctx context.Context, text string) {
 	if h.Chat == nil || strings.TrimSpace(text) == "" {
 		return

@@ -31,11 +31,11 @@ func NewPostgres(pool *pgxpool.Pool, shows int) (*Postgres, error) {
 
 func (p *Postgres) AppendIntent(ctx context.Context, intent Intent) error {
 	_, err := p.pool.Exec(ctx,
-		`INSERT INTO intents (recorded_at, session, thesis, structure, max_loss)
-		 VALUES (@at, @session, @thesis, @structure, @max_loss)`,
+		`INSERT INTO intents (recorded_at, turn_ref, session, thesis, structure, max_loss)
+		 VALUES (@at, @turn, @session, @thesis, @structure, @max_loss)`,
 		pgx.NamedArgs{
-			"at": intent.At, "session": intent.Session, "thesis": intent.Thesis,
-			"structure": intent.Structure, "max_loss": intent.MaxLoss,
+			"at": intent.At, "turn": nullable(intent.TurnRef), "session": intent.Session,
+			"thesis": intent.Thesis, "structure": intent.Structure, "max_loss": intent.MaxLoss,
 		})
 	if err != nil {
 		return fmt.Errorf("record the intent: %w", err)
@@ -213,7 +213,7 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 	}
 
 	intents, err := p.pool.Query(ctx,
-		`SELECT recorded_at, session, thesis, structure, max_loss
+		`SELECT recorded_at, turn_ref, session, thesis, structure, max_loss
 		   FROM intents ORDER BY recorded_at DESC LIMIT @shows`,
 		pgx.NamedArgs{"shows": p.shows})
 	if err != nil {
@@ -223,8 +223,13 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 
 	for intents.Next() {
 		var intent Intent
-		if err := intents.Scan(&intent.At, &intent.Session, &intent.Thesis, &intent.Structure, &intent.MaxLoss); err != nil {
+		var turn *string
+		if err := intents.Scan(&intent.At, &turn, &intent.Session, &intent.Thesis,
+			&intent.Structure, &intent.MaxLoss); err != nil {
 			return State{}, fmt.Errorf("read an intent: %w", err)
+		}
+		if turn != nil {
+			intent.TurnRef = *turn
 		}
 		state.Intents = append(state.Intents, intent)
 	}

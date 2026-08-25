@@ -169,6 +169,19 @@ func run(log *zap.Logger) error {
 		group.Go(func() error { return serve(ctx, cfg.Addr, handler, log.Named("api")) })
 	}
 
+	// The harness is built before the mcp role so the session's tools can ask it
+	// which turn they are inside. With no harness in this process they ask
+	// nobody, and an intent is filed without a turn rather than with a guess.
+	var running *harness.Harness
+	if cfg.Has(config.RoleHarness) {
+		running = &harness.Harness{
+			CallTimeout:  cfg.AgentCallTimeout,
+			DefaultModel: cfg.AgentModel,
+			Now:          time.Now,
+			Log:          log.Named("harness"),
+		}
+	}
+
 	if cfg.Has(config.RoleMCP) {
 		var poster sessiontools.Poster
 		if chat != nil && !cfg.Has(config.RoleHarness) {
@@ -190,6 +203,9 @@ func run(log *zap.Logger) error {
 		}
 		if declared != nil {
 			tools.Schedule = declared
+		}
+		if running != nil {
+			tools.Running = running
 		}
 		if series != nil {
 			tools.Volatility = series
@@ -247,12 +263,7 @@ func run(log *zap.Logger) error {
 				zap.Int("calls", left))
 		}
 
-		h := &harness.Harness{
-			CallTimeout:  cfg.AgentCallTimeout,
-			DefaultModel: cfg.AgentModel,
-			Now:          time.Now,
-			Log:          log.Named("harness"),
-		}
+		h := running
 		h.Record = state
 		if wakeups != nil {
 			h.Wakeups = wakeups

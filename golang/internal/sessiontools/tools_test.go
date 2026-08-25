@@ -22,12 +22,21 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
 
+// runningDouble is the harness as the tools see it: which turn is in flight and
+// who woke it.
+type runningDouble struct {
+	ref     string
+	wokenBy string
+}
+
+func (r *runningDouble) RunningTurn() (string, string) { return r.ref, r.wokenBy }
+
 // The client here is the SDK's own, talking to our server over the same
 // transport the agent uses. Nothing about the protocol is hand-built.
 func connect(t *testing.T, state *record.Memory, now func() time.Time) *mcp.ClientSession {
 	t.Helper()
 
-	server := httptest.NewServer(Tools{Record: state, Now: now}.Handler())
+	server := httptest.NewServer(Tools{Record: state, Now: now, Running: &runningDouble{}}.Handler())
 	t.Cleanup(server.Close)
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
@@ -57,9 +66,8 @@ func TestRecordIntentReachesTheState(t *testing.T) {
 	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
 		Name: "record_intent",
 		Arguments: map[string]any{
-			"session":   "entry",
 			"thesis":    "premium is rich into the close",
-			"structure": "put spread on SPXW expiring today",
+			"structure": "put spread on SPY expiring today",
 			"max_loss":  "1% of capital",
 		},
 	})
@@ -69,7 +77,6 @@ func TestRecordIntentReachesTheState(t *testing.T) {
 	stored, err := state.Read(context.Background())
 	require.NoError(t, err)
 	require.Len(t, stored.Intents, 1)
-	assert.Equal(t, "entry", stored.Intents[0].Session)
 	assert.Equal(t, at, stored.Intents[0].At)
 }
 
@@ -80,9 +87,8 @@ func TestRecordIntentRefusesAnIncompleteIntent(t *testing.T) {
 	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
 		Name: "record_intent",
 		Arguments: map[string]any{
-			"session":   "entry",
 			"thesis":    "premium is rich into the close",
-			"structure": "put spread on SPXW expiring today",
+			"structure": "put spread on SPY expiring today",
 		},
 	})
 	require.NoError(t, err)
@@ -364,4 +370,38 @@ func TestWithoutADeclarationTheScheduleToolIsNotOffered(t *testing.T) {
 	for _, tool := range tools.Tools {
 		assert.NotEqual(t, "read_schedule", tool.Name)
 	}
+}
+
+// An intent belongs to the turn that produced it. Filing it under a name the
+// model typed would leave the judge comparing timestamps to guess causality.
+func TestAnIntentIsFiledUnderTheTurnThatProducedIt(t *testing.T) {
+	state := record.NewMemory()
+	at := time.Date(2026, 9, 3, 18, 20, 0, 0, time.UTC)
+	server := httptest.NewServer(Tools{
+		Record: state, Now: func() time.Time { return at },
+		Running: &runningDouble{ref: "turn-7", wokenBy: "entry"},
+	}.Handler())
+	t.Cleanup(server.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "record_intent",
+		Arguments: map[string]any{
+			"thesis":    "premium is rich into the close",
+			"structure": "SPY put spread 759/758 expiring today",
+			"max_loss":  "0.5% of capital",
+		},
+	})
+	require.NoError(t, err)
+	require.False(t, res.IsError, res.Content)
+
+	stored, err := state.Read(context.Background())
+	require.NoError(t, err)
+	require.Len(t, stored.Intents, 1)
+	assert.Equal(t, "turn-7", stored.Intents[0].TurnRef)
+	assert.Equal(t, "entry", stored.Intents[0].Session, "the waker of the turn, not a name the model typed")
 }
