@@ -248,9 +248,10 @@ func run(log *zap.Logger) error {
 		}
 
 		h := &harness.Harness{
-			CallTimeout: cfg.AgentCallTimeout,
-			Now:         time.Now,
-			Log:         log.Named("harness"),
+			CallTimeout:  cfg.AgentCallTimeout,
+			DefaultModel: cfg.AgentModel,
+			Now:          time.Now,
+			Log:          log.Named("harness"),
 		}
 		h.Record = state
 		if wakeups != nil {

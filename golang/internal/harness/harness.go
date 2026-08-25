@@ -85,6 +85,9 @@ type Harness struct {
 	// Prices answers what a price wake-up is watching for. Nil means price
 	// wake-ups cannot fire, and the session is told so when it tries to set one.
 	Prices Prices
+	// DefaultModel is what a session runs on when the declaration names none. It
+	// is recorded with the turn, so the record can answer which model traded.
+	DefaultModel string
 	// Now is the clock. It is a field so a test is not at the mercy of the wall
 	// clock, and so the only place a time comes from is visible.
 	Now func() time.Time
@@ -315,7 +318,7 @@ func (h *Harness) startTurnWith(ctx context.Context, prompt, who, model string) 
 			StartedAt: h.Now(),
 			WokenBy:   who,
 			Cause:     firstLine(prompt),
-			Model:     model,
+			Model:     h.modelOf(model),
 		}); err != nil {
 			h.Log.Error("could not record the turn", zap.Error(err))
 		}
@@ -576,6 +579,16 @@ func (h *Harness) updateStatus(ctx context.Context, text string) {
 // judged on whether it should have.
 func promptFor(msg telegram.Message) string {
 	return "Woken by a person in the chat.\n" + textOf(msg)
+}
+
+// modelOf names the model this turn actually ran on. An empty one means the
+// session did not override the conversation's, not that none was used.
+func (h *Harness) modelOf(model string) string {
+	if model == "" {
+		return h.DefaultModel
+	}
+
+	return model
 }
 
 // firstLine is the cause: every prompt opens with why the session was woken.

@@ -662,3 +662,31 @@ sessions:
 		return err == nil && len(state.Turns) == 1 && state.Turns[0].FinishedAt != nil
 	})
 }
+
+// The record must answer which model traded. A session that names none runs on
+// the conversation's, and an empty field would read as "no model".
+func TestATurnRecordsTheModelItRanOn(t *testing.T) {
+	conversation := newConversationSpy()
+	kept := record.NewMemory()
+	chat := newChatDouble()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Record: kept,
+		DefaultModel: "gpt-5.6-terra", CallTimeout: 2 * time.Second,
+		Now: time.Now, Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	chat.inbound <- telegram.Message{Text: "что на счёте?", Username: "joker"}
+
+	waitFor(t, func() bool {
+		state, err := kept.Read(ctx)
+		return err == nil && len(state.Turns) == 1
+	})
+
+	state, err := kept.Read(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, "gpt-5.6-terra", state.Turns[0].Model)
+}
