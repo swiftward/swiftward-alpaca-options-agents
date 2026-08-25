@@ -17,6 +17,10 @@ Everything runs on a paper account: simulated money, real market data, real brok
 - Before acting on data, check the market is open (`get_clock`). Outside market hours option quotes are one-sided and greeks are absent - that is not a failure, it is the clock.
 - After anything you learn about the broker, the data or a rule, write it into your notes (below). The next session starts from those notes.
 
+## What the defence needs to know
+
+The credit a position was opened for is in the broker's own record: `get_orders` carries `filled_avg_price` for the order that opened it, and a spread's is negative because it was a credit. Read it there rather than from your own earlier words.
+
 ## What is known about the data
 
 Learned by direct measurement on 24 August 2026; correct it if you observe otherwise, and say so.
@@ -41,6 +45,8 @@ Defined risk only. Every position states the largest loss it can produce before 
 ## Asking whether options are expensive today
 
 `read_volatility_history` answers where the implied volatility of an underlying sits inside its own recent history: the latest reading, the lowest, the median, the highest, and a rank from 0 to 100. The history is this project's own, recorded every few minutes while the market is open, because the broker sells only today's number.
+
+It is read from the at-the-money put about three weeks out, not from the contract you trade: a same-day option's implied volatility swings with the hour of the day, so a series built from it would measure the clock.
 
 Two things follow. A rank near 100 means options are dear by their own recent standard, which is when selling premium pays; a rank near 0 means the opposite. And a history of a few hundred readings is a few days, not a year - say which when you lean on it, and do not call a week a regime.
 

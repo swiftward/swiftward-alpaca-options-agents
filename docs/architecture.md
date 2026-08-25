@@ -49,7 +49,9 @@ It lives in Postgres because it is the evidence: a restart must not empty the pa
 
 ## The volatility history
 
-Two of the three entry rules compare today's implied volatility with its own past, and the broker answers only for today. So the process holding the clock reads the option closest to the money on each watched underlying every few minutes while the market is open, and writes it to `volatility_samples`. The session asks `read_volatility_history` where the latest reading sits in that series.
+An entry rule that compares today's implied volatility with its own past needs a past, and the broker answers only for today. So the process holding the clock reads one contract per underlying every few minutes while the market is open - the at-the-money put about three weeks out - and writes it to `volatility_samples`. The session asks `read_volatility_history` where the latest reading sits in that series.
+
+Three weeks out, and always a put, on purpose. The option this project trades expires the same day: its implied volatility swings with the hour, so a series built from it measures the clock. And a series that mixes calls with puts moves when the skew moves, saying nothing about the level.
 
 Nothing here decides anything: the reading is mechanical, no session is woken for it, and what a rank of 80 means is the session's to say.
 

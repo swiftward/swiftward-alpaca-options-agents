@@ -45,8 +45,9 @@ type Summary struct {
 	Lowest     float64   `json:"lowest"`
 	Median     float64   `json:"median"`
 	Highest    float64   `json:"highest"`
-	// Rank is where the latest reading sits between the lowest and the highest,
-	// from 0 to 100. It is the number the entry rules speak in.
+	// Rank is the share of readings the latest one sits above, from 0 to 100. It
+	// is a place in the series rather than a place between its ends, so a single
+	// outlier moves it by one reading rather than by half the scale.
 	Rank float64 `json:"rank"`
 }
 
@@ -69,6 +70,12 @@ type Store interface {
 // underlying's own currency. Wide enough to find a listed strike on any name,
 // narrow enough that the broker answers with a handful of contracts.
 const strikeSpan = 3.0
+
+// horizon is how far out the expiration must be for the series to mean anything.
+// The option this project trades expires the same day, and its implied
+// volatility swings with the hour rather than with the market - a series built
+// from it measures the clock. A contract three weeks out moves with the market.
+const horizon = 21 * 24 * time.Hour
 
 // contractsRead bounds one listing. Two option types times a few strikes times
 // the nearest expirations fit inside it; more would only be paged.
@@ -144,7 +151,7 @@ func (r *Recorder) readOnce(ctx context.Context) {
 
 func (r *Recorder) record(ctx context.Context, underlying string, price float64) error {
 	now := r.Now()
-	listed, err := r.Market.ContractsAround(ctx, underlying, price, strikeSpan, now, contractsRead)
+	listed, err := r.Market.ContractsAround(ctx, underlying, price, strikeSpan, now.Add(horizon), contractsRead)
 	if err != nil {
 		return err
 	}
@@ -191,39 +198,32 @@ func (r *Recorder) record(ctx context.Context, underlying string, price float64)
 	return nil
 }
 
-// atTheMoney picks the call and the put closest to the price, both from the
-// nearest expiration the broker listed. One contract per option type: two
-// readings a run keep the series comparable with itself.
+// atTheMoney picks one contract: the put closest to the price, from the nearest
+// expiration the broker listed. One reading per underlying per run, and always
+// the same kind of contract - a series that mixes calls with puts moves when the
+// skew moves and says nothing about the level.
 func atTheMoney(listed []marketdata.Contract, price float64) []marketdata.Contract {
-	if len(listed) == 0 {
+	var chosen *marketdata.Contract
+	for i := range listed {
+		contract := listed[i]
+		if contract.Type != "put" {
+			continue
+		}
+		switch {
+		case chosen == nil:
+			chosen = &contract
+		case contract.Expiration.Before(chosen.Expiration):
+			chosen = &contract
+		case contract.Expiration.Equal(chosen.Expiration) &&
+			math.Abs(contract.Strike-price) < math.Abs(chosen.Strike-price):
+			chosen = &contract
+		}
+	}
+	if chosen == nil {
 		return nil
 	}
 
-	nearest := listed[0].Expiration
-	for _, contract := range listed {
-		if contract.Expiration.Before(nearest) {
-			nearest = contract.Expiration
-		}
-	}
-
-	closest := map[string]marketdata.Contract{}
-	for _, contract := range listed {
-		if !contract.Expiration.Equal(nearest) {
-			continue
-		}
-		best, found := closest[contract.Type]
-		if !found || math.Abs(contract.Strike-price) < math.Abs(best.Strike-price) {
-			closest[contract.Type] = contract
-		}
-	}
-
-	chosen := make([]marketdata.Contract, 0, len(closest))
-	for _, contract := range closest {
-		chosen = append(chosen, contract)
-	}
-	sort.Slice(chosen, func(i, j int) bool { return chosen[i].Symbol < chosen[j].Symbol })
-
-	return chosen
+	return []marketdata.Contract{*chosen}
 }
 
 // Summarise turns a series into the numbers the entry rules speak in. It lives
@@ -250,7 +250,7 @@ func Summarise(underlying string, since time.Time, readings []Reading) Summary {
 	summary.Lowest = values[0]
 	summary.Highest = values[len(values)-1]
 	summary.Median = median(values)
-	summary.Rank = rank(summary.Latest, summary.Lowest, summary.Highest)
+	summary.Rank = rank(summary.Latest, values)
 
 	return summary
 }
@@ -270,13 +270,24 @@ func median(sorted []float64) float64 {
 	return (sorted[middle-1] + sorted[middle]) / 2
 }
 
-// rank is 50 when the series never moved: with no spread between lowest and
-// highest, no reading is high or low, and answering 0 or 100 would read as a
-// signal the market never gave.
-func rank(latest, lowest, highest float64) float64 {
-	if highest == lowest {
+// rank counts how much of the series the latest reading stands above. A series
+// that never moved ranks in the middle: no reading in it is high or low, and
+// answering 0 or 100 would read as a signal the market never gave.
+func rank(latest float64, sorted []float64) float64 {
+	below, equal := 0, 0
+	for _, value := range sorted {
+		switch {
+		case value < latest:
+			below++
+		case value == latest:
+			equal++
+		}
+	}
+	if equal == len(sorted) {
 		return 50
 	}
 
-	return (latest - lowest) / (highest - lowest) * 100
+	// The reading itself is one of the equals; counting half of them places a
+	// repeated value in the middle of its own run rather than at either end.
+	return (float64(below) + float64(equal)/2) / float64(len(sorted)) * 100
 }

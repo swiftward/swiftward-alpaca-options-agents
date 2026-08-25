@@ -86,7 +86,6 @@ func TestItRecordsTheContractClosestToTheMoney(t *testing.T) {
 			{Symbol: "SPY260901C00764000", Expiration: expiring("2026-09-01"), Strike: 764, Type: "call"},
 		},
 		quotes: map[string]marketdata.Quote{
-			"SPY260825C00764000": {Symbol: "SPY260825C00764000", Bid: 3.3, Ask: 3.4, ImpliedVolatility: iv(0.1135)},
 			"SPY260825P00764000": {Symbol: "SPY260825P00764000", Bid: 1.4, Ask: 1.5, ImpliedVolatility: iv(0.1201)},
 		},
 	}
@@ -100,10 +99,8 @@ func TestItRecordsTheContractClosestToTheMoney(t *testing.T) {
 	recorder.readOnce(context.Background())
 
 	written := store.written()
-	require.Len(t, written, 2, "one call and one put, both from the nearest expiration")
-	assert.ElementsMatch(t,
-		[]string{"SPY260825C00764000", "SPY260825P00764000"},
-		[]string{written[0].Contract, written[1].Contract})
+	require.Len(t, written, 1, "one reading per underlying, and always the same kind of contract")
+	assert.Equal(t, "SPY260825P00764000", written[0].Contract)
 	assert.Equal(t, 763.65, written[0].UnderlyingPrice)
 	assert.Equal(t, expiring("2026-08-25"), written[0].Expiration)
 }
@@ -115,10 +112,10 @@ func TestAMissingVolatilityIsNotRecordedAsZero(t *testing.T) {
 		open:  true,
 		price: 763.65,
 		contracts: []marketdata.Contract{
-			{Symbol: "SPY260825C00764000", Expiration: expiring("2026-08-25"), Strike: 764, Type: "call"},
+			{Symbol: "SPY260825P00764000", Expiration: expiring("2026-08-25"), Strike: 764, Type: "put"},
 		},
 		quotes: map[string]marketdata.Quote{
-			"SPY260825C00764000": {Symbol: "SPY260825C00764000", Bid: 0, Ask: 3.4},
+			"SPY260825P00764000": {Symbol: "SPY260825P00764000", Bid: 0, Ask: 3.4},
 		},
 	}
 	store := &storeDouble{}
@@ -172,7 +169,9 @@ func TestTheSummaryPlacesTheLatestReadingInItsOwnHistory(t *testing.T) {
 	assert.InDelta(t, 0.10, summary.Lowest, 1e-9)
 	assert.InDelta(t, 0.20, summary.Highest, 1e-9)
 	assert.InDelta(t, 0.145, summary.Median, 1e-9)
-	assert.InDelta(t, 50, summary.Rank, 1e-9)
+	// 0.15 stands above two of the four readings and is one of them: 62.5 out of
+	// a hundred, a place in the series rather than a place between its ends.
+	assert.InDelta(t, 62.5, summary.Rank, 1e-9)
 }
 
 // A series that never moved says nothing about high or low, and answering 0 or
@@ -192,4 +191,39 @@ func TestAnEmptyHistorySaysSo(t *testing.T) {
 
 	assert.Zero(t, summary.Samples)
 	assert.Zero(t, summary.Latest)
+}
+
+// The contract this project trades expires the same day, and its implied
+// volatility swings with the hour. A series built from it measures the clock, so
+// the recorder looks three weeks out - and takes the same kind of contract every
+// time, because a series that mixes calls with puts moves when the skew moves.
+func TestItLooksPastTodaysExpiration(t *testing.T) {
+	market := &marketDouble{
+		open:  true,
+		price: 763.65,
+		contracts: []marketdata.Contract{
+			{Symbol: "SPY260915P00764000", Expiration: expiring("2026-09-15"), Strike: 764, Type: "put"},
+			{Symbol: "SPY260915C00764000", Expiration: expiring("2026-09-15"), Strike: 764, Type: "call"},
+			{Symbol: "SPY261015P00763000", Expiration: expiring("2026-10-15"), Strike: 763, Type: "put"},
+		},
+		quotes: map[string]marketdata.Quote{
+			"SPY260915P00764000": {Symbol: "SPY260915P00764000", Bid: 8.4, Ask: 8.6, ImpliedVolatility: iv(0.1502)},
+			"SPY260915C00764000": {Symbol: "SPY260915C00764000", Bid: 9.1, Ask: 9.3, ImpliedVolatility: iv(0.1301)},
+			"SPY261015P00763000": {Symbol: "SPY261015P00763000", Bid: 13.4, Ask: 13.7, ImpliedVolatility: iv(0.1601)},
+		},
+	}
+	store := &storeDouble{}
+	now := time.Date(2026, 8, 25, 14, 0, 0, 0, time.UTC)
+	recorder := &Recorder{
+		Market: market, Store: store, Underlyings: []string{"SPY"},
+		Every: time.Hour, Now: func() time.Time { return now }, Log: zaptest.NewLogger(t),
+	}
+
+	recorder.readOnce(context.Background())
+
+	written := store.written()
+	require.Len(t, written, 1)
+	assert.Equal(t, "SPY260915P00764000", written[0].Contract)
+	assert.Equal(t, "put", written[0].OptionType)
+	assert.InDelta(t, 0.1502, written[0].ImpliedVolatility, 1e-9)
 }
