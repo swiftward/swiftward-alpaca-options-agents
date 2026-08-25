@@ -222,9 +222,10 @@ services:
   # own record, because a shared one would let this agent's restart close the
   # other's live turns and let either skip a session the other already ran.
   #
-  # It says nothing in the room on purpose. Two agents narrating into one topic
-  # is unreadable, and the comparison is read from the two records, not from the
-  # chat.
+  # It speaks in its own topic through its own bot. Sharing the first agent's bot
+  # was not possible: Telegram allows one reader per bot, so the two would have
+  # taken the channel from each other in turns. Its own bot also names itself in
+  # the room, so which of the two is speaking is read, not inferred.
   agent-near:
     <<: *agent-service
     environment:
@@ -232,6 +233,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
       BROKER_MCP_URL: http://alpaca-mcp-near:8000/mcp
       DECLARATION: /agent/experiment-near.yaml
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_NEAR_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      TELEGRAM_TOPIC_ID: ${TELEGRAM_NEAR_TOPIC_ID}
+      TELEGRAM_ALLOW_USER_IDS: ${TELEGRAM_ALLOW_USER_IDS}
     volumes:
       - ${CODEX_AUTH_DIR}:/mnt/codex:ro
       - codex-home-near:/home/agent/.codex
