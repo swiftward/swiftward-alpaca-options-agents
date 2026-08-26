@@ -48,8 +48,22 @@ func (p *Postgres) ReplaceCandidates(ctx context.Context, at time.Time, found []
 	return nil
 }
 
-// Candidates reads the last sweep, richest first.
-func (p *Postgres) Candidates(ctx context.Context, most int) ([]screener.Candidate, error) {
+// Candidates reads the last sweep, richest first, and WHEN it was taken.
+//
+// The time is not decoration. Rows outlive the sweep that wrote them: if the
+// screener stops, the table keeps its last answer for as long as the process
+// lives, and a list an hour old looks exactly like one a minute old. Seven
+// minutes was already enough to turn +7.5 points of edge into -7.2 on 26 August,
+// so a reader that cannot see the age cannot judge what it is holding.
+//
+// A zero time means the table is empty - there is no sweep to date.
+func (p *Postgres) Candidates(ctx context.Context, most int) ([]screener.Candidate, time.Time, error) {
+	var takenAt time.Time
+	if err := p.pool.QueryRow(ctx, `SELECT COALESCE(MAX(swept_at), 'epoch') FROM candidates`).
+		Scan(&takenAt); err != nil {
+		return nil, time.Time{}, fmt.Errorf("read when the sweep was taken: %w", err)
+	}
+
 	rows, err := p.pool.Query(ctx,
 		`SELECT underlying, kind, expiration, short_symbol, long_symbol,
 		        short_strike, long_strike, underlying_price, out_of_the_money_percent,
@@ -60,7 +74,7 @@ func (p *Postgres) Candidates(ctx context.Context, most int) ([]screener.Candida
 		  LIMIT @most`,
 		pgx.NamedArgs{"most": most})
 	if err != nil {
-		return nil, fmt.Errorf("read the candidates: %w", err)
+		return nil, time.Time{}, fmt.Errorf("read the candidates: %w", err)
 	}
 	defer rows.Close()
 
@@ -72,12 +86,12 @@ func (p *Postgres) Candidates(ctx context.Context, most int) ([]screener.Candida
 			&one.Price, &one.OutOfTheMoney, &one.Credit, &one.Risk,
 			&one.CreditToRisk, &one.Cost, &one.CostShare, &one.CreditAfterCost,
 			&one.Delta, &one.Edge, &one.EdgeFrom); err != nil {
-			return nil, fmt.Errorf("read a candidate: %w", err)
+			return nil, time.Time{}, fmt.Errorf("read a candidate: %w", err)
 		}
 		found = append(found, one)
 	}
 
-	return found, rows.Err()
+	return found, takenAt, rows.Err()
 }
 
 // AskedInTurn reports whether a tool was called during one turn.

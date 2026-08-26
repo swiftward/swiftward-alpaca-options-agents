@@ -158,7 +158,7 @@ const envelopeTool = "read_envelope"
 
 // Shortlist is the last sweep of the universe, richest first.
 type Shortlist interface {
-	Candidates(ctx context.Context, most int) ([]screener.Candidate, error)
+	Candidates(ctx context.Context, most int) ([]screener.Candidate, time.Time, error)
 }
 
 // running names the turn an intent belongs to.
@@ -265,6 +265,7 @@ func (t Tools) Handler() http.Handler {
 					"Each carries what it pays, what it risks, how far the sold strike sits from the price, what crossing the book costs, and credit_after_cost - the credit with half that crossing taken out, which is what an order sent at the midpoint is worth in expectation. " +
 					"edge_points is measured from credit_after_cost, so a structure quoted wide already shows a worse number and needs no separate rule about its cost. " +
 					"edge_from names what the chance of surviving was read from: the broker's delta, or the price of volatility on the day a contract expires, when the broker computes no delta. " +
+					"seconds_old says how long ago the sweep that priced this list was taken. It matters: seven minutes was enough to turn +7.5 points of edge into -7.2 on one of these structures, so re-read the legs before ordering and treat a list that has stopped being refreshed as no list at all. " +
 					"This is what the market offers, not what you should take: the choice, the size and whether to trade at all remain yours.",
 			},
 			func(ctx context.Context, req *mcp.CallToolRequest, in candidatesInput) (*mcp.CallToolResult, candidatesAnswer, error) {
@@ -272,12 +273,18 @@ func (t Tools) Handler() http.Handler {
 				if most <= 0 {
 					most = defaultCandidates
 				}
-				found, err := t.Shortlist.Candidates(ctx, most)
+				found, takenAt, err := t.Shortlist.Candidates(ctx, most)
 				if err != nil {
 					return nil, candidatesAnswer{}, err
 				}
+				// Age, not the timestamp: a session reasoning about "how stale is
+				// this" should not first have to work out what time it is.
+				age := 0
+				if !takenAt.IsZero() && len(found) > 0 {
+					age = int(t.Now().Sub(takenAt).Seconds())
+				}
 
-				return nil, candidatesAnswer{Candidates: found}, nil
+				return nil, candidatesAnswer{Candidates: found, SecondsOld: age}, nil
 			})
 	}
 
@@ -386,4 +393,8 @@ type candidatesInput struct {
 
 type candidatesAnswer struct {
 	Candidates []screener.Candidate `json:"candidates" jsonschema:"the structures the last sweep priced, richest first"`
+	// SecondsOld is how long ago the sweep behind this list was taken. Rows
+	// outlive the sweep that wrote them, so a list an hour old reads exactly like
+	// one a minute old unless it says which it is.
+	SecondsOld int `json:"seconds_old" jsonschema:"how many seconds ago the sweep behind this list was taken"`
 }

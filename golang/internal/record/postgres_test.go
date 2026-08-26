@@ -212,9 +212,12 @@ func TestPostgresKeepsEverythingTheScreenerWorkedOut(t *testing.T) {
 
 	require.NoError(t, kept.ReplaceCandidates(ctx, at, []screener.Candidate{measured, blind}))
 
-	found, err := kept.Candidates(ctx, 10)
+	found, takenAt, err := kept.Candidates(ctx, 10)
 	require.NoError(t, err)
 	require.Len(t, found, 2)
+	// When the sweep was taken comes back with it: rows outlive the sweep that
+	// wrote them, and a reader that cannot see the age cannot judge the list.
+	assert.True(t, takenAt.Equal(at), "the sweep's own time, not the read's")
 
 	by := map[string]screener.Candidate{}
 	for _, one := range found {
