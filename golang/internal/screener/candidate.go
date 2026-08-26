@@ -135,7 +135,8 @@ const (
 	RefusedPaysTooMuch   = "pays more than its width, so the quote is broken"
 	RefusedNoDelta       = "the broker computes no delta"
 	RefusedDelta         = "too likely to be crossed"
-	RefusedCost          = "the round trip costs too much of the credit"
+	RefusedCost          = "the crossing costs more of the credit than the sanity bound"
+	RefusedEatenByCost   = "the crossing eats the whole credit"
 	RefusedEdge          = "pays less than what it must survive"
 )
 
@@ -276,7 +277,7 @@ func price_(underlying, kind string, price float64,
 	net := credit - cost/2
 	netRisk := width - net
 	if net <= 0 || netRisk <= 0 {
-		refused.note(RefusedCost)
+		refused.note(RefusedEatenByCost)
 		return Candidate{}, false
 	}
 

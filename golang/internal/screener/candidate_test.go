@@ -401,5 +401,7 @@ func TestAStructureTheCrossingEatsIsRefused(t *testing.T) {
 
 	refused := Refused{}
 	assert.Empty(t, Best("QQQ", 710, contracts, quotes, want, refused))
-	assert.Positive(t, refused[RefusedCost])
+	assert.Positive(t, refused[RefusedEatenByCost])
+	assert.Zero(t, refused[RefusedCost],
+		"the sanity bound and the crossing eating the credit are different findings")
 }

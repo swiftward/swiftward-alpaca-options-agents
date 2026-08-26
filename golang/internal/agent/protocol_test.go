@@ -318,3 +318,50 @@ func TestRememberingAThreadWithoutABoundOnResumingItRefuses(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "THREAD_RESUME_LIMIT")
 }
+
+// Closing must end, whatever the agent does. A server that ignores its closed
+// input used to hold the whole process on the way out: main never returned, the
+// container never exited, and because it never exited the supervisor that would
+// have restarted it never fired. It read as Up and did nothing.
+func TestClosingEndsAnAgentThatWillNotLeave(t *testing.T) {
+	// Answers the handshake, then ignores EOF on its input and sits there.
+	agent := fakeAgent(t, answerHandshake+"\nsleep 300\n")
+
+	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
+	require.NoError(t, err)
+
+	was := leaveTime
+	leaveTime = 200 * time.Millisecond
+	defer func() { leaveTime = was }()
+
+	done := make(chan struct{})
+	go func() {
+		_ = client.Close()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Close never returned: the shutdown is unbounded again")
+	}
+}
+
+// The polite path stays polite: an agent that leaves when its input closes is
+// waited for, not killed, and Close returns as soon as it goes.
+func TestClosingWaitsForAnAgentThatLeaves(t *testing.T) {
+	// Leaves of its own accord the moment its input closes.
+	agent := fakeAgent(t, answerHandshake+"\nread line\nexit 0\n")
+
+	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
+	require.NoError(t, err)
+
+	was := leaveTime
+	leaveTime = 5 * time.Second
+	defer func() { leaveTime = was }()
+
+	start := time.Now()
+	require.NoError(t, client.Close())
+	assert.Less(t, time.Since(start), 2*time.Second,
+		"it left on its own, so nothing should have waited out the bound")
+}

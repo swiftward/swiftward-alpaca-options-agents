@@ -152,11 +152,41 @@ func (c *Client) kill() {
 	})
 }
 
+// leaveTime is how long a polite shutdown is given before the agent is killed.
+// A variable rather than a constant so the test can prove the escalation without
+// standing there for ten seconds.
+//
+// The wait that used to be unbounded held the whole process on 26 August: a
+// server that ignored the closed input never exited, main never returned, and
+// because the process never exited Docker's restart policy never fired. The
+// container read as Up for five minutes of a trading day while the harness had
+// already stopped.
+var leaveTime = 10 * time.Second
+
+// Close asks the agent to leave and, if it will not, ends it.
+//
+// The bound is the whole point: a shutdown that can hang forever is worse than
+// a kill, because a process stuck on the way out looks alive to everything above
+// it - to the supervisor that would have restarted it and to the operator
+// reading the container list.
 func (c *Client) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
 		_ = c.stdin.Close()
-		err = c.cmd.Wait()
+
+		left := make(chan error, 1)
+		go func() { left <- c.cmd.Wait() }()
+
+		select {
+		case err = <-left:
+		case <-time.After(leaveTime):
+			if c.cmd.Process != nil {
+				_ = c.cmd.Process.Kill()
+			}
+			err = <-left
+			c.log.Warn("the agent did not leave when its input closed, so it was ended",
+				zap.Duration("waited", leaveTime))
+		}
 		close(c.events)
 	})
 	return err
