@@ -173,7 +173,7 @@ func (s *Sweep) look(ctx context.Context) ([]Candidate, Refused) {
 			continue
 		}
 
-		found = append(found, Best(underlying, price, wanted, quotes, s.Wanted, refused)...)
+		found = append(found, Best(underlying, price, wanted, quotes, s.Now(), s.Wanted, refused)...)
 	}
 
 	return found, refused

@@ -264,6 +264,7 @@ func (t Tools) Handler() http.Handler {
 				Description: "Read the structures the screener priced across the whole permitted universe on its last sweep, best first. " +
 					"Each carries what it pays, what it risks, how far the sold strike sits from the price, what crossing the book costs, and credit_after_cost - the credit with half that crossing taken out, which is what an order sent at the midpoint is worth in expectation. " +
 					"edge_points is measured from credit_after_cost, so a structure quoted wide already shows a worse number and needs no separate rule about its cost. " +
+					"edge_from names what the chance of surviving was read from: the broker's delta, or the price of volatility on the day a contract expires, when the broker computes no delta. " +
 					"This is what the market offers, not what you should take: the choice, the size and whether to trade at all remain yours.",
 			},
 			func(ctx context.Context, req *mcp.CallToolRequest, in candidatesInput) (*mcp.CallToolResult, candidatesAnswer, error) {

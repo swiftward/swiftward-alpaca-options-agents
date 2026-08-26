@@ -65,6 +65,11 @@ type Candidate struct {
 	// delta ceiling threw away ORCL at +3.5, TSLA at +1.6 and INTC at +1.5 for
 	// being 0.30, while keeping nothing better.
 	Edge *float64 `json:"edge_points,omitempty"`
+	// EdgeFrom names what the chance of surviving was read from: the broker's
+	// delta, or the market's implied volatility where the broker computes no
+	// delta. The two are the same quantity from different prices, and a session
+	// weighing a structure is entitled to know which it is looking at.
+	EdgeFrom string `json:"edge_from,omitempty"`
 	// CostShare is that cost as a percent of the credit. This is the number that
 	// separated what earned from what lost on 25-26 August: the structures that
 	// paid had it near 10, the ones that lost had it above 100.
@@ -145,6 +150,10 @@ const (
 	RefusedCost          = "the crossing costs more of the credit than the sanity bound"
 	RefusedEatenByCost   = "the crossing eats the whole credit"
 	RefusedEdge          = "pays less than what it must survive"
+
+	// What the chance of surviving was read from.
+	FromDelta      = "delta"
+	FromVolatility = "implied volatility"
 )
 
 // Best returns the best put spread and the best call spread this underlying
@@ -154,7 +163,7 @@ const (
 // structure whose legs lack a two-sided quote is not ranked low, it is absent:
 // half a price is worse than no price.
 func Best(underlying string, price float64, contracts []marketdata.Contract,
-	quotes map[string]marketdata.Quote, want Wanted, refused Refused) []Candidate {
+	quotes map[string]marketdata.Quote, now time.Time, want Wanted, refused Refused) []Candidate {
 
 	if price <= 0 {
 		return nil
@@ -200,7 +209,7 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 				short, long = list[i-1], list[i]
 			}
 
-			candidate, ok := price_(underlying, kind, price, short, long, quotes, want, refused)
+			candidate, ok := price_(underlying, kind, price, short, long, quotes, now, want, refused)
 			if !ok {
 				continue
 			}
@@ -220,7 +229,7 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 }
 
 func price_(underlying, kind string, price float64,
-	short, long marketdata.Contract, quotes map[string]marketdata.Quote,
+	short, long marketdata.Contract, quotes map[string]marketdata.Quote, now time.Time,
 	want Wanted, refused Refused) (Candidate, bool) {
 
 	shortQuote, haveShort := quotes[short.Symbol]
@@ -307,9 +316,23 @@ func price_(underlying, kind string, price float64,
 		return Candidate{}, false
 	}
 
+	// The chance the sold strike survives, from the broker's delta where there is
+	// one and from the price of volatility where there is not. Both are the same
+	// quantity read off different prices, so the measure below does not change
+	// shape - only where its first half comes from.
+	survives, from := 0.0, ""
+	switch {
+	case shortQuote.Delta != nil:
+		survives, from = 1-math.Abs(*shortQuote.Delta), FromDelta
+	case shortQuote.ImpliedVolatility != nil:
+		if chance, ok := Survival(price, short.Strike, *shortQuote.ImpliedVolatility,
+			leftUntil(short.Expiration, now)); ok {
+			survives, from = chance, FromVolatility
+		}
+	}
+
 	var edge *float64
-	if shortQuote.Delta != nil {
-		survives := 1 - math.Abs(*shortQuote.Delta)
+	if from != "" {
 		breakEven := netRisk / (net + netRisk)
 		points := round((survives - breakEven) * 100)
 		edge = &points
@@ -326,7 +349,7 @@ func price_(underlying, kind string, price float64,
 		Price: price, OutOfTheMoney: round(out),
 		Credit: round(credit), Risk: round(risk), CreditToRisk: round(toRisk),
 		Cost: round(cost), CostShare: round(share), CreditAfterCost: round(net),
-		Delta: shortQuote.Delta, Edge: edge,
+		Delta: shortQuote.Delta, Edge: edge, EdgeFrom: from,
 	}, true
 }
 

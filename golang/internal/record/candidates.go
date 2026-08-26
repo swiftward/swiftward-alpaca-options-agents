@@ -24,10 +24,10 @@ func (p *Postgres) ReplaceCandidates(ctx context.Context, at time.Time, found []
 			`INSERT INTO candidates (swept_at, underlying, kind, expiration,
 			     short_symbol, long_symbol, short_strike, long_strike, underlying_price,
 			     out_of_the_money_percent, credit, risk, credit_to_risk_percent,
-			     cost, cost_share_percent, credit_after_cost, short_delta, edge_points)
+			     cost, cost_share_percent, credit_after_cost, short_delta, edge_points, edge_from)
 			 VALUES (@at, @underlying, @kind, @expiration,
 			     @short, @long, @shortStrike, @longStrike, @price,
-			     @out, @credit, @risk, @toRisk, @cost, @share, @net, @delta, @edge)`,
+			     @out, @credit, @risk, @toRisk, @cost, @share, @net, @delta, @edge, @edgeFrom)`,
 			pgx.NamedArgs{
 				"at": at, "underlying": one.Underlying, "kind": one.Type,
 				"expiration": one.Expiration, "short": one.Short, "long": one.Long,
@@ -53,7 +53,7 @@ func (p *Postgres) Candidates(ctx context.Context, most int) ([]screener.Candida
 		`SELECT underlying, kind, expiration, short_symbol, long_symbol,
 		        short_strike, long_strike, underlying_price, out_of_the_money_percent,
 		        credit, risk, credit_to_risk_percent, cost, cost_share_percent,
-		        credit_after_cost, short_delta, edge_points
+		        credit_after_cost, short_delta, edge_points, edge_from
 		   FROM candidates
 		  ORDER BY edge_points DESC NULLS LAST, credit_to_risk_percent DESC
 		  LIMIT @most`,
@@ -70,7 +70,7 @@ func (p *Postgres) Candidates(ctx context.Context, most int) ([]screener.Candida
 			&one.Short, &one.Long, &one.ShortStrike, &one.LongStrike,
 			&one.Price, &one.OutOfTheMoney, &one.Credit, &one.Risk,
 			&one.CreditToRisk, &one.Cost, &one.CostShare, &one.CreditAfterCost,
-			&one.Delta, &one.Edge); err != nil {
+			&one.Delta, &one.Edge, &one.EdgeFrom); err != nil {
 			return nil, fmt.Errorf("read a candidate: %w", err)
 		}
 		found = append(found, one)
