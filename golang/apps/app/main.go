@@ -69,6 +69,12 @@ func main() {
 	}
 }
 
+// startLimit is how long the whole start may take before the process gives up on
+// itself. Generous: it covers reaching the database, the broker and the agent.
+// A variable rather than a constant so a test can prove the give-up without
+// standing there for a minute.
+var startLimit = 90 * time.Second
+
 // defaultExecutionStep is one tick on these contracts: the broker quotes them in
 // cents, and a step smaller than that is refused.
 const defaultExecutionStep = 0.01
@@ -81,6 +87,27 @@ func run(log *zap.Logger) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	// Starting is bounded, because a start that never finishes looks exactly like
+	// a start that is going fine. On 26 August this process stopped while opening
+	// the conversation with the agent and stayed there for five hours: the
+	// scheduler is built after that point, so nothing ran, nothing failed, and
+	// nothing was logged. The container read as Up the whole time, so the restart
+	// policy - the one thing that would have fixed it - never fired.
+	//
+	// Dying is the useful answer here. Whatever supervises this process can start
+	// it again; nothing can talk a stuck start into finishing.
+	started := make(chan struct{})
+	go func() {
+		select {
+		case <-started:
+		case <-ctx.Done():
+		case <-time.After(startLimit):
+			log.Fatal("the process did not finish starting in time",
+				zap.Duration("limit", startLimit),
+				zap.String("hint", "the last line logged says where it stopped"))
+		}
+	}()
 
 	// The record outlives the process: a judge opening the page after a restart
 	// must still see the week, not an empty screen.
@@ -446,6 +473,7 @@ func run(log *zap.Logger) error {
 		group.Go(func() error { return h.Run(ctx) })
 	}
 
+	close(started)
 	log.Info("started", zap.Any("roles", cfg.Roles))
 
 	return group.Wait()

@@ -128,12 +128,12 @@ type Config struct {
 	// Envelope role. The limits in force and who is under them. Both are read
 	// from outside the binary: an agent whose limits are compiled into the thing
 	// that reads them has not discovered anything.
-	EnvelopeAddr    string
+	EnvelopeAddr string
 	EnvelopePath string
 	// EnvelopeIdentity is which agent in the ruleset this process is. The ladder
 	// needs it to read the same position limit the session is told to size by.
 	EnvelopeIdentity string
-	EnvelopeCallers map[string]string
+	EnvelopeCallers  map[string]string
 
 	// The chat the session posts to. Absent means the agent is offered no way to
 	// post at all, rather than a tool that fails when called.

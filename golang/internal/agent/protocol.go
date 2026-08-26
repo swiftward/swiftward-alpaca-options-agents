@@ -304,8 +304,30 @@ func (c *Client) call(ctx context.Context, method string, params map[string]any)
 	if err != nil {
 		return nil, fmt.Errorf("build %s: %w", method, err)
 	}
-	if _, err := c.stdin.Write(append(request, '\n')); err != nil {
-		return nil, fmt.Errorf("send %s: %w", method, err)
+	// The write is bounded by the same deadline as the wait, because it can block
+	// for exactly as long. A pipe accepts bytes only while the other end reads
+	// them, so a server that has stopped reading turns this line into a wait with
+	// no end - and it sits BEFORE the select below, where every declared timeout
+	// lives. That is what happened on 26 August: the harness stopped here on its
+	// way to opening a conversation, never reached the deadline it had been given,
+	// never returned an error, and so never exited. The scheduler starts after the
+	// conversation opens, so nothing ran for five hours and nothing said why.
+	//
+	// The goroutine may stay blocked on a pipe nobody drains; it holds nothing but
+	// itself and dies with the process, which by then is on its way out.
+	sent := make(chan error, 1)
+	go func() {
+		_, err := c.stdin.Write(append(request, '\n'))
+		sent <- err
+	}()
+
+	select {
+	case err := <-sent:
+		if err != nil {
+			return nil, fmt.Errorf("send %s: %w", method, err)
+		}
+	case <-ctx.Done():
+		return nil, fmt.Errorf("send %s: %w", method, ctx.Err())
 	}
 
 	select {

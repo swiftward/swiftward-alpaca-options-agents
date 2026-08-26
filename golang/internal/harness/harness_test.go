@@ -13,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/agent"
@@ -1053,4 +1055,61 @@ func TestALostRoomDoesNotStopTheWork(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("the harness did not return after the context was cancelled")
 	}
+}
+
+// A turn the agent will not give up holds every session behind it. On 26 August
+// one held them for two hours and nineteen minutes: the limit fired every three
+// minutes, the interrupt was refused every time, and the harness answered each
+// due session with "the agent is working" until a person restarted the container.
+//
+// So refusals are counted, and past the count the harness stops being the thing
+// that waits. Dying costs the conversation and seconds; waiting cost a day.
+func TestARefusedInterruptEndsTheProcessRatherThanWaitingForever(t *testing.T) {
+	was := interruptAttempts
+	interruptAttempts = 2
+	t.Cleanup(func() { interruptAttempts = was })
+
+	conversation := newConversationSpy()
+	conversation.refuseInterrupt = errors.New("context deadline exceeded")
+	chat := newChatDouble()
+	at := time.Date(2026, 8, 26, 14, 20, 0, 0, time.UTC)
+	now := at
+
+	// Fatal ends the process, which a test cannot survive. The hook makes it end
+	// only the goroutine that called it, and the entry itself is what the test
+	// waits on - so the escalation is proven, not described.
+	gaveUp := make(chan struct{})
+	var once sync.Once
+	log := zaptest.NewLogger(t, zaptest.WrapOptions(
+		zap.WithFatalHook(zapcore.WriteThenGoexit),
+		zap.Hooks(func(e zapcore.Entry) error {
+			if e.Level == zapcore.FatalLevel {
+				once.Do(func() { close(gaveUp) })
+			}
+			return nil
+		}),
+	))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Record: record.NewMemory(),
+		TurnLimit: 5 * time.Minute, CallTimeout: 2 * time.Second,
+		Now: func() time.Time { return now }, Log: log,
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	chat.inbound <- telegram.Message{Text: "посмотри все двадцать бумаг", Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	now = at.Add(6 * time.Minute)
+
+	select {
+	case <-gaveUp:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the harness kept asking politely instead of ending the process")
+	}
+	assert.GreaterOrEqual(t, len(conversation.interrupted()), interruptAttempts,
+		"it should have asked the agreed number of times before giving up")
 }

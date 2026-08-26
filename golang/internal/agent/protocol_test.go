@@ -365,3 +365,41 @@ func TestClosingWaitsForAnAgentThatLeaves(t *testing.T) {
 	assert.Less(t, time.Since(start), 2*time.Second,
 		"it left on its own, so nothing should have waited out the bound")
 }
+
+// deafPipe accepts nothing, the way a pipe does when the process on the other end
+// has stopped reading it.
+type deafPipe struct{ shut chan struct{} }
+
+func (d deafPipe) Write([]byte) (int, error) { <-d.shut; return 0, nil }
+func (d deafPipe) Close() error              { close(d.shut); return nil }
+
+// The wait for an answer was bounded and the sending of the question was not, so
+// a server that stopped reading its input turned a call with a deadline into a
+// call without one. On 26 August that stopped this process for five hours on its
+// way to opening a conversation: no error, no timeout, no exit, and therefore no
+// restart - the scheduler is built after that point and never ran at all.
+func TestACallGivesUpEvenIfTheAgentStoppedReading(t *testing.T) {
+	client := &Client{
+		stdin:   deafPipe{shut: make(chan struct{})},
+		log:     zaptest.NewLogger(t),
+		waiting: map[int]chan answer{},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := client.call(ctx, "thread/start", nil)
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		require.Error(t, err)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.Contains(t, err.Error(), "thread/start", "the error names the call that hung")
+	case <-time.After(3 * time.Second):
+		t.Fatal("the call is still trying to send: the deadline does not reach the write")
+	}
+}

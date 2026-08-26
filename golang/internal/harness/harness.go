@@ -122,6 +122,9 @@ type Harness struct {
 	turnFor     string
 	turnStarted time.Time
 	lastRun     map[string]time.Time
+	// refusedInterrupts counts how many times in a row the agent has refused to
+	// give up an overrunning turn. It resets the moment one is given up.
+	refusedInterrupts int
 }
 
 // Run holds both causes until ctx ends. With neither a declaration nor a chat it
@@ -273,9 +276,31 @@ func (h *Harness) endAnOverrunningTurn(ctx context.Context) {
 	// the harness - it keeps believing a turn runs, so every session queues behind
 	// a turn that finished, and the watcher asks again every second forever.
 	if err != nil && !errors.Is(err, agent.ErrNoActiveTurn) {
-		h.Log.Error("could not interrupt the overrunning turn", zap.Error(err))
+		h.mu.Lock()
+		h.refusedInterrupts++
+		refused := h.refusedInterrupts
+		h.mu.Unlock()
+
+		h.Log.Error("could not interrupt the overrunning turn",
+			zap.Error(err), zap.Int("refused", refused), zap.Int("of", interruptAttempts))
+
+		// Politeness has a limit, and past it the harness is the thing standing in
+		// the way. A turn that will not be interrupted holds every session behind
+		// it: on 26 August one held them for two hours and nineteen minutes, and
+		// the only reason it ended was a person restarting the container.
+		//
+		// So the last resort is to stop being the one who waits. Dying costs the
+		// conversation and about ten seconds; not dying costs the rest of the day.
+		if refused >= interruptAttempts {
+			h.Log.Fatal("the agent will not give up the turn: ending the process so it can be started again",
+				zap.String("turn_id", turnID), zap.Duration("ran", ran))
+		}
 		return
 	}
+
+	h.mu.Lock()
+	h.refusedInterrupts = 0
+	h.mu.Unlock()
 	if err != nil {
 		h.Log.Info("the overrunning turn had already ended", zap.String("turn_id", turnID))
 	}
@@ -741,6 +766,12 @@ func (h *Harness) RunningTurn() (ref string, wokenBy string) {
 
 	return h.turnID, h.turnFor
 }
+
+// interruptAttempts is how many refusals in a row are tolerated before the
+// process ends itself. Three, at one attempt per watch tick, is long enough for a
+// turn that is merely slow to finish and short enough that a wedged one does not
+// cost a trading session. A variable so a test can prove the escalation.
+var interruptAttempts = 3
 
 // sayInTurn posts what the session said, unless it said something moments ago -
 // then it is held until either the pause has passed or the turn ends.
