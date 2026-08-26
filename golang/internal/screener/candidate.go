@@ -39,6 +39,10 @@ type Candidate struct {
 	CreditToRisk float64 `json:"credit_to_risk_percent"`
 	// Cost is the round trip: both legs' bid-ask added.
 	Cost float64 `json:"cost"`
+	// Delta is the broker's own reading of how likely the sold strike is to finish
+	// in the money. Nil where the broker computes none, which is the day the
+	// contract expires.
+	Delta *float64 `json:"short_delta,omitempty"`
 	// CostShare is that cost as a percent of the credit. This is the number that
 	// separated what earned from what lost on 25-26 August: the structures that
 	// paid had it near 10, the ones that lost had it above 100.
@@ -67,6 +71,16 @@ type Wanted struct {
 	MostCreditToRisk float64
 	// MaxCostShare is the most the round trip may cost, as a percent of credit.
 	MaxCostShare float64
+	// MostDelta is how likely the sold strike may be to finish in the money, as
+	// the broker's own delta, absolute. Distance in percent is not the same
+	// measure: a strike one percent away is far on a quiet index and near on a
+	// share that moves five percent a day. Ranking by distance alone offered
+	// structures at delta 0.47 to a rule that wants 0.15, and the session threw
+	// every one of them away - a list nobody can act on is worse than no list,
+	// because it costs a turn to reject.
+	//
+	// Zero leaves delta unchecked.
+	MostDelta float64
 }
 
 // Best returns the best put spread and the best call spread this underlying
@@ -160,6 +174,18 @@ func price_(underlying, kind string, price float64,
 		return Candidate{}, false
 	}
 
+	if want.MostDelta > 0 {
+		// Absent delta is not "within the limit": the broker computes none on the
+		// day a contract expires, and that is exactly when the sold strike is most
+		// likely to be crossed.
+		if shortQuote.Delta == nil {
+			return Candidate{}, false
+		}
+		if math.Abs(*shortQuote.Delta) > want.MostDelta {
+			return Candidate{}, false
+		}
+	}
+
 	cost := (shortQuote.Ask - shortQuote.Bid) + (longQuote.Ask - longQuote.Bid)
 	share := cost / credit * 100
 	if share > want.MaxCostShare {
@@ -172,7 +198,7 @@ func price_(underlying, kind string, price float64,
 		ShortStrike: short.Strike, LongStrike: long.Strike,
 		Price: price, OutOfTheMoney: round(out),
 		Credit: round(credit), Risk: round(risk), CreditToRisk: round(toRisk),
-		Cost: round(cost), CostShare: round(share),
+		Cost: round(cost), CostShare: round(share), Delta: shortQuote.Delta,
 	}, true
 }
 

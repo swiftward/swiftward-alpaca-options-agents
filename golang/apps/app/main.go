@@ -287,7 +287,7 @@ func run(log *zap.Logger) error {
 			Wanted: screener.Wanted{
 				MinOutOfTheMoney: cfg.ScreenerNearest, MaxOutOfTheMoney: cfg.ScreenerFurthest,
 				MinCreditToRisk: cfg.ScreenerLeastPaid, MostCreditToRisk: cfg.ScreenerMostPaid,
-				MaxCostShare: cfg.ScreenerDearest,
+				MaxCostShare: cfg.ScreenerDearest, MostDelta: cfg.ScreenerMostDelta,
 			},
 			Every: cfg.ScreenerEvery, PerMinute: cfg.ScreenerPerMinute,
 			Expirations: cfg.ScreenerExpirations,

@@ -135,9 +135,13 @@ func (s *Sweep) look(ctx context.Context) []Candidate {
 		}
 
 		s.wait(ctx)
-		span := price * s.Wanted.MaxOutOfTheMoney / 100
-		contracts, err := s.Broker.ContractsAround(ctx, underlying,
-			price-span/2, span, s.Now(), 200)
+		// The window is centred on the price and reaches as far as the filters ask
+		// on BOTH sides: a put sold below and a call sold above are both wanted.
+		// Getting this wrong is silent - the first version reached 4.5 percent
+		// below and 1.5 percent above, so calls past a percent and a half were
+		// never priced, and the list came back almost entirely puts.
+		reach := price * s.Wanted.MaxOutOfTheMoney / 100
+		contracts, err := s.Broker.ContractsAround(ctx, underlying, price, reach, s.Now(), 400)
 		if err != nil || len(contracts) == 0 {
 			continue
 		}

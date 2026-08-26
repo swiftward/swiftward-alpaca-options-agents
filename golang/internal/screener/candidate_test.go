@@ -167,3 +167,48 @@ func TestAStructurePayingMoreThanItRisksIsReadAsBrokenData(t *testing.T) {
 	}
 	assert.Len(t, Best("QQQ", 710, honest, honestQuotes, want), 1, "25 percent is ordinary and stays")
 }
+
+// Distance in percent and likelihood are not the same measure: a strike one
+// percent away is far on a quiet index and near on a share that moves five
+// percent in a day. Ranking on distance alone offered the session structures at
+// delta 0.47 against a rule that wants 0.15, and it threw every one away - a
+// list nobody can act on costs a turn to reject and is worse than no list.
+func TestAStrikeTooLikelyToBeCrossedIsNotOffered(t *testing.T) {
+	contracts := []marketdata.Contract{put(700), put(701)}
+	near, far := -0.47, -0.14
+	quotes := func(delta float64) map[string]marketdata.Quote {
+		short := quote(0.71, 0.79)
+		short.Delta = &delta
+		return map[string]marketdata.Quote{
+			put(701).Symbol: short,
+			put(700).Symbol: quote(0.51, 0.59),
+		}
+	}
+
+	want := anything()
+	want.MostDelta = 0.25
+
+	assert.Empty(t, Best("QQQ", 710, contracts, quotes(near), want), "0.47 is likelier than the rule accepts")
+
+	found := Best("QQQ", 710, contracts, quotes(far), want)
+	require.Len(t, found, 1, "0.14 is what the rule wants")
+	require.NotNil(t, found[0].Delta)
+	assert.InDelta(t, -0.14, *found[0].Delta, 1e-9, "the session is told the delta, not left to ask again")
+}
+
+// The broker computes no delta on the day a contract expires - which is exactly
+// when the sold strike is most likely to be crossed. Absent is not "within".
+func TestAContractWithNoDeltaIsNotOfferedWhenDeltaIsAskedFor(t *testing.T) {
+	contracts := []marketdata.Contract{put(700), put(701)}
+	quotes := map[string]marketdata.Quote{
+		put(701).Symbol: quote(0.71, 0.79),
+		put(700).Symbol: quote(0.51, 0.59),
+	}
+
+	want := anything()
+	want.MostDelta = 0.25
+	assert.Empty(t, Best("QQQ", 710, contracts, quotes, want))
+
+	want.MostDelta = 0
+	assert.Len(t, Best("QQQ", 710, contracts, quotes, want), 1, "unchecked when not asked for")
+}
