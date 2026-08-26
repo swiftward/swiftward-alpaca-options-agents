@@ -16,8 +16,10 @@ import (
 type Broker interface {
 	MarketOpen(ctx context.Context) (bool, error)
 	LastTrades(ctx context.Context, symbols []string) (map[string]float64, error)
-	ContractsAround(ctx context.Context, underlying string, price, span float64, from time.Time, limit int) ([]marketdata.Contract, error)
-	Quotes(ctx context.Context, symbols []string) (map[string]marketdata.Quote, error)
+	// Chain brings one underlying's contracts and their prices back together, in
+	// a single request. Listing then quoting was two, and the pair was the whole
+	// cost of a sweep.
+	Chain(ctx context.Context, underlying string, low, high float64, until time.Time, most int) ([]marketdata.Contract, map[string]marketdata.Quote, error)
 }
 
 // Keeper is where a sweep's findings are left for the session to read.
@@ -82,6 +84,13 @@ func (s *Sweep) Run(ctx context.Context) error {
 	}
 }
 
+// chainMost is how many priced contracts one underlying may bring back.
+//
+// The broker's own ceiling is a thousand and it counts contracts, not symbols,
+// so a name with many expirations inside the window can reach it. Asking for the
+// ceiling costs nothing extra: the limit bounds the answer, not the request.
+const chainMost = 1000
+
 func (s *Sweep) once(ctx context.Context) {
 	open, err := s.Broker.MarketOpen(ctx)
 	if err != nil {
@@ -145,35 +154,19 @@ func (s *Sweep) look(ctx context.Context) ([]Candidate, Refused) {
 		// Getting this wrong is silent - the first version reached 4.5 percent
 		// below and 1.5 percent above, so calls past a percent and a half were
 		// never priced, and the list came back almost entirely puts.
+		//
+		// ONE call brings the contracts and their prices together. It used to be
+		// two, and two was the sweep's whole cost: the broker allows 180 requests
+		// a minute, so what the pair bought in reach, the single call buys twice
+		// over.
 		reach := price * s.Wanted.MaxOutOfTheMoney / 100
-		contracts, err := s.Broker.ContractsAround(ctx, underlying, price, reach, s.Now(), 400)
-		if err != nil || len(contracts) == 0 {
+		contracts, quotes, err := s.Broker.Chain(ctx, underlying,
+			price-reach, price+reach, s.Now().AddDate(0, 0, s.Expirations), chainMost)
+		if err != nil || len(contracts) < 2 {
 			continue
 		}
 
-		wanted := contracts[:0]
-		latest := s.Now().AddDate(0, 0, s.Expirations)
-		for _, contract := range contracts {
-			if !contract.Expiration.After(latest) {
-				wanted = append(wanted, contract)
-			}
-		}
-		if len(wanted) < 2 {
-			continue
-		}
-
-		symbols := make([]string, 0, len(wanted))
-		for _, contract := range wanted {
-			symbols = append(symbols, contract.Symbol)
-		}
-
-		s.wait(ctx)
-		quotes, err := s.Broker.Quotes(ctx, symbols)
-		if err != nil {
-			continue
-		}
-
-		found = append(found, Best(underlying, price, wanted, quotes, s.Now(), s.Wanted, refused)...)
+		found = append(found, Best(underlying, price, contracts, quotes, s.Now(), s.Wanted, refused)...)
 	}
 
 	return found, refused

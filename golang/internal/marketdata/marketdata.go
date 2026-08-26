@@ -41,9 +41,14 @@ type Contract struct {
 // two-sided, which is why they are pointers: zero volatility is a number, and
 // "the market is closed" is not it.
 type Quote struct {
-	Symbol            string
-	Bid               float64
-	Ask               float64
+	Symbol string
+	Bid    float64
+	Ask    float64
+	// BidSize and AskSize are what the book is showing at each side. They do not
+	// cap a fill: 50 contracts went through against 25 shown on 25 August. A side
+	// showing nothing, though, is a price nobody is standing behind.
+	BidSize           int
+	AskSize           int
 	ImpliedVolatility *float64
 	Delta             *float64
 }
@@ -214,6 +219,36 @@ func (b *Broker) ContractsAround(ctx context.Context, underlying string, price, 
 	}
 
 	return answer.contracts()
+}
+
+// Chain reads a whole underlying's options in ONE call: the contracts, their
+// quotes, their implied volatility and their greeks together.
+//
+// It replaces a pair of calls - list the contracts, then snapshot them - and the
+// pair was the sweep's whole cost. The broker allows 180 requests a minute and
+// the sweep spent two of them per underlying, so halving that is the difference
+// between pricing 284 names and pricing twice as many, or pricing the same names
+// twice as often. Nothing about the arithmetic changes; only how much of the
+// market it reaches.
+//
+// A contract the answer prices without a quote is returned anyway: what is
+// missing is the caller's to judge, and a strike dropped here is a strike the
+// screener cannot even count as refused.
+func (b *Broker) Chain(ctx context.Context, underlying string, low, high float64,
+	until time.Time, most int) ([]Contract, map[string]Quote, error) {
+
+	var answer chainAnswer
+	if err := b.call(ctx, "get_option_chain", map[string]any{
+		"underlying_symbol":   underlying,
+		"strike_price_gte":    fmt.Sprintf("%.2f", low),
+		"strike_price_lte":    fmt.Sprintf("%.2f", high),
+		"expiration_date_lte": until.Format(time.DateOnly),
+		"limit":               most,
+	}, &answer); err != nil {
+		return nil, nil, err
+	}
+
+	return answer.chain()
 }
 
 // Quotes reads the quote, the implied volatility and the delta of each contract

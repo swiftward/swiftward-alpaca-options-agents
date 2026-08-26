@@ -35,20 +35,29 @@ func (b *brokerDouble) LastTrades(_ context.Context, symbols []string) (map[stri
 	return out, nil
 }
 
-func (b *brokerDouble) ContractsAround(_ context.Context, underlying string, _, _ float64, _ time.Time, _ int) ([]marketdata.Contract, error) {
-	b.calls++
-	return b.contracts[underlying], nil
-}
+// Chain answers with the contracts inside the strike window and only their
+// quotes, in ONE call - the same bargain the real broker offers, which is what
+// makes the call count in these tests mean anything.
+func (b *brokerDouble) Chain(_ context.Context, underlying string, low, high float64,
+	until time.Time, _ int) ([]marketdata.Contract, map[string]marketdata.Quote, error) {
 
-func (b *brokerDouble) Quotes(_ context.Context, symbols []string) (map[string]marketdata.Quote, error) {
 	b.calls++
-	out := map[string]marketdata.Quote{}
-	for _, symbol := range symbols {
-		if quote, known := b.quotes[symbol]; known {
-			out[symbol] = quote
+	var contracts []marketdata.Contract
+	quotes := map[string]marketdata.Quote{}
+	for _, contract := range b.contracts[underlying] {
+		if contract.Strike < low || contract.Strike > high {
+			continue
+		}
+		if contract.Expiration.After(until) {
+			continue
+		}
+		contracts = append(contracts, contract)
+		if quote, known := b.quotes[contract.Symbol]; known {
+			quotes[contract.Symbol] = quote
 		}
 	}
-	return out, nil
+
+	return contracts, quotes, nil
 }
 
 type keeperDouble struct{ kept []Candidate }
@@ -167,4 +176,34 @@ func TestASweepWithoutItsSettingsRefusesToRun(t *testing.T) {
 		broken.Log = zaptest.NewLogger(t)
 		assert.Error(t, broken.Run(context.Background()))
 	}
+}
+
+// What a sweep costs the broker, counted rather than assumed.
+//
+// The rate limit is the sweep's only real constraint - 180 requests a minute -
+// so the number of requests per underlying IS the reach of the whole screener.
+// It was three: one batch of prices, then a contract list and a snapshot for
+// each name. The chain brings the last two back together, so it is two, and the
+// same limit reaches twice as far.
+func TestOneSweepSpendsTwoRequestsPerUnderlying(t *testing.T) {
+	broker := &brokerDouble{
+		open:   true,
+		prices: map[string]float64{"QQQ": 710, "SPY": 765},
+		contracts: map[string][]marketdata.Contract{
+			"QQQ": {put(700), put(701)},
+			"SPY": {put(755), put(756)},
+		},
+		quotes: map[string]marketdata.Quote{
+			put(701).Symbol: with(quote(0.71, 0.79), -0.14),
+			put(700).Symbol: with(quote(0.51, 0.59), -0.12),
+			put(756).Symbol: with(quote(0.71, 0.79), -0.14),
+			put(755).Symbol: with(quote(0.51, 0.59), -0.12),
+		},
+	}
+	keeper := &keeperDouble{}
+	sweeping(t, broker, keeper, []string{"QQQ", "SPY"})
+
+	// One batch of prices for both names, then one chain each.
+	assert.Equal(t, 3, broker.calls,
+		"a third request per underlying is a third of the universe given up")
 }

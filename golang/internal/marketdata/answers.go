@@ -2,6 +2,7 @@ package marketdata
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -84,8 +85,16 @@ type snapshotsAnswer struct {
 			LatestQuote struct {
 				Bid float64 `json:"bp"`
 				Ask float64 `json:"ap"`
+				// How much the book is showing at each side. It does not cap a
+				// fill - 50 contracts went through against 25 shown on 25 August -
+				// but a side showing nothing at all is a price nobody is standing
+				// behind.
+				BidSize int `json:"bs"`
+				AskSize int `json:"as"`
 			} `json:"latestQuote"`
 		} `json:"snapshots"`
+		// NextPage is set when the strikes asked for did not fit in one answer.
+		NextPage string `json:"next_page_token"`
 	} `json:"data"`
 }
 
@@ -96,6 +105,8 @@ func (a snapshotsAnswer) quotes() map[string]Quote {
 			Symbol:            symbol,
 			Bid:               snapshot.LatestQuote.Bid,
 			Ask:               snapshot.LatestQuote.Ask,
+			BidSize:           snapshot.LatestQuote.BidSize,
+			AskSize:           snapshot.LatestQuote.AskSize,
 			ImpliedVolatility: snapshot.ImpliedVolatility,
 		}
 		if snapshot.Greeks != nil {
@@ -277,4 +288,40 @@ func (o brokerOrder) order() (Order, error) {
 	}
 
 	return order, nil
+}
+
+// chainAnswer is a whole underlying's options priced in one call. The snapshots
+// are shaped exactly as get_option_snapshot's are, so the quote is read by the
+// same code; what the chain adds is that the contract itself arrives with it,
+// named by its symbol.
+type chainAnswer struct {
+	snapshotsAnswer
+}
+
+// chain reads the contracts out of the symbols the answer is keyed by, and the
+// quotes out of the snapshots under them.
+//
+// The symbol is the source for strike, expiration and type here, because the
+// chain gives no separate contract record. A symbol that does not parse is
+// skipped rather than guessed: the two places this is read - what a fill is
+// called and what the record keeps - are both worse with a wrong strike.
+func (a chainAnswer) chain() ([]Contract, map[string]Quote, error) {
+	quotes := a.quotes()
+	contracts := make([]Contract, 0, len(quotes))
+	for symbol := range quotes {
+		contract, parsed := ContractFrom(symbol)
+		if !parsed {
+			continue
+		}
+		contracts = append(contracts, contract)
+	}
+	sort.Slice(contracts, func(i, j int) bool {
+		if !contracts[i].Expiration.Equal(contracts[j].Expiration) {
+			return contracts[i].Expiration.Before(contracts[j].Expiration)
+		}
+
+		return contracts[i].Strike < contracts[j].Strike
+	})
+
+	return contracts, quotes, nil
 }
