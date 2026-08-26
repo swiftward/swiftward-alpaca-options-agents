@@ -6,6 +6,8 @@ Every call it makes to the broker goes through the policy gateway, at `BROKER_MC
 
 The credential is per agent, so the record names WHICH agent made each call, and one agent can be stopped without touching the other. The surface that displays the account carries a different one, which can read and cannot order: a page that could trade is a page whose leak is a trade.
 
+Its calls to the model go the same way, at `MODEL_GATEWAY_URL`, under a path that names the agent. The session keeps using its own subscription login - the gateway forwards it upstream unchanged and stores nothing - so what each agent asked the model is recorded without anyone handing over a credential. Its outbound requests go through the gateway too, which allows the hosts it is configured with and refuses the rest.
+
 Its limits come from outside it too. The session asks `read_envelope` before it builds anything and is told what applies to it and by which version of the rules; no number it sizes with is written anywhere in its prompt. That answer comes from the `envelope` service beside it, under the same server name - so a limit is **disclosed** there and **enforced** at the gateway, and neither is anything the session can talk its way out of.
 
 ## Services

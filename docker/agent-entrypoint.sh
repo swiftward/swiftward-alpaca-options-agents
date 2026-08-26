@@ -27,6 +27,20 @@ fi
         # thinking than a chat reply, and the setting belongs to the deployment.
         echo "model_reasoning_effort = \"${AGENT_REASONING_EFFORT}\""
     fi
+    # The model, reached through the policy gateway. The session keeps using its
+    # OWN subscription login: the gateway forwards the Authorization header
+    # upstream unchanged and stores nothing. `requires_openai_auth` is what makes
+    # the CLI send that login to an address that is not OpenAI's.
+    if [ -n "${MODEL_GATEWAY_URL}" ]; then
+        echo ""
+        echo "model_provider = \"swiftward\""
+        echo ""
+        echo "[model_providers.swiftward]"
+        echo "name = \"Swiftward\""
+        echo "base_url = \"${MODEL_GATEWAY_URL}\""
+        echo "wire_api = \"responses\""
+        echo "requires_openai_auth = true"
+    fi
     if [ -n "${SESSION_MCP_URL}" ]; then
         echo ""
         echo "[mcp_servers.session]"

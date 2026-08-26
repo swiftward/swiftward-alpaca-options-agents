@@ -234,6 +234,8 @@ services:
       # agent can be stopped without touching the other.
       BROKER_MCP_URL: ${BROKER_MCP_URL}
       BROKER_MCP_TOKEN: ${BROKER_MCP_TOKEN}
+      # The model through the policy gateway, under this agent's own name.
+      MODEL_GATEWAY_URL: ${MODEL_GATEWAY_URL}
       DECLARATION: ${DECLARATION:-/agent/agent.yaml}
       GATEWAY_TOKEN: ${GATEWAY_TOKEN}
       # The ladder reads the SAME ruleset the envelope serves, so what one
@@ -267,6 +269,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
       BROKER_MCP_URL: ${BROKER_NEAR_MCP_URL:-http://alpaca-mcp-near:8000/mcp}
       BROKER_MCP_TOKEN: ${BROKER_NEAR_MCP_TOKEN}
+      MODEL_GATEWAY_URL: ${MODEL_NEAR_GATEWAY_URL}
       DECLARATION: /agent/experiment-near.yaml
       GATEWAY_TOKEN: ${GATEWAY_NEAR_TOKEN}
       ENVELOPE_PATH: /policy/envelope.yaml
