@@ -7,7 +7,11 @@ description: The rule for opening a premium-harvest position - sell a put credit
 
 Sell a vertical put spread and hold it while time passes. The credit is taken on the way in; what is left of it at expiry is the profit. The loss is bounded by the width of the spread, which is why it may be opened at all.
 
-The rule is here once. A task that asks for premium-harvest may add to it or ask for less; it does not repeat it.
+The rule is here once. A task that asks for premium-harvest does not repeat it.
+
+**The numbers below are this playbook's usual ones, not its law.** Where your task names a different delta, a different credit-to-risk threshold or a different ceiling on the cost of the round trip, that number replaces the one here and the mechanics stay as written. Two accounts run this playbook side by side precisely so that such numbers can differ - a session that quietly keeps the number from this file has cancelled the experiment it was opened for. Say in one line which number you took and where it came from.
+
+The limits are the other way round: what the envelope hands you is never replaced by anything. The full order is in `AGENTS.md`.
 
 ## Before anything
 
