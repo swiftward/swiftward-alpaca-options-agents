@@ -97,6 +97,9 @@ type Config struct {
 	// ScreenerMostDelta is how likely the sold strike may be to finish in the
 	// money. Distance in percent is a different measure and not a substitute.
 	ScreenerMostDelta float64
+	// ScreenerLeastEdge is the least a structure may pay above what it must
+	// survive, in percentage points.
+	ScreenerLeastEdge float64
 	// ScreenerDearest is the most the round trip may cost, as a percent of the
 	// credit. This is the number that separates what earns from what loses.
 	ScreenerDearest float64
@@ -240,6 +243,7 @@ func Load() (Config, error) {
 		ScreenerLeastPaid:     k.Float64("screener_least_paid"),
 		ScreenerMostPaid:      k.Float64("screener_most_paid"),
 		ScreenerMostDelta:     k.Float64("screener_most_delta"),
+		ScreenerLeastEdge:     k.Float64("screener_least_edge"),
 		ScreenerDearest:       k.Float64("screener_dearest"),
 		ScreenerExpirations:   k.Int("screener_expirations"),
 		ThreadResumeLimit:     resumeLimit,

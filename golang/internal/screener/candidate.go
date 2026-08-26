@@ -43,6 +43,18 @@ type Candidate struct {
 	// in the money. Nil where the broker computes none, which is the day the
 	// contract expires.
 	Delta *float64 `json:"short_delta,omitempty"`
+	// Edge is what the structure pays against what it must survive, in percentage
+	// points: the chance the broker's own delta gives the sold strike of expiring
+	// worthless, less the share of the time this credit has to win to break even.
+	//
+	// Positive means the market is paying more for this risk than the same market
+	// says the risk is worth. It is a SCREEN and not a promise: delta is a
+	// risk-neutral probability rather than a real one, and a spread does not lose
+	// its whole width when the strike is touched. But it ranks on both halves at
+	// once, which neither credit-to-risk nor delta does alone - on 26 August a
+	// delta ceiling threw away ORCL at +3.5, TSLA at +1.6 and INTC at +1.5 for
+	// being 0.30, while keeping nothing better.
+	Edge *float64 `json:"edge_points,omitempty"`
 	// CostShare is that cost as a percent of the credit. This is the number that
 	// separated what earned from what lost on 25-26 August: the structures that
 	// paid had it near 10, the ones that lost had it above 100.
@@ -81,6 +93,9 @@ type Wanted struct {
 	//
 	// Zero leaves delta unchecked.
 	MostDelta float64
+	// LeastEdge is the least a structure may pay above what it must survive, in
+	// percentage points. Zero leaves it unchecked.
+	LeastEdge float64
 }
 
 // Best returns the best put spread and the best call spread this underlying
@@ -130,7 +145,7 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 			}
 			// One best per side across every expiration: the session wants the best
 			// put and the best call, not one of each per day.
-			if kept, have := best[kind]; !have || candidate.CreditToRisk > kept.CreditToRisk {
+			if kept, have := best[kind]; !have || richer(candidate, kept) {
 				best[kind] = candidate
 			}
 		}
@@ -139,7 +154,7 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 		found = append(found, candidate)
 	}
 
-	sort.Slice(found, func(i, j int) bool { return found[i].CreditToRisk > found[j].CreditToRisk })
+	sort.Slice(found, func(i, j int) bool { return richer(found[i], found[j]) })
 
 	return found
 }
@@ -203,14 +218,44 @@ func price_(underlying, kind string, price float64,
 		return Candidate{}, false
 	}
 
+	var edge *float64
+	if shortQuote.Delta != nil {
+		survives := 1 - math.Abs(*shortQuote.Delta)
+		breakEven := risk / (credit + risk)
+		points := round((survives - breakEven) * 100)
+		edge = &points
+		if want.LeastEdge != 0 && points < want.LeastEdge {
+			return Candidate{}, false
+		}
+	} else if want.LeastEdge != 0 {
+		// No delta, no way to weigh what it pays against what it survives.
+		return Candidate{}, false
+	}
+
 	return Candidate{
 		Underlying: underlying, Type: kind, Expiration: short.Expiration,
 		Short: short.Symbol, Long: long.Symbol,
 		ShortStrike: short.Strike, LongStrike: long.Strike,
 		Price: price, OutOfTheMoney: round(out),
 		Credit: round(credit), Risk: round(risk), CreditToRisk: round(toRisk),
-		Cost: round(cost), CostShare: round(share), Delta: shortQuote.Delta,
+		Cost: round(cost), CostShare: round(share), Delta: shortQuote.Delta, Edge: edge,
 	}, true
+}
+
+// richer compares on what a structure pays against what it must survive, and
+// falls back to what it pays against what it risks where no delta was given.
+func richer(one, than Candidate) bool {
+	if one.Edge != nil && than.Edge != nil {
+		return *one.Edge > *than.Edge
+	}
+	if one.Edge != nil {
+		return true
+	}
+	if than.Edge != nil {
+		return false
+	}
+
+	return one.CreditToRisk > than.CreditToRisk
 }
 
 func round(value float64) float64 { return math.Round(value*100) / 100 }

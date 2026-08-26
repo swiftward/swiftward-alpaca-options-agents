@@ -35,6 +35,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/execution"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/harness"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/reconcile"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/screener"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/sessiontools"
@@ -291,6 +292,7 @@ func run(log *zap.Logger) error {
 				MinOutOfTheMoney: cfg.ScreenerNearest, MaxOutOfTheMoney: cfg.ScreenerFurthest,
 				MinCreditToRisk: cfg.ScreenerLeastPaid, MostCreditToRisk: cfg.ScreenerMostPaid,
 				MaxCostShare: cfg.ScreenerDearest, MostDelta: cfg.ScreenerMostDelta,
+				LeastEdge: cfg.ScreenerLeastEdge,
 			},
 			Every: cfg.ScreenerEvery, PerMinute: cfg.ScreenerPerMinute,
 			Expirations: cfg.ScreenerExpirations,
@@ -349,6 +351,20 @@ func run(log *zap.Logger) error {
 		} else if left > 0 {
 			log.Warn("tool calls were in flight when an earlier process ended",
 				zap.Int("calls", left))
+		}
+
+		// Unknown is the honest thing to write down and the wrong thing to leave
+		// written: the broker knows whether the order arrived, and every order this
+		// project sends carries a name to ask by.
+		if shortlist != nil && broker != nil {
+			settled, err := reconcile.Ask(ctx, broker, shortlist,
+				time.Now().AddDate(0, 0, -7), log.Named("reconcile"))
+			if err != nil {
+				log.Error("could not ask the broker about orders left unknown", zap.Error(err))
+			} else if settled > 0 {
+				log.Info("orders left unknown by an earlier process were settled",
+					zap.Int("orders", settled))
+			}
 		}
 
 		h := running

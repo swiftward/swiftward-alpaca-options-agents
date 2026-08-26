@@ -238,3 +238,68 @@ func TestLegsOfDifferentExpirationsAreNeverPaired(t *testing.T) {
 	require.Len(t, found, 1)
 	assert.Equal(t, expiry, found[0].Expiration)
 }
+
+// Neither half decides alone. A delta ceiling keeps what is far and throws away
+// what pays; a credit threshold keeps what pays and ignores how often it loses.
+// On 26 August the delta ceiling of 0.25 rejected ORCL, TSLA and INTC - all three
+// paying more than the same market said their risk was worth - while keeping
+// nothing better.
+func TestWhatPaysAboveWhatItMustSurviveIsRankedFirst(t *testing.T) {
+	// Two structures at the SAME delta: one paying 50% of risk, one paying 25%.
+	// At delta 0.30 the strike survives 70% of the time; 50% credit breaks even at
+	// 66.7% and 25% credit at 80%. So the first has +3.3 points and the second
+	// -10, and no delta rule can tell them apart.
+	rich := []marketdata.Contract{put(700), put(701)}
+	delta := -0.30
+	short := quote(1.00, 1.00)
+	short.Delta = &delta
+	long := quote(0.665, 0.665)
+	long.Delta = &delta
+
+	want := anything()
+	want.MostDelta = 0
+	found := Best("QQQ", 710, rich, map[string]marketdata.Quote{
+		put(701).Symbol: short, put(700).Symbol: long,
+	}, want)
+	require.Len(t, found, 1)
+	require.NotNil(t, found[0].Edge)
+	assert.Greater(t, *found[0].Edge, 0.0, "paid 50 percent of risk at a 30 percent chance of losing")
+
+	// A long leg priced NEARER the short one leaves less credit: 0.90 against 1.00
+	// pays a tenth of the width, which breaks even at 90 percent while the strike
+	// survives 70 - twenty points short.
+	poor := quote(0.90, 0.90)
+	poor.Delta = &delta
+	thin := Best("QQQ", 710, rich, map[string]marketdata.Quote{
+		put(701).Symbol: short, put(700).Symbol: poor,
+	}, want)
+	require.Len(t, thin, 1)
+	require.NotNil(t, thin[0].Edge)
+	assert.Less(t, *thin[0].Edge, *found[0].Edge, "the same delta, less paid, less edge")
+}
+
+// A floor on it keeps out what the same market prices as not worth its risk.
+func TestAStructurePayingLessThanItsRiskIsWorthIsLeftOut(t *testing.T) {
+	contracts := []marketdata.Contract{put(700), put(701)}
+	delta := -0.30
+	short := quote(1.00, 1.00)
+	short.Delta = &delta
+	thin := quote(0.80, 0.80)
+
+	want := anything()
+	want.MostDelta = 0
+	want.LeastEdge = 0.1
+
+	// A fifth of the width at a 30 percent chance of loss: breaks even at 80
+	// percent while the strike survives 70, so ten points short.
+	assert.Empty(t, Best("QQQ", 710, contracts, map[string]marketdata.Quote{
+		put(701).Symbol: short, put(700).Symbol: thin,
+	}, want))
+
+	// Without delta there is nothing to weigh against, so it is absent rather
+	// than assumed good.
+	noDelta := quote(1.00, 1.00)
+	assert.Empty(t, Best("QQQ", 710, contracts, map[string]marketdata.Quote{
+		put(701).Symbol: noDelta, put(700).Symbol: quote(0.50, 0.50),
+	}, want))
+}
