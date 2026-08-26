@@ -73,3 +73,24 @@ func (p *Postgres) Candidates(ctx context.Context, most int) ([]screener.Candida
 
 	return found, rows.Err()
 }
+
+// AskedInTurn reports whether a tool was called during one turn.
+//
+// The session lives as turns on ONE conversation, so a limit read on an early
+// turn is still sitting in the model's context on a later one - and from inside,
+// that is not a stale cache, it is memory. Asking the session not to cache is
+// therefore useless: it does not think it is caching. What can be checked is
+// whether the call happened in THIS turn, and the record already knows.
+func (p *Postgres) AskedInTurn(ctx context.Context, turnRef, tool string) (bool, error) {
+	var asked bool
+	err := p.pool.QueryRow(ctx,
+		`SELECT EXISTS (
+		     SELECT 1 FROM tool_calls
+		      WHERE turn_ref = @turn AND tool = @tool AND status <> 'failed')`,
+		pgx.NamedArgs{"turn": turnRef, "tool": tool}).Scan(&asked)
+	if err != nil {
+		return false, fmt.Errorf("ask whether %s was called in turn %s: %w", tool, turnRef, err)
+	}
+
+	return asked, nil
+}

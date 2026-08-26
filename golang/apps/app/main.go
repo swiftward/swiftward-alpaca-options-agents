@@ -226,6 +226,9 @@ func run(log *zap.Logger) error {
 		if shortlist != nil && len(cfg.ScreenerUnderlyings) > 0 {
 			tools.Shortlist = shortlist
 		}
+		if shortlist != nil {
+			tools.Asked = shortlist
+		}
 
 		handler := tools.Handler()
 		group.Go(func() error { return serve(ctx, cfg.MCPAddr, handler, log.Named("mcp")) })

@@ -142,7 +142,19 @@ type Tools struct {
 	// Shortlist is what the screener priced across the whole universe. A nil one
 	// means no screener is running and the tool is not offered.
 	Shortlist Shortlist
+	// Asked answers whether a tool was called during one turn. Nil skips the
+	// check, which is what a run without a database does.
+	Asked Asked
 }
+
+// Asked answers whether a tool was called during one turn.
+type Asked interface {
+	AskedInTurn(ctx context.Context, turnRef, tool string) (bool, error)
+}
+
+// envelopeTool is the name a session calls to learn its limits. Named here
+// because the check below is about that call and no other.
+const envelopeTool = "read_envelope"
 
 // Shortlist is the last sweep of the universe, richest first.
 type Shortlist interface {
@@ -174,6 +186,23 @@ func (t Tools) Handler() http.Handler {
 			}
 			at := now()
 			turn, session := t.running()
+
+			// The limits have to have been read in THIS turn. Sessions are turns on
+			// one conversation, so an answer from an earlier turn is still in the
+			// model's context and does not read as stale to it - which is why this
+			// is checked rather than asked for. A session that states an intent
+			// from memory is stating it against limits that may have moved.
+			if t.Asked != nil && turn != "" {
+				asked, err := t.Asked.AskedInTurn(ctx, turn, envelopeTool)
+				if err != nil {
+					return nil, recordIntentOutput{}, err
+				}
+				if !asked {
+					return nil, recordIntentOutput{}, fmt.Errorf(
+						"call %s in this turn before recording an intent: limits change while a conversation runs, and an answer from an earlier turn is not this turn's answer",
+						envelopeTool)
+				}
+			}
 
 			// The same structure stated twice in one turn is one decision written
 			// down twice, and a judge reads it as two. The session is told, so it

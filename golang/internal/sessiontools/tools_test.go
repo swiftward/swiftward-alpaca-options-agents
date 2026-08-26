@@ -471,3 +471,90 @@ func TestADifferentStructureInTheSameTurnIsRecorded(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, stored.Intents, 2)
 }
+
+// askedDouble answers whether a tool was called in a turn.
+type askedDouble struct {
+	inTurn map[string]bool
+	failed error
+}
+
+func (a *askedDouble) AskedInTurn(_ context.Context, turnRef, tool string) (bool, error) {
+	if a.failed != nil {
+		return false, a.failed
+	}
+	return a.inTurn[turnRef+"/"+tool], nil
+}
+
+func withLimits(t *testing.T, asked Asked) *mcp.ClientSession {
+	t.Helper()
+
+	server := httptest.NewServer(Tools{
+		Record: record.NewMemory(), Now: time.Now,
+		Running: &runningDouble{ref: "turn-1", wokenBy: "entry"}, Asked: asked,
+	}.Handler())
+	t.Cleanup(server.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	return session
+}
+
+func statingAnIntent(t *testing.T, session *mcp.ClientSession) *mcp.CallToolResult {
+	t.Helper()
+
+	out, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "record_intent",
+		Arguments: map[string]any{
+			"thesis": "sell the far strike", "structure": "QQQ 701/700 put", "max_loss": "80",
+		},
+	})
+	require.NoError(t, err)
+
+	return out
+}
+
+// A session states an intent against the limits it believes it has. Sessions are
+// turns on ONE conversation, so an envelope answer from an earlier turn is still
+// in the model's context - and from inside that is memory, not a stale cache,
+// which is why asking a session not to cache does nothing. This checks instead.
+func TestAnIntentNeedsTheLimitsReadInTheSameTurn(t *testing.T) {
+	session := withLimits(t, &askedDouble{inTurn: map[string]bool{}})
+
+	out := statingAnIntent(t, session)
+	require.True(t, out.IsError, "an intent stated from memory is refused")
+
+	said := ""
+	for _, part := range out.Content {
+		if text, ok := part.(*mcp.TextContent); ok {
+			said += text.Text
+		}
+	}
+	assert.Contains(t, said, "read_envelope", "the session is told what to call")
+}
+
+func TestAnIntentIsAcceptedWhenTheLimitsWereReadInThisTurn(t *testing.T) {
+	session := withLimits(t, &askedDouble{inTurn: map[string]bool{"turn-1/read_envelope": true}})
+
+	out := statingAnIntent(t, session)
+	assert.False(t, out.IsError, "the limits were read in this turn, so the intent stands")
+}
+
+// Without a database there is nothing to check against, and refusing every
+// intent would stop a run that keeps no record at all.
+func TestWithoutARecordTheCheckIsSkipped(t *testing.T) {
+	server := httptest.NewServer(Tools{
+		Record: record.NewMemory(), Now: time.Now,
+		Running: &runningDouble{ref: "turn-1", wokenBy: "entry"},
+	}.Handler())
+	t.Cleanup(server.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	assert.False(t, statingAnIntent(t, session).IsError)
+}
