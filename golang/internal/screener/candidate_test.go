@@ -30,6 +30,11 @@ func fmtStrike(strike float64) string {
 
 func quote(bid, ask float64) marketdata.Quote { return marketdata.Quote{Bid: bid, Ask: ask} }
 
+func with(q marketdata.Quote, delta float64) marketdata.Quote {
+	q.Delta = &delta
+	return q
+}
+
 func anything() Wanted {
 	return Wanted{MinOutOfTheMoney: 0.1, MaxOutOfTheMoney: 5, MinCreditToRisk: 0, MaxCostShare: 1000}
 }
@@ -340,4 +345,61 @@ func TestTheTallyNamesTheFilterThatRefused(t *testing.T) {
 	refused = Refused{}
 	require.Len(t, Best("QQQ", 710, contracts, quotes, anything(), refused), 1)
 	assert.Empty(t, refused)
+}
+
+// The whole point of taking the crossing out of the credit: between two
+// structures the cheap one wins even when the screen says the dear one pays
+// more. A measure computed on the displayed midpoint ranks them the other way
+// round, and that is the ranking the sweep of 26 August was handing out.
+func TestTheDearStructureLosesToTheCheapOne(t *testing.T) {
+	// Same strikes, same delta, same width. One is quoted eight cents wide on the
+	// short leg, the other one cent.
+	dearContracts := []marketdata.Contract{put(700), put(701)}
+	dear := map[string]marketdata.Quote{
+		put(701).Symbol: with(quote(0.86, 1.02), -0.15),
+		put(700).Symbol: with(quote(0.70, 0.74), -0.12),
+	}
+	cheapContracts := []marketdata.Contract{put(600), put(601)}
+	cheap := map[string]marketdata.Quote{
+		put(601).Symbol: with(quote(0.75, 0.77), -0.15),
+		put(600).Symbol: with(quote(0.60, 0.62), -0.12),
+	}
+
+	want := anything()
+	want.MaxCostShare = 200
+	want.MinOutOfTheMoney = 0
+	want.MaxOutOfTheMoney = 100
+
+	dearFound := Best("QQQ", 710, dearContracts, dear, want, Refused{})
+	cheapFound := Best("QQQ", 710, cheapContracts, cheap, want, Refused{})
+	require.Len(t, dearFound, 1)
+	require.Len(t, cheapFound, 1)
+
+	assert.Greater(t, dearFound[0].Credit, cheapFound[0].Credit,
+		"on the screen the dear one pays more")
+	assert.Less(t, dearFound[0].CreditAfterCost, cheapFound[0].CreditAfterCost,
+		"after the crossing it pays less")
+	require.NotNil(t, dearFound[0].Edge)
+	require.NotNil(t, cheapFound[0].Edge)
+	assert.Less(t, *dearFound[0].Edge, *cheapFound[0].Edge,
+		"so it must also measure worse, which is the only reason the field exists")
+}
+
+// A structure whose crossing eats the whole credit is not ranked last, it is
+// absent: the arithmetic below it would be computed on a credit that cannot be
+// received.
+func TestAStructureTheCrossingEatsIsRefused(t *testing.T) {
+	contracts := []marketdata.Contract{put(700), put(701)}
+	quotes := map[string]marketdata.Quote{
+		put(701).Symbol: with(quote(0.10, 1.10), -0.15),
+		put(700).Symbol: with(quote(0.05, 0.95), -0.12),
+	}
+	want := anything()
+	want.MaxCostShare = 10000
+	want.MinOutOfTheMoney = 0
+	want.MaxOutOfTheMoney = 100
+
+	refused := Refused{}
+	assert.Empty(t, Best("QQQ", 710, contracts, quotes, want, refused))
+	assert.Positive(t, refused[RefusedCost])
 }

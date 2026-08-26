@@ -24,18 +24,19 @@ func (p *Postgres) ReplaceCandidates(ctx context.Context, at time.Time, found []
 			`INSERT INTO candidates (swept_at, underlying, kind, expiration,
 			     short_symbol, long_symbol, short_strike, long_strike, underlying_price,
 			     out_of_the_money_percent, credit, risk, credit_to_risk_percent,
-			     cost, cost_share_percent, short_delta, edge_points)
+			     cost, cost_share_percent, credit_after_cost, short_delta, edge_points)
 			 VALUES (@at, @underlying, @kind, @expiration,
 			     @short, @long, @shortStrike, @longStrike, @price,
-			     @out, @credit, @risk, @toRisk, @cost, @share, @delta, @edge)`,
+			     @out, @credit, @risk, @toRisk, @cost, @share, @net, @delta, @edge)`,
 			pgx.NamedArgs{
 				"at": at, "underlying": one.Underlying, "kind": one.Type,
 				"expiration": one.Expiration, "short": one.Short, "long": one.Long,
 				"shortStrike": one.ShortStrike, "longStrike": one.LongStrike,
 				"price": one.Price, "out": one.OutOfTheMoney,
 				"credit": one.Credit, "risk": one.Risk, "toRisk": one.CreditToRisk,
-				"cost": one.Cost, "share": one.CostShare, "delta": one.Delta,
-				"edge": one.Edge,
+				"cost": one.Cost, "share": one.CostShare, "net": one.CreditAfterCost,
+				"delta": one.Delta,
+				"edge":  one.Edge,
 			})
 	}
 
@@ -52,7 +53,7 @@ func (p *Postgres) Candidates(ctx context.Context, most int) ([]screener.Candida
 		`SELECT underlying, kind, expiration, short_symbol, long_symbol,
 		        short_strike, long_strike, underlying_price, out_of_the_money_percent,
 		        credit, risk, credit_to_risk_percent, cost, cost_share_percent,
-		        short_delta, edge_points
+		        credit_after_cost, short_delta, edge_points
 		   FROM candidates
 		  ORDER BY edge_points DESC NULLS LAST, credit_to_risk_percent DESC
 		  LIMIT @most`,
@@ -68,7 +69,8 @@ func (p *Postgres) Candidates(ctx context.Context, most int) ([]screener.Candida
 		if err := rows.Scan(&one.Underlying, &one.Type, &one.Expiration,
 			&one.Short, &one.Long, &one.ShortStrike, &one.LongStrike,
 			&one.Price, &one.OutOfTheMoney, &one.Credit, &one.Risk,
-			&one.CreditToRisk, &one.Cost, &one.CostShare, &one.Delta, &one.Edge); err != nil {
+			&one.CreditToRisk, &one.Cost, &one.CostShare, &one.CreditAfterCost,
+			&one.Delta, &one.Edge); err != nil {
 			return nil, fmt.Errorf("read a candidate: %w", err)
 		}
 		found = append(found, one)

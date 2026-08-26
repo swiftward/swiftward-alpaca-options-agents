@@ -37,15 +37,25 @@ type Candidate struct {
 	Risk          float64 `json:"risk"`
 	// CreditToRisk is what the structure pays for what it risks, in percent.
 	CreditToRisk float64 `json:"credit_to_risk_percent"`
-	// Cost is the round trip: both legs' bid-ask added.
+	// Cost is what crossing the book costs once: both legs' bid-ask added. It is
+	// what a fill at the far side would give up against the midpoint.
 	Cost float64 `json:"cost"`
+	// CreditAfterCost is the credit with half that crossing taken out - what an
+	// order sent at the midpoint and walked toward the book is worth in
+	// expectation, rather than what the screen displays.
+	//
+	// Every measure below is computed from this and not from Credit. A structure
+	// paying 0.20 with a 0.16 spread and one paying 0.12 with a 0.02 spread look
+	// like a clear win for the first and are the opposite.
+	CreditAfterCost float64 `json:"credit_after_cost"`
 	// Delta is the broker's own reading of how likely the sold strike is to finish
 	// in the money. Nil where the broker computes none, which is the day the
 	// contract expires.
 	Delta *float64 `json:"short_delta,omitempty"`
 	// Edge is what the structure pays against what it must survive, in percentage
 	// points: the chance the broker's own delta gives the sold strike of expiring
-	// worthless, less the share of the time this credit has to win to break even.
+	// worthless, less the share of the time CreditAfterCost has to win to break
+	// even.
 	//
 	// Positive means the market is paying more for this risk than the same market
 	// says the risk is worth. It is a SCREEN and not a promise: delta is a
@@ -81,7 +91,14 @@ type Wanted struct {
 	// top - a spread two and a half dollars wide quoted at a credit of 2.06 -
 	// and without this the session would have been shown garbage first.
 	MostCreditToRisk float64
-	// MaxCostShare is the most the round trip may cost, as a percent of credit.
+	// MaxCostShare is the most crossing the book may cost, as a percent of credit.
+	//
+	// This is a bound on nonsense, not a way of choosing: what the crossing costs
+	// is already taken out of the credit before anything is measured, so an
+	// expensive structure loses on Edge without needing a threshold. Set it wide.
+	// It was 20 for one afternoon and threw away 833 structures in a single sweep
+	// against 96 for the next filter - a number picked from one good trade and
+	// three bad ones, deciding the day.
 	MaxCostShare float64
 	// MostDelta is how likely the sold strike may be to finish in the money, as
 	// the broker's own delta, absolute. Distance in percent is not the same
@@ -253,10 +270,20 @@ func price_(underlying, kind string, price float64,
 		return Candidate{}, false
 	}
 
+	// An order goes out at the midpoint and is walked toward the book, so half the
+	// crossing is what it gives up in expectation. Taking it out here is what makes
+	// the cost part of the measure instead of a threshold beside it.
+	net := credit - cost/2
+	netRisk := width - net
+	if net <= 0 || netRisk <= 0 {
+		refused.note(RefusedCost)
+		return Candidate{}, false
+	}
+
 	var edge *float64
 	if shortQuote.Delta != nil {
 		survives := 1 - math.Abs(*shortQuote.Delta)
-		breakEven := risk / (credit + risk)
+		breakEven := netRisk / (net + netRisk)
 		points := round((survives - breakEven) * 100)
 		edge = &points
 		if want.LeastEdge != 0 && points < want.LeastEdge {
@@ -275,7 +302,8 @@ func price_(underlying, kind string, price float64,
 		ShortStrike: short.Strike, LongStrike: long.Strike,
 		Price: price, OutOfTheMoney: round(out),
 		Credit: round(credit), Risk: round(risk), CreditToRisk: round(toRisk),
-		Cost: round(cost), CostShare: round(share), Delta: shortQuote.Delta, Edge: edge,
+		Cost: round(cost), CostShare: round(share), CreditAfterCost: round(net),
+		Delta: shortQuote.Delta, Edge: edge,
 	}, true
 }
 
