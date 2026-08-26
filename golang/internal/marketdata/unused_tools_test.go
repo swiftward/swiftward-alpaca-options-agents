@@ -153,6 +153,20 @@ func TestUnusedToolsAgainstTheLiveBroker(t *testing.T) {
 			"symbol": "AVGO",
 		})
 	})
+	t.Run("get_corporate_action_announcements DELL", func(t *testing.T) {
+		call(t, "get_corporate_action_announcements", map[string]any{
+			"ca_types": []string{"dividend", "split", "merger", "spinoff"},
+			"since":    ymd(today), "until": ymd(today.AddDate(0, 0, 60)),
+			"symbol": "DELL",
+		})
+	})
+	t.Run("get_corporate_action_announcements CRM", func(t *testing.T) {
+		call(t, "get_corporate_action_announcements", map[string]any{
+			"ca_types": []string{"dividend", "split", "merger", "spinoff"},
+			"since":    ymd(today), "until": ymd(today.AddDate(0, 0, 60)),
+			"symbol": "CRM",
+		})
+	})
 
 	// screening sources: could either replace or feed the hand-written universe.
 	t.Run("get_market_movers stocks", func(t *testing.T) {

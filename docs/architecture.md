@@ -112,6 +112,18 @@ Two more filters exist because of what the first live sweeps produced, and each 
 - **A structure paying more than it risks is a broken quote, not a gift.** The list is ranked by exactly the number bad data inflates, so without this the worst data arrives first.
 - **Distance in percent is not likelihood.** One percent is far on a quiet index and near on a share that moves five percent in a day; ranked on distance alone the list was unusable by a rule written in deltas.
 
+## Where a declared limit stops being advice
+
+The envelope tells a session what it may risk; the session works its own size out from that and can get it wrong. On 26 August one did: the broker refused 17 884 sets for want of buying power, and the session came back with 906 - a maximum loss near 76 000 against a limit of 15 000. Nothing between it and the market disagreed, because a service that discloses does not enforce.
+
+The ladder is where our code last holds an order, so the limit is enforced there. It reads the same ruleset the envelope serves and the same account the broker reports, works out the worst a resting order can do, and cancels what exceeds one position's allowance - telling the session what it actually risked. The ruleset is re-read every pass, so lowering a ceiling is one edit and no restart.
+
+The worst case is exact rather than sampled: a spread's payoff is piecewise linear, so its minimum lies at a strike, at zero, or above the highest strike. The ratio comes off the legs themselves, or a backspread would be priced as a vertical and charged a loss it cannot have.
+
+Three refusals are deliberate. An order this code cannot parse is left alone, because unknown is not the same as too large and cancelling a sound structure over our own parse failure is the worse error. An unreadable ruleset cancels nothing and says so: losing the limit is a reason to speak, never a reason to take an account's working orders away. And a cancelled order is not then walked toward a book it must never reach.
+
+This is a backstop, not a gateway. It acts seconds after an order reaches the book rather than before it, and the difference matters for anything that could fill instantly.
+
 ## Getting a decided order filled
 
 The session decides what to sell, how large, and the price it wants. Walking a limit a cent at a time until the book takes it is not that kind of decision: it is arithmetic on a clock, it has to happen in seconds, and one turn of the agent costs a minute and a half. So the two are split.
