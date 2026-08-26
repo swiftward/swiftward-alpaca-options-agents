@@ -70,6 +70,10 @@ type ExecutionStep struct {
 	Became   *float64  `json:"became,omitempty"`
 	Showing  *float64  `json:"showing,omitempty"`
 	Floor    *float64  `json:"floor,omitempty"`
+	// Quantity is how many contracts a fill was for. Without it the record holds
+	// a price and not money: 0.28 says nothing about whether we collected
+	// twenty-eight dollars or fourteen hundred.
+	Quantity *float64 `json:"quantity,omitempty"`
 }
 
 // State is everything the page shows at once. A refusal is not here: it comes

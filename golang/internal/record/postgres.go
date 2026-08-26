@@ -91,12 +91,12 @@ func (p *Postgres) AppendExecutionStep(ctx context.Context, step ExecutionStep) 
 
 func (p *Postgres) NoteFill(ctx context.Context, step ExecutionStep) (bool, error) {
 	tag, err := p.pool.Exec(ctx,
-		`INSERT INTO execution_steps (order_ref, at, action, was, became)
-		 VALUES (@order, @at, 'filled', @was, @became)
+		`INSERT INTO execution_steps (order_ref, at, action, was, became, quantity)
+		 VALUES (@order, @at, 'filled', @was, @became, @quantity)
 		 ON CONFLICT DO NOTHING`,
 		pgx.NamedArgs{
 			"order": step.OrderRef, "at": step.At,
-			"was": step.Was, "became": step.Became,
+			"was": step.Was, "became": step.Became, "quantity": step.Quantity,
 		})
 	if err != nil {
 		return false, fmt.Errorf("record the fill on %s: %w", step.OrderRef, err)
@@ -253,7 +253,7 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 	}
 
 	steps, err := p.pool.Query(ctx,
-		`SELECT order_ref, at, action, was, became, showing, floor
+		`SELECT order_ref, at, action, was, became, showing, floor, quantity
 		   FROM execution_steps ORDER BY at DESC LIMIT @shows`,
 		pgx.NamedArgs{"shows": p.shows})
 	if err != nil {
@@ -264,7 +264,7 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 	for steps.Next() {
 		var step ExecutionStep
 		if err := steps.Scan(&step.OrderRef, &step.At, &step.Action, &step.Was,
-			&step.Became, &step.Showing, &step.Floor); err != nil {
+			&step.Became, &step.Showing, &step.Floor, &step.Quantity); err != nil {
 			return State{}, fmt.Errorf("read an execution step: %w", err)
 		}
 		state.Steps = append(state.Steps, step)

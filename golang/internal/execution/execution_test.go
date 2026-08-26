@@ -532,6 +532,8 @@ func TestAFillIsSaidOnceHoweverOftenItIsSeen(t *testing.T) {
 			fills++
 			require.NotNil(t, step.Became)
 			assert.InDelta(t, -0.28, *step.Became, 1e-9, "the record keeps the price it filled at")
+			require.NotNil(t, step.Quantity, "and how many contracts, or the price is not money")
+			assert.InDelta(t, 50, *step.Quantity, 1e-9)
 		}
 	}
 	assert.Equal(t, 1, fills)

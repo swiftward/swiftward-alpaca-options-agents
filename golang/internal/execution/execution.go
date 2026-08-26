@@ -173,10 +173,10 @@ func (l *Ladder) report(ctx context.Context, order marketdata.Order) {
 		return
 	}
 
-	price := order.FilledPrice
+	price, quantity := order.FilledPrice, order.FilledQuantity
 	first, err := l.Record.NoteFill(ctx, record.ExecutionStep{
 		OrderRef: order.ID, At: l.Now(), Action: "filled",
-		Was: order.LimitPrice, Became: &price,
+		Was: order.LimitPrice, Became: &price, Quantity: &quantity,
 	})
 	if err != nil {
 		l.Log.Error("could not write a fill down",
