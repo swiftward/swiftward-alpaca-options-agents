@@ -49,6 +49,25 @@ func TestWhatTheUnusedToolsActuallyReturn(t *testing.T) {
 			"symbols": "BTC/USD", "start": day, "limit": 3}},
 		{"get_option_bars", map[string]any{
 			"symbols": "QQQ260828P00700000", "timeframe": "1Min", "start": day, "limit": 3}},
+		{"get_stock_snapshot", map[string]any{"symbols": "QQQ"}},
+		{"get_account_config", map[string]any{}},
+		{"get_open_position", map[string]any{"symbol": "QQQ260826P00706000"}},
+		{"get_option_latest_quote", map[string]any{"symbols": "QQQ260828P00700000"}},
+		{"get_option_latest_trade", map[string]any{"symbols": "QQQ260828P00700000"}},
+		{"get_option_trades", map[string]any{
+			"symbols": "QQQ260828P00700000", "start": day, "limit": 3}},
+		{"get_option_exchange_codes", map[string]any{}},
+		{"get_stock_latest_quote", map[string]any{"symbols": "QQQ"}},
+		{"get_stock_latest_bar", map[string]any{"symbols": "QQQ"}},
+		{"get_stock_trades", map[string]any{"symbols": "QQQ", "start": day, "limit": 3}},
+		{"get_stock_quotes", map[string]any{"symbols": "QQQ", "start": day, "limit": 3}},
+		{"get_market_movers", map[string]any{"top": 5}},
+		{"get_crypto_bars", map[string]any{
+			"symbols": "BTC/USD", "timeframe": "1Min", "start": day, "limit": 3}},
+		{"get_crypto_trades", map[string]any{"symbols": "BTC/USD", "start": day, "limit": 3}},
+		{"get_asset", map[string]any{"symbol": "QQQ"}},
+		{"get_all_assets", map[string]any{
+			"asset_class": "us_equity", "status": "active", "exchange": "NASDAQ"}},
 	} {
 		t.Run(ask.tool, func(t *testing.T) {
 			result, err := session.CallTool(ctx, &mcp.CallToolParams{
@@ -64,8 +83,8 @@ func TestWhatTheUnusedToolsActuallyReturn(t *testing.T) {
 					continue
 				}
 				body := strings.TrimSpace(text.Text)
-				if len(body) > 1100 {
-					body = body[:1100] + "...(truncated)"
+				if len(body) > 700 {
+					body = body[:700] + "...(truncated)"
 				}
 				t.Log(fmt.Sprintf("refused=%v, %d bytes:\n%s", result.IsError, len(text.Text), body))
 			}
