@@ -207,7 +207,7 @@ func TestPostgresKeepsEverythingTheScreenerWorkedOut(t *testing.T) {
 		Short: "SPY260826C00770000", Long: "SPY260826C00771000",
 		ShortStrike: 770, LongStrike: 771, Price: 765, OutOfTheMoney: 0.65,
 		Credit: 0.10, Risk: 0.90, CreditToRisk: 11, Cost: 0.04, CostShare: 40,
-		CreditAfterCost: 0.08, Edge: &fromVolatility, EdgeFrom: screener.FromVolatility,
+		CreditAfterCost: 0.08, Edge: &fromVolatility, EdgeFrom: screener.FromBorrowedVolatility,
 	}
 
 	require.NoError(t, kept.ReplaceCandidates(ctx, at, []screener.Candidate{measured, blind}))
