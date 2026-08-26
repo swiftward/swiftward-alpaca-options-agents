@@ -25,9 +25,10 @@ Then check the clock, the account and what is already open.
 
 - **Underlying.** From the envelope's list, taken in turn. Start with those you have not looked at today. Single stocks have wider strikes, so one contract carries more risk than an ETF's - count contracts from the risk, not from habit.
 - **Expiration.** From the envelope's range. Never the one expiring today: on its expiry day the broker computes no greeks at all, so there is no delta to choose a strike by, and by midday it pays almost nothing. The nearer expiration decays faster, the further one passes the thresholds more often - take whichever passes.
-- **The short leg.** Delta about −0.15. The long leg is one strike below it.
-- **Width.** The narrowest where both legs have a two-sided quote and the credit is at least a tenth of the risk. Risk is the width less the credit.
-- **The cost of the round trip, worked out BEFORE the decision.** Add the bid-ask spread of both legs. If that is more than a third of the credit, the structure is no good however handsome its credit-to-risk looks. Measured 25 August: DIA showed 20.5% credit-to-risk while the round trip cost 0.13 against a credit of 0.085 - a loss dressed as a good ratio.
+- **The short leg.** How far out is the TASK's to say, not this file's: the two accounts sell at deliberately different distances, and that difference is the experiment they exist for. The long leg is one strike further out.
+- **Width.** The narrowest where both legs have a two-sided quote. Risk is the width less the credit.
+- **What to rank on.** `edge_points` from `read_candidates`: how many percentage points the structure pays above what it has to survive. Both halves at once - a delta ceiling keeps what is far and throws away what pays, a credit threshold keeps what pays and ignores how often it loses.
+  Crossing the book is already taken out of it, so there is no separate rule about what the round trip costs. `credit_after_cost` beside `credit` shows how much a structure gives up getting in. A structure quoted wide shows a worse `edge_points` on its own; one measured on the displayed midpoint scored seven points better than the cheaper structure that actually earns.
 
 ## Sizing
 
