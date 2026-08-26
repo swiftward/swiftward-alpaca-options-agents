@@ -484,3 +484,48 @@ func TestTheUnmeasuredBookKeepsItsOwnSlot(t *testing.T) {
 	assert.Greater(t, found[1].CreditToRisk, found[0].CreditToRisk,
 		"and the one that pays more is the one that would have been dropped")
 }
+
+// Width is a dimension of the structure and the screener looks at all of it.
+//
+// What width buys is not a better ratio. Where the credits fall evenly across
+// strikes - which is what an ordinary book looks like - credit to risk is the
+// SAME at every width: a spread four strikes wide collects four times the credit
+// against four times the risk. What changes is the crossing. Two legs cost two
+// crossings whatever sits between them, so the same toll is charged against four
+// times the credit, and the edge measure has that toll inside it.
+//
+// Below, every structure pays 11.1 percent of its risk. The narrow one loses
+// four fifths of that credit getting in and the wide one loses a fifth, so only
+// the wide one is worth doing - and until 26 August the screener priced
+// neighbouring strikes only, so it could not see any of this.
+func TestWidthIsPricedBecauseItChangesWhatTheCrossingCosts(t *testing.T) {
+	// Mids falling evenly by ten cents a strike, each leg quoted four cents wide.
+	strikes := []float64{697, 698, 699, 700, 701}
+	var contracts []marketdata.Contract
+	quotes := map[string]marketdata.Quote{}
+	for i, strike := range strikes {
+		contracts = append(contracts, put(strike))
+		mid := 0.60 + 0.10*float64(i)
+		quotes[put(strike).Symbol] = with(quote(mid-0.02, mid+0.02), -0.06)
+	}
+
+	want := anything()
+	want.LeastEdge = 1
+
+	found := Best("QQQ", 710, contracts, quotes, now, want, Refused{})
+	require.Len(t, found, 1)
+	assert.InDelta(t, 11.1, found[0].CreditToRisk, 0.1, "every width here pays the same")
+	assert.InDelta(t, 4, found[0].ShortStrike-found[0].LongStrike, 1e-9,
+		"so the widest wins, and it wins on what the crossing costs")
+	assert.InDelta(t, 20, found[0].CostShare, 1, "a fifth of the credit, against four fifths next door")
+
+	// The same book with only two strikes in it offers one width, and its
+	// crossing eats four fifths of the credit, so nothing clears the floor.
+	adjacent := Best("QQQ", 710,
+		[]marketdata.Contract{put(700), put(701)},
+		map[string]marketdata.Quote{
+			put(701).Symbol: quotes[put(701).Symbol],
+			put(700).Symbol: quotes[put(700).Symbol],
+		}, now, want, Refused{})
+	assert.Empty(t, adjacent)
+}

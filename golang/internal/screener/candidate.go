@@ -128,6 +128,13 @@ type Wanted struct {
 	LeastEdge float64
 }
 
+// widest is how many strikes back the bought leg may sit from the sold one.
+//
+// Beyond a handful the structure stops being a spread anyone would hold: the
+// risk grows with the width, so the same maximum loss buys fewer and fewer sets,
+// and the far leg costs so little that it protects mostly on paper.
+const widest = 5
+
 // Refused counts why structures did not make the list, by the filter that
 // stopped each one.
 //
@@ -215,21 +222,33 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 		kind := key.kind
 		sort.Slice(list, func(i, j int) bool { return list[i].Strike < list[j].Strike })
 
+		// Every sold strike against every protective strike behind it, not only
+		// the one next door.
+		//
+		// Width changes the structure, not just its size. A wide spread pays more
+		// for the same sold strike and costs the same two crossings to enter, so
+		// what the book takes is a smaller share of a larger credit - and the edge
+		// measure, which now has that crossing inside it, sees the difference. The
+		// screener priced adjacent strikes only until 26 August, so the whole
+		// dimension was invisible while costing nothing to look at: the quotes are
+		// already in hand and no further request is made for any of it.
 		for i := 1; i < len(list); i++ {
-			// A put spread sells the higher strike and buys the lower; a call
-			// spread the other way round. Both sell the leg nearer the money.
-			short, long := list[i], list[i-1]
-			if kind == "call" {
-				short, long = list[i-1], list[i]
-			}
+			for back := 1; back <= widest && i-back >= 0; back++ {
+				// A put spread sells the higher strike and buys the lower; a call
+				// spread the other way round. Both sell the leg nearer the money.
+				short, long := list[i], list[i-back]
+				if kind == "call" {
+					short, long = list[i-back], list[i]
+				}
 
-			candidate, ok := price_(underlying, kind, price, short, long, quotes, now, borrowed, want, refused)
-			if !ok {
-				continue
-			}
-			where := slot{kind: kind, measured: candidate.Edge != nil}
-			if kept, have := best[where]; !have || richer(candidate, kept) {
-				best[where] = candidate
+				candidate, ok := price_(underlying, kind, price, short, long, quotes, now, borrowed, want, refused)
+				if !ok {
+					continue
+				}
+				where := slot{kind: kind, measured: candidate.Edge != nil}
+				if kept, have := best[where]; !have || richer(candidate, kept) {
+					best[where] = candidate
+				}
 			}
 		}
 	}
