@@ -369,6 +369,18 @@ func (h *Harness) fireDue(ctx context.Context) {
 	}
 }
 
+// serveChat carries the room, and losing the room does not stop the work.
+//
+// The chat is where the agent reports; the market is where it acts. Returning
+// the listener's error from here ended the whole process, so a long poll that
+// timed out took the ladder, the screener and the schedule down with it - and
+// the restart landed in the middle of orders the ladder was still walking. Seen
+// on 26 August: "context deadline exceeded" out of the listener, and every role
+// died for it.
+//
+// So the error is said once, loudly, and everything else keeps running. An
+// operator who wants the room back restarts the process deliberately, which is
+// a much smaller thing than having it restarted for them mid-order.
 func (h *Harness) serveChat(ctx context.Context) error {
 	listening := make(chan error, 1)
 	go func() { listening <- h.Chat.Listen(ctx) }()
@@ -378,7 +390,12 @@ func (h *Harness) serveChat(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case err := <-listening:
-			return err
+			if err != nil && ctx.Err() == nil {
+				h.Log.Error("the room is gone; trading continues without it", zap.Error(err))
+			}
+			<-ctx.Done()
+
+			return nil
 		case msg, ok := <-h.Chat.Inbound():
 			if !ok {
 				return nil

@@ -2,6 +2,7 @@ package harness
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,6 +32,9 @@ type chatDouble struct {
 	deleted  []int
 	typed    int
 	nextID   int
+	// listenFails, when set, is what Listen returns at once instead of waiting
+	// for the context - a room that goes away while the process runs.
+	listenFails error
 }
 
 func newChatDouble() *chatDouble {
@@ -38,7 +42,11 @@ func newChatDouble() *chatDouble {
 }
 
 func (c *chatDouble) Listen(ctx context.Context) error {
+	if c.listenFails != nil {
+		return c.listenFails
+	}
 	<-ctx.Done()
+
 	return nil
 }
 
@@ -1006,4 +1014,43 @@ func TestChatterIsThinnedAndTheLastWordSurvives(t *testing.T) {
 		}
 	}
 	assert.Zero(t, middle, "the chatter between the first word and the answer is held back")
+}
+
+// A room that goes away must not take the work with it.
+//
+// Returning the listener's error from Run ended the whole process, and every
+// other role - the ladder walking live orders, the screener, the schedule - died
+// with it. Seen on 26 August: the listener returned "context deadline exceeded"
+// and the restart landed in the middle of orders that were still being walked.
+//
+// The room is where the agent reports. The market is where it acts.
+func TestALostRoomDoesNotStopTheWork(t *testing.T) {
+	chat := newChatDouble()
+	chat.listenFails = errors.New("context deadline exceeded")
+
+	h := &Harness{
+		Chat: chat, Conversation: newConversationSpy(),
+		CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t),
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	stopped := make(chan error, 1)
+	go func() { stopped <- h.Run(ctx) }()
+
+	// Run must still be running: it is not allowed to return while the context
+	// stands, because returning is what killed everything else.
+	select {
+	case err := <-stopped:
+		t.Fatalf("the harness gave up when the room did: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	// And when the process really is asked to stop, it stops cleanly.
+	cancel()
+	select {
+	case err := <-stopped:
+		assert.NoError(t, err, "a lost room is not a reason to fail the process")
+	case <-time.After(2 * time.Second):
+		t.Fatal("the harness did not return after the context was cancelled")
+	}
 }
