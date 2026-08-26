@@ -108,3 +108,51 @@ func TestAnOrderIsJudgedAtTheFloorItMayReach(t *testing.T) {
 	require.True(t, known)
 	assert.InDelta(t, -14976, worst, 1)
 }
+
+// A part-filled order is judged by what is still RESTING, not by what was
+// ordered.
+//
+// Cancelling gives back only the unfilled part; the filled part is a position
+// the account already holds and this cancel cannot undo. Judging the whole order
+// takes a sound remainder away for a size that is no longer at stake here.
+func TestAPartFilledOrderIsJudgedByWhatIsLeft(t *testing.T) {
+	half := marketdata.Order{
+		Quantity: 200, FilledQuantity: 150, LimitPrice: -0.20,
+		ClientID: NameFor(-0.20),
+		Legs: []marketdata.Order{
+			{Symbol: "QQQ260828P00701000", Side: "sell", Quantity: 200},
+			{Symbol: "QQQ260828P00700000", Side: "buy", Quantity: 200},
+		},
+	}
+
+	worst, known := WorstCase(half)
+	require.True(t, known)
+	// Fifty sets left, not two hundred: a dollar of width less twenty cents.
+	assert.InDelta(t, -4000, worst, 1e-6)
+
+	// Fully filled: nothing rests, so there is nothing here to judge or cancel.
+	done := half
+	done.FilledQuantity = 200
+	_, known = WorstCase(done)
+	assert.False(t, known)
+}
+
+// The ratio of a backspread survives a part fill: it lives on the legs as a
+// share of the order, so it has to be applied to what is left rather than read
+// as an absolute count.
+func TestTheRatioSurvivesAPartFill(t *testing.T) {
+	half := marketdata.Order{
+		Quantity: 10, FilledQuantity: 5, LimitPrice: 0.50,
+		ClientID: NameFor(0.50),
+		Legs: []marketdata.Order{
+			{Symbol: "NVDA260828P00200000", Side: "sell", Quantity: 10},
+			{Symbol: "NVDA260828P00195000", Side: "buy", Quantity: 20},
+		},
+	}
+
+	worst, known := WorstCase(half)
+	require.True(t, known)
+	// Five sets left: worst at the bought strike is five dollars against the one
+	// sold leg, plus the debit paid on five sets.
+	assert.InDelta(t, -2750, worst, 1)
+}

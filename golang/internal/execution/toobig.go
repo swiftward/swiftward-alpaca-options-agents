@@ -22,6 +22,15 @@ func WorstCase(order marketdata.Order) (float64, bool) {
 		return 0, false
 	}
 
+	// What is still RESTING, not what was ordered. Part of an order can fill
+	// before the rest, and cancelling gives back only the unfilled part - so
+	// judging the whole order would take a sound remainder away for the size of
+	// a position the account already holds and this cancel cannot undo.
+	resting := order.Quantity - order.FilledQuantity
+	if resting <= 0 {
+		return 0, false
+	}
+
 	type leg struct {
 		contract marketdata.Contract
 		held     float64
@@ -34,11 +43,13 @@ func WorstCase(order marketdata.Order) (float64, bool) {
 		if !parsed {
 			return 0, false
 		}
-		// A leg's own quantity where the broker gives one - the ratio of a
-		// backspread lives there - and the order's otherwise.
-		held := one.Quantity
-		if held <= 0 {
-			held = order.Quantity
+		// A leg's own quantity carries the RATIO - one sold against two bought in
+		// a backspread - so what matters is its share of the order, applied to
+		// what is still resting. Reading the leg's quantity directly would price
+		// the whole order again on an order half filled.
+		held := resting
+		if one.Quantity > 0 {
+			held = one.Quantity / order.Quantity * resting
 		}
 		if one.Side == "sell" {
 			held = -held
@@ -64,7 +75,7 @@ func WorstCase(order marketdata.Order) (float64, bool) {
 	if floor, named := Reservation(order); named {
 		worstPrice = floor
 	}
-	settled := -worstPrice * 100 * order.Quantity
+	settled := -worstPrice * 100 * resting
 
 	worst := math.MaxFloat64
 	for _, price := range probes {
