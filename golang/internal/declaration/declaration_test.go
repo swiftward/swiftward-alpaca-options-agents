@@ -126,6 +126,12 @@ func TestDueEveryInsideItsWindow(t *testing.T) {
 // the week depends on, and a broken one is discovered when that agent wakes
 // nobody all day.
 func TestEveryDeclarationWeShipLoads(t *testing.T) {
+	// Run this with -count=1. Go caches a test result against the Go files it
+	// compiled, and these declarations are not among them: edit a YAML, run the
+	// test, and it answers "ok (cached)" about the file as it was. On 26 August it
+	// did exactly that while the declaration had a syntax error, and the agent
+	// crash-looped on startup. `make test` passes -count=1 for this reason.
+
 	// The real files, not copies: a copy would drift from what ships.
 	shipped, err := filepath.Glob("../../../agent/*.yaml")
 	require.NoError(t, err)
