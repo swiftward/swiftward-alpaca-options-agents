@@ -178,13 +178,13 @@ func TestTheShippedRulesetCarriesWhatTheTasksGaveUp(t *testing.T) {
 	// binding constraint was what the round trip costs, not the size, so the size
 	// went up and the cost filter went down. Changing these is a decision, and
 	// this test is what makes it one rather than a slip.
-	// Raised to 8 on 26 August afternoon. The filters had been tightened correctly
-	// - the structures that pass are few - but the size had not moved with them,
-	// so the accounts held 4 percent of risk against 30 permitted. Few trades at a
-	// small size is not caution, it is under-use.
+	// Raised to 15 on 26 August, by Kostya's decision after the accounts were
+	// measured at 26.4 percent of risk against 50 permitted. His words: a fifth
+	// of the account at risk each day arrives nowhere, and the week is for
+	// winning, not for surviving.
 	for identity, expected := range map[string]float64{
-		"options-alpha":      8,
-		"options-alpha-near": 8,
+		"options-alpha":      15,
+		"options-alpha-near": 15,
 	} {
 		out, err := set.For(identity, "place_option_order")
 		require.NoError(t, err, identity)
@@ -196,11 +196,11 @@ func TestTheShippedRulesetCarriesWhatTheTasksGaveUp(t *testing.T) {
 		}
 
 		assert.Equal(t, expected, by["max-loss-per-position"].Value, identity)
-		// Raised to 50 on 26 August afternoon, and the extra twenty is for one
-		// thing: convexity on an event. Selling premium returns about zero before
-		// costs, so more money in it loses faster; buying a capped-loss structure
-		// before an earnings report is the only asymmetry the day offered.
-		assert.Equal(t, 50, by["max-loss-across-portfolio"].Value, identity)
+		// Raised to 80 on 26 August. A hundred is the wall and it is the broker's,
+		// not ours: the sum of maximum losses IS the collateral the broker holds,
+		// so at a hundred the options buying power is zero and nothing is left to
+		// defend with, roll with, or place the Friday event bet with.
+		assert.Equal(t, 80, by["max-loss-across-portfolio"].Value, identity)
 		// Widened from 20 on 26 August so the permitted list and what the screener
 		// prices are the same names. They had drifted apart the moment the screener
 		// appeared, and the cost was visible: it ranked TQQQ at 40.9 percent and
