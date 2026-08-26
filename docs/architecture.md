@@ -1,14 +1,17 @@
 # Architecture
 
-Six services, two networks, one binary with three roles. The shape exists to make one property true: **the agent reaches nothing except the services beside it and the hosts the proxy allows.**
+Seven services, two networks, one binary with four roles. The shape exists to make one property true: **the agent reaches nothing except the services beside it and the hosts the proxy allows.**
 
-Today it reaches the broker's own server directly, over `BROKER_MCP_URL`. That is the development account, and it is the one claim on this page that describes an intention rather than the running system: the policy gateway is not yet in front of the broker, so nothing between the agent and Alpaca declares a limit or refuses an order. When it is, the address changes and the agent holds no broker credential either way.
+Today it reaches the broker's own server directly, over `BROKER_MCP_URL`. That is the development account, and it is the one claim on this page that describes an intention rather than the running system: the policy gateway is not yet in front of the broker, so nothing between the agent and Alpaca refuses an order.
+
+Its limits, though, already come from outside it. The session asks `read_envelope` before it builds anything and is told what applies to it and by which version of the rules; no number it sizes with is written anywhere in its prompt. Until the gateway is in front of the broker that answer comes from the `envelope` service beside it, under the same server name the gateway will use - so the limits are **disclosed and not yet enforced**, and the swap changes an address rather than the agent.
 
 ## Services
 
 | Service | What it is | Where it can go |
 |---|---|---|
-| `agent` | our binary holding the clock, the volatility history and the session's tools, and the agent it starts | the broker's server, Postgres, and the egress proxy |
+| `agent` | our binary holding the clock, the volatility history and the session's tools, and the agent it starts | the broker's server, the envelope, Postgres, and the egress proxy |
+| `envelope` | the same binary answering what one caller may do on one tool, from `policy/envelope.yaml` | nowhere: it reads a file |
 | `page` | the same binary serving the read side and the built page | Postgres, and the broker for the money it shows |
 | `migrate` | applies `postgres/migrations` in name order, then exits | Postgres |
 | `alpaca-mcp` | Alpaca's own MCP server, pinned to a released version | Alpaca |
@@ -16,6 +19,10 @@ Today it reaches the broker's own server directly, over `BROKER_MCP_URL`. That i
 | `postgres` | state | nowhere |
 
 The policy gateway is not in this stack. It is a network service addressed by `GATEWAY_URL`, the same way Alpaca and the model provider are.
+
+`envelope` stands in that address until the gateway does. It answers the envelope and nothing else: it holds no broker credential, reaches nothing, and cannot judge or refuse an order - those are the gateway's, and a stand-in that grew them would be a second engine nobody agreed to run. Which limits a caller gets is decided by the bearer token it was started with, so the two agents on the stack are under different ceilings and neither can ask for the other's.
+
+The file it reads is mounted from the checkout rather than baked into the image, because lowering a ceiling has to be one edit that a running session sees on its next question. A limit that needs a restart to change is a limit nobody can be shown changing.
 
 ## Networks
 

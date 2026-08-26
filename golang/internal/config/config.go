@@ -23,6 +23,9 @@ const (
 	RoleHarness Role = "harness"
 	RoleAPI     Role = "api"
 	RoleMCP     Role = "mcp"
+	// RoleEnvelope stands in for the policy gateway while the gateway is not yet
+	// in front of the broker: it serves the envelope and nothing else.
+	RoleEnvelope Role = "envelope"
 )
 
 type Config struct {
@@ -94,6 +97,13 @@ type Config struct {
 	GatewayURL   string
 	GatewayToken string
 
+	// Envelope role. The limits in force and who is under them. Both are read
+	// from outside the binary: an agent whose limits are compiled into the thing
+	// that reads them has not discovered anything.
+	EnvelopeAddr    string
+	EnvelopePath    string
+	EnvelopeCallers map[string]string
+
 	// The chat the session posts to. Absent means the agent is offered no way to
 	// post at all, rather than a tool that fails when called.
 	Telegram telegram.Config
@@ -121,6 +131,11 @@ func Load() (Config, error) {
 	}
 
 	underlyings := parseSymbols(k.String("volatility_underlyings"))
+
+	callers, err := parseCallers(k.String("envelope_callers"), roles)
+	if err != nil {
+		return Config{}, err
+	}
 
 	every, err := parseEvery(k.String("volatility_every"), underlyings)
 	if err != nil {
@@ -196,6 +211,9 @@ func Load() (Config, error) {
 		HistoryDays:           historyDays,
 		GatewayURL:            k.String("gateway_url"),
 		GatewayToken:          k.String("gateway_token"),
+		EnvelopeAddr:          k.String("envelope_addr"),
+		EnvelopePath:          k.String("envelope_path"),
+		EnvelopeCallers:       callers,
 		Telegram: telegram.Config{
 			Token:        k.String("telegram_bot_token"),
 			ChatID:       k.Int64("telegram_chat_id"),
@@ -207,15 +225,15 @@ func Load() (Config, error) {
 
 func parseRoles(raw string) ([]Role, error) {
 	if strings.TrimSpace(raw) == "" {
-		return nil, fmt.Errorf("ROLES is empty: name at least one of harness, api, mcp")
+		return nil, fmt.Errorf("ROLES is empty: name at least one of harness, api, mcp, envelope")
 	}
 	var out []Role
 	for _, part := range strings.Split(raw, ",") {
 		switch role := Role(strings.TrimSpace(part)); role {
-		case RoleHarness, RoleAPI, RoleMCP:
+		case RoleHarness, RoleAPI, RoleMCP, RoleEnvelope:
 			out = append(out, role)
 		default:
-			return nil, fmt.Errorf("unknown role %q: expected harness, api or mcp", part)
+			return nil, fmt.Errorf("unknown role %q: expected harness, api, mcp or envelope", part)
 		}
 	}
 	return out, nil
@@ -319,6 +337,40 @@ func parseAccountEvery(raw string) (time.Duration, error) {
 
 // parseSymbols reads the list of underlyings, upper-cased because that is how
 // the broker names them and how the history is keyed.
+// parseCallers reads which bearer token belongs to which caller, written as
+// "token=identity,token=identity". It lives in the environment and not in the
+// ruleset file, because the ruleset is committed and a token is a secret.
+//
+// A caller nobody can be resolved to is refused an envelope, so an envelope role
+// with no callers at all serves nothing and is a misconfiguration, not a quiet
+// open door.
+func parseCallers(raw string, roles []Role) (map[string]string, error) {
+	callers := map[string]string{}
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		token, identity, ok := strings.Cut(part, "=")
+		token, identity = strings.TrimSpace(token), strings.TrimSpace(identity)
+		if !ok || token == "" || identity == "" {
+			return nil, fmt.Errorf("ENVELOPE_CALLERS: %q is not token=identity", part)
+		}
+		if already, taken := callers[token]; taken {
+			return nil, fmt.Errorf("ENVELOPE_CALLERS: one token is given to both %q and %q", already, identity)
+		}
+		callers[token] = identity
+	}
+
+	for _, role := range roles {
+		if role == RoleEnvelope && len(callers) == 0 {
+			return nil, fmt.Errorf("ENVELOPE_CALLERS is empty: the envelope role would recognise nobody")
+		}
+	}
+
+	return callers, nil
+}
+
 func parseSymbols(raw string) []string {
 	var symbols []string
 	for _, part := range strings.Split(raw, ",") {
