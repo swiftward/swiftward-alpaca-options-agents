@@ -200,8 +200,10 @@ func TestOneSweepSpendsTwoRequestsPerUnderlying(t *testing.T) {
 			put(755).Symbol: with(quote(0.51, 0.59), -0.12),
 		},
 	}
-	keeper := &keeperDouble{}
-	sweeping(t, broker, keeper, []string{"QQQ", "SPY"})
+	at := time.Date(2026, 8, 26, 14, 0, 0, 0, time.UTC)
+	sweep := sweeping(broker, &keeperDouble{}, func() time.Time { return at }, t)
+	sweep.Universe = []string{"QQQ", "SPY"}
+	sweep.once(context.Background())
 
 	// One batch of prices for both names, then one chain each.
 	assert.Equal(t, 3, broker.calls,
