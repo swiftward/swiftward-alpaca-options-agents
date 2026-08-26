@@ -207,8 +207,16 @@ func TestTheShippedRulesetCarriesWhatTheTasksGaveUp(t *testing.T) {
 		// DIA at 25.8, the session asked, and the envelope refused both for being
 		// off a list nobody had revisited.
 		assert.Len(t, by["permitted-underlyings"].Value, 284, identity)
+		// Opened to today on 26 August, and it was the day's largest single find.
+		// Measured at 17:15 with two and three quarter hours left: QQQ a fifth of
+		// a percent out paid 49 percent of its risk with the crossing at 6 percent
+		// of the credit, against 8 to 15 percent at a crossing of 20 to 100 on
+		// everything one to five days out. Shutting expiry day out was mine, made
+		// that morning because the broker computes no delta then - which is a
+		// reason to measure the structure differently, not to refuse the book that
+		// pays most on the day.
 		assert.Equal(t,
-			map[string]any{"min": 1, "max": 5},
+			map[string]any{"min": 0, "max": 5},
 			by["permitted-expirations"].Value, identity)
 
 		// Counted by the engine, so it can never show a number - by construction,

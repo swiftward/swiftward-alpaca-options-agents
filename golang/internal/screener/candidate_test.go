@@ -201,21 +201,33 @@ func TestAStrikeTooLikelyToBeCrossedIsNotOffered(t *testing.T) {
 	assert.InDelta(t, -0.14, *found[0].Delta, 1e-9, "the session is told the delta, not left to ask again")
 }
 
-// The broker computes no delta on the day a contract expires - which is exactly
-// when the sold strike is most likely to be crossed. Absent is not "within".
-func TestAContractWithNoDeltaIsNotOfferedWhenDeltaIsAskedFor(t *testing.T) {
+// The broker computes no delta on the day a contract expires, so a delta ceiling
+// has nothing to apply and is skipped rather than read as a refusal. The whole
+// expiry-day book arrives this way, and it is the book that pays most on the day.
+//
+// The ceiling still bites where there IS a delta: skipping is about absence, not
+// about relaxing the rule.
+func TestADeltaCeilingIsSkippedWhereThereIsNoDelta(t *testing.T) {
 	contracts := []marketdata.Contract{put(700), put(701)}
-	quotes := map[string]marketdata.Quote{
+	blind := map[string]marketdata.Quote{
 		put(701).Symbol: quote(0.71, 0.79),
 		put(700).Symbol: quote(0.51, 0.59),
 	}
 
 	want := anything()
 	want.MostDelta = 0.25
-	assert.Empty(t, Best("QQQ", 710, contracts, quotes, want, Refused{}))
+	found := Best("QQQ", 710, contracts, blind, want, Refused{})
+	require.Len(t, found, 1)
+	assert.Nil(t, found[0].Delta)
 
-	want.MostDelta = 0
-	assert.Len(t, Best("QQQ", 710, contracts, quotes, want, Refused{}), 1, "unchecked when not asked for")
+	seeing := map[string]marketdata.Quote{
+		put(701).Symbol: with(quote(0.71, 0.79), -0.40),
+		put(700).Symbol: with(quote(0.51, 0.59), -0.35),
+	}
+	refused := Refused{}
+	assert.Empty(t, Best("QQQ", 710, contracts, seeing, want, refused),
+		"0.40 is past the ceiling of 0.25")
+	assert.Equal(t, 1, refused[RefusedDelta])
 }
 
 // Two legs of different expirations are a calendar spread, not a vertical, and
@@ -301,12 +313,36 @@ func TestAStructurePayingLessThanItsRiskIsWorthIsLeftOut(t *testing.T) {
 		put(701).Symbol: short, put(700).Symbol: thin,
 	}, want, Refused{}))
 
-	// Without delta there is nothing to weigh against, so it is absent rather
-	// than assumed good.
+	// Without delta there is nothing to weigh against, so the structure is listed
+	// with no edge rather than dropped. That is the expiry-day book, and dropping
+	// it removed the best-paying structures of the day from view.
 	noDelta := quote(1.00, 1.00)
-	assert.Empty(t, Best("QQQ", 710, contracts, map[string]marketdata.Quote{
+	blind := Best("QQQ", 710, contracts, map[string]marketdata.Quote{
 		put(701).Symbol: noDelta, put(700).Symbol: quote(0.50, 0.50),
-	}, want, Refused{}))
+	}, want, Refused{})
+	require.Len(t, blind, 1)
+	assert.Nil(t, blind[0].Edge, "no delta, no edge - and the absence is what the session reads")
+	assert.Nil(t, blind[0].Delta)
+}
+
+// A structure with no edge to show ranks below every structure that has one,
+// however well it pays. The session sees the measured ones first and reads the
+// unmeasured tail knowing what it is.
+func TestAnUnmeasuredStructureRanksBelowAMeasuredOne(t *testing.T) {
+	measured := with(quote(0.60, 0.60), -0.10)
+	contracts := []marketdata.Contract{put(700), put(701), call(720), call(721)}
+	quotes := map[string]marketdata.Quote{
+		put(701).Symbol: measured, put(700).Symbol: with(quote(0.50, 0.50), -0.08),
+		// Pays far more, and has nothing to weigh it against.
+		call(720).Symbol: quote(0.90, 0.90), call(721).Symbol: quote(0.10, 0.10),
+	}
+
+	want := anything()
+	want.MostDelta = 0.45
+	found := Best("QQQ", 710, contracts, quotes, want, Refused{})
+	require.Len(t, found, 2)
+	require.NotNil(t, found[0].Edge, "the measured one comes first")
+	assert.Nil(t, found[1].Edge)
 }
 
 // The tally has to name the filter that stopped a structure, not merely count

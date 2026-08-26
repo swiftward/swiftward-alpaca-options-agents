@@ -17,7 +17,7 @@
 # it, and a session that read one version and was refused by another can say so
 # instead of guessing it misread its own limits.
 
-ruleset_version: "2026-08-26.6"
+ruleset_version: "2026-08-26.7"
 
 agents:
   # The first account. Small positions, the whole list of underlyings.
@@ -67,7 +67,7 @@ agents:
           disclosure: boundary
           subject: expiration
           kind: range
-          value: {min: 1, max: 5}
+          value: {min: 0, max: 5}
           unit: trading_days_from_today
 
         # How often you may open is counted by whoever counts it, not by anything
@@ -125,7 +125,7 @@ agents:
           disclosure: boundary
           subject: expiration
           kind: range
-          value: {min: 1, max: 5}
+          value: {min: 0, max: 5}
           unit: trading_days_from_today
 
         - rule: entry-frequency

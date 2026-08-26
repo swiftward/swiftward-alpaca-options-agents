@@ -111,7 +111,15 @@ type Wanted struct {
 	// Zero leaves delta unchecked.
 	MostDelta float64
 	// LeastEdge is the least a structure may pay above what it must survive, in
-	// percentage points. Zero leaves it unchecked.
+	// percentage points, and it applies only where the broker gave a delta to
+	// measure with. Zero leaves it unchecked.
+	//
+	// It belongs below zero. Edge understates on both halves: delta is a
+	// risk-neutral probability rather than a real one, and a spread does not lose
+	// its whole width when the strike is touched, only the part the price passes.
+	// A floor at +0.5 on a measure that understates emptied the list entirely on
+	// 26 August - nought found over 284 underlyings - and an empty list is not
+	// caution, it is the screener deciding what the session is there to decide.
 	LeastEdge float64
 }
 
@@ -133,7 +141,6 @@ const (
 	RefusedDistance      = "distance from the price"
 	RefusedPaysTooLittle = "pays too little for the risk"
 	RefusedPaysTooMuch   = "pays more than its width, so the quote is broken"
-	RefusedNoDelta       = "the broker computes no delta"
 	RefusedDelta         = "too likely to be crossed"
 	RefusedCost          = "the crossing costs more of the credit than the sanity bound"
 	RefusedEatenByCost   = "the crossing eats the whole credit"
@@ -250,14 +257,17 @@ func price_(underlying, kind string, price float64,
 		return Candidate{}, false
 	}
 
-	if want.MostDelta > 0 {
-		// Absent delta is not "within the limit": the broker computes none on the
-		// day a contract expires, and that is exactly when the sold strike is most
-		// likely to be crossed.
-		if shortQuote.Delta == nil {
-			refused.note(RefusedNoDelta)
-			return Candidate{}, false
-		}
+	// The broker computes no delta on the day a contract expires, so every filter
+	// that reads one is skipped for those and the candidate is listed with delta
+	// and edge absent. Refusing them instead removed the whole expiry-day book
+	// from view - and that book is where the money is on the day: measured at
+	// 17:15 on 26 August, QQQ a fifth of a percent out paid 49 percent of its risk
+	// with the crossing at 6 percent of the credit, against 8 to 15 percent at a
+	// crossing of 20 to 100 on everything one to five days out.
+	//
+	// What the absence means is the session's to judge, and it can see it: a
+	// candidate with no edge ranks below every candidate that has one.
+	if want.MostDelta > 0 && shortQuote.Delta != nil {
 		if math.Abs(*shortQuote.Delta) > want.MostDelta {
 			refused.note(RefusedDelta)
 			return Candidate{}, false
@@ -296,10 +306,6 @@ func price_(underlying, kind string, price float64,
 			refused.note(RefusedEdge)
 			return Candidate{}, false
 		}
-	} else if want.LeastEdge != 0 {
-		// No delta, no way to weigh what it pays against what it survives.
-		refused.note(RefusedNoDelta)
-		return Candidate{}, false
 	}
 
 	return Candidate{
