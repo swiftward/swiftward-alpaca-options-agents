@@ -98,6 +98,30 @@ type Wanted struct {
 	LeastEdge float64
 }
 
+// Refused counts why structures did not make the list, by the filter that
+// stopped each one.
+//
+// A sweep that reads 284 underlyings and returns one structure says nothing
+// about which of its own filters did that, and the difference decides what to
+// change: a market with no opportunity in it and a threshold set too tight look
+// identical from the outside. This is what tells them apart.
+type Refused map[string]int
+
+func (r Refused) note(reason string) { r[reason]++ }
+
+// The reasons, one per place a structure can be dropped.
+const (
+	RefusedNoQuote       = "no two-sided quote"
+	RefusedNoCredit      = "no credit or no risk"
+	RefusedDistance      = "distance from the price"
+	RefusedPaysTooLittle = "pays too little for the risk"
+	RefusedPaysTooMuch   = "pays more than its width, so the quote is broken"
+	RefusedNoDelta       = "the broker computes no delta"
+	RefusedDelta         = "too likely to be crossed"
+	RefusedCost          = "the round trip costs too much of the credit"
+	RefusedEdge          = "pays less than what it must survive"
+)
+
 // Best returns the best put spread and the best call spread this underlying
 // offers on one expiration, or nothing where the book will not price one.
 //
@@ -105,7 +129,7 @@ type Wanted struct {
 // structure whose legs lack a two-sided quote is not ranked low, it is absent:
 // half a price is worse than no price.
 func Best(underlying string, price float64, contracts []marketdata.Contract,
-	quotes map[string]marketdata.Quote, want Wanted) []Candidate {
+	quotes map[string]marketdata.Quote, want Wanted, refused Refused) []Candidate {
 
 	if price <= 0 {
 		return nil
@@ -139,7 +163,7 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 				short, long = list[i-1], list[i]
 			}
 
-			candidate, ok := price_(underlying, kind, price, short, long, quotes, want)
+			candidate, ok := price_(underlying, kind, price, short, long, quotes, want, refused)
 			if !ok {
 				continue
 			}
@@ -160,19 +184,23 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 }
 
 func price_(underlying, kind string, price float64,
-	short, long marketdata.Contract, quotes map[string]marketdata.Quote, want Wanted) (Candidate, bool) {
+	short, long marketdata.Contract, quotes map[string]marketdata.Quote,
+	want Wanted, refused Refused) (Candidate, bool) {
 
 	shortQuote, haveShort := quotes[short.Symbol]
 	longQuote, haveLong := quotes[long.Symbol]
 	if !haveShort || !haveLong {
+		refused.note(RefusedNoQuote)
 		return Candidate{}, false
 	}
 	if shortQuote.Bid <= 0 || shortQuote.Ask <= 0 || longQuote.Bid <= 0 || longQuote.Ask <= 0 {
+		refused.note(RefusedNoQuote)
 		return Candidate{}, false
 	}
 
 	width := math.Abs(short.Strike - long.Strike)
 	if width <= 0 {
+		refused.note(RefusedNoCredit)
 		return Candidate{}, false
 	}
 
@@ -181,6 +209,7 @@ func price_(underlying, kind string, price float64,
 	credit := (shortQuote.Bid+shortQuote.Ask)/2 - (longQuote.Bid+longQuote.Ask)/2
 	risk := width - credit
 	if credit <= 0 || risk <= 0 {
+		refused.note(RefusedNoCredit)
 		return Candidate{}, false
 	}
 
@@ -189,14 +218,17 @@ func price_(underlying, kind string, price float64,
 		out = (short.Strike - price) / price * 100
 	}
 	if out < want.MinOutOfTheMoney || out > want.MaxOutOfTheMoney {
+		refused.note(RefusedDistance)
 		return Candidate{}, false
 	}
 
 	toRisk := credit / risk * 100
 	if toRisk < want.MinCreditToRisk {
+		refused.note(RefusedPaysTooLittle)
 		return Candidate{}, false
 	}
 	if want.MostCreditToRisk > 0 && toRisk > want.MostCreditToRisk {
+		refused.note(RefusedPaysTooMuch)
 		return Candidate{}, false
 	}
 
@@ -205,9 +237,11 @@ func price_(underlying, kind string, price float64,
 		// day a contract expires, and that is exactly when the sold strike is most
 		// likely to be crossed.
 		if shortQuote.Delta == nil {
+			refused.note(RefusedNoDelta)
 			return Candidate{}, false
 		}
 		if math.Abs(*shortQuote.Delta) > want.MostDelta {
+			refused.note(RefusedDelta)
 			return Candidate{}, false
 		}
 	}
@@ -215,6 +249,7 @@ func price_(underlying, kind string, price float64,
 	cost := (shortQuote.Ask - shortQuote.Bid) + (longQuote.Ask - longQuote.Bid)
 	share := cost / credit * 100
 	if share > want.MaxCostShare {
+		refused.note(RefusedCost)
 		return Candidate{}, false
 	}
 
@@ -225,10 +260,12 @@ func price_(underlying, kind string, price float64,
 		points := round((survives - breakEven) * 100)
 		edge = &points
 		if want.LeastEdge != 0 && points < want.LeastEdge {
+			refused.note(RefusedEdge)
 			return Candidate{}, false
 		}
 	} else if want.LeastEdge != 0 {
 		// No delta, no way to weigh what it pays against what it survives.
+		refused.note(RefusedNoDelta)
 		return Candidate{}, false
 	}
 

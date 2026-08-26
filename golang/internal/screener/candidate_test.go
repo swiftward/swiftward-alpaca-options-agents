@@ -43,7 +43,7 @@ func TestAPutSpreadIsPricedFromBothLegs(t *testing.T) {
 		put(700).Symbol: quote(0.51, 0.59),
 	}
 
-	found := Best("QQQ", 710, contracts, quotes, anything())
+	found := Best("QQQ", 710, contracts, quotes, anything(), Refused{})
 	require.Len(t, found, 1)
 
 	c := found[0]
@@ -67,7 +67,7 @@ func TestACallSpreadSellsTheLowerStrike(t *testing.T) {
 		call(721).Symbol: quote(0.40, 0.50),
 	}
 
-	found := Best("QQQ", 710, contracts, quotes, anything())
+	found := Best("QQQ", 710, contracts, quotes, anything(), Refused{})
 	require.Len(t, found, 1)
 	assert.Equal(t, "call", found[0].Type)
 	assert.InDelta(t, 720, found[0].ShortStrike, 1e-9)
@@ -84,7 +84,7 @@ func TestALegWithoutATwoSidedQuoteIsNotOffered(t *testing.T) {
 		{put(701).Symbol: quote(0.71, 0.79), put(700).Symbol: quote(0, 0.59)},
 		{put(701).Symbol: quote(0, 0.79), put(700).Symbol: quote(0.51, 0.59)},
 	} {
-		assert.Empty(t, Best("QQQ", 710, contracts, broken, anything()))
+		assert.Empty(t, Best("QQQ", 710, contracts, broken, anything(), Refused{}))
 	}
 }
 
@@ -98,15 +98,15 @@ func TestWhatDoesNotClearTheFiltersIsLeftOut(t *testing.T) {
 
 	tooDear := anything()
 	tooDear.MaxCostShare = 50
-	assert.Empty(t, Best("QQQ", 710, contracts, quotes, tooDear), "80% of the credit is dearer than 50%")
+	assert.Empty(t, Best("QQQ", 710, contracts, quotes, tooDear, Refused{}), "80% of the credit is dearer than 50%")
 
 	tooCheap := anything()
 	tooCheap.MinCreditToRisk = 30
-	assert.Empty(t, Best("QQQ", 710, contracts, quotes, tooCheap), "25% pays less than 30%")
+	assert.Empty(t, Best("QQQ", 710, contracts, quotes, tooCheap, Refused{}), "25% pays less than 30%")
 
 	tooNear := anything()
 	tooNear.MinOutOfTheMoney = 2
-	assert.Empty(t, Best("QQQ", 710, contracts, quotes, tooNear), "1.27% is nearer than 2%")
+	assert.Empty(t, Best("QQQ", 710, contracts, quotes, tooNear, Refused{}), "1.27% is nearer than 2%")
 }
 
 // Among several strikes the best is the one paying most for its risk, and both
@@ -122,7 +122,7 @@ func TestTheBestOfEachSideIsOffered(t *testing.T) {
 		call(721).Symbol: quote(0.40, 0.50),
 	}
 
-	found := Best("QQQ", 710, contracts, quotes, anything())
+	found := Best("QQQ", 710, contracts, quotes, anything(), Refused{})
 	require.Len(t, found, 2, "one put and one call")
 	assert.GreaterOrEqual(t, found[0].CreditToRisk, found[1].CreditToRisk, "richest first")
 
@@ -131,7 +131,7 @@ func TestTheBestOfEachSideIsOffered(t *testing.T) {
 }
 
 func TestAnUnknownPriceOffersNothing(t *testing.T) {
-	assert.Empty(t, Best("QQQ", 0, []marketdata.Contract{put(700), put(701)}, nil, anything()))
+	assert.Empty(t, Best("QQQ", 0, []marketdata.Contract{put(700), put(701)}, nil, anything(), Refused{}))
 }
 
 // A structure that pays more than it risks is not an opportunity, it is a broken
@@ -152,11 +152,11 @@ func TestAStructurePayingMoreThanItRisksIsReadAsBrokenData(t *testing.T) {
 	want := anything()
 	loose := want
 	loose.MostCreditToRisk = 0
-	require.Len(t, Best("TSLA", 349, contracts, quotes, loose), 1,
+	require.Len(t, Best("TSLA", 349, contracts, quotes, loose, Refused{}), 1,
 		"without the bound this garbage is offered, and offered first")
 
 	want.MostCreditToRisk = 100
-	assert.Empty(t, Best("TSLA", 349, contracts, quotes, want),
+	assert.Empty(t, Best("TSLA", 349, contracts, quotes, want, Refused{}),
 		"a three-dollar-wide spread quoted at a credit of 1.98 is not a gift")
 
 	// The same filter must not throw away what is merely generous.
@@ -165,7 +165,7 @@ func TestAStructurePayingMoreThanItRisksIsReadAsBrokenData(t *testing.T) {
 		put(701).Symbol: quote(0.71, 0.79),
 		put(700).Symbol: quote(0.51, 0.59),
 	}
-	assert.Len(t, Best("QQQ", 710, honest, honestQuotes, want), 1, "25 percent is ordinary and stays")
+	assert.Len(t, Best("QQQ", 710, honest, honestQuotes, want, Refused{}), 1, "25 percent is ordinary and stays")
 }
 
 // Distance in percent and likelihood are not the same measure: a strike one
@@ -188,9 +188,9 @@ func TestAStrikeTooLikelyToBeCrossedIsNotOffered(t *testing.T) {
 	want := anything()
 	want.MostDelta = 0.25
 
-	assert.Empty(t, Best("QQQ", 710, contracts, quotes(near), want), "0.47 is likelier than the rule accepts")
+	assert.Empty(t, Best("QQQ", 710, contracts, quotes(near), want, Refused{}), "0.47 is likelier than the rule accepts")
 
-	found := Best("QQQ", 710, contracts, quotes(far), want)
+	found := Best("QQQ", 710, contracts, quotes(far), want, Refused{})
 	require.Len(t, found, 1, "0.14 is what the rule wants")
 	require.NotNil(t, found[0].Delta)
 	assert.InDelta(t, -0.14, *found[0].Delta, 1e-9, "the session is told the delta, not left to ask again")
@@ -207,10 +207,10 @@ func TestAContractWithNoDeltaIsNotOfferedWhenDeltaIsAskedFor(t *testing.T) {
 
 	want := anything()
 	want.MostDelta = 0.25
-	assert.Empty(t, Best("QQQ", 710, contracts, quotes, want))
+	assert.Empty(t, Best("QQQ", 710, contracts, quotes, want, Refused{}))
 
 	want.MostDelta = 0
-	assert.Len(t, Best("QQQ", 710, contracts, quotes, want), 1, "unchecked when not asked for")
+	assert.Len(t, Best("QQQ", 710, contracts, quotes, want, Refused{}), 1, "unchecked when not asked for")
 }
 
 // Two legs of different expirations are a calendar spread, not a vertical, and
@@ -228,13 +228,13 @@ func TestLegsOfDifferentExpirationsAreNeverPaired(t *testing.T) {
 		far.Symbol:  quote(0.51, 0.59),
 	}
 
-	assert.Empty(t, Best("QQQ", 710, []marketdata.Contract{far, near}, quotes, anything()),
+	assert.Empty(t, Best("QQQ", 710, []marketdata.Contract{far, near}, quotes, anything(), Refused{}),
 		"one leg on each of two days is not a vertical and must not be offered as one")
 
 	// The same two strikes on the SAME day are a vertical and are offered.
 	sameDay := marketdata.Contract{Symbol: "QQQ-NEAR-700", Expiration: expiry, Strike: 700, Type: "put"}
 	quotes[sameDay.Symbol] = quote(0.51, 0.59)
-	found := Best("QQQ", 710, []marketdata.Contract{sameDay, near}, quotes, anything())
+	found := Best("QQQ", 710, []marketdata.Contract{sameDay, near}, quotes, anything(), Refused{})
 	require.Len(t, found, 1)
 	assert.Equal(t, expiry, found[0].Expiration)
 }
@@ -260,7 +260,7 @@ func TestWhatPaysAboveWhatItMustSurviveIsRankedFirst(t *testing.T) {
 	want.MostDelta = 0
 	found := Best("QQQ", 710, rich, map[string]marketdata.Quote{
 		put(701).Symbol: short, put(700).Symbol: long,
-	}, want)
+	}, want, Refused{})
 	require.Len(t, found, 1)
 	require.NotNil(t, found[0].Edge)
 	assert.Greater(t, *found[0].Edge, 0.0, "paid 50 percent of risk at a 30 percent chance of losing")
@@ -272,7 +272,7 @@ func TestWhatPaysAboveWhatItMustSurviveIsRankedFirst(t *testing.T) {
 	poor.Delta = &delta
 	thin := Best("QQQ", 710, rich, map[string]marketdata.Quote{
 		put(701).Symbol: short, put(700).Symbol: poor,
-	}, want)
+	}, want, Refused{})
 	require.Len(t, thin, 1)
 	require.NotNil(t, thin[0].Edge)
 	assert.Less(t, *thin[0].Edge, *found[0].Edge, "the same delta, less paid, less edge")
@@ -294,12 +294,50 @@ func TestAStructurePayingLessThanItsRiskIsWorthIsLeftOut(t *testing.T) {
 	// percent while the strike survives 70, so ten points short.
 	assert.Empty(t, Best("QQQ", 710, contracts, map[string]marketdata.Quote{
 		put(701).Symbol: short, put(700).Symbol: thin,
-	}, want))
+	}, want, Refused{}))
 
 	// Without delta there is nothing to weigh against, so it is absent rather
 	// than assumed good.
 	noDelta := quote(1.00, 1.00)
 	assert.Empty(t, Best("QQQ", 710, contracts, map[string]marketdata.Quote{
 		put(701).Symbol: noDelta, put(700).Symbol: quote(0.50, 0.50),
-	}, want))
+	}, want, Refused{}))
+}
+
+// The tally has to name the filter that stopped a structure, not merely count
+// that something was stopped. A sweep over hundreds of names returning one
+// candidate is read completely differently depending on which of these is large,
+// and a tally that mislabels its reasons would point at the wrong threshold.
+func TestTheTallyNamesTheFilterThatRefused(t *testing.T) {
+	contracts := []marketdata.Contract{put(700), put(701)}
+	quotes := map[string]marketdata.Quote{
+		put(701).Symbol: quote(0.71, 0.79),
+		put(700).Symbol: quote(0.51, 0.59),
+	}
+
+	dear := anything()
+	dear.MaxCostShare = 50
+	refused := Refused{}
+	require.Empty(t, Best("QQQ", 710, contracts, quotes, dear, refused))
+	assert.Equal(t, 1, refused[RefusedCost])
+	assert.Zero(t, refused[RefusedPaysTooLittle], "one refusal, one reason")
+
+	cheap := anything()
+	cheap.MinCreditToRisk = 30
+	refused = Refused{}
+	require.Empty(t, Best("QQQ", 710, contracts, quotes, cheap, refused))
+	assert.Equal(t, 1, refused[RefusedPaysTooLittle])
+
+	near := anything()
+	near.MinOutOfTheMoney = 2
+	refused = Refused{}
+	require.Empty(t, Best("QQQ", 710, contracts, quotes, near, refused))
+	assert.Equal(t, 1, refused[RefusedDistance])
+
+	// A structure that clears everything leaves the tally empty: an instrument
+	// that counts a refusal on a candidate it accepted would read as a tight
+	// filter forever.
+	refused = Refused{}
+	require.Len(t, Best("QQQ", 710, contracts, quotes, anything(), refused), 1)
+	assert.Empty(t, refused)
 }

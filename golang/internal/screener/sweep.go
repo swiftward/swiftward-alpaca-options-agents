@@ -93,16 +93,20 @@ func (s *Sweep) once(ctx context.Context) {
 	}
 
 	started := s.Now()
-	found := s.look(ctx)
+	found, refused := s.look(ctx)
 
 	if s.Record != nil {
 		if err := s.Record.ReplaceCandidates(ctx, started, found); err != nil {
 			s.Log.Error("could not write down what the sweep found", zap.Error(err))
 		}
 	}
+	// What each filter threw away is logged beside what survived. A sweep that
+	// returns one structure out of hundreds of names is either a quiet market or
+	// a threshold set too tight, and only this tells the two apart.
 	s.Log.Info("swept the universe",
 		zap.Int("underlyings", len(s.Universe)),
 		zap.Int("found", len(found)),
+		zap.Any("refused", map[string]int(refused)),
 		zap.Duration("took", s.Now().Sub(started)))
 }
 
@@ -110,7 +114,8 @@ func (s *Sweep) once(ctx context.Context) {
 // first. A name the broker will not price is skipped in silence: most of the
 // universe has no options anyone trades, and saying so every few minutes for
 // each of them would bury what was found.
-func (s *Sweep) look(ctx context.Context) []Candidate {
+func (s *Sweep) look(ctx context.Context) ([]Candidate, Refused) {
+	refused := Refused{}
 	prices := map[string]float64{}
 	for _, batch := range groups(s.Universe, pricesPerCall) {
 		s.wait(ctx)
@@ -131,7 +136,7 @@ func (s *Sweep) look(ctx context.Context) []Candidate {
 			continue
 		}
 		if ctx.Err() != nil {
-			return found
+			return found, refused
 		}
 
 		s.wait(ctx)
@@ -168,10 +173,10 @@ func (s *Sweep) look(ctx context.Context) []Candidate {
 			continue
 		}
 
-		found = append(found, Best(underlying, price, wanted, quotes, s.Wanted)...)
+		found = append(found, Best(underlying, price, wanted, quotes, s.Wanted, refused)...)
 	}
 
-	return found
+	return found, refused
 }
 
 // wait keeps the sweep inside the broker's limit. It counts what it spent in the
