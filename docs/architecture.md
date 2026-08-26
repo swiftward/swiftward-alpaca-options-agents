@@ -77,15 +77,34 @@ Nothing here decides anything: the reading is mechanical, no session is woken fo
 
 A session that hunts for itself gets through six underlyings before its turn runs out, and those six are whichever the schedule handed it - so an opportunity on the seventh is not rejected, it is never seen. On 26 August none of six passed, while a name outside them was paying a quarter of its risk.
 
-What separates a structure that earns from one that loses is arithmetic over quotes: what it pays against what it risks, how likely the sold strike is to be crossed, and what the round trip costs against what it pays. So `internal/screener` does it in code, over a few hundred underlyings, every few minutes, inside the broker's rate limit. The session asks `read_candidates` and chooses from a ranked shortlist.
+What separates a structure that earns from one that loses is arithmetic over quotes. So `internal/screener` does it in code, over a few hundred underlyings, every few minutes, inside the broker's rate limit. The session asks `read_candidates` and chooses from a ranked shortlist.
 
 It reads and cannot order: its interface to the broker has no method that changes anything. It also knows nothing about the account - what is held, what risk is already taken, whether to trade at all - and that is deliberate. The list is what the market offers, not what should be taken.
 
-Three of its filters exist because of what the first live sweeps produced, and each is a fact about data rather than a preference:
+### One measure, not a row of thresholds
+
+Everything that bears on the decision goes into the number the list is ranked by, and nothing sits beside it as a floor. `edge_points` is how many percentage points a structure pays above what it has to survive: the chance the sold strike is not crossed, less the share of the time the credit has to win to break even.
+
+Both inputs are already inside it, which is why neither gets a threshold of its own. What the structure pays against what it risks IS the second term - the break-even share is `risk / (credit + risk)`. What the book charges to get in is taken out of the credit before anything is measured, and the result is reported as `credit_after_cost`, so a structure quoted wide shows a worse number rather than tripping a separate rule.
+
+The reason is not tidiness. A threshold beside a measure is a second place holding the same knowledge, and it discards without ranking: it cannot say that the structure it rejected was the best on offer. Four such thresholds were removed on 26 August after each was measured - one discarded 833 structures in a single sweep against 96 for the next filter, another emptied the list entirely, a third rejected the best candidate of the day for missing its floor by seven tenths of a point.
+
+Thresholds remain where they catch nonsense rather than choose between sound structures: a quote paying more than the width it risks, a crossing that eats the whole credit.
+
+### What the sweep looks at
+
+Every sold strike is priced against every protective strike behind it, out to five. Width is a dimension of the structure, not merely its size, and it is invisible to the ratio: where credits fall evenly across strikes, a spread four strikes wide collects four times the credit against four times the risk, which is the same ratio. What changes is the crossing - two legs cost two crossings whatever sits between them, so the same toll is charged against four times the credit. On live proportions the narrow structure gives up four fifths of its credit getting in where the wide one gives up a fifth.
+
+### Where the chance of surviving comes from
+
+The broker's delta is a reading of how likely the sold strike is to finish in the money, and it is used where it exists. On the day a contract expires it does not: measured on 26 August, of 28 QQQ contracts expiring that day none carried a delta - and none carried an implied volatility either.
+
+Refusing that book would remove the structures that pay most on the day, so the volatility is borrowed from the nearest expiration of the same underlying that has one, and the chance is computed from it. `edge_from` says which of the two a number came from, and the distinction is load-bearing: volatility at the very short end usually sits above the days behind it, so a borrowed number understates how often the strike is reached and therefore overstates the edge. A rule reading a borrowed measure has to ask more of it, not less. An underlying quoted without volatility anywhere in the window is left unmeasured rather than given a number invented for it.
+
+Two more filters exist because of what the first live sweeps produced, and each is a fact about data rather than a preference:
 
 - **A structure paying more than it risks is a broken quote, not a gift.** The list is ranked by exactly the number bad data inflates, so without this the worst data arrives first.
 - **Distance in percent is not likelihood.** One percent is far on a quiet index and near on a share that moves five percent in a day; ranked on distance alone the list was unusable by a rule written in deltas.
-- **A contract with no delta is not "within the limit".** The broker computes none on the day a contract expires - which is exactly when the sold strike is most likely to be crossed.
 
 ## Getting a decided order filled
 
