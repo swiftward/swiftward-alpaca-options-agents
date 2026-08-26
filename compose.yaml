@@ -107,7 +107,7 @@ x-agent-environment: &agent-environment
   GATEWAY_URL: ${GATEWAY_URL:-http://envelope:8090/mcp}
   HTTP_PROXY: http://egress:8888
   HTTPS_PROXY: http://egress:8888
-  NO_PROXY: alpaca-mcp,alpaca-mcp-near,envelope,postgres,egress,swiftward-server,localhost,127.0.0.1
+  NO_PROXY: alpaca-mcp,alpaca-mcp-near,envelope,postgres,egress,swiftward-hackathon-server,localhost,127.0.0.1
   CODEX_HOME: /home/agent/.codex
 
 services:
