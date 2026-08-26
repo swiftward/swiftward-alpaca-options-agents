@@ -1,11 +1,13 @@
 ---
 name: playbook-premium-harvest
-description: The rule for opening a premium-harvest position - sell a put credit spread and let time decay pay for it. Use in any entry window, whenever a task asks for premium-harvest.
+description: The rule for opening a premium-harvest position - sell a vertical credit spread and let time decay pay for it. Use in any entry window, whenever a task asks for premium-harvest.
 ---
 
 # Premium harvest
 
-Sell a vertical put spread and hold it while time passes. The credit is taken on the way in; what is left of it at expiry is the profit. The loss is bounded by the width of the spread, which is why it may be opened at all.
+Sell a vertical credit spread and hold it while time passes. The credit is taken on the way in; what is left of it at expiry is the profit. The loss is bounded by the width of the spread, which is why it may be opened at all.
+
+**Which SIDE is the task's to say, not this file's.** A put spread below the price and a call spread above it are the same technique mirrored, and the price cannot go both ways at once - so a second side on an underlying that already has one is the cheapest credit in the book. On 26 August this file said "put spread", a session read that as a prohibition and refused a call it had already selected. Anything here that reads as a restriction on WHAT to pick is a defect in this file: the mechanics live here, the choices live in the task.
 
 The rule is here once. A task that asks for premium-harvest does not repeat it.
 
@@ -27,7 +29,7 @@ Then check the clock, the account and what is already open.
 - **Expiration.** From the envelope's range, and from nowhere else - if the envelope permits today, today is permitted. The nearer expiration decays faster, the further one passes the thresholds more often; take whichever measures better.
   On expiry day the broker computes no greeks and no volatility at all, so the screener borrows the volatility from the nearest other expiration of the same underlying and says so in `edge_from`. A borrowed number errs the dangerous way - the very short end usually sits above the days behind it, so it understates how often the strike is reached - which is why the TASK asks more of a borrowed measure than of a delta one. Follow the task.
 - **The short leg.** How far out is the TASK's to say, not this file's: the two accounts sell at deliberately different distances, and that difference is the experiment they exist for. The long leg is one strike further out.
-- **Width.** The narrowest where both legs have a two-sided quote. Risk is the width less the credit.
+- **Width.** Whatever measures best - the screener prices every width out to five strikes, and width changes what the crossing costs rather than what the structure pays. Both legs need a two-sided quote. Risk is the width less the credit.
 - **What to rank on.** `edge_points` from `read_candidates`: how many percentage points the structure pays above what it has to survive. Both halves at once - a delta ceiling keeps what is far and throws away what pays, a credit threshold keeps what pays and ignores how often it loses.
   Crossing the book is already taken out of it, so there is no separate rule about what the round trip costs. `credit_after_cost` beside `credit` shows how much a structure gives up getting in. A structure quoted wide shows a worse `edge_points` on its own; one measured on the displayed midpoint scored seven points better than the cheaper structure that actually earns.
 
@@ -55,7 +57,7 @@ One order, all legs together, limit at the middle. Put the worst price you will 
 
 The harness walks the price toward the book from there, waits at each price long enough to be taken, never asks for worse than your number, and cancels what the book will not take. Do not watch the order afterwards.
 
-The worst price has to satisfy the same rule as the entry: credit-to-risk **at that price**, not at the one you asked for, at least a tenth. Otherwise you are agreeing to a fill you already called unfit. Beyond that, give up no more than a third of the credit; of the two bounds take the one that gives up less. Example: a spread five dollars wide, credit 0.67 at the middle. A tenth of the risk gives a worst price of 0.46 (at a credit of 0.46 the risk is 4.54); a third of the credit would give 0.45. The first gives up less, so `worst=-0.46`.
+The worst price has to satisfy the same rule as the entry: work `edge_points` out again **at that price** - the chance of surviving, less risk over credit plus risk - and it must still clear the threshold you entered on. Otherwise you are agreeing to a fill you already called unfit. Beyond that, give up no more than a third of the credit; of the two bounds take the one that gives up less.
 
 ## Afterwards
 
