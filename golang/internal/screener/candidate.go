@@ -152,8 +152,18 @@ const (
 	RefusedEdge          = "pays less than what it must survive"
 
 	// What the chance of surviving was read from.
-	FromDelta      = "delta"
-	FromVolatility = "implied volatility"
+	FromDelta = "delta"
+	// FromBorrowedVolatility marks a measure whose volatility came from another
+	// expiration of the same underlying, because the contract's own quote carried
+	// none. Measured 26 August: of 28 QQQ contracts expiring that day, not one
+	// carried implied volatility or delta - so this is the ONLY way the expiry-day
+	// book can be measured at all.
+	//
+	// It is a weaker number and it errs in the dangerous direction. Volatility at
+	// the very short end usually sits above the days behind it, so a borrowed one
+	// understates how often the strike is reached, which overstates the edge. Any
+	// rule reading this must ask more of it than of a measured one, never less.
+	FromBorrowedVolatility = "implied volatility, borrowed from another expiration"
 )
 
 // Best returns the best put spread and the best call spread this underlying
@@ -168,6 +178,10 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 	if price <= 0 {
 		return nil
 	}
+
+	// The one volatility this underlying is quoted at anywhere in the window. The
+	// expiry-day contracts carry none of their own, and this is what stands in.
+	borrowed := nearestVolatility(contracts, quotes, now)
 
 	// Grouped by type AND expiration. Two legs of different expirations are a
 	// different structure entirely - a calendar, not a vertical - and pricing one
@@ -209,7 +223,7 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 				short, long = list[i-1], list[i]
 			}
 
-			candidate, ok := price_(underlying, kind, price, short, long, quotes, now, want, refused)
+			candidate, ok := price_(underlying, kind, price, short, long, quotes, now, borrowed, want, refused)
 			if !ok {
 				continue
 			}
@@ -230,7 +244,7 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 
 func price_(underlying, kind string, price float64,
 	short, long marketdata.Contract, quotes map[string]marketdata.Quote, now time.Time,
-	want Wanted, refused Refused) (Candidate, bool) {
+	borrowed *float64, want Wanted, refused Refused) (Candidate, bool) {
 
 	shortQuote, haveShort := quotes[short.Symbol]
 	longQuote, haveLong := quotes[long.Symbol]
@@ -324,10 +338,10 @@ func price_(underlying, kind string, price float64,
 	switch {
 	case shortQuote.Delta != nil:
 		survives, from = 1-math.Abs(*shortQuote.Delta), FromDelta
-	case shortQuote.ImpliedVolatility != nil:
-		if chance, ok := Survival(price, short.Strike, *shortQuote.ImpliedVolatility,
+	case borrowed != nil:
+		if chance, ok := Survival(price, short.Strike, *borrowed,
 			leftUntil(short.Expiration, now)); ok {
-			survives, from = chance, FromVolatility
+			survives, from = chance, FromBorrowedVolatility
 		}
 	}
 
@@ -370,3 +384,31 @@ func richer(one, than Candidate) bool {
 }
 
 func round(value float64) float64 { return math.Round(value*100) / 100 }
+
+// nearestVolatility is what this underlying's options are priced at, taken from
+// the soonest expiration that carries a volatility at all.
+//
+// The soonest, because volatility has a term structure and the nearest one is
+// the closest thing to the day being measured. Nil where the whole window is
+// quoted without it, which is what an underlying nobody trades options on looks
+// like.
+func nearestVolatility(contracts []marketdata.Contract,
+	quotes map[string]marketdata.Quote, now time.Time) *float64 {
+
+	var soonest time.Time
+	var found *float64
+	for _, contract := range contracts {
+		quote, quoted := quotes[contract.Symbol]
+		if !quoted || quote.ImpliedVolatility == nil || *quote.ImpliedVolatility <= 0 {
+			continue
+		}
+		if leftUntil(contract.Expiration, now) <= 0 {
+			continue
+		}
+		if found == nil || contract.Expiration.Before(soonest) {
+			soonest, found = contract.Expiration, quote.ImpliedVolatility
+		}
+	}
+
+	return found
+}

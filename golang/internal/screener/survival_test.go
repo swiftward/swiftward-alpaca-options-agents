@@ -79,19 +79,26 @@ func TestWhatIsLeftIsCountedToTheClose(t *testing.T) {
 	assert.Equal(t, 2*time.Hour+45*time.Minute, leftUntil(day, at))
 }
 
-// The point of the whole file: the expiry-day book gets a real edge instead of
-// an absent one, and the edge separates what the market pays fairly from what it
-// does not. Both structures below pay well and only one is worth selling.
-func TestTheExpiryDayBookIsMeasuredFromVolatility(t *testing.T) {
+// The point of the whole file: the expiry-day book gets an edge instead of no
+// edge, and that edge separates what the market pays fairly from what it does
+// not. Both structures below pay the same and only one is worth selling.
+//
+// The volatility is borrowed from a later expiration, because the expiry-day
+// quotes carry none of their own - measured, not assumed: of 28 QQQ contracts
+// expiring on 26 August, not one carried volatility or delta.
+func TestTheExpiryDayBookIsMeasuredFromBorrowedVolatility(t *testing.T) {
 	today := time.Date(2026, 8, 26, 0, 0, 0, 0, time.UTC)
 	at := time.Date(2026, 8, 26, 17, 15, 0, 0, time.UTC)
 
 	// A put spread a third of a percent under a quiet index, paying a third of
 	// its risk. No delta, because the broker computes none on expiry day.
-	quiet := []marketdata.Contract{putOn(707, today), putOn(708, today)}
+	// Two legs expiring today, quoted with no volatility of their own, and one
+	// contract two days out that carries the number they borrow.
+	quiet := []marketdata.Contract{putOn(707, today), putOn(708, today), put(690)}
 	quietQuotes := map[string]marketdata.Quote{
-		quiet[1].Symbol: volatile(quote(0.25, 0.25), 0.16),
-		quiet[0].Symbol: volatile(quote(0.00001, 0.00001), 0.16),
+		quiet[1].Symbol: quote(0.25, 0.25),
+		quiet[0].Symbol: quote(0.00001, 0.00001),
+		put(690).Symbol: volatile(quote(0.10, 0.12), 0.16),
 	}
 
 	want := anything()
@@ -99,15 +106,16 @@ func TestTheExpiryDayBookIsMeasuredFromVolatility(t *testing.T) {
 	found := Best("QQQ", 710, quiet, quietQuotes, at, want, Refused{})
 	require.Len(t, found, 1)
 	require.NotNil(t, found[0].Edge, "no delta, and still measured")
-	assert.Equal(t, FromVolatility, found[0].EdgeFrom)
+	assert.Equal(t, FromBorrowedVolatility, found[0].EdgeFrom)
 	assert.Positive(t, *found[0].Edge)
 
 	// The same shape on a share that moves four times as much. It pays the same
 	// and is reached far more often, so the edge has to turn negative.
-	restless := []marketdata.Contract{putOn(345, today), putOn(346, today)}
+	restless := []marketdata.Contract{putOn(345, today), putOn(346, today), put(330)}
 	restlessQuotes := map[string]marketdata.Quote{
-		restless[1].Symbol: volatile(quote(0.25, 0.25), 0.60),
-		restless[0].Symbol: volatile(quote(0.00001, 0.00001), 0.60),
+		restless[1].Symbol: quote(0.25, 0.25),
+		restless[0].Symbol: quote(0.00001, 0.00001),
+		put(330).Symbol:    volatile(quote(0.10, 0.12), 0.60),
 	}
 
 	want.LeastEdge = 0
@@ -122,4 +130,25 @@ func volatile(q marketdata.Quote, impliedVolatility float64) marketdata.Quote {
 	q.ImpliedVolatility = &impliedVolatility
 
 	return q
+}
+
+// An underlying whose whole window is quoted without volatility leaves the
+// expiry-day book unmeasured rather than measured against a number invented for
+// it. Unmeasured is a state the session can read; a made-up volatility is not.
+func TestWithNoVolatilityAnywhereTheStructureStaysUnmeasured(t *testing.T) {
+	today := time.Date(2026, 8, 26, 0, 0, 0, 0, time.UTC)
+	at := time.Date(2026, 8, 26, 17, 15, 0, 0, time.UTC)
+
+	contracts := []marketdata.Contract{putOn(707, today), putOn(708, today)}
+	quotes := map[string]marketdata.Quote{
+		contracts[1].Symbol: quote(0.25, 0.25),
+		contracts[0].Symbol: quote(0.00001, 0.00001),
+	}
+
+	want := anything()
+	want.MinOutOfTheMoney = 0.1
+	found := Best("QQQ", 710, contracts, quotes, at, want, Refused{})
+	require.Len(t, found, 1)
+	assert.Nil(t, found[0].Edge)
+	assert.Empty(t, found[0].EdgeFrom)
 }
