@@ -16,6 +16,16 @@ func put(strike float64) marketdata.Contract {
 	return marketdata.Contract{Symbol: name("P", strike), Expiration: expiry, Strike: strike, Type: "put"}
 }
 
+// putOn is the same put on another expiration, so a test can hold two series at
+// once and see how they compete.
+func putOn(strike float64, day time.Time) marketdata.Contract {
+	c := put(strike)
+	c.Expiration = day
+	c.Symbol = "X" + c.Symbol
+
+	return c
+}
+
 func call(strike float64) marketdata.Contract {
 	return marketdata.Contract{Symbol: name("C", strike), Expiration: expiry, Strike: strike, Type: "call"}
 }
@@ -440,4 +450,34 @@ func TestAStructureTheCrossingEatsIsRefused(t *testing.T) {
 	assert.Positive(t, refused[RefusedEatenByCost])
 	assert.Zero(t, refused[RefusedCost],
 		"the sanity bound and the crossing eating the credit are different findings")
+}
+
+// Measured and unmeasured structures do not compete for the same slot. Making
+// them compete drops one for a reason that has nothing to do with what it pays:
+// an unmeasured structure always ranks below a measured one, so a single
+// measured candidate anywhere in the underlying would hide the whole expiry-day
+// book - which is the book that pays most on the day.
+func TestTheUnmeasuredBookKeepsItsOwnSlot(t *testing.T) {
+	measured := []marketdata.Contract{put(700), put(701)}
+	// Same series list, a different expiration with no delta on either leg.
+	sameDay := time.Date(2026, 8, 26, 0, 0, 0, 0, time.UTC)
+	blind := []marketdata.Contract{putOn(700, sameDay), putOn(701, sameDay)}
+
+	quotes := map[string]marketdata.Quote{
+		put(701).Symbol: with(quote(0.55, 0.65), -0.10),
+		put(700).Symbol: with(quote(0.45, 0.55), -0.08),
+		// Pays far more and carries no delta at all.
+		blind[1].Symbol: quote(0.85, 0.87),
+		blind[0].Symbol: quote(0.45, 0.47),
+	}
+
+	want := anything()
+	want.MostDelta = 0.45
+	found := Best("QQQ", 710, append(measured, blind...), quotes, want, Refused{})
+
+	require.Len(t, found, 2, "the measured put and the unmeasured put, not one of them")
+	require.NotNil(t, found[0].Edge, "the measured one is shown first")
+	require.Nil(t, found[1].Edge)
+	assert.Greater(t, found[1].CreditToRisk, found[0].CreditToRisk,
+		"and the one that pays more is the one that would have been dropped")
 }

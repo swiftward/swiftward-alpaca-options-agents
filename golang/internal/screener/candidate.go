@@ -174,8 +174,20 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 		bySeries[key] = append(bySeries[key], contract)
 	}
 
+	// One best per side, and the unmeasured book keeps a slot of its own.
+	//
+	// Measured and unmeasured are not comparable, so making them compete drops one
+	// of them for a reason that is not about what it pays. A candidate with no
+	// edge ranks below any candidate that has one, so the moment an underlying
+	// offers a measured structure at any edge at all, a structure paying three
+	// times as much disappears for being unmeasured. That is the whole expiry-day
+	// book, and opening expiry day and then ranking it away is not opening it.
+	type slot struct {
+		kind     string
+		measured bool
+	}
 	var found []Candidate
-	best := map[string]Candidate{}
+	best := map[slot]Candidate{}
 	for key, list := range bySeries {
 		kind := key.kind
 		sort.Slice(list, func(i, j int) bool { return list[i].Strike < list[j].Strike })
@@ -192,10 +204,9 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 			if !ok {
 				continue
 			}
-			// One best per side across every expiration: the session wants the best
-			// put and the best call, not one of each per day.
-			if kept, have := best[kind]; !have || richer(candidate, kept) {
-				best[kind] = candidate
+			where := slot{kind: kind, measured: candidate.Edge != nil}
+			if kept, have := best[where]; !have || richer(candidate, kept) {
+				best[where] = candidate
 			}
 		}
 	}
