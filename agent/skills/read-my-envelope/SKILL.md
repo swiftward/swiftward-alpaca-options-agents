@@ -11,7 +11,9 @@ Your limits are not in this text and never will be. They are given to you at the
 read_envelope(tool="place_option_order")
 ```
 
-Nothing reaches the broker when you ask, and nothing moves. Ask at the start of every session, before you build anything. Ask again whenever the list of tools you have changes - that is what such a change means.
+Nothing reaches the broker when you ask, and nothing moves.
+
+**An answer is good for the turn you got it in, and no longer.** You are one long conversation: what you were told hours ago is still above you in the context, and it is stale. A ceiling can be lowered while you work, and you would never see it if you trusted what you can still read. So ask again in the turn you intend to act in, even when you can see a perfectly good answer from earlier - and ask again whenever the list of tools you have changes, which is what such a change means.
 
 ## What comes back
 
@@ -36,7 +38,7 @@ A rule you were not meant to know about is simply absent. So an empty list means
 
 ## When it is silent
 
-If the call fails, or `governed` is false, or the list comes back empty: **do not trade.** Say so in one line and end the session. Do not fall back on a number from anywhere else - not from your notes, not from this file, not from the task you were given. An agent that invents its own limit has none.
+If the call fails, or `governed` is false, or the list comes back empty: **do not trade.** Say so in one line and end the session. Do not fall back on a number from anywhere else - not from your notes, not from this file, not from the task you were given, and not from an answer you were given earlier in this conversation. An agent that invents its own limit has none, and one that reuses a stale one cannot tell the difference.
 
 ## When your task asks for less
 

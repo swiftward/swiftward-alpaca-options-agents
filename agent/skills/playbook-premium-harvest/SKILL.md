@@ -11,7 +11,7 @@ The rule is here once. A task that asks for premium-harvest may add to it or ask
 
 ## Before anything
 
-`read_envelope(tool="place_option_order")`. Which underlyings, which expirations, how large a position and how much of the account may be at risk at once - all of it comes from there, none of it from this file. If the envelope is silent, do not trade and say so. The skill `read-my-envelope` says the rest.
+`read_envelope(tool="place_option_order")`, in this turn - not once earlier in the conversation. Which underlyings, which expirations, how large a position and how much of the account may be at risk at once: all of it comes from there, none of it from this file. If the envelope is silent, do not trade and say so. The skill `read-my-envelope` says the rest.
 
 Then check the clock, the account and what is already open.
 
