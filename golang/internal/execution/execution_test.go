@@ -2,6 +2,7 @@ package execution
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -591,4 +592,92 @@ func TestAFillOlderThanTheLadderIsKeptButNotSaid(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, fills, "it is still written down: the record is worth having")
+}
+
+// An order that would lose more than one position may is cancelled before it can
+// fill, and the session is told to recount.
+//
+// This is where the declared limit stops being advice. On 26 August a session
+// worked its own size out wrong, the broker refused 17 884 sets for want of
+// buying power, and the session came back with 906 - a maximum loss near 76 000
+// against a limit of 15 000. Nothing between it and the market disagreed,
+// because the envelope discloses and does not enforce.
+func TestAnOrderTooLargeForOnePositionIsCancelled(t *testing.T) {
+	at := time.Date(2026, 8, 26, 18, 5, 0, 0, time.UTC)
+	huge := spread("o-huge", -0.16, "new", at.Add(-2*time.Minute))
+	huge.Quantity = 906
+	huge.Legs[0].Quantity, huge.Legs[1].Quantity = 906, 906
+
+	broker := &brokerDouble{
+		orders: []marketdata.Order{huge},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	told := make(chan string, 1)
+	l := ladder(broker, at, t)
+	l.Ceiling = func(context.Context) (float64, error) { return 15000, nil }
+	l.Wake = func(_ context.Context, cause string) { told <- cause }
+	l.step(context.Background())
+
+	replaced, cancelled := broker.seen()
+	assert.Equal(t, []string{"o-huge"}, cancelled)
+	assert.Empty(t, replaced, "a cancelled order must not also be walked toward the book")
+
+	select {
+	case cause := <-told:
+		assert.Contains(t, cause, "76", "the session is told what it actually risked")
+	default:
+		t.Fatal("the session was not told its order was taken away")
+	}
+}
+
+// An order within the limit is left to the ladder, and the check costs it
+// nothing.
+func TestAnOrderWithinTheLimitIsWalkedAsBefore(t *testing.T) {
+	at := time.Date(2026, 8, 26, 18, 5, 0, 0, time.UTC)
+	broker := &brokerDouble{
+		orders: []marketdata.Order{spread("o-1", -0.12, "new", at.Add(-2*time.Minute))},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	l := ladder(broker, at, t)
+	l.Ceiling = func(context.Context) (float64, error) { return 15000, nil }
+	l.step(context.Background())
+
+	replaced, cancelled := broker.seen()
+	assert.Empty(t, cancelled)
+	assert.InDelta(t, -0.11, replaced["o-1"], 1e-9)
+}
+
+// A ceiling that cannot be read leaves orders alone rather than cancelling them.
+// Losing the limit is a reason to say so, never a reason to take the account's
+// working orders away.
+func TestAnUnreadableCeilingCancelsNothing(t *testing.T) {
+	at := time.Date(2026, 8, 26, 18, 5, 0, 0, time.UTC)
+	huge := spread("o-huge", -0.16, "new", at.Add(-2*time.Minute))
+	huge.Quantity = 906
+	huge.Legs[0].Quantity, huge.Legs[1].Quantity = 906, 906
+
+	broker := &brokerDouble{
+		orders: []marketdata.Order{huge},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	l := ladder(broker, at, t)
+	l.Ceiling = func(context.Context) (float64, error) {
+		return 0, errors.New("the ruleset is unreadable")
+	}
+	l.step(context.Background())
+
+	_, cancelled := broker.seen()
+	assert.Empty(t, cancelled)
 }

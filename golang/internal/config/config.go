@@ -129,7 +129,10 @@ type Config struct {
 	// from outside the binary: an agent whose limits are compiled into the thing
 	// that reads them has not discovered anything.
 	EnvelopeAddr    string
-	EnvelopePath    string
+	EnvelopePath string
+	// EnvelopeIdentity is which agent in the ruleset this process is. The ladder
+	// needs it to read the same position limit the session is told to size by.
+	EnvelopeIdentity string
 	EnvelopeCallers map[string]string
 
 	// The chat the session posts to. Absent means the agent is offered no way to
@@ -261,6 +264,7 @@ func Load() (Config, error) {
 		GatewayToken:          k.String("gateway_token"),
 		EnvelopeAddr:          k.String("envelope_addr"),
 		EnvelopePath:          k.String("envelope_path"),
+		EnvelopeIdentity:      k.String("envelope_identity"),
 		EnvelopeCallers:       callers,
 		Telegram: telegram.Config{
 			Token:        k.String("telegram_bot_token"),

@@ -73,6 +73,14 @@ func TestUnusedToolsAgainstTheLiveBroker(t *testing.T) {
 			"symbols": "NVDA", "timeframe": "1Day", "start": "2020-01-01", "limit": 10000,
 		})
 	})
+	t.Run("get_stock_bars how far back the feed goes", func(t *testing.T) {
+		// One point (limit:1) asks the broker for the earliest bar in the whole
+		// interval rather than paying for the years between - the answer is where
+		// history starts, not what happened since.
+		call(t, "get_stock_bars", map[string]any{
+			"symbols": "NVDA", "timeframe": "1Day", "start": "2000-01-01", "limit": 1,
+		})
+	})
 
 	// get_option_bars: needs a real contract symbol - list QQQ contracts once,
 	// take the first, then ask for its history.
@@ -133,14 +141,14 @@ func TestUnusedToolsAgainstTheLiveBroker(t *testing.T) {
 	// corporate actions: does the payload carry earnings/report dates at all.
 	t.Run("get_corporate_action_announcements NVDA", func(t *testing.T) {
 		call(t, "get_corporate_action_announcements", map[string]any{
-			"ca_types": []string{"Dividend", "Split", "Merger", "Reorg", "Spinoff"},
+			"ca_types": []string{"dividend", "split", "merger", "spinoff"},
 			"since":    ymd(today), "until": ymd(today.AddDate(0, 0, 60)),
 			"symbol": "NVDA",
 		})
 	})
 	t.Run("get_corporate_action_announcements AVGO", func(t *testing.T) {
 		call(t, "get_corporate_action_announcements", map[string]any{
-			"ca_types": []string{"Dividend", "Split", "Merger", "Reorg", "Spinoff"},
+			"ca_types": []string{"dividend", "split", "merger", "spinoff"},
 			"since":    ymd(today), "until": ymd(today.AddDate(0, 0, 60)),
 			"symbol": "AVGO",
 		})

@@ -9,11 +9,13 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
 	// The timezone database travels with the binary. Trading hours are New York's,
 	// and a slim image carries no zone files - without this the declaration fails
 	// to load with "unknown time zone", which is a deployment detail dressed as a
@@ -265,6 +267,37 @@ func run(log *zap.Logger) error {
 		ladder := &execution.Ladder{
 			Broker: broker, Every: cfg.ExecutionEvery, Step: step, Record: state,
 			Patience: cfg.ExecutionPatience, Now: time.Now, Log: log.Named("execution"),
+		}
+		// What one position may lose, in dollars, from the SAME ruleset the
+		// envelope serves and the account the broker reports. The session is told
+		// to size by this number and can get it wrong; here it stops being advice.
+		//
+		// The ruleset is re-read on every pass for the same reason the envelope
+		// re-reads it: an operator lowering a ceiling edits one file and the next
+		// pass obeys, with nothing restarted.
+		if cfg.EnvelopePath != "" && cfg.EnvelopeIdentity != "" {
+			ladder.Ceiling = func(ctx context.Context) (float64, error) {
+				set, err := envelope.Load(cfg.EnvelopePath)
+				if err != nil {
+					return 0, fmt.Errorf("read the ruleset: %w", err)
+				}
+				out, err := set.For(cfg.EnvelopeIdentity, "place_option_order")
+				if err != nil {
+					return 0, err
+				}
+				share, err := out.PercentOfEquity("max-loss-per-position")
+				if err != nil {
+					return 0, err
+				}
+				account, err := broker.Account(ctx)
+				if err != nil {
+					return 0, fmt.Errorf("read what the account is worth: %w", err)
+				}
+
+				return account.Equity * share / 100, nil
+			}
+			log.Info("resting orders are held to what one position may lose",
+				zap.String("identity", cfg.EnvelopeIdentity))
 		}
 		if running != nil {
 			ladder.Wake = func(ctx context.Context, cause string) {

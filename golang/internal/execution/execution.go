@@ -69,6 +69,18 @@ type Ladder struct {
 	// acknowledging a fill changes nothing - but a fill is the only thing on the
 	// whole screen that actually happened. Nil says nothing.
 	Say func(ctx context.Context, line string)
+	// Ceiling answers what one position may lose, in dollars, given what the
+	// account is worth. It is the SAME limit the session is told to size by, read
+	// from the same place - the ladder is where that limit stops being advice.
+	//
+	// The session works the limit out and can work it out wrong: on 26 August one
+	// sized a structure to 906 sets and a maximum loss near 76 000 against a limit
+	// of 15 000, after the broker had refused a first attempt at 17 884. Nothing
+	// between it and the market disagreed, because the envelope discloses and does
+	// not enforce. This is what does.
+	//
+	// Nil leaves resting orders unchecked, which is the behaviour there was before.
+	Ceiling func(ctx context.Context) (float64, error)
 	// Reads bounds how many recent orders are examined.
 	Reads int
 	Now   func() time.Time
@@ -126,11 +138,26 @@ func (l *Ladder) step(ctx context.Context) {
 	}
 
 	var cancelled []marketdata.Order
+	// What one position may lose, asked once for the whole pass rather than per
+	// order: it is the same answer for all of them, and asking is a request.
+	ceiling, hasCeiling := 0.0, false
+	if l.Ceiling != nil {
+		if limit, err := l.Ceiling(ctx); err != nil {
+			l.Log.Error("could not read what one position may lose; resting orders go unchecked",
+				zap.Error(err))
+		} else {
+			ceiling, hasCeiling = limit, true
+		}
+	}
+
 	for _, order := range orders {
 		if order.Status == "filled" || order.FilledQuantity > 0 {
 			l.report(ctx, order)
 		}
 		if !working(order) {
+			continue
+		}
+		if hasCeiling && l.tooBig(ctx, order, ceiling) {
 			continue
 		}
 		age := l.Now().Sub(*order.SubmittedAt)
@@ -404,4 +431,44 @@ func worseThan(price, than float64) bool { return price > than }
 // accumulates a fraction the broker will refuse.
 func round(price float64) float64 {
 	return math.Round(price*100) / 100
+}
+
+// tooBig cancels a resting order that would lose more than one position may, and
+// says so both in the log and to the session that sent it.
+//
+// It reports whether the order was taken out of the ladder's hands, so a
+// cancelled order is not then walked toward a book it must never reach.
+//
+// An order it cannot read is LEFT ALONE rather than cancelled: unknown is not
+// the same as too large, and cancelling on a symbol this code failed to parse
+// would take out a sound structure for a reason that is ours.
+func (l *Ladder) tooBig(ctx context.Context, order marketdata.Order, ceiling float64) bool {
+	worst, known := WorstCase(order)
+	if !known || -worst <= ceiling {
+		return false
+	}
+
+	l.Log.Warn("cancelling a resting order that may lose more than one position is allowed to",
+		zap.String("order", order.ID),
+		zap.Float64("worst_case", -worst),
+		zap.Float64("allowed", ceiling),
+		zap.Float64("quantity", order.Quantity))
+
+	if err := l.Broker.CancelOrder(ctx, order.ID); err != nil {
+		l.Log.Error("could not cancel an order that is too large", zap.String("order", order.ID), zap.Error(err))
+		return false
+	}
+	l.wroteDown(ctx, record.ExecutionStep{
+		OrderRef: order.ID, At: l.Now(), Action: "cancelled", Was: order.LimitPrice,
+	})
+
+	if l.Wake != nil {
+		l.Wake(ctx, fmt.Sprintf(
+			"заявка %s снята: её худший исход %.0f при разрешённых %.0f на позицию. "+
+				"Пересчитай размер от предела конверта, а не от покупательной способности, "+
+				"и скажи одной строкой, сколько насчитал.",
+			order.ID, -worst, ceiling))
+	}
+
+	return true
 }

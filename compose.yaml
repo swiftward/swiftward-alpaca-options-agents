@@ -228,6 +228,12 @@ services:
       BROKER_MCP_URL: ${BROKER_MCP_URL}
       DECLARATION: ${DECLARATION:-/agent/agent.yaml}
       GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+      # The ladder reads the SAME ruleset the envelope serves, so what one
+      # position may lose stops being advice at the last point our code holds an
+      # order. The session still discovers its limits by asking; this is the
+      # backstop under it.
+      ENVELOPE_PATH: /policy/envelope.yaml
+      ENVELOPE_IDENTITY: options-alpha
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}
@@ -236,6 +242,7 @@ services:
       - ${CODEX_AUTH_DIR}:/mnt/codex:ro
       - codex-home:/home/agent/.codex
       - agent-work:/work
+      - ./policy/envelope.yaml:/policy/envelope.yaml:ro
 
   # The second account: the same engine selling NEARER the money. It keeps its
   # own record, because a shared one would let this agent's restart close the
@@ -253,6 +260,8 @@ services:
       BROKER_MCP_URL: http://alpaca-mcp-near:8000/mcp
       DECLARATION: /agent/experiment-near.yaml
       GATEWAY_TOKEN: ${GATEWAY_NEAR_TOKEN}
+      ENVELOPE_PATH: /policy/envelope.yaml
+      ENVELOPE_IDENTITY: options-alpha-near
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_NEAR_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       TELEGRAM_TOPIC_ID: ${TELEGRAM_NEAR_TOPIC_ID}
@@ -261,6 +270,7 @@ services:
       - ${CODEX_AUTH_DIR}:/mnt/codex:ro
       - codex-home-near:/home/agent/.codex
       - agent-near-work:/work
+      - ./policy/envelope.yaml:/policy/envelope.yaml:ro
 
   # What the session asks about its own limits. It stands where the policy gateway
   # will stand, and answers the one question that gateway answers first: what am I
