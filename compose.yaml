@@ -264,7 +264,7 @@ services:
     environment:
       ROLES: envelope
       ENVELOPE_ADDR: ":8090"
-      ENVELOPE_PATH: /agent/envelope.yaml
+      ENVELOPE_PATH: /policy/envelope.yaml
       # Which token belongs to which caller. It lives here and not in the ruleset
       # because the ruleset is committed and a token is not.
       ENVELOPE_CALLERS: ${ENVELOPE_CALLERS}
@@ -272,7 +272,7 @@ services:
       # The working copy over the shipped one: an operator lowering a ceiling
       # edits this file, and the session reads the new number on its next
       # question, with nothing restarted.
-      - ./agent/envelope.yaml:/agent/envelope.yaml:ro
+      - ./policy/envelope.yaml:/policy/envelope.yaml:ro
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]

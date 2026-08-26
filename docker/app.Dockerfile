@@ -28,7 +28,7 @@ ENTRYPOINT ["/usr/local/bin/app"]
 # that a running session sees, and a limit baked into an image is not that.
 FROM alpine:3.22 AS envelope
 COPY --from=build /out/app /usr/local/bin/app
-COPY agent/envelope.yaml /agent/envelope.yaml
+COPY policy/envelope.yaml /policy/envelope.yaml
 USER 65534
 ENTRYPOINT ["/usr/local/bin/app"]
 

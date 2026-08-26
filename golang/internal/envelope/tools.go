@@ -1,12 +1,16 @@
 package envelope
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.uber.org/zap"
 )
 
 const (
@@ -27,15 +31,65 @@ type readEnvelopeInput struct {
 type Tools struct {
 	Path    string
 	Callers map[string]string
+	Log     *zap.Logger
 }
 
 // Handler serves read_envelope. The identity is resolved once per connection,
 // from the bearer token the session was started with.
 func (t Tools) Handler() http.Handler {
-	return mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
+	served := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
 		return t.server(identityOf(req, t.Callers))
 	}, nil)
+
+	return t.noting(served)
 }
+
+// noting writes down which method was asked for and by whom.
+//
+// It is here to answer a question about the agent rather than about this service:
+// the thing that runs the sessions is one long-lived process, so whether it asks
+// for the tool list once at connect or again every turn decides whether a change
+// of limits can reach a conversation already under way. That is not something to
+// reason about - it is something to read off a log.
+func (t Tools) noting(next http.Handler) http.Handler {
+	if t.Log == nil {
+		return next
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		method := ""
+		if req.Body != nil && req.Method == http.MethodPost {
+			body, err := io.ReadAll(io.LimitReader(req.Body, requestPeek))
+			if err == nil {
+				var call struct {
+					Method string `json:"method"`
+					Params struct {
+						Name string `json:"name"`
+					} `json:"params"`
+				}
+				if json.Unmarshal(body, &call) == nil {
+					method = call.Method
+					if call.Params.Name != "" {
+						method += " " + call.Params.Name
+					}
+				}
+				req.Body = io.NopCloser(io.MultiReader(bytes.NewReader(body), req.Body))
+			}
+		}
+
+		t.Log.Info("asked",
+			zap.String("http", req.Method),
+			zap.String("mcp", method),
+			zap.String("identity", identityOf(req, t.Callers)),
+			zap.String("session", req.Header.Get("Mcp-Session-Id")))
+
+		next.ServeHTTP(w, req)
+	})
+}
+
+// requestPeek bounds how much of a request is read to name its method. A call to
+// this service carries a tool name and nothing else, so this is generous.
+const requestPeek = 8 << 10
 
 func (t Tools) server(identity string) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: name, Version: version}, nil)

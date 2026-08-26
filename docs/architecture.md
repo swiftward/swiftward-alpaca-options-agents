@@ -11,7 +11,7 @@ Its limits, though, already come from outside it. The session asks `read_envelop
 | Service | What it is | Where it can go |
 |---|---|---|
 | `agent` | our binary holding the clock, the volatility history and the session's tools, and the agent it starts | the broker's server, the envelope, Postgres, and the egress proxy |
-| `envelope` | the same binary answering what one caller may do on one tool, from `agent/envelope.yaml` | nowhere: it reads a file |
+| `envelope` | the same binary answering what one caller may do on one tool, from `policy/envelope.yaml` | nowhere: it reads a file |
 | `page` | the same binary serving the read side and the built page | Postgres, and the broker for the money it shows |
 | `migrate` | applies `postgres/migrations` in name order, then exits | Postgres |
 | `alpaca-mcp` | Alpaca's own MCP server, pinned to a released version | Alpaca |

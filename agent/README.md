@@ -10,6 +10,6 @@ A skill carries an instruction the session needs only sometimes. What it needs a
 
 ## Limits
 
-`envelope.yaml` holds the limits in force and who is under them. The session never reads it: it asks `read_envelope` and is told what applies to it, which is why no ceiling, no list of underlyings and no permitted expiration appears in any task or any skill here. Lowering one is an edit to that file, and the session reads the new number on its next question.
+They are not here, and that is the point. No ceiling, no list of underlyings and no permitted expiration appears in any task or any skill in this directory: the session asks `read_envelope` and is told what applies to it.
 
-What is NOT in it is the point of it. How a trade is chosen - which leg to sell, what a structure must pay, when to close - is strategy, nobody grants it, and it lives in the playbook skill. Keeping the two apart is what stops the file from quietly becoming the strategy.
+What it is told comes from `policy/envelope.yaml`, which is the operator's and lives outside this directory because nothing here reads it - not even by accident. The image the session runs in does not carry it.

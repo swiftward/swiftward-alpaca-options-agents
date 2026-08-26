@@ -235,7 +235,7 @@ func run(log *zap.Logger) error {
 		if _, err := envelope.Load(cfg.EnvelopePath); err != nil {
 			return err
 		}
-		limits := envelope.Tools{Path: cfg.EnvelopePath, Callers: cfg.EnvelopeCallers}
+		limits := envelope.Tools{Path: cfg.EnvelopePath, Callers: cfg.EnvelopeCallers, Log: log.Named("envelope")}
 		handler := limits.Handler()
 		group.Go(func() error { return serve(ctx, cfg.EnvelopeAddr, handler, log.Named("envelope")) })
 	}

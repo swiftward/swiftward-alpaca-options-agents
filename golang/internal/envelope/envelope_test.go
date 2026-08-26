@@ -171,7 +171,7 @@ func TestTheSameRulesetAnswersTheSameBytes(t *testing.T) {
 // the tasks in the same change that put them here, and if one of them is edited
 // away the tests say so rather than the market.
 func TestTheShippedRulesetCarriesWhatTheTasksGaveUp(t *testing.T) {
-	set, err := Load(filepath.Join("..", "..", "..", "agent", "envelope.yaml"))
+	set, err := Load(filepath.Join("..", "..", "..", "policy", "envelope.yaml"))
 	require.NoError(t, err)
 
 	for identity, expected := range map[string]float64{
