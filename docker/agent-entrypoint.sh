@@ -55,4 +55,19 @@ fi
 mkdir -p /work/notes
 cp /agent/AGENTS.md /work/AGENTS.md
 
+# Skills are instructions too, and the agent looks for them in `.agents/skills`
+# inside the directory it works in. They follow the same rule as the file above,
+# with one step more: /work is a volume that outlives the image, so a plain copy
+# would leave behind a skill that was deleted upstream and the session would keep
+# reading an instruction this image no longer carries. The directory is replaced
+# whole, not merged into - which is why the removal is not conditional on there
+# being anything to put back. Carrying no skills at all is a state this image is
+# allowed to be in: git does not keep an empty directory, so deleting the last
+# skill deletes the tree, and a session with no skills is a working session.
+rm -rf /work/.agents/skills
+if [ -d /agent/skills ]; then
+    mkdir -p /work/.agents
+    cp -R /agent/skills /work/.agents/skills
+fi
+
 exec /usr/local/bin/app "$@"
