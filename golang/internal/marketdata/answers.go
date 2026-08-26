@@ -306,6 +306,15 @@ type chainAnswer struct {
 // skipped rather than guessed: the two places this is read - what a fill is
 // called and what the record keeps - are both worse with a wrong strike.
 func (a chainAnswer) chain() ([]Contract, map[string]Quote, error) {
+	// A page token means the strikes asked for did not fit, so what came back is
+	// part of the book and nothing in it says which part. Refusing is the only
+	// honest answer: a truncated chain reads exactly like a complete one, and the
+	// screener would report "nothing here" for a name whose best structure simply
+	// did not make the page.
+	if a.Data.NextPage != "" {
+		return nil, nil, fmt.Errorf("the chain did not fit in one answer: ask for fewer strikes or fewer expirations")
+	}
+
 	quotes := a.quotes()
 	contracts := make([]Contract, 0, len(quotes))
 	for symbol := range quotes {
