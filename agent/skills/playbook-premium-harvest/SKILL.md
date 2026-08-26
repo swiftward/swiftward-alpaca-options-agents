@@ -24,7 +24,8 @@ Then check the clock, the account and what is already open.
 ## Choosing
 
 - **Underlying.** From the envelope's list, taken in turn. Start with those you have not looked at today. Single stocks have wider strikes, so one contract carries more risk than an ETF's - count contracts from the risk, not from habit.
-- **Expiration.** From the envelope's range. Never the one expiring today: on its expiry day the broker computes no greeks at all, so there is no delta to choose a strike by, and by midday it pays almost nothing. The nearer expiration decays faster, the further one passes the thresholds more often - take whichever passes.
+- **Expiration.** From the envelope's range, and from nowhere else - if the envelope permits today, today is permitted. The nearer expiration decays faster, the further one passes the thresholds more often; take whichever measures better.
+  On expiry day the broker computes no greeks and no volatility at all, so the screener borrows the volatility from the nearest other expiration of the same underlying and says so in `edge_from`. A borrowed number errs the dangerous way - the very short end usually sits above the days behind it, so it understates how often the strike is reached - which is why the TASK asks more of a borrowed measure than of a delta one. Follow the task.
 - **The short leg.** How far out is the TASK's to say, not this file's: the two accounts sell at deliberately different distances, and that difference is the experiment they exist for. The long leg is one strike further out.
 - **Width.** The narrowest where both legs have a two-sided quote. Risk is the width less the credit.
 - **What to rank on.** `edge_points` from `read_candidates`: how many percentage points the structure pays above what it has to survive. Both halves at once - a delta ceiling keeps what is far and throws away what pays, a credit threshold keeps what pays and ignores how often it loses.
