@@ -178,9 +178,13 @@ func TestTheShippedRulesetCarriesWhatTheTasksGaveUp(t *testing.T) {
 	// binding constraint was what the round trip costs, not the size, so the size
 	// went up and the cost filter went down. Changing these is a decision, and
 	// this test is what makes it one rather than a slip.
+	// Raised to 8 on 26 August afternoon. The filters had been tightened correctly
+	// - the structures that pass are few - but the size had not moved with them,
+	// so the accounts held 4 percent of risk against 30 permitted. Few trades at a
+	// small size is not caution, it is under-use.
 	for identity, expected := range map[string]float64{
-		"options-alpha":      4,
-		"options-alpha-near": 4,
+		"options-alpha":      8,
+		"options-alpha-near": 8,
 	} {
 		out, err := set.For(identity, "place_option_order")
 		require.NoError(t, err, identity)
