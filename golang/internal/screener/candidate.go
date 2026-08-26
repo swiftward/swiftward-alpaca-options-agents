@@ -54,6 +54,17 @@ type Wanted struct {
 	MinOutOfTheMoney, MaxOutOfTheMoney float64
 	// MinCreditToRisk is the least a structure may pay, in percent.
 	MinCreditToRisk float64
+	// MostCreditToRisk is the most a structure may pay before it is read as a
+	// broken quote rather than an opportunity. A vertical sold OUT of the money
+	// cannot honestly pay more than its width: at 100 percent the credit already
+	// equals the risk, which would mean the market thinks a strike it placed out
+	// of the money is more likely than not to be crossed.
+	//
+	// This matters because the list is ranked by exactly the number bad data
+	// inflates. The first live sweep put a TSLA call paying 468 percent at the
+	// top - a spread two and a half dollars wide quoted at a credit of 2.06 -
+	// and without this the session would have been shown garbage first.
+	MostCreditToRisk float64
 	// MaxCostShare is the most the round trip may cost, as a percent of credit.
 	MaxCostShare float64
 }
@@ -143,6 +154,9 @@ func price_(underlying, kind string, price float64,
 
 	toRisk := credit / risk * 100
 	if toRisk < want.MinCreditToRisk {
+		return Candidate{}, false
+	}
+	if want.MostCreditToRisk > 0 && toRisk > want.MostCreditToRisk {
 		return Candidate{}, false
 	}
 

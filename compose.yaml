@@ -83,6 +83,7 @@ x-agent-environment: &agent-environment
   SCREENER_NEAREST: ${SCREENER_NEAREST}
   SCREENER_FURTHEST: ${SCREENER_FURTHEST}
   SCREENER_LEAST_PAID: ${SCREENER_LEAST_PAID}
+  SCREENER_MOST_PAID: ${SCREENER_MOST_PAID}
   SCREENER_DEAREST: ${SCREENER_DEAREST}
   # The volatility history the entry rules compare against. It is worth what
   # its length is, so it starts on the first day and is never paused.

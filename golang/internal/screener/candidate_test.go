@@ -133,3 +133,37 @@ func TestTheBestOfEachSideIsOffered(t *testing.T) {
 func TestAnUnknownPriceOffersNothing(t *testing.T) {
 	assert.Empty(t, Best("QQQ", 0, []marketdata.Contract{put(700), put(701)}, nil, anything()))
 }
+
+// A structure that pays more than it risks is not an opportunity, it is a broken
+// quote - and the list is ranked by exactly the number bad data inflates, so
+// without this the worst data arrives first. The first live sweep offered a TSLA
+// call paying 468 percent: two and a half dollars wide, quoted at a credit of
+// 2.06, with the sold strike out of the money.
+func TestAStructurePayingMoreThanItRisksIsReadAsBrokenData(t *testing.T) {
+	// Three dollars wide, quoted at a credit of 1.98: the risk left is 1.02, so it
+	// claims to pay 194 percent. Positive risk, so nothing else rejects it - only
+	// the bound does, which is what makes this test worth having.
+	contracts := []marketdata.Contract{call(350), call(353)}
+	quotes := map[string]marketdata.Quote{
+		call(350).Symbol: quote(1.98, 2.02),
+		call(353).Symbol: quote(0.01, 0.03),
+	}
+
+	want := anything()
+	loose := want
+	loose.MostCreditToRisk = 0
+	require.Len(t, Best("TSLA", 349, contracts, quotes, loose), 1,
+		"without the bound this garbage is offered, and offered first")
+
+	want.MostCreditToRisk = 100
+	assert.Empty(t, Best("TSLA", 349, contracts, quotes, want),
+		"a three-dollar-wide spread quoted at a credit of 1.98 is not a gift")
+
+	// The same filter must not throw away what is merely generous.
+	honest := []marketdata.Contract{put(700), put(701)}
+	honestQuotes := map[string]marketdata.Quote{
+		put(701).Symbol: quote(0.71, 0.79),
+		put(700).Symbol: quote(0.51, 0.59),
+	}
+	assert.Len(t, Best("QQQ", 710, honest, honestQuotes, want), 1, "25 percent is ordinary and stays")
+}

@@ -286,7 +286,8 @@ func run(log *zap.Logger) error {
 			Broker: broker, Universe: cfg.ScreenerUnderlyings, Record: shortlist,
 			Wanted: screener.Wanted{
 				MinOutOfTheMoney: cfg.ScreenerNearest, MaxOutOfTheMoney: cfg.ScreenerFurthest,
-				MinCreditToRisk: cfg.ScreenerLeastPaid, MaxCostShare: cfg.ScreenerDearest,
+				MinCreditToRisk: cfg.ScreenerLeastPaid, MostCreditToRisk: cfg.ScreenerMostPaid,
+				MaxCostShare: cfg.ScreenerDearest,
 			},
 			Every: cfg.ScreenerEvery, PerMinute: cfg.ScreenerPerMinute,
 			Expirations: cfg.ScreenerExpirations,

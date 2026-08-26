@@ -91,6 +91,9 @@ type Config struct {
 	// ScreenerLeastPaid is the least a listed structure may pay, credit against
 	// risk, in percent.
 	ScreenerLeastPaid float64
+	// ScreenerMostPaid is where paying too much stops being an opportunity and
+	// starts being a broken quote.
+	ScreenerMostPaid float64
 	// ScreenerDearest is the most the round trip may cost, as a percent of the
 	// credit. This is the number that separates what earns from what loses.
 	ScreenerDearest float64
@@ -232,6 +235,7 @@ func Load() (Config, error) {
 		ScreenerNearest:       k.Float64("screener_nearest"),
 		ScreenerFurthest:      k.Float64("screener_furthest"),
 		ScreenerLeastPaid:     k.Float64("screener_least_paid"),
+		ScreenerMostPaid:      k.Float64("screener_most_paid"),
 		ScreenerDearest:       k.Float64("screener_dearest"),
 		ScreenerExpirations:   k.Int("screener_expirations"),
 		ThreadResumeLimit:     resumeLimit,
