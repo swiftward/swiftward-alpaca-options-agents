@@ -183,7 +183,7 @@ func run(log *zap.Logger) error {
 	// side asks it for money, the harness for prices, the recorders for both.
 	var broker *marketdata.Broker
 	if cfg.BrokerMCPURL != "" {
-		broker = marketdata.NewBroker(cfg.BrokerMCPURL)
+		broker = marketdata.NewBrokerWithToken(cfg.BrokerMCPURL, cfg.BrokerMCPToken)
 	}
 
 	group, ctx := errgroup.WithContext(ctx)

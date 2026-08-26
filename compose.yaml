@@ -107,7 +107,7 @@ x-agent-environment: &agent-environment
   GATEWAY_URL: ${GATEWAY_URL:-http://envelope:8090/mcp}
   HTTP_PROXY: http://egress:8888
   HTTPS_PROXY: http://egress:8888
-  NO_PROXY: alpaca-mcp,alpaca-mcp-near,envelope,postgres,egress,localhost,127.0.0.1
+  NO_PROXY: alpaca-mcp,alpaca-mcp-near,envelope,postgres,egress,swiftward-server,localhost,127.0.0.1
   CODEX_HOME: /home/agent/.codex
 
 services:
@@ -205,8 +205,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       RECORD_SHOWS: ${RECORD_SHOWS}
       # The read side asks the broker what the account is worth. It only reads:
-      # the money questions have no order in them.
+      # the money questions have no order in them - and it carries a credential
+      # that CANNOT send one, so a leak here is not a trade.
       BROKER_MCP_URL: ${BROKER_MCP_URL}
+      BROKER_MCP_TOKEN: ${PAGE_MCP_TOKEN}
       ORDERS_SHOWN: ${ORDERS_SHOWN}
       HISTORY_DAYS: ${HISTORY_DAYS}
     ports:
@@ -223,9 +225,11 @@ services:
     environment:
       <<: *agent-environment
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
-      # Set only while the gateway is not yet in front of the broker, and only on
-      # a development account.
+      # The broker's tools, reached through the policy gateway. The session sends
+      # its own credential, so the record names WHICH agent made each call and one
+      # agent can be stopped without touching the other.
       BROKER_MCP_URL: ${BROKER_MCP_URL}
+      BROKER_MCP_TOKEN: ${BROKER_MCP_TOKEN}
       DECLARATION: ${DECLARATION:-/agent/agent.yaml}
       GATEWAY_TOKEN: ${GATEWAY_TOKEN}
       # The ladder reads the SAME ruleset the envelope serves, so what one
@@ -257,7 +261,8 @@ services:
     environment:
       <<: *agent-environment
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
-      BROKER_MCP_URL: http://alpaca-mcp-near:8000/mcp
+      BROKER_MCP_URL: ${BROKER_NEAR_MCP_URL:-http://alpaca-mcp-near:8000/mcp}
+      BROKER_MCP_TOKEN: ${BROKER_NEAR_MCP_TOKEN}
       DECLARATION: /agent/experiment-near.yaml
       GATEWAY_TOKEN: ${GATEWAY_NEAR_TOKEN}
       ENVELOPE_PATH: /policy/envelope.yaml

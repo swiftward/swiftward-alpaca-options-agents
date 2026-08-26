@@ -38,13 +38,18 @@ fi
         echo "url = \"${GATEWAY_URL}\""
         echo "bearer_token_env_var = \"GATEWAY_TOKEN\""
     fi
-    # Development only: the broker's own server, reached without the gateway in
-    # front of it. The judged account is never wired this way - every order it
-    # sees goes through the gateway, which is what declares the limits.
+    # The broker's tools. This is either the broker's own server, which asks for
+    # nothing, or a policy gateway in front of it, which asks who is calling -
+    # the session cannot tell the two apart and needs no change when they swap.
+    # A token is written only when there is one, because an empty credential is
+    # a claim to have one.
     if [ -n "${BROKER_MCP_URL}" ]; then
         echo ""
         echo "[mcp_servers.broker]"
         echo "url = \"${BROKER_MCP_URL}\""
+        if [ -n "${BROKER_MCP_TOKEN}" ]; then
+            echo "bearer_token_env_var = \"BROKER_MCP_TOKEN\""
+        fi
     fi
 } > "${CODEX_HOME}/config.toml"
 

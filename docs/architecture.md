@@ -2,9 +2,11 @@
 
 Seven services, two networks, one binary with four roles. The shape exists to make one property true: **the agent reaches nothing except the services beside it and the hosts the proxy allows.**
 
-Today it reaches the broker's own server directly, over `BROKER_MCP_URL`. That is the development account, and it is the one claim on this page that describes an intention rather than the running system: the policy gateway is not yet in front of the broker, so nothing between the agent and Alpaca refuses an order.
+Every call it makes to the broker goes through the policy gateway, at `BROKER_MCP_URL`, carrying the agent's own credential. The gateway is what decides whether a tool may be called at all, and by which agent; the broker's own server is reachable from nowhere else on the network. An order the gateway refuses never reaches Alpaca, and the refusal says which rule refused it.
 
-Its limits, though, already come from outside it. The session asks `read_envelope` before it builds anything and is told what applies to it and by which version of the rules; no number it sizes with is written anywhere in its prompt. Until the gateway is in front of the broker that answer comes from the `envelope` service beside it, under the same server name the gateway will use - so the limits are **disclosed and not yet enforced**, and the swap changes an address rather than the agent.
+The credential is per agent, so the record names WHICH agent made each call, and one agent can be stopped without touching the other. The surface that displays the account carries a different one, which can read and cannot order: a page that could trade is a page whose leak is a trade.
+
+Its limits come from outside it too. The session asks `read_envelope` before it builds anything and is told what applies to it and by which version of the rules; no number it sizes with is written anywhere in its prompt. That answer comes from the `envelope` service beside it, under the same server name - so a limit is **disclosed** there and **enforced** at the gateway, and neither is anything the session can talk its way out of.
 
 ## Services
 

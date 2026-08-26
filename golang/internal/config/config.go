@@ -56,6 +56,10 @@ type Config struct {
 	// BrokerMCPURL is the broker's own server, read by the harness only to know
 	// when a price wake-up has come true.
 	BrokerMCPURL string
+	// BrokerMCPToken authenticates the harness where BrokerMCPURL names a policy
+	// gateway rather than the broker's own server. Empty where it names the
+	// broker, which asks for nothing.
+	BrokerMCPToken string
 	// Execution walks an unfilled structure toward the price the book shows. Zero
 	// interval means the ladder does not run and an order rests where the session
 	// placed it.
@@ -237,6 +241,7 @@ func Load() (Config, error) {
 		ThreadFile:            k.String("thread_file"),
 		WakeupFile:            k.String("wakeup_file"),
 		BrokerMCPURL:          k.String("broker_mcp_url"),
+		BrokerMCPToken:        k.String("broker_mcp_token"),
 		AgentCallTimeout:      callTimeout,
 		ScreenerUnderlyings:   screened,
 		ScreenerEvery:         screenEvery,

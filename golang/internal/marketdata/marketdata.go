@@ -10,21 +10,52 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Broker reads from the broker's server. It holds no credential: the server it
-// calls does.
+// Broker reads from the broker's server, or from a policy gateway standing in
+// front of it. The broker's own server asks for no credential; a gateway does,
+// and that is the only difference between the two.
 type Broker struct {
 	url  string
 	name string
+	// token authenticates this client to whatever answers at url. It is empty
+	// where that is the broker's own server, which asks for nothing, and set
+	// where a policy gateway stands in front of it and asks who is calling.
+	token string
 }
 
 func NewBroker(url string) *Broker {
 	return &Broker{url: url, name: "swiftward-alpaca-options-agents-harness"}
+}
+
+// NewBrokerWithToken is the same client, presenting a credential on every call.
+func NewBrokerWithToken(url, token string) *Broker {
+	broker := NewBroker(url)
+	broker.token = token
+
+	return broker
+}
+
+// bearer adds the credential to every request the transport makes. The MCP
+// client opens more than one - the initialize, the calls, and a standing stream
+// for anything the server sends back - and a gateway refuses each of them
+// separately, so the header cannot be attached to one request by hand.
+type bearer struct {
+	token string
+	next  http.RoundTripper
+}
+
+func (b bearer) RoundTrip(request *http.Request) (*http.Response, error) {
+	// The request belongs to the caller; a RoundTripper must not modify it.
+	carrying := request.Clone(request.Context())
+	carrying.Header.Set("Authorization", "Bearer "+b.token)
+
+	return b.next.RoundTrip(carrying)
 }
 
 // Contract is one option the broker lists.
@@ -272,7 +303,11 @@ func (b *Broker) Quotes(ctx context.Context, symbols []string) (map[string]Quote
 // anything else.
 func (b *Broker) call(ctx context.Context, tool string, arguments map[string]any, into any) error {
 	client := mcp.NewClient(&mcp.Implementation{Name: b.name, Version: "v0.1.0"}, nil)
-	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: b.url}, nil)
+	transport := &mcp.StreamableClientTransport{Endpoint: b.url}
+	if b.token != "" {
+		transport.HTTPClient = &http.Client{Transport: bearer{token: b.token, next: http.DefaultTransport}}
+	}
+	session, err := client.Connect(ctx, transport, nil)
 	if err != nil {
 		return fmt.Errorf("reach the broker's server: %w", err)
 	}
