@@ -684,3 +684,45 @@ func TestAnUnreadableCeilingCancelsNothing(t *testing.T) {
 	_, cancelled := broker.seen()
 	assert.Empty(t, cancelled)
 }
+
+// A breach smaller than one set is not a sizing error, and cancelling for it
+// spends every entry window without taking a position.
+//
+// The limit is a share of equity, and equity moves with every tick of the open
+// book. So the number a session sized against and the number read a minute later
+// are never quite the same - while the session cannot express a position finer
+// than one set. Having taken the largest whole number that fits, it has already
+// sized as accurately as the instrument allows.
+//
+// Live on 26 August: 518 sets refused for twelve dollars and thirty-four cents
+// against a limit of 15 009, where one set was worth twenty-nine.
+func TestABreachSmallerThanOneSetIsNotCancelled(t *testing.T) {
+	at := time.Date(2026, 8, 26, 19, 7, 0, 0, time.UTC)
+	// 518 sets of a spread whose worst case is 15 022 - twelve dollars over a
+	// limit of 15 009.66, and one set is worth twenty-nine.
+	edge := spread("o-edge", -0.71, "new", at.Add(-2*time.Minute))
+	edge.Quantity = 518
+	edge.Legs[0].Quantity, edge.Legs[1].Quantity = 518, 518
+	edge.ClientID = NameFor(-0.71)
+
+	broker := &brokerDouble{
+		orders: []marketdata.Order{edge},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	l := ladder(broker, at, t)
+	l.Ceiling = func(context.Context) (float64, error) { return 15009.66, nil }
+	l.step(context.Background())
+
+	_, cancelled := broker.seen()
+	assert.Empty(t, cancelled, "twelve dollars is less than one set: the size is already the finest that fits")
+
+	// A breach of many sets is still a sizing error and still cancelled.
+	l.Ceiling = func(context.Context) (float64, error) { return 10000, nil }
+	l.step(context.Background())
+	_, cancelled = broker.seen()
+	assert.Equal(t, []string{"o-edge"}, cancelled)
+}

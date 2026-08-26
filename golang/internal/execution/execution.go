@@ -448,6 +448,24 @@ func (l *Ladder) tooBig(ctx context.Context, order marketdata.Order, ceiling flo
 		return false
 	}
 
+	// A breach smaller than ONE SET is not a sizing error.
+	//
+	// The limit is a share of equity, and equity moves with every tick of the
+	// open book - including this order's own mark once it fills. So the number
+	// the session sized against and the number read here are never quite the
+	// same. Meanwhile the session cannot express a position finer than one set:
+	// having taken the largest whole number that fits, it has already sized as
+	// accurately as the instrument allows.
+	//
+	// Cancelling for less than that punishes correct arithmetic and does it
+	// again on every retry - a loop that spends every entry window and takes no
+	// position. Seen on 26 August: 518 sets refused for 12 dollars and 34 cents
+	// on a limit of 15 009, where one set was worth 29.
+	resting := order.Quantity - order.FilledQuantity
+	if resting > 0 && -worst-ceiling <= -worst/resting {
+		return false
+	}
+
 	l.Log.Warn("cancelling a resting order that may lose more than one position is allowed to",
 		zap.String("order", order.ID),
 		zap.Float64("worst_case", -worst),
