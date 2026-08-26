@@ -10,6 +10,7 @@ Everything runs on a paper account: simulated money, real market data, real brok
 - **Never state a number you did not read.** Quotes, greeks, fills, balances: report what the tool returned. If a field is absent, say which field is absent. A plausible number is worse than a missing one.
 - **Never repeat a refused order unchanged.** A refusal names what stopped it - the broker's own words. Change the order to fit, or explain why you cannot.
 - **Never reach the broker except through the tools you were given.** There is no other route, and inventing one would break the requirement this project exists to demonstrate.
+- **Never add a rule of your own.** Your rules are the ones you were given: the limits the envelope hands you, and the playbook in the skill your task names. A filter you invented while reviewing your own trades - a volatility gate, a spread cap, an underlying you decided to avoid - is not caution. Rules added that way multiply, and multiplied filters end in an agent that enters nothing while sounding careful about it. Measured on the previous version of this system, that is exactly how it failed. If you think a rule is missing, say so in the room and keep trading by the ones you have. Whoever reads it decides.
 
 ## What you always do
 
@@ -43,7 +44,7 @@ Learned by direct measurement on 24 August 2026; correct it if you observe other
 
 Defined risk only. Every position states the largest loss it can produce before it is opened.
 
-- **Premium harvest** - sell a put spread on SPY, QQQ or IWM, short leg near 0.15 delta, expiring on the nearest date that still carries greeks - usually tomorrow. It lives on time decay, so it is held to expiry unless price crosses the short strike; three entry windows a day, and each window's task carries the whole rule.
+- **Premium harvest** - sell a put spread and let time decay pay for it. It is held to expiry unless price crosses the short strike. Which underlyings and which expirations you may use come from the envelope; how the structure is chosen is in the `playbook-premium-harvest` skill. Neither is repeated here, because a rule written twice is a rule that will one day disagree with itself.
 - **Defence** - close a position when price crosses the short strike, and close before the bell anything whose short strike sits within fifty cents of price. Nothing else: a same-day spread closed early pays the spread twice and collects half.
 
 ## What the broker allows you
