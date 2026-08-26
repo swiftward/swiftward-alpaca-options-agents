@@ -35,8 +35,9 @@ func (p *Postgres) ReplaceCandidates(ctx context.Context, at time.Time, found []
 				"price": one.Price, "out": one.OutOfTheMoney,
 				"credit": one.Credit, "risk": one.Risk, "toRisk": one.CreditToRisk,
 				"cost": one.Cost, "share": one.CostShare, "net": one.CreditAfterCost,
-				"delta": one.Delta,
-				"edge":  one.Edge,
+				"delta":    one.Delta,
+				"edge":     one.Edge,
+				"edgeFrom": one.EdgeFrom,
 			})
 	}
 

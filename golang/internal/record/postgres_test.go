@@ -170,11 +170,15 @@ func TestPostgresWritesAFillOnce(t *testing.T) {
 	assert.Equal(t, 2, walks, "the same order walked twice, both kept")
 }
 
-// The screener computes the sold leg's delta and filters on it. If the record
-// drops it, the session is handed a shortlist with no delta and asks the broker
-// again, contract by contract, for a number already known - which is what it did
-// on 26 August until the column existed.
-func TestPostgresKeepsTheDeltaTheScreenerRead(t *testing.T) {
+// Everything the screener worked out survives the round trip, field for field.
+//
+// Asserting one field at a time is what let this break twice. A column added to
+// the writer and not the reader compiles, runs, and stores NULL; on 26 August a
+// named argument was left out of the map and pgx put NULL in for it without a
+// word, so `edge_from` was empty on every row while every build was green. The
+// whole struct is compared here precisely so the next added field cannot pass
+// unless somebody carried it through both halves.
+func TestPostgresKeepsEverythingTheScreenerWorkedOut(t *testing.T) {
 	pool, err := db.Open(context.Background(), dbtest.Fresh(t))
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
@@ -184,25 +188,29 @@ func TestPostgresKeepsTheDeltaTheScreenerRead(t *testing.T) {
 
 	ctx := context.Background()
 	at := time.Date(2026, 8, 26, 15, 0, 0, 0, time.UTC)
-	delta := -0.1432
+	// Expirations are kept as dates, so the fixture states them as dates.
+	soon := time.Date(2026, 8, 28, 0, 0, 0, 0, time.UTC)
+	today := time.Date(2026, 8, 26, 0, 0, 0, 0, time.UTC)
+	delta, edge, fromVolatility := -0.1432, 3.1, -2.5
 
-	require.NoError(t, kept.ReplaceCandidates(ctx, at, []screener.Candidate{
-		{
-			Underlying: "QQQ", Type: "put", Expiration: at.AddDate(0, 0, 2),
-			Short: "QQQ260828P00701000", Long: "QQQ260828P00700000",
-			ShortStrike: 701, LongStrike: 700, Price: 710, OutOfTheMoney: 1.27,
-			Credit: 0.20, Risk: 0.80, CreditToRisk: 25, Cost: 0.16, CostShare: 80,
-			Delta: &delta,
-		},
-		{
-			// Expiry day: the broker computes no delta, and absent must survive
-			// the round trip as absent rather than as zero.
-			Underlying: "SPY", Type: "call", Expiration: at,
-			Short: "SPY260826C00770000", Long: "SPY260826C00771000",
-			ShortStrike: 770, LongStrike: 771, Price: 765, OutOfTheMoney: 0.65,
-			Credit: 0.10, Risk: 0.90, CreditToRisk: 11, Cost: 0.04, CostShare: 40,
-		},
-	}))
+	measured := screener.Candidate{
+		Underlying: "QQQ", Type: "put", Expiration: soon,
+		Short: "QQQ260828P00701000", Long: "QQQ260828P00700000",
+		ShortStrike: 701, LongStrike: 700, Price: 710, OutOfTheMoney: 1.27,
+		Credit: 0.20, Risk: 0.80, CreditToRisk: 25, Cost: 0.16, CostShare: 80,
+		CreditAfterCost: 0.12, Delta: &delta, Edge: &edge, EdgeFrom: screener.FromDelta,
+	}
+	// Expiry day: no delta, and the edge read off the price of volatility
+	// instead. Absent must survive as absent rather than as zero.
+	blind := screener.Candidate{
+		Underlying: "SPY", Type: "call", Expiration: today,
+		Short: "SPY260826C00770000", Long: "SPY260826C00771000",
+		ShortStrike: 770, LongStrike: 771, Price: 765, OutOfTheMoney: 0.65,
+		Credit: 0.10, Risk: 0.90, CreditToRisk: 11, Cost: 0.04, CostShare: 40,
+		CreditAfterCost: 0.08, Edge: &fromVolatility, EdgeFrom: screener.FromVolatility,
+	}
+
+	require.NoError(t, kept.ReplaceCandidates(ctx, at, []screener.Candidate{measured, blind}))
 
 	found, err := kept.Candidates(ctx, 10)
 	require.NoError(t, err)
@@ -213,7 +221,7 @@ func TestPostgresKeepsTheDeltaTheScreenerRead(t *testing.T) {
 		by[one.Underlying] = one
 	}
 
-	require.NotNil(t, by["QQQ"].Delta, "the session must be told the delta, not left to ask again")
-	assert.InDelta(t, -0.1432, *by["QQQ"].Delta, 1e-9)
+	assert.Equal(t, measured, by["QQQ"])
+	assert.Equal(t, blind, by["SPY"])
 	assert.Nil(t, by["SPY"].Delta, "no delta is not a delta of zero")
 }
