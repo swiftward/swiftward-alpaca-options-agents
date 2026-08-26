@@ -32,9 +32,9 @@ The agent sits on `internal` alone. Everything it can do is therefore enumerable
 
 `alpaca-mcp` also sits on `outbound`, because it talks to Alpaca. So does `page`: a browser has to reach it, and a port cannot be published on `internal`.
 
-## The three roles
+## The four roles
 
-`ROLES` selects them. `harness` and `mcp` run together in `agent`, because the session reaches its own toolbox over localhost. `api` runs alone in `page`: it reads the record out of Postgres, so it needs nothing the session holds.
+`ROLES` selects them. `harness` and `mcp` run together in `agent`, because the session reaches its own toolbox over localhost. `api` runs alone in `page`: it reads the record out of Postgres, so it needs nothing the session holds. `envelope` runs alone too, and holds no credential at all.
 
 - **`harness`** decides *when* a session runs and says *why* it woke it. It never decides what to trade - the session does, and the autonomy requirement rests on that line. Two causes wake a session: the schedule in the declaration, and a person writing in the chat. With neither it refuses to start, because a harness that runs while waking nobody looks exactly like a working one.
 
@@ -42,13 +42,22 @@ The agent sits on `internal` alone. Everything it can do is therefore enumerable
 - **`api`** serves the read side: `/healthz`, `/state`, `/money`, `/equity` and the built page from `WEB_DIR`. It decides nothing and orders nothing; it reads the record, and it asks the broker what the account is worth.
 - **`mcp`** is the session's own toolbox (`internal/sessiontools`), carrying what Alpaca's cannot: `record_intent`, which a session calls *before* it orders anything; `read_state`, which the next session calls to learn what already happened; and `post_to_chat`, which tells the people watching. A judge can see fills anywhere; only the first of these says what the session meant to do.
 
-  `post_to_chat` exists only when a chat is configured. An agent that can see a tool assumes it works, so an unconfigured channel offers no tool rather than one that fails.
+  `post_to_chat` exists only when a chat is configured. An agent that can see a tool assumes it works, so an unconfigured channel offers no tool rather than one that fails. `read_candidates` follows the same rule: it appears only where a screener is running.
+- **`envelope`** answers what one caller may do on one tool, from a file an operator edits. It is described above; it is a role rather than a separate program because the stand-in and the thing it stands in for must answer identically.
+
+## Two accounts, two records
+
+The stack runs the same binary twice, against two accounts, under two sets of limits: one selling far from the price and one selling half as far. Only the declaration and the token differ - no code is branched, which is the point of putting the strategy in a declaration rather than in an interface.
+
+Each has its own database. A shared one would let one agent's restart close the other's open turns - the query that closes what a dead process left behind cannot tell them apart - and would let either skip a session because the other had already run one by that name. Separate databases make that impossible by construction rather than by care.
 
 ## The record
 
-Five tables. Three carry what the agent did, and each answers its own question: `turns` - when a session ran and why; `tool_calls` - what it did with its hands, with the arguments it sent and what came back; `intents` - what it meant to do before it ordered anything. The harness writes the first two from the agent's own stream, whether or not a chat is watching; `record_intent` writes the third.
+Seven tables. Three carry what the agent did, and each answers its own question: `turns` - when a session ran and why; `tool_calls` - what it did with its hands, with the arguments it sent and what came back; `intents` - what it meant to do before it ordered anything. The harness writes the first two from the agent's own stream, whether or not a chat is watching; `record_intent` writes the third.
 
-`volatility_samples` and `account_snapshots` carry what the market and the account were worth over time, written by the recorders below.
+`execution_steps` carries what happened to an order after the session let go of it: every price the ladder walked it to, the cancellation if the book never came, and the fill with its price and how many contracts. Without the count the record holds a price and not money - a fill at 0.28 says nothing about whether twenty-eight dollars was collected or fourteen hundred.
+
+`volatility_samples`, `account_snapshots` and `candidates` carry what the market and the account were worth over time, and what the screener last priced.
 
 A refused order is in `tool_calls`, in the broker's own words. There is no separate table of refusals: the structured refusal is the gateway's, the gateway is a service outside this stack with no path into this database, and a table that can only be empty reads as "the agent was never stopped" rather than as "we do not know". It returns with the gateway that fills it.
 
@@ -64,11 +73,27 @@ Nothing here decides anything: the reading is mechanical, no session is woken fo
 
 `VOLATILITY_UNDERLYINGS` and `VOLATILITY_EVERY` turn it on. The series is worth what its length is, so it starts on the first day of the event and is never paused.
 
+## Finding what is worth deciding about
+
+A session that hunts for itself gets through six underlyings before its turn runs out, and those six are whichever the schedule handed it - so an opportunity on the seventh is not rejected, it is never seen. On 26 August none of six passed, while a name outside them was paying a quarter of its risk.
+
+What separates a structure that earns from one that loses is arithmetic over quotes: what it pays against what it risks, how likely the sold strike is to be crossed, and what the round trip costs against what it pays. So `internal/screener` does it in code, over a few hundred underlyings, every few minutes, inside the broker's rate limit. The session asks `read_candidates` and chooses from a ranked shortlist.
+
+It reads and cannot order: its interface to the broker has no method that changes anything. It also knows nothing about the account - what is held, what risk is already taken, whether to trade at all - and that is deliberate. The list is what the market offers, not what should be taken.
+
+Three of its filters exist because of what the first live sweeps produced, and each is a fact about data rather than a preference:
+
+- **A structure paying more than it risks is a broken quote, not a gift.** The list is ranked by exactly the number bad data inflates, so without this the worst data arrives first.
+- **Distance in percent is not likelihood.** One percent is far on a quiet index and near on a share that moves five percent in a day; ranked on distance alone the list was unusable by a rule written in deltas.
+- **A contract with no delta is not "within the limit".** The broker computes none on the day a contract expires - which is exactly when the sold strike is most likely to be crossed.
+
 ## Getting a decided order filled
 
 The session decides what to sell, how large, and the price it wants. Walking a limit a cent at a time until the book takes it is not that kind of decision: it is arithmetic on a clock, it has to happen in seconds, and one turn of the agent costs a minute and a half. So the two are split.
 
 `internal/execution` walks an unfilled multi-leg order toward the price the book is actually showing - every leg it sells at the bid, every leg it buys at the ask - one tick at a time, and stops there. It never asks for a worse price than the book's own, and it cancels what the book has refused for `EXECUTION_PATIENCE`. It can move a price and cancel an order; it can open nothing.
+
+It only ever concedes. A book standing better than the order's own limit does not move it: that order is either about to fill or resting on a quote nobody will trade, and asking for more credit answers neither. It also says a fill once - in the room as one line, in the record with its price and size - and tells the session when an order was cancelled unfilled, because that is a decision of the session's that did not happen. A fill is not reported to the session: it is what the session already planned for, and a turn spent acknowledging one changes nothing.
 
 Measured on the account on 25 August 2026: a spread resting at the middle of the spread did not fill in ten minutes, which costs about a fifth of the credit on a dollar-wide structure - the reason this exists at all.
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/db"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/db/dbtest"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/screener"
 )
 
 // The record is proved against a real Postgres, on its own database, under the
@@ -167,4 +168,52 @@ func TestPostgresWritesAFillOnce(t *testing.T) {
 	}
 	assert.Equal(t, 2, fills, "two orders filled, each written once")
 	assert.Equal(t, 2, walks, "the same order walked twice, both kept")
+}
+
+// The screener computes the sold leg's delta and filters on it. If the record
+// drops it, the session is handed a shortlist with no delta and asks the broker
+// again, contract by contract, for a number already known - which is what it did
+// on 26 August until the column existed.
+func TestPostgresKeepsTheDeltaTheScreenerRead(t *testing.T) {
+	pool, err := db.Open(context.Background(), dbtest.Fresh(t))
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	kept, err := NewPostgres(pool, 20)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	at := time.Date(2026, 8, 26, 15, 0, 0, 0, time.UTC)
+	delta := -0.1432
+
+	require.NoError(t, kept.ReplaceCandidates(ctx, at, []screener.Candidate{
+		{
+			Underlying: "QQQ", Type: "put", Expiration: at.AddDate(0, 0, 2),
+			Short: "QQQ260828P00701000", Long: "QQQ260828P00700000",
+			ShortStrike: 701, LongStrike: 700, Price: 710, OutOfTheMoney: 1.27,
+			Credit: 0.20, Risk: 0.80, CreditToRisk: 25, Cost: 0.16, CostShare: 80,
+			Delta: &delta,
+		},
+		{
+			// Expiry day: the broker computes no delta, and absent must survive
+			// the round trip as absent rather than as zero.
+			Underlying: "SPY", Type: "call", Expiration: at,
+			Short: "SPY260826C00770000", Long: "SPY260826C00771000",
+			ShortStrike: 770, LongStrike: 771, Price: 765, OutOfTheMoney: 0.65,
+			Credit: 0.10, Risk: 0.90, CreditToRisk: 11, Cost: 0.04, CostShare: 40,
+		},
+	}))
+
+	found, err := kept.Candidates(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, found, 2)
+
+	by := map[string]screener.Candidate{}
+	for _, one := range found {
+		by[one.Underlying] = one
+	}
+
+	require.NotNil(t, by["QQQ"].Delta, "the session must be told the delta, not left to ask again")
+	assert.InDelta(t, -0.1432, *by["QQQ"].Delta, 1e-9)
+	assert.Nil(t, by["SPY"].Delta, "no delta is not a delta of zero")
 }

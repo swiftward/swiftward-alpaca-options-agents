@@ -196,7 +196,11 @@ func TestTheShippedRulesetCarriesWhatTheTasksGaveUp(t *testing.T) {
 		}
 
 		assert.Equal(t, expected, by["max-loss-per-position"].Value, identity)
-		assert.Equal(t, 30, by["max-loss-across-portfolio"].Value, identity)
+		// Raised to 50 on 26 August afternoon, and the extra twenty is for one
+		// thing: convexity on an event. Selling premium returns about zero before
+		// costs, so more money in it loses faster; buying a capped-loss structure
+		// before an earnings report is the only asymmetry the day offered.
+		assert.Equal(t, 50, by["max-loss-across-portfolio"].Value, identity)
 		// Widened from 20 on 26 August so the permitted list and what the screener
 		// prices are the same names. They had drifted apart the moment the screener
 		// appeared, and the cost was visible: it ranked TQQQ at 40.9 percent and
