@@ -36,6 +36,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/harness"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/screener"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/sessiontools"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/volatility"
@@ -90,12 +91,16 @@ func run(log *zap.Logger) error {
 	}
 
 	var state record.Keeper = record.NewMemory()
+	// The screener keeps what it prices in the database and nowhere else: a
+	// shortlist is worth having only if it survives the process that made it, and
+	// the in-memory record exists for runs that keep nothing.
+	var shortlist *record.Postgres
 	if pool != nil {
 		kept, err := record.NewPostgres(pool, cfg.RecordShows)
 		if err != nil {
 			return err
 		}
-		state = kept
+		state, shortlist = kept, kept
 		log.Info("record kept in postgres", zap.Int("shows", cfg.RecordShows))
 	} else {
 		log.Warn("no DATABASE_URL: the record lives only as long as this process")
@@ -218,6 +223,9 @@ func run(log *zap.Logger) error {
 		if series != nil {
 			tools.Volatility = series
 		}
+		if shortlist != nil && len(cfg.ScreenerUnderlyings) > 0 {
+			tools.Shortlist = shortlist
+		}
 
 		handler := tools.Handler()
 		group.Go(func() error { return serve(ctx, cfg.MCPAddr, handler, log.Named("mcp")) })
@@ -265,6 +273,30 @@ func run(log *zap.Logger) error {
 			zap.Float64("step", step),
 			zap.Duration("patience", cfg.ExecutionPatience))
 		group.Go(func() error { return ladder.Run(ctx) })
+	}
+
+	// The screener prices the whole permitted universe over and over, so a session
+	// chooses from what the market offers rather than from the six names its turn
+	// had time for. It reads and cannot order.
+	if cfg.Has(config.RoleHarness) && len(cfg.ScreenerUnderlyings) > 0 {
+		if broker == nil || shortlist == nil {
+			return errors.New("SCREENER_UNDERLYINGS is set but there is no broker to price them or no database to keep them in")
+		}
+		sweep := &screener.Sweep{
+			Broker: broker, Universe: cfg.ScreenerUnderlyings, Record: shortlist,
+			Wanted: screener.Wanted{
+				MinOutOfTheMoney: cfg.ScreenerNearest, MaxOutOfTheMoney: cfg.ScreenerFurthest,
+				MinCreditToRisk: cfg.ScreenerLeastPaid, MaxCostShare: cfg.ScreenerDearest,
+			},
+			Every: cfg.ScreenerEvery, PerMinute: cfg.ScreenerPerMinute,
+			Expirations: cfg.ScreenerExpirations,
+			Now:         time.Now, Log: log.Named("screener"),
+		}
+		log.Info("pricing the universe",
+			zap.Int("underlyings", len(cfg.ScreenerUnderlyings)),
+			zap.Duration("every", cfg.ScreenerEvery),
+			zap.Int("per_minute", cfg.ScreenerPerMinute))
+		group.Go(func() error { return sweep.Run(ctx) })
 	}
 
 	if cfg.Has(config.RoleHarness) && cfg.AccountEvery > 0 {

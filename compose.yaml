@@ -73,6 +73,17 @@ x-agent-environment: &agent-environment
   # Пауза между тем, что комната слышит от сессии. Тринадцать сессий по
   # четыре реплики - это отказ Telegram, за которым ждёт нужный ответ.
   SAY_EVERY: ${SAY_EVERY}
+  # The screener prices the whole permitted universe over and over, so a session
+  # chooses from what the market offers rather than from the few names its turn
+  # had time to look at. It reads and cannot order.
+  SCREENER_UNDERLYINGS: ${SCREENER_UNDERLYINGS}
+  SCREENER_EVERY: ${SCREENER_EVERY}
+  SCREENER_PER_MINUTE: ${SCREENER_PER_MINUTE}
+  SCREENER_EXPIRATIONS: ${SCREENER_EXPIRATIONS}
+  SCREENER_NEAREST: ${SCREENER_NEAREST}
+  SCREENER_FURTHEST: ${SCREENER_FURTHEST}
+  SCREENER_LEAST_PAID: ${SCREENER_LEAST_PAID}
+  SCREENER_DEAREST: ${SCREENER_DEAREST}
   # The volatility history the entry rules compare against. It is worth what
   # its length is, so it starts on the first day and is never paused.
   VOLATILITY_UNDERLYINGS: ${VOLATILITY_UNDERLYINGS}

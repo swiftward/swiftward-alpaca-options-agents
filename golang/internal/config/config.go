@@ -77,6 +77,25 @@ type Config struct {
 	// SayEvery is the pause between what the room hears from one session. Empty
 	// means everything is posted, which a busy day turns into a rate limit.
 	SayEvery time.Duration
+	// ScreenerUnderlyings is what the screener prices, over and over. Empty means
+	// no screener runs.
+	ScreenerUnderlyings []string
+	// ScreenerEvery is how often the whole universe is swept.
+	ScreenerEvery time.Duration
+	// ScreenerPerMinute is the broker's limit on requests, which the sweep never
+	// exceeds. The free plan allows 200.
+	ScreenerPerMinute int
+	// ScreenerNearest and ScreenerFurthest bound how far the sold strike may sit
+	// from the price, in percent.
+	ScreenerNearest, ScreenerFurthest float64
+	// ScreenerLeastPaid is the least a listed structure may pay, credit against
+	// risk, in percent.
+	ScreenerLeastPaid float64
+	// ScreenerDearest is the most the round trip may cost, as a percent of the
+	// credit. This is the number that separates what earns from what loses.
+	ScreenerDearest float64
+	// ScreenerExpirations bounds how far out to look, in days.
+	ScreenerExpirations int
 	// ThreadResumeLimit bounds the one request that resumes an earlier
 	// conversation. The harness wakes nobody until it returns, and a fresh thread
 	// is a cheap fallback, so this is far shorter than AgentCallTimeout.
@@ -142,6 +161,15 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	screened := parseSymbols(k.String("screener_underlyings"))
+	screenEvery, err := parseDuration("SCREENER_EVERY", k.String("screener_every"))
+	if err != nil {
+		return Config{}, err
+	}
+	if len(screened) > 0 && screenEvery <= 0 {
+		return Config{}, fmt.Errorf("SCREENER_UNDERLYINGS is set but SCREENER_EVERY is not: a sweep with no interval never runs")
+	}
+
 	resumeLimit, err := parseDuration("THREAD_RESUME_LIMIT", k.String("thread_resume_limit"))
 	if err != nil {
 		return Config{}, err
@@ -198,6 +226,14 @@ func Load() (Config, error) {
 		WakeupFile:            k.String("wakeup_file"),
 		BrokerMCPURL:          k.String("broker_mcp_url"),
 		AgentCallTimeout:      callTimeout,
+		ScreenerUnderlyings:   screened,
+		ScreenerEvery:         screenEvery,
+		ScreenerPerMinute:     k.Int("screener_per_minute"),
+		ScreenerNearest:       k.Float64("screener_nearest"),
+		ScreenerFurthest:      k.Float64("screener_furthest"),
+		ScreenerLeastPaid:     k.Float64("screener_least_paid"),
+		ScreenerDearest:       k.Float64("screener_dearest"),
+		ScreenerExpirations:   k.Int("screener_expirations"),
 		ThreadResumeLimit:     resumeLimit,
 		TurnLimit:             turnLimit,
 		SayEvery:              sayEvery,

@@ -174,9 +174,13 @@ func TestTheShippedRulesetCarriesWhatTheTasksGaveUp(t *testing.T) {
 	set, err := Load(filepath.Join("..", "..", "..", "policy", "envelope.yaml"))
 	require.NoError(t, err)
 
+	// Raised from 0.5 and 2.5 on 26 August: the day's measurements said the
+	// binding constraint was what the round trip costs, not the size, so the size
+	// went up and the cost filter went down. Changing these is a decision, and
+	// this test is what makes it one rather than a slip.
 	for identity, expected := range map[string]float64{
-		"options-alpha":      0.5,
-		"options-alpha-near": 2.5,
+		"options-alpha":      4,
+		"options-alpha-near": 4,
 	} {
 		out, err := set.For(identity, "place_option_order")
 		require.NoError(t, err, identity)

@@ -17,7 +17,7 @@
 # it, and a session that read one version and was refused by another can say so
 # instead of guessing it misread its own limits.
 
-ruleset_version: "2026-08-26.1"
+ruleset_version: "2026-08-26.2"
 
 agents:
   # The first account. Small positions, the whole list of underlyings.
@@ -28,7 +28,7 @@ agents:
           disclosure: boundary
           subject: position_max_loss
           kind: maximum
-          value: 0.5
+          value: 4.0
           unit: percent_of_equity
 
         - rule: max-loss-across-portfolio
@@ -68,7 +68,7 @@ agents:
           disclosure: boundary
           subject: position_max_loss
           kind: maximum
-          value: 2.5
+          value: 4.0
           unit: percent_of_equity
 
         - rule: max-loss-across-portfolio

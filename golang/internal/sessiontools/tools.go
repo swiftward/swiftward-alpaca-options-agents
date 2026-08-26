@@ -18,6 +18,7 @@ import (
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/screener"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/volatility"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
@@ -138,6 +139,14 @@ type Tools struct {
 	Schedule Schedule
 	// Running says which turn the session is inside.
 	Running Running
+	// Shortlist is what the screener priced across the whole universe. A nil one
+	// means no screener is running and the tool is not offered.
+	Shortlist Shortlist
+}
+
+// Shortlist is the last sweep of the universe, richest first.
+type Shortlist interface {
+	Candidates(ctx context.Context, most int) ([]screener.Candidate, error)
 }
 
 // running names the turn an intent belongs to.
@@ -216,6 +225,28 @@ func (t Tools) Handler() http.Handler {
 			},
 			func(ctx context.Context, req *mcp.CallToolRequest, _ noInput) (*mcp.CallToolResult, scheduleOutput, error) {
 				return nil, scheduleOutput{Sessions: t.Schedule.Schedule()}, nil
+			})
+	}
+
+	if t.Shortlist != nil {
+		mcp.AddTool(server,
+			&mcp.Tool{
+				Name: "read_candidates",
+				Description: "Read the structures the screener priced across the whole permitted universe on its last sweep, richest first. " +
+					"Each carries what it pays against what it risks, how far the sold strike sits from the price, and what the round trip costs as a share of the credit. " +
+					"This is what the market offers, not what you should take: the choice, the size and whether to trade at all remain yours, and your own rules are stricter than the filters here.",
+			},
+			func(ctx context.Context, req *mcp.CallToolRequest, in candidatesInput) (*mcp.CallToolResult, candidatesAnswer, error) {
+				most := in.Most
+				if most <= 0 {
+					most = defaultCandidates
+				}
+				found, err := t.Shortlist.Candidates(ctx, most)
+				if err != nil {
+					return nil, candidatesAnswer{}, err
+				}
+
+				return nil, candidatesAnswer{Candidates: found}, nil
 			})
 	}
 
@@ -311,4 +342,17 @@ func (t Tools) Handler() http.Handler {
 	}
 
 	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
+}
+
+// defaultCandidates is how many the session is shown when it does not say. Few
+// enough to read in a turn, many enough that one unsuitable name does not empty
+// the list.
+const defaultCandidates = 20
+
+type candidatesInput struct {
+	Most int `json:"most,omitempty" jsonschema:"how many to return, richest first; 20 when not given"`
+}
+
+type candidatesAnswer struct {
+	Candidates []screener.Candidate `json:"candidates" jsonschema:"the structures the last sweep priced, richest first"`
 }
