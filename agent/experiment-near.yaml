@@ -27,7 +27,7 @@ sessions:
 
   - name: entry
     cause: "вход ближе к деньгам: проданная нога с дельтой около 0,30"
-    every: 30m
+    every: 10m
     between: ["09:50", "15:30"]
     days: [mon, tue, wed, thu, fri]
     task: |
