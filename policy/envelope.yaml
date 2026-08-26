@@ -17,7 +17,7 @@
 # it, and a session that read one version and was refused by another can say so
 # instead of guessing it misread its own limits.
 
-ruleset_version: "2026-08-26.2"
+ruleset_version: "2026-08-26.3"
 
 agents:
   # The first account. Small positions, the whole list of underlyings.
@@ -42,8 +42,26 @@ agents:
           disclosure: boundary
           subject: underlying
           kind: enum
-          value: [SPY, QQQ, IWM, AAPL, TSLA, META, MSFT, GOOGL, AMZN, NVDA,
-                  AMD, AVGO, NFLX, COIN, MU, PLTR, XLF, XLE, SMH, TLT]
+          value: [SPY, QQQ, IWM, DIA, MDY, RSP, VOO, VTI, EFA, EEM, FXI, EWZ, EWJ, EWY, INDA,
+                  XLF, XLE, XLK, XLV, XLI, XLP, XLU, XLB, XLY, XLC, XLRE, XBI, XRT, XME, XOP,
+                  OIH, SMH, SOXX, KRE, ITB, XHB, IYR, TLT, IEF, SHY, HYG, LQD, AGG, TIP, BND,
+                  EMB, MUB, GLD, SLV, GDX, GDXJ, USO, UNG, DBA, DBC, PDBC, VXX, UVXY, SVXY,
+                  VIXY, ARKK, ARKG, ARKW, TQQQ, SQQQ, SPXL, SPXS, TNA, TZA, SOXL, SOXS, LABU,
+                  LABD, AAPL, MSFT, NVDA, AMZN, GOOGL, GOOG, META, TSLA, AVGO, AMD, NFLX, ADBE,
+                  CRM, ORCL, CSCO, INTC, QCOM, TXN, MU, AMAT, LRCX, KLAC, ADI, NXPI, ON, MRVL,
+                  SNPS, CDNS, ANET, SMCI, DELL, HPQ, IBM, NOW, PANW, CRWD, ZS, OKTA, DDOG,
+                  SNOW, MDB, NET, TEAM, WDAY, INTU, ADSK, EA, TTWO, RBLX, U, PLTR, SNAP, PINS,
+                  SPOT, UBER, LYFT, ABNB, DASH, COIN, HOOD, SQ, PYPL, SHOP, MELI, SE, BABA, JD,
+                  PDD, NIO, XPEV, LI, BIDU, TCEHY, JPM, BAC, WFC, C, GS, MS, SCHW, USB, PNC,
+                  TFC, COF, AXP, BLK, BX, KKR, APO, SPGI, ICE, CME, MCO, BRK.B, V, MA, FI, GPN,
+                  UNH, JNJ, PFE, MRK, ABBV, LLY, BMY, AMGN, GILD, BIIB, VRTX, REGN, MRNA, CVS,
+                  CI, ELV, HUM, ISRG, SYK, BSX, MDT, ABT, TMO, DHR, XOM, CVX, COP, EOG, SLB,
+                  HAL, OXY, PSX, VLO, MPC, KMI, WMB, OKE, DVN, FANG, HES, WMT, COST, TGT, HD,
+                  LOW, DG, DLTR, KR, SYY, MCD, SBUX, CMG, YUM, DPZ, NKE, LULU, TJX, ROST, PG,
+                  KO, PEP, PM, MO, CL, KMB, GIS, K, HSY, STZ, MDLZ, MNST, KDP, BA, LMT, RTX,
+                  NOC, GD, LHX, CAT, DE, HON, GE, MMM, UPS, FDX, UNP, CSX, NSC, DAL, UAL, AAL,
+                  LUV, T, VZ, TMUS, CMCSA, DIS, WBD, PARA, ROKU, F, GM, RIVN, LCID, HMC, TM,
+                  CRWV, ARM, DKNG, MSTR, CLSK, MARA, RIOT]
 
         - rule: permitted-expirations
           disclosure: boundary
@@ -82,8 +100,26 @@ agents:
           disclosure: boundary
           subject: underlying
           kind: enum
-          value: [SPY, QQQ, IWM, AAPL, TSLA, META, MSFT, GOOGL, AMZN, NVDA,
-                  AMD, AVGO, NFLX, COIN, MU, PLTR, XLF, XLE, DIA, SMH]
+          value: [SPY, QQQ, IWM, DIA, MDY, RSP, VOO, VTI, EFA, EEM, FXI, EWZ, EWJ, EWY, INDA,
+                  XLF, XLE, XLK, XLV, XLI, XLP, XLU, XLB, XLY, XLC, XLRE, XBI, XRT, XME, XOP,
+                  OIH, SMH, SOXX, KRE, ITB, XHB, IYR, TLT, IEF, SHY, HYG, LQD, AGG, TIP, BND,
+                  EMB, MUB, GLD, SLV, GDX, GDXJ, USO, UNG, DBA, DBC, PDBC, VXX, UVXY, SVXY,
+                  VIXY, ARKK, ARKG, ARKW, TQQQ, SQQQ, SPXL, SPXS, TNA, TZA, SOXL, SOXS, LABU,
+                  LABD, AAPL, MSFT, NVDA, AMZN, GOOGL, GOOG, META, TSLA, AVGO, AMD, NFLX, ADBE,
+                  CRM, ORCL, CSCO, INTC, QCOM, TXN, MU, AMAT, LRCX, KLAC, ADI, NXPI, ON, MRVL,
+                  SNPS, CDNS, ANET, SMCI, DELL, HPQ, IBM, NOW, PANW, CRWD, ZS, OKTA, DDOG,
+                  SNOW, MDB, NET, TEAM, WDAY, INTU, ADSK, EA, TTWO, RBLX, U, PLTR, SNAP, PINS,
+                  SPOT, UBER, LYFT, ABNB, DASH, COIN, HOOD, SQ, PYPL, SHOP, MELI, SE, BABA, JD,
+                  PDD, NIO, XPEV, LI, BIDU, TCEHY, JPM, BAC, WFC, C, GS, MS, SCHW, USB, PNC,
+                  TFC, COF, AXP, BLK, BX, KKR, APO, SPGI, ICE, CME, MCO, BRK.B, V, MA, FI, GPN,
+                  UNH, JNJ, PFE, MRK, ABBV, LLY, BMY, AMGN, GILD, BIIB, VRTX, REGN, MRNA, CVS,
+                  CI, ELV, HUM, ISRG, SYK, BSX, MDT, ABT, TMO, DHR, XOM, CVX, COP, EOG, SLB,
+                  HAL, OXY, PSX, VLO, MPC, KMI, WMB, OKE, DVN, FANG, HES, WMT, COST, TGT, HD,
+                  LOW, DG, DLTR, KR, SYY, MCD, SBUX, CMG, YUM, DPZ, NKE, LULU, TJX, ROST, PG,
+                  KO, PEP, PM, MO, CL, KMB, GIS, K, HSY, STZ, MDLZ, MNST, KDP, BA, LMT, RTX,
+                  NOC, GD, LHX, CAT, DE, HON, GE, MMM, UPS, FDX, UNP, CSX, NSC, DAL, UAL, AAL,
+                  LUV, T, VZ, TMUS, CMCSA, DIS, WBD, PARA, ROKU, F, GM, RIVN, LCID, HMC, TM,
+                  CRWV, ARM, DKNG, MSTR, CLSK, MARA, RIOT]
 
         - rule: permitted-expirations
           disclosure: boundary

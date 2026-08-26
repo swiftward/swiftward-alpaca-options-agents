@@ -193,7 +193,12 @@ func TestTheShippedRulesetCarriesWhatTheTasksGaveUp(t *testing.T) {
 
 		assert.Equal(t, expected, by["max-loss-per-position"].Value, identity)
 		assert.Equal(t, 30, by["max-loss-across-portfolio"].Value, identity)
-		assert.Len(t, by["permitted-underlyings"].Value, 20, identity)
+		// Widened from 20 on 26 August so the permitted list and what the screener
+		// prices are the same names. They had drifted apart the moment the screener
+		// appeared, and the cost was visible: it ranked TQQQ at 40.9 percent and
+		// DIA at 25.8, the session asked, and the envelope refused both for being
+		// off a list nobody had revisited.
+		assert.Len(t, by["permitted-underlyings"].Value, 284, identity)
 		assert.Equal(t,
 			map[string]any{"min": 1, "max": 5},
 			by["permitted-expirations"].Value, identity)
