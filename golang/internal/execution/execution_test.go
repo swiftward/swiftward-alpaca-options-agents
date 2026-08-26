@@ -607,6 +607,8 @@ func TestAnOrderTooLargeForOnePositionIsCancelled(t *testing.T) {
 	huge := spread("o-huge", -0.16, "new", at.Add(-2*time.Minute))
 	huge.Quantity = 906
 	huge.Legs[0].Quantity, huge.Legs[1].Quantity = 906, 906
+	// The floor this order declared, which is what it is judged at.
+	huge.ClientID = NameFor(-0.16)
 
 	broker := &brokerDouble{
 		orders: []marketdata.Order{huge},
@@ -663,6 +665,7 @@ func TestAnUnreadableCeilingCancelsNothing(t *testing.T) {
 	huge := spread("o-huge", -0.16, "new", at.Add(-2*time.Minute))
 	huge.Quantity = 906
 	huge.Legs[0].Quantity, huge.Legs[1].Quantity = 906, 906
+	huge.ClientID = NameFor(-0.16)
 
 	broker := &brokerDouble{
 		orders: []marketdata.Order{huge},
