@@ -105,8 +105,12 @@ x-agent-environment: &agent-environment
   # The token is NOT here: which limits apply is the one thing the two agents must
   # not share.
   GATEWAY_URL: ${GATEWAY_URL:-http://envelope:8090/mcp}
-  HTTP_PROXY: http://egress:8888
-  HTTPS_PROXY: http://egress:8888
+  # Every outbound request goes through the policy gateway, which records where
+  # the agent went and decides whether it may. The host list it enforces is the
+  # one the outbound proxy enforced before it - nothing new is refused, and now
+  # there is a record of what was asked for.
+  HTTP_PROXY: http://swiftward-hackathon-server:8097
+  HTTPS_PROXY: http://swiftward-hackathon-server:8097
   NO_PROXY: alpaca-mcp,alpaca-mcp-near,envelope,postgres,egress,swiftward-hackathon-server,localhost,127.0.0.1
   CODEX_HOME: /home/agent/.codex
 
