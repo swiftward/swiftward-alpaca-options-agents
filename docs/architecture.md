@@ -91,6 +91,12 @@ The reason is not tidiness. A threshold beside a measure is a second place holdi
 
 Thresholds remain where they catch nonsense rather than choose between sound structures: a quote paying more than the width it risks, a crossing that eats the whole credit.
 
+### What one sweep costs
+
+The broker allows 180 requests a minute, and that limit - not the arithmetic - is the whole cost of a sweep. So the number of requests per underlying IS the reach of the screener.
+
+It was two: list the contracts, then price them. `get_option_chain` brings both back in one call, with the implied volatility and the greeks alongside, and the sweep over 284 underlyings fell from 153 seconds to 86 while the structures it found rose from 9 to 18. Nothing about the arithmetic changed; the same limit simply reaches twice as far.
+
 ### What the sweep looks at
 
 Every sold strike is priced against every protective strike behind it, out to five. Width is a dimension of the structure, not merely its size, and it is invisible to the ratio: where credits fall evenly across strikes, a spread four strikes wide collects four times the credit against four times the risk, which is the same ratio. What changes is the crossing - two legs cost two crossings whatever sits between them, so the same toll is charged against four times the credit. On live proportions the narrow structure gives up four fifths of its credit getting in where the wide one gives up a fifth.
