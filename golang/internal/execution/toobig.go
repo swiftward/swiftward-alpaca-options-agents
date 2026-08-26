@@ -7,7 +7,8 @@ import (
 )
 
 // WorstCase is the most a resting multi-leg order can lose if it fills, in
-// dollars, and whether it could be worked out at all.
+// dollars, at the worst price it is allowed to fill at - and whether it could be
+// worked out at all.
 //
 // The payoff of a spread is piecewise linear, so its worst point is at one of
 // the strikes, at zero, or far above the highest strike. Checking those points
@@ -48,10 +49,22 @@ func WorstCase(order marketdata.Order) (float64, bool) {
 	}
 	probes = append(probes, highest*2)
 
-	// The credit is already in hand and the debit already paid, so the price the
-	// order rests at moves the worst case by exactly that much. A credit is
-	// quoted negative, which is why it is added rather than subtracted.
-	settled := -order.LimitPrice * 100 * order.Quantity
+	// Priced at the WORST the order may reach, not at where it rests.
+	//
+	// The ladder concedes as it walks, and every cent it gives up makes the worst
+	// case bigger. Judging the order by its current price would pass it when it
+	// is placed and refuse it three steps later - the same order, cancelled for
+	// moving to a price its own session had already declared acceptable. Judging
+	// it by the floor it can never pass answers the only question worth asking:
+	// can this order lose more than one position may, at any price it can fill at?
+	//
+	// An order that names no floor is judged where it stands. There is no honest
+	// way to invent the number here.
+	worstPrice := order.LimitPrice
+	if floor, named := Reservation(order); named {
+		worstPrice = floor
+	}
+	settled := -worstPrice * 100 * order.Quantity
 
 	worst := math.MaxFloat64
 	for _, price := range probes {
