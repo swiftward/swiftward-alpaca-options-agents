@@ -1,6 +1,8 @@
 # What the agent reads
 
-Prompts, skills and MCP configuration for the trading session. Nothing here holds credentials: the session reaches Alpaca only through the policy gateway, and the gateway holds the broker keys.
+Prompts and skills for the trading session. Nothing here holds a credential, and nothing here carries a limit.
+
+Where its orders go is not decided here either. Today the session reaches the broker's own server directly, over `BROKER_MCP_URL`, on the development account: the policy gateway is not yet in front of it. When it is, an address changes and this directory does not - the session holds no broker key either way. `docs/architecture.md` keeps the current state of that.
 
 ## Skills
 
