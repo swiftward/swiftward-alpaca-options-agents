@@ -111,6 +111,9 @@ func TestEveryDeclaredSettingIsRead(t *testing.T) {
 	t.Setenv("RECORD_SHOWS", "25")
 	t.Setenv("VOLATILITY_UNDERLYINGS", "spy, avgo")
 	t.Setenv("VOLATILITY_EVERY", "5m")
+	t.Setenv("ENVELOPE_ADDR", ":8090")
+	t.Setenv("ENVELOPE_PATH", "/agent/envelope.yaml")
+	t.Setenv("ENVELOPE_CALLERS", "alpha-token=options-alpha, near-token=options-alpha-near")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -133,6 +136,32 @@ func TestEveryDeclaredSettingIsRead(t *testing.T) {
 	assert.Equal(t, 25, cfg.RecordShows)
 	assert.Equal(t, []string{"SPY", "AVGO"}, cfg.VolatilityUnderlyings)
 	assert.Equal(t, 5*time.Minute, cfg.VolatilityEvery)
+	assert.Equal(t, ":8090", cfg.EnvelopeAddr)
+	assert.Equal(t, "/agent/envelope.yaml", cfg.EnvelopePath)
+	assert.Equal(t, map[string]string{
+		"alpha-token": "options-alpha",
+		"near-token":  "options-alpha-near",
+	}, cfg.EnvelopeCallers)
+}
+
+// Two agents under one token are one agent as far as the rules are concerned,
+// and neither of them would ever notice.
+func TestOneTokenCannotBelongToTwoCallers(t *testing.T) {
+	_, err := parseCallers("shared=options-alpha,shared=options-alpha-near", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "one token is given to both")
+}
+
+// The envelope role recognising nobody answers nobody. That is a stack started
+// wrong, and it says so at boot rather than at the first entry window.
+func TestTheEnvelopeRoleNeedsSomeoneToRecognise(t *testing.T) {
+	_, err := parseCallers("", []Role{RoleEnvelope})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "would recognise nobody")
+
+	callers, err := parseCallers("", []Role{RoleHarness})
+	require.NoError(t, err, "a process that serves no envelope needs no callers")
+	assert.Empty(t, callers)
 }
 
 // A deployment that records volatility says how often. Choosing an interval here

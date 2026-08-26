@@ -85,11 +85,15 @@ x-agent-environment: &agent-environment
   EXECUTION_EVERY: ${EXECUTION_EVERY}
   EXECUTION_STEP: ${EXECUTION_STEP}
   EXECUTION_PATIENCE: ${EXECUTION_PATIENCE}
-  GATEWAY_URL: ${GATEWAY_URL}
-  GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+  # Where the session asks what it is allowed to do. Until the policy gateway is
+  # in front of the broker, this is the stand-in beside it - under the same name,
+  # so the session cannot tell the two apart and needs no change when they swap.
+  # The token is NOT here: which limits apply is the one thing the two agents must
+  # not share.
+  GATEWAY_URL: ${GATEWAY_URL:-http://envelope:8090/mcp}
   HTTP_PROXY: http://egress:8888
   HTTPS_PROXY: http://egress:8888
-  NO_PROXY: alpaca-mcp,alpaca-mcp-near,postgres,egress,localhost,127.0.0.1
+  NO_PROXY: alpaca-mcp,alpaca-mcp-near,envelope,postgres,egress,localhost,127.0.0.1
   CODEX_HOME: /home/agent/.codex
 
 services:
@@ -209,6 +213,7 @@ services:
       # a development account.
       BROKER_MCP_URL: ${BROKER_MCP_URL}
       DECLARATION: ${DECLARATION:-/agent/agent.yaml}
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}
@@ -233,6 +238,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
       BROKER_MCP_URL: http://alpaca-mcp-near:8000/mcp
       DECLARATION: /agent/experiment-near.yaml
+      GATEWAY_TOKEN: ${GATEWAY_NEAR_TOKEN}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_NEAR_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       TELEGRAM_TOPIC_ID: ${TELEGRAM_NEAR_TOPIC_ID}
@@ -241,6 +247,37 @@ services:
       - ${CODEX_AUTH_DIR}:/mnt/codex:ro
       - codex-home-near:/home/agent/.codex
       - agent-near-work:/work
+
+  # What the session asks about its own limits. It stands where the policy gateway
+  # will stand, and answers the one question that gateway answers first: what am I
+  # allowed to do, and by which version of the rules.
+  #
+  # It holds no broker credential and reaches nothing: it reads a file and
+  # answers. Judging an order and refusing it are the gateway's, not its, and it
+  # is deliberately unable to do either.
+  envelope:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      target: envelope
+    networks: [internal]
+    environment:
+      ROLES: envelope
+      ENVELOPE_ADDR: ":8090"
+      ENVELOPE_PATH: /agent/envelope.yaml
+      # Which token belongs to which caller. It lives here and not in the ruleset
+      # because the ruleset is committed and a token is not.
+      ENVELOPE_CALLERS: ${ENVELOPE_CALLERS}
+    volumes:
+      # The working copy over the shipped one: an operator lowering a ceiling
+      # edits this file, and the session reads the new number on its next
+      # question, with nothing restarted.
+      - ./agent/envelope.yaml:/agent/envelope.yaml:ro
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
 
   # The only door out. Hosts not named in docker/egress/filter.txt are refused.
   egress:

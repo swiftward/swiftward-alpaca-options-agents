@@ -31,6 +31,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/config"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/db"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/envelope"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/execution"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/harness"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
@@ -220,6 +221,23 @@ func run(log *zap.Logger) error {
 
 		handler := tools.Handler()
 		group.Go(func() error { return serve(ctx, cfg.MCPAddr, handler, log.Named("mcp")) })
+	}
+
+	// The envelope stands where the policy gateway will stand. It is served in
+	// its own process so that the thing an agent asks about its limits is never
+	// the thing that runs the agent.
+	if cfg.Has(config.RoleEnvelope) {
+		if cfg.EnvelopePath == "" {
+			return errors.New("the envelope role needs ENVELOPE_PATH: the limits it serves live in a file, not in this binary")
+		}
+		// Read once at start so a broken ruleset is a failure to start rather than
+		// a session that asks for its limits and is told nothing.
+		if _, err := envelope.Load(cfg.EnvelopePath); err != nil {
+			return err
+		}
+		limits := envelope.Tools{Path: cfg.EnvelopePath, Callers: cfg.EnvelopeCallers}
+		handler := limits.Handler()
+		group.Go(func() error { return serve(ctx, cfg.EnvelopeAddr, handler, log.Named("envelope")) })
 	}
 
 	// The ladder finishes what the session started: it can move a price and cancel

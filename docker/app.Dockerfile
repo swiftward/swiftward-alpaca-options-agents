@@ -23,6 +23,15 @@ COPY --from=web /src/dist /srv/web
 USER 65534
 ENTRYPOINT ["/usr/local/bin/app"]
 
+# The stand-in for the policy gateway. It carries the ruleset as shipped, and the
+# stack mounts the working copy over it: lowering a ceiling has to be one edit
+# that a running session sees, and a limit baked into an image is not that.
+FROM alpine:3.22 AS envelope
+COPY --from=build /out/app /usr/local/bin/app
+COPY agent/envelope.yaml /agent/envelope.yaml
+USER 65534
+ENTRYPOINT ["/usr/local/bin/app"]
+
 FROM node:22-alpine AS agent
 
 ARG CODEX_VERSION=0.149.0

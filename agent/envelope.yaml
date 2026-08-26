@@ -1,0 +1,97 @@
+# The limits in force, and who is under them.
+#
+# This file is the operator's. A session never reads it: it asks `read_envelope`
+# and is told what applies to it, which is why lowering a ceiling here is one edit
+# in one place and takes effect without restarting or rewriting anything.
+#
+# Two things do NOT belong here, and keeping them out is what stops this file from
+# quietly becoming the strategy:
+#
+#   * how a trade is chosen - which leg to sell, what a structure must pay, when
+#     to close. Nobody grants those, and an agent has no reason to get around
+#     them. They live in the skill that describes the playbook.
+#   * anything the broker already tells us. The account's options level arrives
+#     from Alpaca on its own and is not repeated here.
+#
+# Raise `ruleset_version` on every change. A refusal names the version that judged
+# it, and a session that read one version and was refused by another can say so
+# instead of guessing it misread its own limits.
+
+ruleset_version: "2026-08-26.1"
+
+agents:
+  # The first account. Small positions, the whole list of underlyings.
+  options-alpha:
+    tools:
+      place_option_order:
+        - rule: max-loss-per-position
+          disclosure: boundary
+          subject: position_max_loss
+          kind: maximum
+          value: 0.5
+          unit: percent_of_equity
+
+        - rule: max-loss-across-portfolio
+          disclosure: boundary
+          subject: portfolio_max_loss
+          kind: maximum
+          value: 30
+          unit: percent_of_equity
+
+        - rule: permitted-underlyings
+          disclosure: boundary
+          subject: underlying
+          kind: enum
+          value: [SPY, QQQ, IWM, AAPL, TSLA, META, MSFT, GOOGL, AMZN, NVDA,
+                  AMD, AVGO, NFLX, COIN, MU, PLTR, XLF, XLE, SMH, TLT]
+
+        - rule: permitted-expirations
+          disclosure: boundary
+          subject: expiration
+          kind: range
+          value: {min: 1, max: 5}
+          unit: trading_days_from_today
+
+        # How often you may open is counted by whoever counts it, not by anything
+        # in the order. A rule that reads a counter cannot show a boundary without
+        # showing the counter, so it shows that it exists and nothing more.
+        - rule: entry-frequency
+          disclosure: existence
+          says: "how often you may open is governed; a refusal on it is final"
+
+  # The second account. Same engine, sold closer to the money, so positions are
+  # larger and the list of underlyings is its own.
+  options-alpha-near:
+    tools:
+      place_option_order:
+        - rule: max-loss-per-position
+          disclosure: boundary
+          subject: position_max_loss
+          kind: maximum
+          value: 2.5
+          unit: percent_of_equity
+
+        - rule: max-loss-across-portfolio
+          disclosure: boundary
+          subject: portfolio_max_loss
+          kind: maximum
+          value: 30
+          unit: percent_of_equity
+
+        - rule: permitted-underlyings
+          disclosure: boundary
+          subject: underlying
+          kind: enum
+          value: [SPY, QQQ, IWM, AAPL, TSLA, META, MSFT, GOOGL, AMZN, NVDA,
+                  AMD, AVGO, NFLX, COIN, MU, PLTR, XLF, XLE, DIA, SMH]
+
+        - rule: permitted-expirations
+          disclosure: boundary
+          subject: expiration
+          kind: range
+          value: {min: 1, max: 5}
+          unit: trading_days_from_today
+
+        - rule: entry-frequency
+          disclosure: existence
+          says: "how often you may open is governed; a refusal on it is final"
