@@ -212,3 +212,29 @@ func TestAContractWithNoDeltaIsNotOfferedWhenDeltaIsAskedFor(t *testing.T) {
 	want.MostDelta = 0
 	assert.Len(t, Best("QQQ", 710, contracts, quotes, want), 1, "unchecked when not asked for")
 }
+
+// Two legs of different expirations are a calendar spread, not a vertical, and
+// pricing one as the other invents a risk that does not exist: the width between
+// strikes bounds the loss only when both legs die on the same day. The session
+// caught this on live data - "смешанные по срокам пары из списка не использую
+// как вертикали" - which means the screener was offering them.
+func TestLegsOfDifferentExpirationsAreNeverPaired(t *testing.T) {
+	later := expiry.AddDate(0, 0, 3)
+	near := marketdata.Contract{Symbol: "QQQ-NEAR-701", Expiration: expiry, Strike: 701, Type: "put"}
+	far := marketdata.Contract{Symbol: "QQQ-FAR-700", Expiration: later, Strike: 700, Type: "put"}
+
+	quotes := map[string]marketdata.Quote{
+		near.Symbol: quote(0.71, 0.79),
+		far.Symbol:  quote(0.51, 0.59),
+	}
+
+	assert.Empty(t, Best("QQQ", 710, []marketdata.Contract{far, near}, quotes, anything()),
+		"one leg on each of two days is not a vertical and must not be offered as one")
+
+	// The same two strikes on the SAME day are a vertical and are offered.
+	sameDay := marketdata.Contract{Symbol: "QQQ-NEAR-700", Expiration: expiry, Strike: 700, Type: "put"}
+	quotes[sameDay.Symbol] = quote(0.51, 0.59)
+	found := Best("QQQ", 710, []marketdata.Contract{sameDay, near}, quotes, anything())
+	require.Len(t, found, 1)
+	assert.Equal(t, expiry, found[0].Expiration)
+}

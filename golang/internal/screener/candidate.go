@@ -96,17 +96,26 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 		return nil
 	}
 
-	byKind := map[string][]marketdata.Contract{}
+	// Grouped by type AND expiration. Two legs of different expirations are a
+	// different structure entirely - a calendar, not a vertical - and pricing one
+	// as the other gives a risk that does not exist: the width between strikes
+	// bounds the loss only when both legs die on the same day.
+	type series struct {
+		kind    string
+		expires string
+	}
+	bySeries := map[series][]marketdata.Contract{}
 	for _, contract := range contracts {
-		byKind[contract.Type] = append(byKind[contract.Type], contract)
+		key := series{contract.Type, contract.Expiration.Format(time.DateOnly)}
+		bySeries[key] = append(bySeries[key], contract)
 	}
 
 	var found []Candidate
-	for kind, list := range byKind {
+	best := map[string]Candidate{}
+	for key, list := range bySeries {
+		kind := key.kind
 		sort.Slice(list, func(i, j int) bool { return list[i].Strike < list[j].Strike })
 
-		var best Candidate
-		haveBest := false
 		for i := 1; i < len(list); i++ {
 			// A put spread sells the higher strike and buys the lower; a call
 			// spread the other way round. Both sell the leg nearer the money.
@@ -119,13 +128,15 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 			if !ok {
 				continue
 			}
-			if !haveBest || candidate.CreditToRisk > best.CreditToRisk {
-				best, haveBest = candidate, true
+			// One best per side across every expiration: the session wants the best
+			// put and the best call, not one of each per day.
+			if kept, have := best[kind]; !have || candidate.CreditToRisk > kept.CreditToRisk {
+				best[kind] = candidate
 			}
 		}
-		if haveBest {
-			found = append(found, best)
-		}
+	}
+	for _, candidate := range best {
+		found = append(found, candidate)
 	}
 
 	sort.Slice(found, func(i, j int) bool { return found[i].CreditToRisk > found[j].CreditToRisk })
