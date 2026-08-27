@@ -23,21 +23,17 @@ services:
 
   # The schema, applied before anything reads it. Files run in name order, and
   # each is written to be safe to run again, so a restart is not a special case.
+  # Схема приезжает образом, собранным из того же коммита, что и остальные. Файлов
+  # с диска этой машины она не читает: иначе накатывалось бы то, что лежит в
+  # чекауте, а работал бы код из образа, и совпадали бы они только пока за этим
+  # кто-то следит.
   migrate:
-    image: postgres:18.4-alpine
+    image: ghcr.io/swiftward/swiftward-alpaca-options-agents/migrate:${IMAGE_TAG}
     networks: [internal]
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - ./postgres/migrations:/migrations:ro
-    entrypoint:
-      - /bin/sh
-      - -c
-      - >-
-        for f in /migrations/*.sql; do
-          echo "-> $$f";
-          psql -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} -v ON_ERROR_STOP=1 -f "$$f" || exit 1;
-        done
+      POSTGRES_USER: ${POSTGRES_USER}
+      RECORD_DATABASES: ${RECORD_DATABASES:-${POSTGRES_DB}}
     depends_on:
       postgres:
         condition: service_healthy

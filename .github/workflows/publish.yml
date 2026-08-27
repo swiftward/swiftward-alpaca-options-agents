@@ -41,6 +41,9 @@ jobs:
           - name: egress
             dockerfile: docker/egress.Dockerfile
             target: ""
+          - name: migrate
+            dockerfile: docker/migrate.Dockerfile
+            target: ""
 
     steps:
       - uses: actions/checkout@v7
