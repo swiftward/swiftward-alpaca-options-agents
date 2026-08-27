@@ -262,6 +262,13 @@ services:
       # its own credential, so the record names WHICH agent made each call and one
       # agent can be stopped without touching the other.
       BROKER_MCP_URL: ${BROKER_MCP_URL}
+      # Куда идут ЧТЕНИЯ харнесса - цены, часы, счёт, цепочки. Пусто означает
+      # «туда же, куда заявки». Разделять их можно потому, что строка выше
+      # попадает и в конфиг самой сессии как [mcp_servers.broker], то есть это
+      # адрес, по которому уходит ЗАЯВКА: ему место на шлюзе, который умеет её
+      # отклонить и записывает, что она была. Чтения заявки не несут.
+      HARNESS_BROKER_MCP_URL: ${HARNESS_BROKER_MCP_URL:-}
+      HARNESS_BROKER_MCP_TOKEN: ${HARNESS_BROKER_MCP_TOKEN:-}
       BROKER_MCP_TOKEN: ${BROKER_MCP_TOKEN}
       # The model through the policy gateway, under this agent's own name.
       MODEL_GATEWAY_URL: ${MODEL_GATEWAY_URL}

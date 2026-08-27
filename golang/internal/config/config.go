@@ -64,6 +64,19 @@ type Config struct {
 	// gateway rather than the broker's own server. Empty where it names the
 	// broker, which asks for nothing.
 	BrokerMCPToken string
+	// HarnessBrokerMCPURL is where the HARNESS's own reads go - prices, the
+	// clock, the account, the chains. Empty means they follow BrokerMCPURL, which
+	// is how this behaved before the two could differ.
+	//
+	// They can differ because BrokerMCPURL is not only ours: the entrypoint
+	// writes it into the session's own MCP config as [mcp_servers.broker], and
+	// that is the server an ORDER goes to. Moving our reads off the gateway by
+	// changing that one address moves orders off it too - out from under the
+	// rules that refuse them and out of the record that shows they were made.
+	// Reads carry no order, so they may go straight to the broker; orders may
+	// not.
+	HarnessBrokerMCPURL   string
+	HarnessBrokerMCPToken string
 	// Execution walks an unfilled structure toward the price the book shows. Zero
 	// interval means the ladder does not run and an order rests where the session
 	// placed it.
@@ -251,6 +264,8 @@ func Load() (Config, error) {
 		ThreadFile:            k.String("thread_file"),
 		WakeupFile:            k.String("wakeup_file"),
 		BrokerMCPURL:          k.String("broker_mcp_url"),
+		HarnessBrokerMCPURL:   k.String("harness_broker_mcp_url"),
+		HarnessBrokerMCPToken: k.String("harness_broker_mcp_token"),
 		BrokerMCPToken:        k.String("broker_mcp_token"),
 		AgentCallTimeout:      callTimeout,
 		ScreenerUnderlyings:   screened,

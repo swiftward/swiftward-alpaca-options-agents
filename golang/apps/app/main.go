@@ -228,9 +228,23 @@ func run(log *zap.Logger) error {
 
 	// One broker connection serves whichever roles this process runs: the read
 	// side asks it for money, the harness for prices, the recorders for both.
+	//
+	// Where OUR reads go can differ from where the session's orders go, and the
+	// difference is deliberate. The entrypoint writes BROKER_MCP_URL into the
+	// session's own MCP config, so that address is the one an order travels; it
+	// belongs on the gateway, which is what can refuse an order and what records
+	// that it was made. These reads carry no order, so when the gateway holds a
+	// client open - measured on 27 August, get_clock unanswered for a minute and
+	// a half, and every reader stalled behind it - they may be pointed straight
+	// at the broker without giving anything up.
+	brokerURL, brokerToken := cfg.BrokerMCPURL, cfg.BrokerMCPToken
+	if cfg.HarnessBrokerMCPURL != "" {
+		brokerURL, brokerToken = cfg.HarnessBrokerMCPURL, cfg.HarnessBrokerMCPToken
+	}
+
 	var broker *marketdata.Broker
-	if cfg.BrokerMCPURL != "" {
-		broker = marketdata.NewBrokerWithToken(cfg.BrokerMCPURL, cfg.BrokerMCPToken)
+	if brokerURL != "" {
+		broker = marketdata.NewBrokerWithToken(brokerURL, brokerToken)
 	}
 
 	group, ctx := errgroup.WithContext(ctx)
