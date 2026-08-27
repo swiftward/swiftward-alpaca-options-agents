@@ -163,6 +163,23 @@ func known(list []string, value string) bool {
 	return false
 }
 
+// bareTool drops the namespace a client puts in front of a tool's name.
+//
+// A limit belongs to the tool the BROKER publishes, not to the client that
+// happens to be calling it: the same order placed through a client that
+// namespaces its tools is the same order. Measured 27 August - a session that
+// restarted its conversation began asking about
+// `mcp__broker__place_option_order`, was told the tool was under no ruleset, and
+// stopped trading for an hour. "Nothing was disclosed to you" reads exactly like
+// permission, which is why this must match rather than fall through.
+func bareTool(tool string) string {
+	if at := strings.LastIndex(tool, "__"); at >= 0 {
+		return tool[at+len("__"):]
+	}
+
+	return tool
+}
+
 // For computes one caller's envelope on one tool.
 //
 // An identity that does not resolve is an error and never an empty envelope: a
@@ -174,7 +191,7 @@ func (r Ruleset) For(identity, tool string) (Envelope, error) {
 		return Envelope{}, fmt.Errorf("no envelope for %q: this caller is under no ruleset", identity)
 	}
 
-	constraints, governed := agent.Tools[tool]
+	constraints, governed := agent.Tools[bareTool(tool)]
 
 	// Same inputs, same bytes: the answer is sorted so a session comparing two
 	// reads sees a changed rule, not a changed order. It is built empty rather

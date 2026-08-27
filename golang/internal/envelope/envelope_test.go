@@ -225,3 +225,41 @@ func TestTheShippedRulesetCarriesWhatTheTasksGaveUp(t *testing.T) {
 		assert.Nil(t, by["entry-frequency"].Value, identity)
 	}
 }
+
+// A client that namespaces the broker's tools must get the same limits as one
+// that does not. The alternative is what happened on 27 August: the session was
+// told the tool was under no ruleset, which reads as permission, and it stopped
+// trading rather than place an order it could not prove was allowed.
+func TestTheClientsNamespaceDoesNotHideTheLimits(t *testing.T) {
+	ruleset := Ruleset{
+		Version: "test",
+		Agents: map[string]Agent{
+			"options-alpha": {Tools: map[string][]Constraint{
+				"place_option_order": {{Rule: "max-loss-per-position"}},
+			}},
+		},
+	}
+
+	bare, err := ruleset.For("options-alpha", "place_option_order")
+	require.NoError(t, err)
+	prefixed, err := ruleset.For("options-alpha", "mcp__broker__place_option_order")
+	require.NoError(t, err)
+
+	assert.True(t, bare.Governed)
+	assert.True(t, prefixed.Governed, "the same tool behind a client's prefix")
+	assert.Equal(t, bare.Constraints, prefixed.Constraints)
+}
+
+// A tool nobody wrote a rule for is still ungoverned, prefix or not: the match
+// above must not turn into "anything ending in a known name".
+func TestAnUnknownToolStaysUngoverned(t *testing.T) {
+	ruleset := Ruleset{
+		Version: "test",
+		Agents:  map[string]Agent{"options-alpha": {Tools: map[string][]Constraint{}}},
+	}
+
+	got, err := ruleset.For("options-alpha", "mcp__broker__cancel_order")
+	require.NoError(t, err)
+	assert.False(t, got.Governed)
+	assert.Empty(t, got.Constraints)
+}
