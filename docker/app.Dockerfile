@@ -38,6 +38,12 @@ ARG CODEX_VERSION=0.149.0
 RUN npm install -g @openai/codex@${CODEX_VERSION} \
     && command -v codex >/dev/null
 
+# ripgrep, потому что сессия зовёт его по привычке. Измерено 27 августа: каждый
+# ход начинался с `rg --files /work/notes`, получал отказ и переспрашивал через
+# `find` - лишний круг к модели на каждой сессии. Дешевле положить инструмент,
+# чем отучать от него тринадцать сессий в день.
+RUN apk add --no-cache ripgrep && command -v rg >/dev/null
+
 COPY --from=build /out/app /usr/local/bin/app
 COPY docker/agent-entrypoint.sh /usr/local/bin/entrypoint
 COPY agent/ /agent/
