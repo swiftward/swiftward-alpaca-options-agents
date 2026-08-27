@@ -37,6 +37,14 @@ const (
 	// move is a rename inside one directory rather than a copy across one.
 	building = ".agents/skills.next"
 	retiring = ".agents/skills.old"
+	// laidMark is what this process leaves inside the directory it built, and it
+	// is the ONLY thing that entitles it to delete that directory again. See
+	// mayReplace. It holds the fingerprint of the set it was written for, so it
+	// is read rather than merely present.
+	//
+	// It is a file, not a directory, so the agent - which looks for
+	// `*/SKILL.md` - never offers it to a session as a skill.
+	laidMark = ".laid-by-the-agent"
 )
 
 // Skill is one directory of instructions, as its own SKILL.md describes it.
@@ -238,6 +246,9 @@ type Laid struct {
 // Lay - the choice a declaration makes has to mean the same thing on a developer
 // machine and on a deployment, and a directory put there from outside is one
 // this process cannot narrow.
+//
+// What entitles it to delete the target at all is a mark it left there itself,
+// not the look of the contents and not the mount table. See mayReplace.
 type Layer struct {
 	// Source is where the skills come from, and AgentDir is the directory the
 	// session works in.
@@ -247,9 +258,11 @@ type Layer struct {
 // Lay makes the directory the agent reads hold exactly the skills wanted, with
 // the text the source holds now.
 //
-// Nothing is removed until the whole set is known to be good: a declaration
-// naming a skill that does not exist, or failing to give a number one requires,
-// leaves the session with the skills it had rather than with none.
+// Nothing is removed until two things hold. The directory has to be one this
+// process wrote - see mayReplace - and the whole set has to be known to be good,
+// so a declaration naming a skill that does not exist, or failing to give a
+// number one requires, leaves the session with the skills it had rather than
+// with none.
 func (l *Layer) Lay(wanted []string, given map[string]string) (Laid, error) {
 	target := filepath.Join(l.AgentDir, skillsUnder)
 
@@ -260,6 +273,12 @@ func (l *Layer) Lay(wanted []string, given map[string]string) (Laid, error) {
 	// developer machine and another on a deployment. That is the class of
 	// difference that is found at the worst possible moment.
 	if err := refuseAMountedTarget(l.AgentDir, target); err != nil {
+		return Laid{}, err
+	}
+	// The second line, and the one that does not depend on a mount table being
+	// there to read: nothing is deleted that this process cannot prove it wrote.
+	marked, err := mayReplace(target)
+	if err != nil {
 		return Laid{}, err
 	}
 
@@ -289,18 +308,61 @@ func (l *Layer) Lay(wanted []string, given map[string]string) (Laid, error) {
 	if err != nil {
 		return Laid{}, err
 	}
-	// A target that cannot be read is a target that has to be rebuilt, which is
-	// what an unreadable one gets by not matching.
+
+	// Three fingerprints, and all three have to agree before a pass does nothing:
+	// what the source holds now, what the mark says was laid, and what is
+	// actually in the directory. The mark answers "we built this and for which
+	// set"; the directory answers "and it is still what we put there", which the
+	// mark cannot, because the session works in that directory and can write to
+	// it. A target that cannot be read at all disagrees by not matching, which is
+	// the answer that rebuilds it.
 	have, _ := stampOfLaid(target)
-	if want == have {
+	if want == marked && want == have {
 		return Laid{Dir: target, Names: names, Changed: false}, nil
 	}
 
-	if err := writeInto(l.AgentDir, target, chosen); err != nil {
+	if err := writeInto(l.AgentDir, target, chosen, want); err != nil {
 		return Laid{}, err
 	}
 
 	return Laid{Dir: target, Names: names, Changed: true}, nil
+}
+
+// mayReplace decides whether the directory may be deleted, and returns the
+// fingerprint the mark inside it carries.
+//
+// The rule is ownership, not appearance: a directory that is there and carries
+// no mark was put there by something else, and this process does not delete it -
+// whatever the mount table says, or fails to say. The mount table is the better
+// error message where it can be read, and this is the answer where it cannot:
+// on a machine with no /proc, "nothing is mounted" is a guess, and a guess in
+// favour of deleting somebody's files is not one to make.
+//
+// A directory that is not there yet is free to create; the mark it gets is what
+// makes every pass after the first one able to replace it.
+func mayReplace(target string) (string, error) {
+	mark, err := os.ReadFile(filepath.Join(target, laidMark))
+	if err == nil {
+		return strings.TrimSpace(string(mark)), nil
+	}
+	if !os.IsNotExist(err) {
+		return "", fmt.Errorf("read %s: %w", filepath.Join(target, laidMark), err)
+	}
+
+	// No mark. Either the directory is not there at all, which is fine, or it is
+	// there and belongs to somebody else.
+	if _, err := os.Stat(target); err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("look at %s: %w", target, err)
+	}
+
+	return "", fmt.Errorf("%s is there but carries no %s, so this process did not write it and will not delete it. "+
+		"Two things look like this. It was laid by an older version of this image, which copied the skills from the entrypoint - "+
+		"then remove that directory once and start again, and it is rebuilt from SKILLS_DIR on the next start. "+
+		"Or a directory was mounted there - mount it at SKILLS_DIR instead, so the declaration's choice of skills still applies",
+		target, laidMark)
 }
 
 // writeInto builds the set beside the one in use and swaps it in by renaming,
@@ -311,7 +373,7 @@ func (l *Layer) Lay(wanted []string, given map[string]string) (Laid, error) {
 // long as the copy takes, and would leave it missing for good if the copy failed
 // halfway. Two renames inside one directory cost the same either way, and
 // between them the old set is still on disk to be put back.
-func writeInto(agentDir, target string, chosen []Skill) error {
+func writeInto(agentDir, target string, chosen []Skill, stamp string) error {
 	next := filepath.Join(agentDir, building)
 	previous := filepath.Join(agentDir, retiring)
 	if err := os.RemoveAll(next); err != nil {
@@ -329,6 +391,14 @@ func writeInto(agentDir, target string, chosen []Skill) error {
 		if err := os.CopyFS(into, os.DirFS(skill.Dir)); err != nil {
 			return fmt.Errorf("copy skill %q into %s: %w", skill.Name, into, err)
 		}
+	}
+
+	// The mark goes in before the swap, so the directory is never in place
+	// without the thing that says it may be replaced. A pass that died between
+	// the two would leave a directory this process could not touch again.
+	mark := filepath.Join(next, laidMark)
+	if err := os.WriteFile(mark, []byte(stamp+"\n"), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", mark, err)
 	}
 
 	if err := os.RemoveAll(previous); err != nil {
@@ -415,6 +485,11 @@ func stampOfLaid(target string) (string, error) {
 			return err
 		}
 		if entry.IsDir() || path == "." {
+			return nil
+		}
+		// The mark is this process's own note about the directory, not part of
+		// what it holds. Hashing it would make the fingerprint depend on itself.
+		if path == laidMark {
 			return nil
 		}
 		body, err := fs.ReadFile(from, path)

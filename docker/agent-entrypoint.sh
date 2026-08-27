@@ -84,5 +84,9 @@ cp /agent/AGENTS.md /work/AGENTS.md
 # declaration names. To edit a skill and have a running session read the new
 # text, mount a checkout at SKILLS_DIR - not over /work/.agents/skills, which the
 # app rebuilds and will refuse to start on top of.
+#
+# It also refuses to start on a /work/.agents/skills it did not write, and the
+# copy THIS script used to make is one of those. On a work volume that predates
+# the change, remove that directory once; the app builds it on the next start.
 
 exec /usr/local/bin/app "$@"

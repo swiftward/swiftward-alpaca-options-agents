@@ -20,6 +20,14 @@ The way in is to mount a checkout over the directory the skills are **read from*
 
 Mounting over `/work/.agents/skills` instead - the directory the session reads - is refused, and the refusal says this. It would hand the session every skill in the checkout rather than the ones its declaration named, so the same declaration would behave one way on a developer machine and another on a deployment; and with two agents on one checkout, neither would get what it asked for. Tuning is done locally, so local has to be what ships.
 
+### What may be deleted
+
+That directory is rebuilt, which means deleted, and the only thing that entitles the process to delete it is a mark it left there itself: `.laid-by-the-agent`, holding the fingerprint of the set it wrote. **A directory that is there and carries no mark is left alone and the process refuses to start**, saying so.
+
+The mark rather than the look of the contents, because a copy that looks like ours may not be ours. The mark rather than the mount table, because the mount table is not always there to read - on a machine without `/proc` "nothing is mounted" is a guess, and a guess in favour of deleting somebody's files is not one to make. The mount table is still read where it can be: it gives the more exact reason when a mount is what happened.
+
+**One-time step on a deployment that predates this.** The work volume outlives the image, so it already holds a `/work/.agents/skills` copied by the entrypoint of an older version, with no mark in it. The agent refuses to start and names the directory. Remove it once; the next start builds it from `SKILLS_DIR`. Nothing is deleted on the operator's behalf without being asked, which is the point of the rule.
+
 ### Numbers
 
 A skill holds the technique and an example number. The number actually used comes from the declaration, under `parameters:`, and stands at the top of every turn - whichever of the three causes woke it, a scheduled window, the session's own wake-up or a person in the chat. A skill says in its front matter which ones it cannot work without:
