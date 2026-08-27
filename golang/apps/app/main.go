@@ -316,6 +316,10 @@ func run(log *zap.Logger) error {
 		}
 		if shortlist != nil && len(cfg.ScreenerUnderlyings) > 0 {
 			tools.Shortlist = shortlist
+			// The interval travels with the list so the list can say whether it is
+			// fresh. Without it a session is handed an age in seconds and has to
+			// guess what is normal - and guessing cost a trade on 27 August.
+			tools.SweepEvery = cfg.ScreenerEvery
 		}
 		if shortlist != nil {
 			tools.Asked = shortlist

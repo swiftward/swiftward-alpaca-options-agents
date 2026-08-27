@@ -142,6 +142,18 @@ type Tools struct {
 	// Shortlist is what the screener priced across the whole universe. A nil one
 	// means no screener is running and the tool is not offered.
 	Shortlist Shortlist
+	// SweepEvery is how often the screener starts a pass. It is here so the list
+	// can say whether it is FRESH, instead of handing a session a number of
+	// seconds and leaving it to guess.
+	//
+	// Guessing went wrong on 27 August in the way that costs a trade: the entry
+	// window read the list twice, saw the age go from 280 seconds to 309, and
+	// concluded the screener had stopped - so by the rule below it treated the
+	// list as absent and sent nothing. The age of course grows between two reads
+	// inside one pass; that is not a fault, it is the interval. A session cannot
+	// tell "stopped" from "read twice in one cycle" out of one number, and it
+	// should not have to.
+	SweepEvery time.Duration
 	// Asked answers whether a tool was called during one turn. Nil skips the
 	// check, which is what a run without a database does.
 	Asked Asked
@@ -265,7 +277,8 @@ func (t Tools) Handler() http.Handler {
 					"Each carries what it pays, what it risks, how far the sold strike sits from the price, what crossing the book costs, and credit_after_cost - the credit with half that crossing taken out, which is what an order sent at the midpoint is worth in expectation. " +
 					"edge_points is measured from credit_after_cost, so a structure quoted wide already shows a worse number and needs no separate rule about its cost. " +
 					"edge_from names what the chance of surviving was read from: the broker's delta, or the price of volatility on the day a contract expires, when the broker computes no delta. " +
-					"seconds_old says how long ago the sweep that priced this list was taken. It matters: seven minutes was enough to turn +7.5 points of edge into -7.2 on one of these structures, so re-read the legs before ordering and treat a list that has stopped being refreshed as no list at all. " +
+					"seconds_old says how long ago the sweep that priced this list was taken, and fresh says whether that is normal for this deployment - the sweeps come at an interval, so a list is routinely a few minutes old and that is not a fault. Trust fresh; do not work it out from seconds_old, and do not read a rising age across two reads as the screener having stopped, because inside one interval the age rises by design. " +
+					"Age still matters for the prices: seven minutes was enough to turn +7.5 points of edge into -7.2 on one of these structures, so re-read the legs before ordering whatever fresh says. A list that comes back fresh=false is no list at all. " +
 					"This is what the market offers, not what you should take: the choice, the size and whether to trade at all remain yours.",
 			},
 			func(ctx context.Context, req *mcp.CallToolRequest, in candidatesInput) (*mcp.CallToolResult, candidatesAnswer, error) {
@@ -284,7 +297,11 @@ func (t Tools) Handler() http.Handler {
 					age = int(t.Now().Sub(takenAt).Seconds())
 				}
 
-				return nil, candidatesAnswer{Candidates: found, SecondsOld: age}, nil
+				return nil, candidatesAnswer{
+					Candidates: found,
+					SecondsOld: age,
+					Fresh:      t.fresh(takenAt, found),
+				}, nil
 			})
 	}
 
@@ -397,4 +414,31 @@ type candidatesAnswer struct {
 	// outlive the sweep that wrote them, so a list an hour old reads exactly like
 	// one a minute old unless it says which it is.
 	SecondsOld int `json:"seconds_old" jsonschema:"how many seconds ago the sweep behind this list was taken"`
+	// Fresh is whether that age is normal for this deployment. It exists so the
+	// session is handed an answer rather than a number to reason from: sweeps
+	// come at an interval, a list is routinely older than one of them, and one
+	// age tells nobody whether the screener is running.
+	Fresh bool `json:"fresh" jsonschema:"whether the screener is keeping this list up to date; false means treat it as no list at all"`
+}
+
+// fresh answers whether the list is being kept up to date.
+//
+// The bound is TWO intervals plus a minute, and each part is there for a reason.
+// A pass takes time of its own, so at the moment a new one finishes the previous
+// list is already one interval plus that duration old; one interval would call
+// every healthy list stale. Two plus a minute leaves room for a slow pass and
+// still catches a screener that has actually stopped, which shows up as an age
+// that keeps climbing past any bound.
+func (t Tools) fresh(takenAt time.Time, found []screener.Candidate) bool {
+	if len(found) == 0 || takenAt.IsZero() {
+		return false
+	}
+	if t.SweepEvery <= 0 {
+		// Nobody said how often the sweep runs, so nothing here can judge it. Say
+		// fresh and let the age speak for itself, rather than calling a working
+		// list dead on a setting this process was not given.
+		return true
+	}
+
+	return t.Now().Sub(takenAt) <= 2*t.SweepEvery+time.Minute
 }

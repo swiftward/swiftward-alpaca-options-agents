@@ -42,6 +42,16 @@ The fuse is not enforced by anything but you. Nothing refuses the order if you s
   On expiry day the broker computes no greeks and no volatility at all, so the screener borrows the volatility from the nearest other expiration of the same underlying and says so in `edge_from`. A borrowed number errs the dangerous way - the very short end usually sits above the days behind it, so it understates how often the strike is reached - which is why the TASK asks more of a borrowed measure than of a delta one. Follow the task.
 - **The short leg.** How far out is the TASK's to say, not this file's: the two accounts sell at deliberately different distances, and that difference is the experiment they exist for. The long leg is one strike further out.
 - **Width.** Whatever measures best - the screener prices every width out to five strikes, and width changes what the crossing costs rather than what the structure pays. Both legs need a two-sided quote. Risk is the width less the credit.
+- **Whether the list may be used at all.** `read_candidates` answers `fresh`, and
+  that is the whole test - take it as given. Do NOT work freshness out from
+  `seconds_old` yourself, and above all do not read a rising age across two reads
+  as the screener having stopped: sweeps come at an interval, so inside one cycle
+  the age rises by design. That exact misreading cost an entry on 27 August - the
+  window saw 280 seconds become 309, called the screener dead and sent nothing,
+  while the screener was sweeping every five minutes without a miss.
+  `fresh` false is no list at all; `fresh` true means use it - and still re-read
+  the legs before ordering, because prices move inside a cycle even when the list
+  is doing its job.
 - **What to rank on.** `edge_points` from `read_candidates`: how many percentage points the structure pays above what it has to survive. Both halves at once - a delta ceiling keeps what is far and throws away what pays, a credit threshold keeps what pays and ignores how often it loses.
   Crossing the book is already taken out of it, so there is no separate rule about what the round trip costs. `credit_after_cost` beside `credit` shows how much a structure gives up getting in. A structure quoted wide shows a worse `edge_points` on its own; one measured on the displayed midpoint scored seven points better than the cheaper structure that actually earns.
 
