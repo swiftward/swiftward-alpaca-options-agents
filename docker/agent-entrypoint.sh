@@ -82,8 +82,13 @@ fi
         # both. Where a gateway DECLARES a user source, sending it is not
         # optional: a call arriving without one resolves no grants and is offered
         # no tools at all.
+        # The literal form, not `env_http_headers`. Both are accepted here, and
+        # the environment one did not reach the gateway from this block: the
+        # session's calls arrived with no user while the harness's, sent by our
+        # own client, carried it. Measured 27 August by looking at a tool only a
+        # session calls.
         if [ -n "${USER_TOKEN}" ]; then
-            echo "env_http_headers = { \"X-Swiftward-User\" = \"USER_TOKEN\" }"
+            echo "http_headers = { \"X-Swiftward-User\" = \"${USER_TOKEN}\" }"
         fi
     fi
 } > "${CODEX_HOME}/config.toml"
