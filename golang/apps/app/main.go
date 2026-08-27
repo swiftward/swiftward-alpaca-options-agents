@@ -370,7 +370,30 @@ func run(log *zap.Logger) error {
 
 				return account.Equity * share / 100, nil
 			}
-			log.Info("resting orders are held to what one position may lose",
+			// And what EVERYTHING may lose together. The per-position limit says
+			// nothing about how many positions there are: twenty structures, each
+			// inside its own ceiling, still put the whole account at risk.
+			ladder.Book = func(ctx context.Context) (float64, error) {
+				set, err := envelope.Load(cfg.EnvelopePath)
+				if err != nil {
+					return 0, fmt.Errorf("read the ruleset: %w", err)
+				}
+				out, err := set.For(cfg.EnvelopeIdentity, "place_option_order")
+				if err != nil {
+					return 0, err
+				}
+				share, err := out.PercentOfEquity("max-loss-across-portfolio")
+				if err != nil {
+					return 0, err
+				}
+				account, err := broker.Account(ctx)
+				if err != nil {
+					return 0, fmt.Errorf("read what the account is worth: %w", err)
+				}
+
+				return account.Equity * share / 100, nil
+			}
+			log.Info("resting orders are held to what one position may lose, and to what the book may lose",
 				zap.String("identity", cfg.EnvelopeIdentity))
 		}
 		if running != nil {

@@ -1,0 +1,82 @@
+package marketdata
+
+import "math"
+
+// AtRisk is the most everything open can lose at expiry, in dollars, as a
+// positive number.
+//
+// Positions are grouped by what they expire against - one underlying, one day -
+// because legs of different days never offset each other at expiry: the near one
+// settles while the far one is still alive, and a book that netted them would
+// read as covered when it is not.
+//
+// Inside a group the payoff is piecewise linear, so the worst point is at a
+// strike, at zero, or far above the highest strike. Checking those points is
+// exact rather than a sample. Money already taken counts: a credit spread was
+// paid for on the way in, and that money is in the account.
+//
+// Anything that is not an option is skipped rather than guessed at. A group that
+// can only make money contributes nothing - not a negative that would offset a
+// group that can lose.
+func AtRisk(positions []Position) float64 {
+	type series struct{ underlying, expiration string }
+
+	groups := map[series][]Position{}
+	for _, position := range positions {
+		contract, parsed := ContractFrom(position.Symbol)
+		if !parsed {
+			continue
+		}
+		key := series{
+			underlying: contract.Symbol[:len(contract.Symbol)-15],
+			expiration: contract.Expiration.Format("2006-01-02"),
+		}
+		groups[key] = append(groups[key], position)
+	}
+
+	total := 0.0
+	for _, held := range groups {
+		total += math.Min(0, worstAtExpiry(held))
+	}
+
+	return -total
+}
+
+// worstAtExpiry is what one group is worth at its worst point, money already
+// settled included. Negative means a loss.
+func worstAtExpiry(held []Position) float64 {
+	probes := []float64{0}
+	highest := 0.0
+	settled := 0.0
+	for _, position := range held {
+		contract, parsed := ContractFrom(position.Symbol)
+		if !parsed {
+			continue
+		}
+		probes = append(probes, contract.Strike)
+		highest = math.Max(highest, contract.Strike)
+		// A credit spread has a negative cost basis: that money arrived when it
+		// was opened.
+		settled -= position.CostBasis
+	}
+	probes = append(probes, highest*2)
+
+	worst := math.MaxFloat64
+	for _, price := range probes {
+		payoff := 0.0
+		for _, position := range held {
+			contract, parsed := ContractFrom(position.Symbol)
+			if !parsed {
+				continue
+			}
+			intrinsic := math.Max(0, contract.Strike-price)
+			if contract.Type != "put" {
+				intrinsic = math.Max(0, price-contract.Strike)
+			}
+			payoff += position.Quantity * 100 * intrinsic
+		}
+		worst = math.Min(worst, payoff+settled)
+	}
+
+	return worst
+}

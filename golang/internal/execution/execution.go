@@ -39,6 +39,7 @@ type Keeper interface {
 // and the two verbs that move an order.
 type Broker interface {
 	Orders(ctx context.Context, limit int) ([]marketdata.Order, error)
+	Positions(ctx context.Context) ([]marketdata.Position, error)
 	Quotes(ctx context.Context, symbols []string) (map[string]marketdata.Quote, error)
 	ReplaceOrder(ctx context.Context, id string, limit float64, name string) error
 	CancelOrder(ctx context.Context, id string) error
@@ -81,6 +82,15 @@ type Ladder struct {
 	//
 	// Nil leaves resting orders unchecked, which is the behaviour there was before.
 	Ceiling func(ctx context.Context) (float64, error)
+	// Book answers what EVERYTHING open may lose together, in dollars. The
+	// per-position limit says nothing about how many positions there are: twenty
+	// structures each inside their own ceiling can still put the whole account at
+	// risk, and on 26 August the portfolio limit was the one number nothing
+	// enforced.
+	//
+	// A resting order is judged against what is already held plus what the orders
+	// before it in this pass would add. Nil leaves the book unchecked.
+	Book func(ctx context.Context) (float64, error)
 	// Reads bounds how many recent orders are examined.
 	Reads int
 	Now   func() time.Time
@@ -150,6 +160,23 @@ func (l *Ladder) step(ctx context.Context) {
 		}
 	}
 
+	// What the whole book may lose, and what it already risks. Both asked once for
+	// the pass: the answer is the same for every order in it, and asking costs a
+	// request.
+	book, atRisk, hasBook := 0.0, 0.0, false
+	if l.Book != nil {
+		limit, err := l.Book(ctx)
+		if err != nil {
+			l.Log.Error("could not read what the whole book may lose; resting orders go unchecked against it",
+				zap.Error(err))
+		} else if positions, err := l.Broker.Positions(ctx); err != nil {
+			l.Log.Error("could not read what is already open; resting orders go unchecked against the book",
+				zap.Error(err))
+		} else {
+			book, atRisk, hasBook = limit, marketdata.AtRisk(positions), true
+		}
+	}
+
 	for _, order := range orders {
 		if order.Status == "filled" || order.FilledQuantity > 0 {
 			l.report(ctx, order)
@@ -159,6 +186,17 @@ func (l *Ladder) step(ctx context.Context) {
 		}
 		if hasCeiling && l.tooBig(ctx, order, ceiling) {
 			continue
+		}
+		if hasBook {
+			if worst, known := WorstCase(order); known {
+				if atRisk-worst > book {
+					l.overBook(ctx, order, atRisk, -worst, book)
+					continue
+				}
+				// Orders in one pass add up. Judged against the book as it stands,
+				// ten of them would pass as "the last that fits".
+				atRisk -= worst
+			}
 		}
 		age := l.Now().Sub(*order.SubmittedAt)
 		if age < l.Every {
@@ -431,6 +469,34 @@ func worseThan(price, than float64) bool { return price > than }
 // accumulates a fraction the broker will refuse.
 func round(price float64) float64 {
 	return math.Round(price*100) / 100
+}
+
+// overBook cancels a resting order that would take the whole account past what it
+// may have at risk at once, and tells the session why in the words it needs to
+// act on: the book is full, not this order too large.
+func (l *Ladder) overBook(ctx context.Context, order marketdata.Order, held, adds, allowed float64) {
+	l.Log.Warn("cancelling a resting order that would take the book past its limit",
+		zap.String("order", order.ID),
+		zap.Float64("already_at_risk", held),
+		zap.Float64("this_order_adds", adds),
+		zap.Float64("allowed", allowed))
+
+	if err := l.Broker.CancelOrder(ctx, order.ID); err != nil {
+		l.Log.Error("could not cancel an order that takes the book past its limit",
+			zap.String("order", order.ID), zap.Error(err))
+		return
+	}
+	l.wroteDown(ctx, record.ExecutionStep{
+		OrderRef: order.ID, At: l.Now(), Action: "cancelled", Was: order.LimitPrice,
+	})
+
+	if l.Wake != nil {
+		l.Wake(ctx, fmt.Sprintf(
+			"заявка %s снята: открытое уже рискует %.0f, эта добавила бы %.0f, "+
+				"а всему счёту разрешено %.0f. Место кончилось - закрой что-нибудь "+
+				"или бери меньше, и скажи одной строкой, сколько осталось.",
+			order.ID, held, adds, allowed))
+	}
 }
 
 // tooBig cancels a resting order that would lose more than one position may, and

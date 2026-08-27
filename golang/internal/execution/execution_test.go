@@ -23,6 +23,13 @@ type brokerDouble struct {
 	replaced  map[string]float64
 	names     map[string]string
 	cancelled []string
+	positions []marketdata.Position
+}
+
+func (b *brokerDouble) Positions(context.Context) ([]marketdata.Position, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return append([]marketdata.Position(nil), b.positions...), nil
 }
 
 func (b *brokerDouble) Orders(context.Context, int) ([]marketdata.Order, error) {
@@ -725,4 +732,86 @@ func TestABreachSmallerThanOneSetIsNotCancelled(t *testing.T) {
 	l.step(context.Background())
 	_, cancelled = broker.seen()
 	assert.Equal(t, []string{"o-edge"}, cancelled)
+}
+
+// Twenty structures, each inside its own ceiling, still put the whole account at
+// risk. On 26 August the portfolio limit was the one number nothing enforced:
+// the session was told it and could get it wrong, and nothing between it and the
+// market disagreed.
+func TestAnOrderThatFillsTheBookIsCancelled(t *testing.T) {
+	at := time.Date(2026, 8, 26, 18, 5, 0, 0, time.UTC)
+	one := spread("o-one", -0.16, "new", at.Add(-2*time.Minute))
+	one.Quantity, one.Legs[0].Quantity, one.Legs[1].Quantity = 100, 100, 100
+	one.ClientID = NameFor(-0.16)
+
+	broker := &brokerDouble{
+		orders: []marketdata.Order{one},
+		// Already open: a sold spread risking most of what the book allows.
+		positions: []marketdata.Position{
+			{Symbol: "SPY260828P00700000", Quantity: -50, CostBasis: -6000},
+			{Symbol: "SPY260828P00690000", Quantity: 50, CostBasis: 4500},
+		},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	told := make(chan string, 1)
+	l := ladder(broker, at, t)
+	l.Book = func(context.Context) (float64, error) { return 50000, nil }
+	l.Wake = func(_ context.Context, cause string) { told <- cause }
+	l.step(context.Background())
+
+	_, cancelled := broker.seen()
+	assert.Equal(t, []string{"o-one"}, cancelled)
+
+	select {
+	case cause := <-told:
+		assert.Contains(t, cause, "Место кончилось",
+			"the session is told the book is full, not that its order is too large")
+	default:
+		t.Fatal("the session was not told why its order went away")
+	}
+}
+
+// With room to spare the order is left alone, and the check costs it nothing.
+func TestAnOrderThatFitsTheBookIsWalkedAsBefore(t *testing.T) {
+	at := time.Date(2026, 8, 26, 18, 5, 0, 0, time.UTC)
+	broker := &brokerDouble{
+		orders:    []marketdata.Order{spread("o-1", -0.16, "new", at.Add(-2*time.Minute))},
+		positions: []marketdata.Position{{Symbol: "SPY260828P00700000", Quantity: 1, CostBasis: 300}},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	l := ladder(broker, at, t)
+	l.Book = func(context.Context) (float64, error) { return 50000, nil }
+	l.step(context.Background())
+
+	_, cancelled := broker.seen()
+	assert.Empty(t, cancelled)
+}
+
+// A book this code cannot read leaves orders alone: unknown is not the same as
+// full, and cancelling on a number we failed to get would take out sound
+// structures for a reason that is ours.
+func TestAnUnreadableBookCancelsNothing(t *testing.T) {
+	at := time.Date(2026, 8, 26, 18, 5, 0, 0, time.UTC)
+	broker := &brokerDouble{
+		orders: []marketdata.Order{spread("o-1", -0.16, "new", at.Add(-2*time.Minute))},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	l := ladder(broker, at, t)
+	l.Book = func(context.Context) (float64, error) { return 0, errors.New("the ruleset is unreadable") }
+	l.step(context.Background())
+
+	_, cancelled := broker.seen()
+	assert.Empty(t, cancelled)
 }
