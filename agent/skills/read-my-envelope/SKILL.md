@@ -34,7 +34,7 @@ A rule you were not meant to know about is simply absent. So an empty list means
 - `position_max_loss` with unit `percent_of_equity` - the most one position may lose, as a share of the account. Read equity from the broker, work out the loss your structure can produce, and choose the number of contracts from those two. Never from a number you remember.
 - `portfolio_max_loss` with unit `percent_of_equity` - the most everything open may lose together. Add up what your open positions can lose and see whether the one you are about to add still fits.
 - `underlying` as an `enum` - the only underlyings you may trade. Anything outside the list is not a judgement call.
-- `expiration` as a `range` with unit `trading_days_from_today` - how far out you may go, counted in trading days. `min: 1` means not today's expiry.
+- `expiration` as a `range` with unit `trading_days_from_today` - how far out you may go, counted in trading days. `min: 0` includes today's expiry; a `min` of 1 would exclude it. Read the number you were handed - do not carry this example over as the rule.
 
 ## When it is silent
 

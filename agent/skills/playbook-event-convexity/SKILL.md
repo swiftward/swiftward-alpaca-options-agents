@@ -42,8 +42,11 @@ On SPY, expiring the day the number lands.
 - About one third into a strangle a percent and a half out on both sides: it pays
   nothing on a small move and multiples on a large one.
 
-Both bought outright, no short legs. Two orders, or one for each side of each - name
-what you sent.
+Both bought outright, no short legs. **Two mleg orders - the straddle and the
+strangle - and not four single-leg ones.** The ladder walks and cancels multi-leg
+orders; a single-leg order it does not carry, so an unfilled one just stands there
+and the largest bet of the week is silently half-open. Two orders is also what puts
+each side under the envelope's per-position ceiling at the larger size.
 
 ## Size
 

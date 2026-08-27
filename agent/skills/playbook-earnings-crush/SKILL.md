@@ -35,9 +35,14 @@ Do this before choosing anything, and say the numbers out loud.
    the moment the report lands, and carries none of the event. Its price divided by
    the underlying's price is the implied move.
 2. **What the company has actually done.** Daily bars go back years (`get_stock_bars`).
-   Earnings dates show as the quarterly gaps: one day whose move dwarfs its
-   neighbours, roughly every three months. Take the last eight to twelve, and the
-   median of the absolute move the day after each.
+   Earnings dates show as the quarterly gaps - but **take them by the grid, not by
+   size**: they sit sixty to seventy trading days apart, and a day that does not
+   land on that grid is thrown out however large it was. This is not a detail. A
+   name like this has huge days that have nothing to do with its report - a sector
+   shock, a tariff headline - and counting those raises the median of what the
+   company "usually" does, which pushes the ratio down and sends the whole session
+   the wrong way. Take the last eight to twelve grid days, and the median of the
+   absolute move the day after each.
 3. **Divide.** Implied over median realized.
 
 Then:
@@ -78,6 +83,16 @@ This is deliberately small. The right tail here is capped by the long legs, so t
 trade cannot win big - it can only not lose. A profile like that does not win a
 race, and sizing it as though it could is how a capped upside becomes an uncapped
 regret. The size that can win is spent on the bet whose upside is not capped.
+
+## Getting out - and the flip has its own
+
+**If the measurement sent you to the flip - a backspread bought instead of a condor
+sold - it comes out on the same morning, in the same half hour, by the same rule.**
+Say plainly in the intent that what you hold is the flip, so the session that closes
+it knows what to look for. This matters because everywhere else in this project a
+backspread is the convexity layer, which is held for days; this one is not. It was
+bought for one report, the report has happened, and the volatility it was bought on
+falls all Thursday. Held past the morning it is not a position, it is a leak.
 
 ## Getting out
 
