@@ -49,7 +49,9 @@ The agent states the structure, the size and the price it wants. A separate modu
 
 ## Alpaca's infrastructure
 
-Orders and market data go through Alpaca's own MCP server, pinned to a released version and holding the only copy of the account keys. The agent reaches it over MCP and holds no credential of its own.
+Orders and market data go through Alpaca's own MCP server - the released `alpaca-mcp-server` package, pinned, unmodified - and it holds the only copy of the account keys. Nothing here reimplements it or calls Alpaca's REST in its place.
+
+The policy gateway stands in FRONT of that server, not instead of it: the agent calls the gateway, the gateway decides and records, and the call it forwards is an MCP call to Alpaca's own server. One process per account, because that server reads its keys from its own environment and therefore serves exactly one.
 
 What we measured on the account rather than read in a document:
 

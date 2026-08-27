@@ -18,8 +18,8 @@ Its limits come from outside it too. The session asks `read_envelope` before it 
 | `envelope` | the same binary answering what one caller may do on one tool, from `policy/envelope.yaml` | nowhere: it reads a file |
 | `page` | the same binary serving the read side and the built page | Postgres, and the broker for the money it shows |
 | `migrate` | applies `postgres/migrations` in name order, then exits | Postgres |
-| `alpaca-mcp` | Alpaca's own MCP server, pinned to a released version | Alpaca |
-| `egress` | forward proxy with a host allowlist (`docker/egress/filter.txt`) | the hosts it allows |
+| `alpaca-mcp-agent-1`, `alpaca-mcp-agent-2` | Alpaca's own MCP server (`alpaca-mcp-server`, pinned release), one process per account because it reads its keys from its own environment | Alpaca |
+| `egress` | forward proxy with a host allowlist, kept for reference; outbound traffic now goes through the policy gateway | the hosts it allows |
 | `postgres` | state | nowhere |
 
 The policy gateway is not in this stack. It is a network service addressed by `GATEWAY_URL`, the same way Alpaca and the model provider are.
