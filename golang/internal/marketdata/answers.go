@@ -231,6 +231,7 @@ type brokerOrder struct {
 	Class          string        `json:"order_class"`
 	Status         string        `json:"status"`
 	Quantity       string        `json:"qty"`
+	Ratio          string        `json:"ratio_qty"`
 	Notional       string        `json:"notional"`
 	FilledQuantity string        `json:"filled_qty"`
 	LimitPrice     string        `json:"limit_price"`
@@ -267,6 +268,7 @@ func (o brokerOrder) order() (Order, error) {
 		Status:         o.Status,
 		PositionIntent: o.PositionIntent,
 		Quantity:       read.field("qty", o.Quantity),
+		Ratio:          read.field("ratio_qty", o.Ratio),
 		Notional:       read.field("notional", o.Notional),
 		FilledQuantity: read.field("filled_qty", o.FilledQuantity),
 		LimitPrice:     read.field("limit_price", o.LimitPrice),

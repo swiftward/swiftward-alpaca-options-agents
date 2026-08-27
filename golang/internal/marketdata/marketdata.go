@@ -175,7 +175,20 @@ type Order struct {
 	Class          string  `json:"class"`
 	Status         string  `json:"status"`
 	PositionIntent string  `json:"position_intent"`
-	Quantity       float64 `json:"quantity"`
+	Quantity float64 `json:"quantity"`
+	// Ratio is how many of this leg go into ONE SET of the structure, which is a
+	// different number from Quantity and the difference is not cosmetic. A
+	// backspread of two sets carries qty 2 on the sold leg and 4 on the bought
+	// one, while its ratio is 1 and 2 - and the order's limit price is named per
+	// SET. Anything that prices the structure from its legs must use the ratio,
+	// or it is off by the number of sets. Measured on the fill of 27 August:
+	// ratio gives -1.93 + 2*0.62 = -0.69, exactly the limit; quantity gives
+	// -3.86 + 4*0.62 = -1.38, and the ladder read that as a book standing better
+	// than our price and stood still for its whole patience.
+	//
+	// Zero where the broker names none, which is every order that is not
+	// multi-leg. Then the leg IS the set and Quantity is the ratio.
+	Ratio float64 `json:"ratio,omitempty"`
 	// Notional is what a crypto order names instead of a quantity: the money to
 	// spend rather than the amount to buy.
 	Notional       float64    `json:"notional"`

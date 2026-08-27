@@ -440,7 +440,21 @@ func Showing(order marketdata.Order, quotes map[string]marketdata.Quote) (float6
 		if !answered || quote.Bid <= 0 || quote.Ask <= 0 {
 			return 0, false
 		}
-		ratio := leg.Quantity
+		// The RATIO, not the quantity. They differ by the number of sets, and the
+		// order's limit price is named per set: a backspread of two sets carries
+		// qty 2 and 4 on its legs while its ratio is 1 and 2. Pricing it by
+		// quantity doubles the answer, and a doubled credit reads as a book
+		// standing better than our own price - so the ladder concedes nothing and
+		// waits out its whole patience. Measured on the fill of 27 August: by
+		// ratio -1.93 + 2*0.62 = -0.69, exactly the limit that filled; by
+		// quantity -1.38.
+		//
+		// Where the broker names no ratio the leg is the set, and its quantity is
+		// the ratio.
+		ratio := leg.Ratio
+		if ratio <= 0 {
+			ratio = leg.Quantity
+		}
 		if ratio <= 0 {
 			ratio = 1
 		}
