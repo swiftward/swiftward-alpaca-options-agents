@@ -39,6 +39,7 @@ parameters:
   short_leg_delta: "около 0,30 по модулю, не 0,15"
   min_edge_points: "строго больше 0"
   min_edge_points_borrowed: "строго больше 0"
+  daily_fuse_percent: "2"
 
 sessions:
   - name: open-check
