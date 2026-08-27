@@ -487,19 +487,23 @@ func run(log *zap.Logger) error {
 			// SKILL.md while it works, so editing the text of a technique reaches a
 			// session already running rather than waiting for a restart.
 			//
-			// Laying them is also what puts a declaration in force, so the two
-			// cannot come apart: the watcher does it for a changed declaration, and
-			// this does it for a changed skill under an unchanged one.
+			// A declaration that CHANGED had its skills laid by the watcher, as
+			// part of going into force; laying them a second time here could only
+			// fail on a source that moved in between, and that failure would tell
+			// the clock to keep the old schedule while the session's own
+			// read_schedule already answered with the new one. So that case is left
+			// alone and this covers the other two: an unchanged declaration under an
+			// edited skill, and a declaration that could not be read at all - which
+			// must not also freeze the text of the techniques, since a half-saved
+			// declaration is exactly what an operator has while editing.
 			h.Reread = func() (*declaration.Declaration, error) {
+				before := declared.Current()
 				current, err := declared.Reread()
-				if err != nil {
-					return current, err
-				}
-				if err := layTheSkills(log, layer, current.Skills, current.Parameters); err != nil {
-					return current, err
+				if err == nil && current != before {
+					return current, nil
 				}
 
-				return current, nil
+				return current, errors.Join(err, layTheSkills(log, layer, current.Skills, current.Parameters))
 			}
 		}
 
@@ -583,10 +587,20 @@ func layTheSkills(log *zap.Logger, layer *skills.Layer, wanted []string, given m
 	if err != nil {
 		return err
 	}
-	if laid.Changed {
-		log.Info("skills laid out for the agent",
-			zap.String("dir", laid.Dir), zap.Strings("skills", laid.Names))
+	if !laid.Changed {
+		return nil
 	}
+	if len(laid.Names) == 0 {
+		// A session with no skills is a legal state - deleting the last one
+		// deletes the directory, and git keeps no empty directory - but it is also
+		// what a mistyped SKILLS_DIR looks like, and that one is silent unless
+		// somebody says it out loud.
+		log.Warn("the agent was given no skills at all",
+			zap.String("dir", laid.Dir), zap.String("read_from", layer.Source))
+		return nil
+	}
+	log.Info("skills laid out for the agent",
+		zap.String("dir", laid.Dir), zap.Strings("skills", laid.Names))
 
 	return nil
 }

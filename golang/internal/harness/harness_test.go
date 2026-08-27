@@ -1288,11 +1288,6 @@ func write(t *testing.T, body string) string {
 // the harness. The other half - that the edit is a skill's text and that the
 // directory the agent reads is rebuilt from it - is proven in internal/skills.
 func TestARunningHarnessPicksUpAChangeWithoutARestart(t *testing.T) {
-	// The real tick is a minute, which is right for a schedule written in minutes
-	// and wrong for standing here waiting for one.
-	clockTick = 20 * time.Millisecond
-	t.Cleanup(func() { clockTick = time.Minute })
-
 	body := `
 kind: trading-agent
 name: options-alpha
@@ -1318,6 +1313,9 @@ sessions:
 	h := &Harness{
 		Conversation: conversation, Declaration: before, Record: record.NewMemory(),
 		CallTimeout: 2 * time.Second,
+		// The real tick is a minute, which is right for a schedule written in
+		// minutes and wrong for standing here waiting for one.
+		TickEvery: 20 * time.Millisecond,
 		// Saturday: nothing is due, so this test measures the re-reading and
 		// nothing else.
 		Now: func() time.Time { return time.Date(2026, 8, 29, 14, 40, 0, 0, time.UTC) },
@@ -1342,4 +1340,62 @@ sessions:
 	waitFor(t, func() bool { return h.inForce() == after })
 	assert.Equal(t, []string{"mon", "tue"}, h.inForce().Sessions[0].Days,
 		"the schedule in force is the edited one")
+}
+
+// The numbers this agent runs on go in front of EVERY turn, not only a
+// scheduled one. A session woken by its own price wake-up is asked to follow the
+// same techniques, and the playbook tells a session that cannot see its numbers
+// to open nothing - so a wake-up without them would be a turn that can only
+// report a fault.
+func TestEveryCauseCarriesTheNumbersTheAgentRunsOn(t *testing.T) {
+	declared, err := declaration.Load(write(t, `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+parameters:
+  short_leg_delta: "0,15 по модулю"
+sessions:
+  - name: entry
+    cause: "окно входа"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+`))
+	require.NoError(t, err)
+
+	chat := newChatDouble()
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Declaration: declared,
+		Record: record.NewMemory(), CallTimeout: 2 * time.Second,
+		// Saturday, outside every window: nothing the clock does interferes.
+		Now: func() time.Time { return time.Date(2026, 8, 29, 11, 0, 0, 0, time.UTC) },
+		Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	// A wake-up the session asked itself for, in its own words.
+	h.Tell(ctx, "Woken by a condition you set: SPY прошла 640, проверь позиции", "wakeup w1")
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	turns, _, _ := conversation.seen()
+	assert.Contains(t, turns[0], "short_leg_delta = 0,15 по модулю",
+		"a turn woken by the session's own request still carries the agent's numbers")
+	assert.Contains(t, turns[0], "SPY прошла 640", "and still says why it was woken")
+
+	// And a person writing in the chat is the third cause, with the same answer.
+	chat.inbound <- telegram.Message{Text: "выполни premium-harvest", UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { turns, steered, _ := conversation.seen(); return len(turns)+len(steered) == 2 })
+
+	turns, steered, _ := conversation.seen()
+	if len(turns) == 2 {
+		assert.Contains(t, turns[1], "short_leg_delta = 0,15 по модулю")
+	} else {
+		// It went into the turn already running, which already carries them.
+		require.Len(t, steered, 1)
+		assert.Contains(t, turns[0], "short_leg_delta = 0,15 по модулю")
+	}
 }

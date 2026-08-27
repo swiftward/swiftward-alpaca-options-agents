@@ -23,7 +23,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 
 	"gopkg.in/yaml.v3"
 )
@@ -33,9 +32,11 @@ import (
 const (
 	manifest    = "SKILL.md"
 	skillsUnder = ".agents/skills"
-	// building is where the next set is assembled before it takes the place of
-	// the one in use. It sits beside the target so the swap is a rename.
+	// building is where the next set is assembled, and retiring is where the one
+	// in use waits while the swap happens. Both sit beside the target so each
+	// move is a rename inside one directory rather than a copy across one.
 	building = ".agents/skills.next"
+	retiring = ".agents/skills.old"
 )
 
 // Skill is one directory of instructions, as its own SKILL.md describes it.
@@ -224,8 +225,13 @@ type Laid struct {
 // that is the whole point of it. A session opens SKILL.md while it works, so an
 // edit to the text of a technique can reach a session that is already running -
 // no rebuild of the image, no restart of the process. What it must NOT do is
-// rewrite the directory once a minute for nothing, so it remembers what it laid
-// and does nothing when nothing moved.
+// rewrite the directory once a minute for nothing, so it compares before it
+// writes.
+//
+// The comparison is against what is ON DISK, not against what this process
+// remembers laying. The session works in that directory and can write there, so
+// a remembered answer would let a damaged copy stand for the rest of the day
+// while every tick reported nothing to do.
 //
 // The source is a directory this process only reads. Mounting a checkout there
 // is how an edit gets in; mounting one over the target instead is refused, see
@@ -236,10 +242,6 @@ type Layer struct {
 	// Source is where the skills come from, and AgentDir is the directory the
 	// session works in.
 	Source, AgentDir string
-
-	mu    sync.Mutex
-	laid  string
-	names []string
 }
 
 // Lay makes the directory the agent reads hold exactly the skills wanted, with
@@ -248,11 +250,6 @@ type Layer struct {
 // Nothing is removed until the whole set is known to be good: a declaration
 // naming a skill that does not exist, or failing to give a number one requires,
 // leaves the session with the skills it had rather than with none.
-//
-// The new set is built beside the old one and put in its place by renaming.
-// A session reads these files while it works, and copying over the directory it
-// is reading would leave it missing for as long as the copy takes; a rename is
-// as close to instant as this gets.
 func (l *Layer) Lay(wanted []string, given map[string]string) (Laid, error) {
 	target := filepath.Join(l.AgentDir, skillsUnder)
 
@@ -274,45 +271,57 @@ func (l *Layer) Lay(wanted []string, given map[string]string) (Laid, error) {
 	if err != nil {
 		return Laid{}, fmt.Errorf("%w (looked in %s)", err, l.Source)
 	}
+	// Checked on every pass, before anything is compared: a number is dropped
+	// from a declaration without a single file moving, and that has to be caught
+	// the moment it happens rather than the next time a skill is edited.
 	if err := numbersFor(chosen, given); err != nil {
 		return Laid{}, err
 	}
 
 	names := make([]string, 0, len(chosen))
+	from := make([]tree, 0, len(chosen))
 	for _, skill := range chosen {
 		names = append(names, skill.Name)
+		from = append(from, tree{base: skill.Base, dir: skill.Dir})
 	}
 
-	stamp, err := stampOf(chosen, wanted, given)
+	want, err := stampOf(from)
 	if err != nil {
 		return Laid{}, err
 	}
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	if stamp == l.laid && l.laid != "" {
-		return Laid{Dir: target, Names: l.names, Changed: false}, nil
+	// A target that cannot be read is a target that has to be rebuilt, which is
+	// what an unreadable one gets by not matching.
+	have, _ := stampOfLaid(target)
+	if want == have {
+		return Laid{Dir: target, Names: names, Changed: false}, nil
 	}
 
 	if err := writeInto(l.AgentDir, target, chosen); err != nil {
 		return Laid{}, err
 	}
-	l.laid, l.names = stamp, names
 
 	return Laid{Dir: target, Names: names, Changed: true}, nil
 }
 
-// writeInto builds the set beside the one in use and renames it into place.
+// writeInto builds the set beside the one in use and swaps it in by renaming,
+// keeping the old one until the swap is done.
+//
+// A session reads these files while it works. Deleting the directory it is
+// reading and then copying a new one into place would leave it missing for as
+// long as the copy takes, and would leave it missing for good if the copy failed
+// halfway. Two renames inside one directory cost the same either way, and
+// between them the old set is still on disk to be put back.
 func writeInto(agentDir, target string, chosen []Skill) error {
 	next := filepath.Join(agentDir, building)
+	previous := filepath.Join(agentDir, retiring)
 	if err := os.RemoveAll(next); err != nil {
 		return fmt.Errorf("clear %s: %w", next, err)
 	}
 	if err := os.MkdirAll(next, 0o755); err != nil {
 		return fmt.Errorf("make %s: %w", next, err)
 	}
-	// Whatever happens below, the half-built set does not stay on disk pretending
-	// to be a skill nobody chose.
+	// Whatever happens below, no half-built set is left on disk pretending to be
+	// a skill nobody chose.
 	defer func() { _ = os.RemoveAll(next) }()
 
 	for _, skill := range chosen {
@@ -322,63 +331,125 @@ func writeInto(agentDir, target string, chosen []Skill) error {
 		}
 	}
 
+	if err := os.RemoveAll(previous); err != nil {
+		return fmt.Errorf("clear %s: %w", previous, err)
+	}
 	// Replaced whole, not merged into: the directory outlives the image, so a
 	// skill deleted upstream has to disappear from the session rather than linger
 	// as an instruction nothing carries any more.
-	if err := os.RemoveAll(target); err != nil {
-		return fmt.Errorf("clear %s: %w", target, err)
+	swapped := false
+	if _, err := os.Stat(target); err == nil {
+		if err := os.Rename(target, previous); err != nil {
+			return fmt.Errorf("move %s aside: %w", target, err)
+		}
+		swapped = true
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("look at %s: %w", target, err)
 	}
+
 	if err := os.Rename(next, target); err != nil {
+		// The session keeps the skills it had. Losing them because a rename failed
+		// would be the worst of both: no instructions, and no sign of why.
+		if swapped {
+			_ = os.Rename(previous, target)
+		}
 		return fmt.Errorf("put %s in place: %w", target, err)
+	}
+	if err := os.RemoveAll(previous); err != nil {
+		return fmt.Errorf("clear %s: %w", previous, err)
 	}
 
 	return nil
 }
 
-// stampOf fingerprints everything that decides what the session ends up
-// reading: the text of the skills chosen, which ones were chosen, and the
-// numbers they are run with. The text is hashed rather than dated because a
-// modification time answers a different question - `touch` would rebuild the
-// directory, and a restored file with an old date would not.
-func stampOf(chosen []Skill, wanted []string, given map[string]string) (string, error) {
-	sum := sha256.New()
-	for _, name := range wanted {
-		fmt.Fprintf(sum, "want\x00%s\x00", name)
-	}
-	names := make([]string, 0, len(given))
-	for name := range given {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		fmt.Fprintf(sum, "given\x00%s\x00%s\x00", name, given[name])
-	}
+// tree is one skill's directory as it will sit under the target: the name it
+// gets there, and where its files are read from now.
+type tree struct{ base, dir string }
 
-	for _, skill := range chosen {
-		fmt.Fprintf(sum, "skill\x00%s\x00", skill.Base)
-		tree := os.DirFS(skill.Dir)
-		err := fs.WalkDir(tree, ".", func(path string, entry fs.DirEntry, err error) error {
+// stampOf fingerprints exactly what would end up on disk: which skills were
+// chosen and the text of every file in each, keyed by the path each file will
+// have under the target. Nothing else belongs here - the numbers a skill is run
+// with are checked separately and never reach this directory, so hashing them
+// would rebuild a tree a session may be reading over an edit that could not have
+// changed it.
+//
+// The text is hashed rather than dated because a modification time answers a
+// different question: `touch` would rebuild the directory, and a file restored
+// with an old date would not.
+func stampOf(trees []tree) (string, error) {
+	var files []named
+	for _, one := range trees {
+		from := os.DirFS(one.dir)
+		err := fs.WalkDir(from, ".", func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
 			if entry.IsDir() {
 				return nil
 			}
-			body, err := fs.ReadFile(tree, path)
+			body, err := fs.ReadFile(from, path)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(sum, "file\x00%s\x00%d\x00", path, len(body))
-			sum.Write(body)
+			files = append(files, named{path: one.base + "/" + path, body: body})
 
 			return nil
 		})
 		if err != nil {
-			return "", fmt.Errorf("read skill %q: %w", skill.Name, err)
+			return "", fmt.Errorf("read the skills in %s: %w", one.dir, err)
 		}
 	}
 
-	return hex.EncodeToString(sum.Sum(nil)), nil
+	return hashOf(files), nil
+}
+
+// stampOfLaid fingerprints the directory the session actually reads, in the same
+// terms, so the two can be compared. A directory that is not there yet is not an
+// error - it is a directory that does not match, which is the answer that builds
+// it.
+func stampOfLaid(target string) (string, error) {
+	var files []named
+	from := os.DirFS(target)
+	err := fs.WalkDir(from, ".", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || path == "." {
+			return nil
+		}
+		body, err := fs.ReadFile(from, path)
+		if err != nil {
+			return err
+		}
+		files = append(files, named{path: path, body: body})
+
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return hashOf(files), nil
+}
+
+type named struct {
+	path string
+	body []byte
+}
+
+// hashOf is the one place the two fingerprints are computed, so they cannot
+// drift into answering different questions. Sorted by path: the order files are
+// walked in is not the order they were chosen in.
+func hashOf(files []named) string {
+	sort.Slice(files, func(i, j int) bool { return files[i].path < files[j].path })
+
+	sum := sha256.New()
+	for _, file := range files {
+		fmt.Fprintf(sum, "%s\x00%d\x00", file.path, len(file.body))
+		sum.Write(file.body)
+	}
+
+	return hex.EncodeToString(sum.Sum(nil))
 }
 
 // refuseAMountedTarget stops the process rather than deleting files that are not

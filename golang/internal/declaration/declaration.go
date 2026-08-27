@@ -74,10 +74,6 @@ type Session struct {
 	// Between bounds Every to a window, ["09:40", "15:55"].
 	Between []string `yaml:"between"`
 
-	// parameters is the agent's own numbers, rendered once at load and put in
-	// front of the task.
-	parameters string
-
 	at       time.Duration
 	within   time.Duration
 	every    time.Duration
@@ -133,7 +129,6 @@ func parse(raw []byte, path string) (*Declaration, error) {
 		if err := d.Sessions[i].check(); err != nil {
 			return nil, fmt.Errorf("declaration %s: %w", path, err)
 		}
-		d.Sessions[i].parameters = d.parameters
 	}
 
 	return &d, nil
@@ -237,20 +232,24 @@ func (s *Session) Due(now, last time.Time) bool {
 	return last.IsZero() || now.Sub(last) >= s.every
 }
 
-// Prompt is what the session is told: why it was woken, the numbers this agent
-// runs on, then what to do.
-//
-// The numbers come before the task rather than inside it because they are the
-// same in every window, and a number repeated in eight tasks is a number that
-// will one day disagree with itself. A window that wants a different one says so
-// in its own text, and the session is told which of the two it took.
+// Prompt is what the session is told: why it was woken, then what to do. The
+// numbers this agent runs on are NOT here - they belong to every turn and not
+// only to a scheduled one, so the harness puts them in front of whatever woke
+// the session. See Numbers.
 func (s *Session) Prompt() string {
-	if s.parameters == "" {
-		return fmt.Sprintf("Woken by the schedule: %s\n%s", s.Cause, s.Task)
-	}
-
-	return fmt.Sprintf("Woken by the schedule: %s\n%s\n%s", s.Cause, s.parameters, s.Task)
+	return fmt.Sprintf("Woken by the schedule: %s\n%s", s.Cause, s.Task)
 }
+
+// Numbers is what this agent runs its skills with, written the way a session
+// reads it. Empty when the declaration gives none.
+//
+// It goes in front of EVERY turn, not only a scheduled one. A session woken by
+// its own price wake-up, or by a person in the chat, is asked to follow the same
+// techniques by the same numbers - and a skill that finds its numbers missing is
+// told to open nothing, which would make a wake-up a turn that can only report a
+// fault. It is also why the numbers are not repeated inside a task: a number
+// written in eight windows is a number that will one day disagree with itself.
+func (d *Declaration) Numbers() string { return d.parameters }
 
 // Parameters are the numbers an agent runs its skills with, read as written.
 type Parameters map[string]string

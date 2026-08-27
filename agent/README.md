@@ -22,7 +22,7 @@ Mounting over `/work/.agents/skills` instead - the directory the session reads -
 
 ### Numbers
 
-A skill holds the technique and an example number. The number actually used comes from the declaration, under `parameters:`, and stands at the top of every task. A skill says in its front matter which ones it cannot work without:
+A skill holds the technique and an example number. The number actually used comes from the declaration, under `parameters:`, and stands at the top of every turn - whichever of the three causes woke it, a scheduled window, the session's own wake-up or a person in the chat. A skill says in its front matter which ones it cannot work without:
 
 ```yaml
 name: playbook-premium-harvest

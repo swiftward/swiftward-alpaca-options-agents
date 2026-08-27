@@ -27,9 +27,9 @@ import (
 // clockTick is how often the schedule is asked whether anything is due, and how
 // often what the session reads is brought level with what is on disk. The
 // declaration speaks in minutes, so asking more often would only repeat the same
-// question. A variable rather than a constant so a test can prove that an edit
-// reaches a running harness without standing there for a minute.
-var clockTick = time.Minute
+// question. Harness.TickEvery overrides it, which is how a test proves that an
+// edit reaches a running harness without standing there for a minute.
+const clockTick = time.Minute
 
 // turnWatch is how often the running turn is measured against its limit. The
 // check reads one field under a lock, so it costs nothing to do often.
@@ -118,7 +118,12 @@ type Harness struct {
 	// the loop that talks to the agent, so an unbounded call takes the room down
 	// with the session.
 	CallTimeout time.Duration
-	Log         *zap.Logger
+	// TickEvery is how often the schedule is asked whether anything is due, and
+	// how often the declaration and the skills are brought level with what is on
+	// disk. Zero means clockTick, which is what every deployment uses; a test sets
+	// it rather than standing there for a minute.
+	TickEvery time.Duration
+	Log       *zap.Logger
 
 	mu          sync.Mutex
 	lastSaid    time.Time
@@ -226,7 +231,11 @@ func (h *Harness) whatAlreadyRanToday(ctx context.Context, declared *declaration
 // because the declaration speaks in minutes; a finer tick would only ask the same
 // question more often.
 func (h *Harness) keepTheClock(ctx context.Context) {
-	ticker := time.NewTicker(clockTick)
+	every := h.TickEvery
+	if every <= 0 {
+		every = clockTick
+	}
+	ticker := time.NewTicker(every)
 	defer ticker.Stop()
 
 	h.tick(ctx)
@@ -439,14 +448,24 @@ func (h *Harness) Tell(ctx context.Context, prompt, who string) {
 	h.startTurnWith(ctx, prompt, who, "")
 }
 
-// inForce is the declaration the clock is waking by right now. It is read under
-// the lock because a test watches it from outside the clock's own goroutine;
-// the clock itself is the only writer.
+// inForce is the declaration the clock is waking by right now.
+//
+// Before Run has taken it up it falls back to the one the harness was built
+// with, because a turn can be started before then and from outside the clock:
+// the ladder wakes a session when an order fills, and that turn needs the same
+// numbers in front of it as any other.
+//
+// Read under the lock: the clock is the only writer, but the readers are the
+// chat's goroutine, the ladder's and a test's.
 func (h *Harness) inForce() *declaration.Declaration {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	return h.declared
+	if h.declared != nil {
+		return h.declared
+	}
+
+	return h.Declaration
 }
 
 func (h *Harness) fireDue(ctx context.Context) {
@@ -539,9 +558,31 @@ func (h *Harness) startTurn(ctx context.Context, msg telegram.Message) {
 	h.startTurnWith(ctx, promptFor(msg), msg.Username, "")
 }
 
+// numbersInFront puts the agent's own numbers ahead of whatever woke it.
+//
+// Every turn gets them, not only a scheduled one: a session woken by its own
+// price wake-up or by a person in the chat is asked to follow the same
+// techniques, and a skill that finds its numbers missing is told to open
+// nothing. Put here rather than in the declaration's own prompt so that all
+// three causes go through one place and none of them can be forgotten.
+func (h *Harness) numbersInFront(prompt string) string {
+	declared := h.inForce()
+	if declared == nil {
+		return prompt
+	}
+	numbers := declared.Numbers()
+	if numbers == "" {
+		return prompt
+	}
+
+	return numbers + "\n" + prompt
+}
+
 // startTurnWith runs one turn. model names the model this particular turn is
 // worth: a session that only reads the news does not need the one that trades.
 func (h *Harness) startTurnWith(ctx context.Context, prompt, who, model string) {
+	prompt = h.numbersInFront(prompt)
+
 	agentCtx, done := h.boundToAgent(ctx)
 	threadID, err := h.openThread(agentCtx)
 	done()

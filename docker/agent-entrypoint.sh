@@ -80,8 +80,9 @@ cp /agent/AGENTS.md /work/AGENTS.md
 # its declaration, this is a shell script, and a shell script that guesses at
 # YAML is a worse place for that decision than the process that already reads it.
 #
-# So the app below does it, and it also handles the case this script could not:
-# when that directory is mounted from outside, it is left alone rather than
-# deleted, because the files in it belong to whoever mounted them.
+# The app below does it, reading them from SKILLS_DIR and copying the ones the
+# declaration names. To edit a skill and have a running session read the new
+# text, mount a checkout at SKILLS_DIR - not over /work/.agents/skills, which the
+# app rebuilds and will refuse to start on top of.
 
 exec /usr/local/bin/app "$@"

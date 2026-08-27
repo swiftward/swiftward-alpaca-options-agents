@@ -197,9 +197,11 @@ sessions:
 	assert.Equal(t, "gpt-5.6-luna", schedule[1].Model)
 }
 
-// The numbers an agent runs on stand at the top of every task, so a session
-// cannot follow a technique without seeing them.
-func TestParametersStandInFrontOfEveryTask(t *testing.T) {
+// The numbers an agent runs on are read from the declaration and handed out
+// whole. They are NOT put inside a session's own prompt: every turn gets them,
+// including one woken by a price wake-up or by a person, and the harness is the
+// one place all three causes go through.
+func TestTheNumbersAreReadAndWrittenAsABlock(t *testing.T) {
 	d, err := Load(write(t, `
 kind: trading-agent
 name: options-alpha
@@ -215,11 +217,6 @@ sessions:
     task: "Выполни premium-harvest."
     at: "14:20"
     within: 45m
-  - name: defend
-    cause: "защита"
-    task: "Проверь позиции."
-    every: 30m
-    between: ["09:40", "15:55"]
 `))
 	require.NoError(t, err)
 
@@ -228,27 +225,28 @@ sessions:
 	// to be quoted is a trap.
 	assert.Equal(t, "0.15", d.Parameters["short_leg_delta"])
 
-	for i := range d.Sessions {
-		prompt := d.Sessions[i].Prompt()
-		assert.Contains(t, prompt, "short_leg_delta = 0.15", d.Sessions[i].Name)
-		assert.Contains(t, prompt, "min_edge_points = строго больше 0", d.Sessions[i].Name)
-		// Why it was woken still comes first, and the task still comes last.
-		assert.Less(t, strings.Index(prompt, "Woken by the schedule"), strings.Index(prompt, "short_leg_delta"))
-		assert.Less(t, strings.Index(prompt, "short_leg_delta"), strings.Index(prompt, d.Sessions[i].Task))
-	}
-
+	numbers := d.Numbers()
+	assert.Contains(t, numbers, "short_leg_delta = 0.15")
+	assert.Contains(t, numbers, "min_edge_points = строго больше 0")
 	// Sorted, because a prompt that reorders itself between turns is a prompt the
 	// agent has to read again.
-	prompt := d.Sessions[0].Prompt()
-	assert.Less(t, strings.Index(prompt, "min_edge_points"), strings.Index(prompt, "short_leg_delta"))
+	assert.Less(t, strings.Index(numbers, "min_edge_points"), strings.Index(numbers, "short_leg_delta"))
+
+	// A session's own prompt still says why it was woken and what to do, and
+	// nothing else: the numbers reach it through the harness.
+	assert.Equal(t,
+		"Woken by the schedule: окно входа\nВыполни premium-harvest.",
+		d.Sessions[0].Prompt())
 }
 
-// A declaration written before these keys existed keeps the prompt it had.
-func TestWithNoParametersThePromptIsUnchanged(t *testing.T) {
+// A declaration written before these keys existed hands out nothing, and the
+// prompt it produces is the one it always produced.
+func TestWithNoParametersThereAreNoNumbers(t *testing.T) {
 	d, err := Load(write(t, good))
 	require.NoError(t, err)
 
 	assert.Empty(t, d.Skills)
+	assert.Empty(t, d.Numbers())
 	assert.Equal(t,
 		"Woken by the schedule: окно входа во второй половине сессии\nОцени условия входа и открой позицию, если они сошлись.",
 		d.Sessions[0].Prompt())

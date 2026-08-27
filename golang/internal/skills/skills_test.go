@@ -375,6 +375,89 @@ func TestAFailedPassLeavesNothingHalfBuilt(t *testing.T) {
 	_, err := layer.Lay(nil, nil)
 	require.NoError(t, err)
 
-	_, err = os.Stat(filepath.Join(work, ".agents", "skills.next"))
-	assert.True(t, os.IsNotExist(err), "the directory the set is built in is not left behind")
+	for _, leftover := range []string{"skills.next", "skills.old"} {
+		_, err = os.Stat(filepath.Join(work, ".agents", leftover))
+		assert.True(t, os.IsNotExist(err), "%s is not left behind", leftover)
+	}
+}
+
+// The session works in this directory and can write there. A comparison against
+// what this process remembers laying would let a damaged copy stand for the rest
+// of the day while every tick reported nothing to do, so the comparison is
+// against what is on disk.
+func TestADamagedDirectoryIsRepairedOnTheNextPass(t *testing.T) {
+	source, work := t.TempDir(), t.TempDir()
+	put(t, source, "harvest", "name: playbook-premium-harvest", "sell at fifteen delta")
+
+	layer := &Layer{Source: source, AgentDir: work}
+	laid, err := layer.Lay(nil, nil)
+	require.NoError(t, err)
+	require.True(t, laid.Changed)
+
+	manifest := filepath.Join(laid.Dir, "harvest", "SKILL.md")
+
+	// Something overwrote the text the session reads.
+	require.NoError(t, os.WriteFile(manifest, []byte("---\nname: playbook-premium-harvest\n---\nnonsense\n"), 0o600))
+
+	repaired, err := layer.Lay(nil, nil)
+	require.NoError(t, err)
+	assert.True(t, repaired.Changed, "a directory that drifted from the source has to be rebuilt")
+
+	body, err := os.ReadFile(manifest)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "sell at fifteen delta")
+
+	// And something deleted it outright.
+	require.NoError(t, os.RemoveAll(laid.Dir))
+
+	rebuilt, err := layer.Lay(nil, nil)
+	require.NoError(t, err)
+	assert.True(t, rebuilt.Changed)
+	_, err = os.Stat(manifest)
+	assert.NoError(t, err)
+}
+
+// A skill left in the directory by a wider declaration has to go, even though
+// this process did not put it there - after a restart it is all that says the
+// set used to be wider.
+func TestASkillLeftFromAWiderSetIsNoticedOnDisk(t *testing.T) {
+	source, work := t.TempDir(), t.TempDir()
+	put(t, source, "harvest", "name: playbook-premium-harvest", "Sell a spread.")
+	put(t, source, "envelope", "name: read-my-envelope", "Ask first.")
+
+	target := filepath.Join(work, ".agents", "skills")
+	put(t, target, "harvest", "name: playbook-premium-harvest", "Sell a spread.")
+	put(t, target, "envelope", "name: read-my-envelope", "Ask first.")
+
+	// A fresh process, so nothing is remembered: only the disk says the set is
+	// wider than this declaration names.
+	layer := &Layer{Source: source, AgentDir: work}
+	laid, err := layer.Lay([]string{"playbook-premium-harvest"}, nil)
+	require.NoError(t, err)
+	assert.True(t, laid.Changed)
+
+	_, err = os.Stat(filepath.Join(target, "envelope"))
+	assert.True(t, os.IsNotExist(err))
+}
+
+// The numbers a skill is run with never reach this directory - they go into the
+// task - so an edit to them must not rewrite a tree a session may be reading.
+// They are still checked on every pass: dropping one is refused whether or not
+// anything on disk moved.
+func TestChangingANumberDoesNotRewriteTheDirectory(t *testing.T) {
+	source, work := t.TempDir(), t.TempDir()
+	put(t, source, "harvest", "name: playbook-premium-harvest\nrequires: [short_leg_delta]", "Sell a spread.")
+
+	layer := &Layer{Source: source, AgentDir: work}
+	first, err := layer.Lay(nil, map[string]string{"short_leg_delta": "0,15"})
+	require.NoError(t, err)
+	require.True(t, first.Changed)
+
+	again, err := layer.Lay(nil, map[string]string{"short_leg_delta": "0,30"})
+	require.NoError(t, err)
+	assert.False(t, again.Changed, "a number changed, and no file in this directory did")
+
+	_, err = layer.Lay(nil, nil)
+	require.Error(t, err, "the number is still required on every pass")
+	assert.Contains(t, err.Error(), `"short_leg_delta"`)
 }

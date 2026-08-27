@@ -51,14 +51,22 @@ func TestEveryDeclarationGetsSkillsThatExistAndParametersTheyNeed(t *testing.T) 
 					"parameter %q is given to no skill that asks for it", name)
 			}
 
-			// The numbers are in front of every session, not only the ones that
-			// trade: a session cannot follow a technique without seeing them, and
-			// which session ends up doing that is the task's to decide.
+			// Every number given reaches the session as one block, which the
+			// harness puts in front of whatever woke it - a scheduled window, the
+			// session's own wake-up or a person in the chat.
+			numbers := declared.Numbers()
+			require.NotEmpty(t, numbers)
+			for name, value := range declared.Parameters {
+				assert.Contains(t, numbers, name+" = "+value)
+			}
+
+			// And no window repeats a number that now stands above it. A number
+			// written twice is a number that will one day disagree with itself, and
+			// this is the check that would have caught it.
 			for i := range declared.Sessions {
-				prompt := declared.Sessions[i].Prompt()
-				for name := range declared.Parameters {
-					assert.Contains(t, prompt, name, declared.Sessions[i].Name)
-				}
+				assert.NotContains(t, declared.Sessions[i].Task, "Numbers this agent runs on",
+					"session %s repeats the block the harness already puts in front of it",
+					declared.Sessions[i].Name)
 			}
 		})
 	}
