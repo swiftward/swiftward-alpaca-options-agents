@@ -1,6 +1,6 @@
 // The demo page. It reads three things and decides nothing: /money is the
 // account as the broker values it now, /equity is the line it drew over the
-// week, /state is what the agent did and why.
+// week, /api/state is what the agent did and why.
 
 type Account = {
   number: string
@@ -90,9 +90,9 @@ const refreshEvery = 15_000
 
 async function render(): Promise<void> {
   const [money, equity, state] = await Promise.all([
-    read<Money>('/money'),
-    read<Snapshot[]>('/equity'),
-    read<State>('/state'),
+    read<Money>('/api/money'),
+    read<Snapshot[]>('/api/equity'),
+    read<State>('/api/state'),
   ])
 
   if (money.ok) {

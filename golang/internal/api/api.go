@@ -64,7 +64,7 @@ func (r Read) Handler() (http.Handler, error) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	mux.HandleFunc("GET /state", func(w http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, req *http.Request) {
 		current, err := r.Record.Read(req.Context())
 		if err != nil {
 			r.fail(w, "the record is unavailable", err)
@@ -73,7 +73,7 @@ func (r Read) Handler() (http.Handler, error) {
 		r.answer(w, current)
 	})
 
-	mux.HandleFunc("GET /money", func(w http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("GET /api/money", func(w http.ResponseWriter, req *http.Request) {
 		if r.Broker == nil {
 			r.missing(w, "no broker is configured for the read side")
 			return
@@ -87,7 +87,7 @@ func (r Read) Handler() (http.Handler, error) {
 		r.answer(w, read)
 	})
 
-	mux.HandleFunc("GET /equity", func(w http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("GET /api/equity", func(w http.ResponseWriter, req *http.Request) {
 		if r.History == nil {
 			r.missing(w, "no account history is kept here")
 			return
@@ -108,6 +108,10 @@ func (r Read) Handler() (http.Handler, error) {
 	if _, err := os.Stat(r.WebDir); err != nil {
 		return nil, err
 	}
+	// Данные под /api, страница под корнем. Разделение не техническое - обе
+	// половины отдаёт этот же процесс, - а про то, чтобы имя файла на странице
+	// однажды не закрыло собой маршрут с тем же именем. /healthz остаётся на
+	// корне: это проверка живости, её спрашивают снаружи, и она не данные.
 	mux.Handle("GET /", http.FileServer(http.Dir(r.WebDir)))
 	r.Log.Info("serving the built page", zap.String("web_dir", r.WebDir))
 

@@ -33,7 +33,11 @@ echo '{"jsonrpc":"2.0","id":1,"result":{"userAgent":"fake"}}'
 func TestDialCompletesTheHandshake(t *testing.T) {
 	agent := fakeAgent(t, answerHandshake+"\nread line\n")
 
-	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
+	// Щедрый срок нарочно. Здесь проверяется, что рукопожатие ВООБЩЕ проходит, а
+	// не за сколько: поднять процесс на занятой машине может занять секунды, и
+	// пять их не хватало - тест падал под полным прогоном и проходил в одиночку.
+	// Тест, который падает от загруженности, учит не верить прогону.
+	client, err := Dial(context.Background(), agent, 30*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 }

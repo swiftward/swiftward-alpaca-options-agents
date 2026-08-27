@@ -38,7 +38,7 @@ func TestHealthAndState(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 
 	rec = httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/state", nil))
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/state", nil))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	var got record.State
@@ -105,7 +105,7 @@ func TestMoneyCarriesTheAccountThePositionsAndTheOrders(t *testing.T) {
 	require.NoError(t, err)
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/money", nil))
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/money", nil))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	var got struct {
@@ -131,7 +131,7 @@ func TestMoneyRefusesWhenTheBrokerCannotAnswer(t *testing.T) {
 	require.NoError(t, err)
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/money", nil))
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/money", nil))
 
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }
@@ -143,7 +143,7 @@ func TestMoneyWithoutABrokerSaysSo(t *testing.T) {
 	require.NoError(t, err)
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/money", nil))
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/money", nil))
 
 	assert.Equal(t, http.StatusNotImplemented, rec.Code)
 }
@@ -169,7 +169,7 @@ func TestTheEquityLineIsDrawnFromTheRecordedHistory(t *testing.T) {
 	require.NoError(t, err)
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/equity", nil))
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/equity", nil))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	var got []account.Snapshot
