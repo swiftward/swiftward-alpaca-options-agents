@@ -425,13 +425,15 @@ func run(log *zap.Logger) error {
 				LeastEdge: cfg.ScreenerLeastEdge,
 			},
 			Every: cfg.ScreenerEvery, PerMinute: cfg.ScreenerPerMinute,
+			Workers:     cfg.ScreenerWorkers,
 			Expirations: cfg.ScreenerExpirations,
 			Now:         time.Now, Log: log.Named("screener"),
 		}
 		log.Info("pricing the universe",
 			zap.Int("underlyings", len(cfg.ScreenerUnderlyings)),
 			zap.Duration("every", cfg.ScreenerEvery),
-			zap.Int("per_minute", cfg.ScreenerPerMinute))
+			zap.Int("per_minute", cfg.ScreenerPerMinute),
+			zap.Int("workers", max(cfg.ScreenerWorkers, 1)))
 		group.Go(func() error { return sweep.Run(ctx) })
 	}
 

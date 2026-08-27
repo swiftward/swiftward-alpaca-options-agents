@@ -93,6 +93,11 @@ type Config struct {
 	// ScreenerPerMinute is the broker's limit on requests, which the sweep never
 	// exceeds. The free plan allows 200.
 	ScreenerPerMinute int
+	// ScreenerWorkers is how many underlyings the sweep asks about at once.
+	// Empty or zero means one, which is how the sweep behaved before this
+	// existed. What should stop a sweep is the broker's limit above, not the
+	// shape of our own loop.
+	ScreenerWorkers int
 	// ScreenerNearest and ScreenerFurthest bound how far the sold strike may sit
 	// from the price, in percent.
 	ScreenerNearest, ScreenerFurthest float64
@@ -251,6 +256,7 @@ func Load() (Config, error) {
 		ScreenerUnderlyings:   screened,
 		ScreenerEvery:         screenEvery,
 		ScreenerPerMinute:     k.Int("screener_per_minute"),
+		ScreenerWorkers:       k.Int("screener_workers"),
 		ScreenerNearest:       k.Float64("screener_nearest"),
 		ScreenerFurthest:      k.Float64("screener_furthest"),
 		ScreenerLeastPaid:     k.Float64("screener_least_paid"),
