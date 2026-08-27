@@ -51,6 +51,13 @@ what you sent.
 whole ticket price and it is expected to burn: money spent here is gone unless the
 number surprises.
 
+**Watch the per-position ceiling at the larger size.** The envelope caps what ONE
+position may lose, and the whole ticket is that loss. At the larger size the ticket
+does not fit under that ceiling as a single position - it fits as two, the straddle
+and the strangle, each sent as its own order and each inside the cap. Read the
+envelope, add it up, and if it still does not fit, take what fits and say what you
+cut. Sending an order the ladder will refuse wastes the one afternoon this bet has.
+
 Work out and say the arithmetic before sending: the straddle price is close to the
 overnight move the market has priced, so doubling needs a gap around half again as
 large as that. Name how much money that is, name what a total loss costs the week,
