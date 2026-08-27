@@ -42,6 +42,30 @@ Then check the clock, the account and what is already open.
 - **What to rank on.** `edge_points` from `read_candidates`: how many percentage points the structure pays above what it has to survive. Both halves at once - a delta ceiling keeps what is far and throws away what pays, a credit threshold keeps what pays and ignores how often it loses.
   Crossing the book is already taken out of it, so there is no separate rule about what the round trip costs. `credit_after_cost` beside `credit` shows how much a structure gives up getting in. A structure quoted wide shows a worse `edge_points` on its own; one measured on the displayed midpoint scored seven points better than the cheaper structure that actually earns.
 
+## Never sell premium into a report
+
+Do not sell a spread on an underlying whose earnings fall before the structure
+expires. The measure that ranks the list will disagree with you, and it is wrong
+here on purpose: premium is dear before a report, so the structure looks like the
+best thing on the screen. The measure works out how often price reaches the strike
+from delta, and before an event the distribution has two humps - delta understates
+exactly the tail the premium is being paid for.
+
+Selling premium into an event is a fat LEFT tail, which is the one thing this
+account is told to avoid. Seen on 26 August: the screener put NVDA 207.5/205 puts
+at the top with an edge of +6.38 on the day NVDA reported, and the order was taken
+away by hand. Worse, it would have cancelled our own bet on that same event - a
+backspread pays when price falls hard, and that spread loses when it does.
+
+The rule fires on a CONFIRMED date before expiry, not on silence. Learn the date
+from the news (`get_news`) or ask the session that watches it. Nothing found: say
+so in one line and take the trade. Silence is not evidence - on 26 August a veto
+by silence took DELL and AMD away, and neither had a report in the window at all,
+so the rule was costing trades where the tail it exists for was absent.
+
+A tail needs an APPOINTED event; missing information does not create one. We bet on
+events by BUYING convexity, not by selling premium.
+
 ## Sizing
 
 Work out the largest loss the structure can produce: the width times a hundred times the contracts, less the credit. Take the contract count as the largest whole number that stays inside the envelope's `position_max_loss`, computed against equity read from the broker.

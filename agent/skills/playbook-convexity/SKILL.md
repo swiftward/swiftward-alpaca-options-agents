@@ -1,0 +1,86 @@
+---
+name: playbook-convexity
+description: Buy a backspread for near nothing, so the day the market moves hard is not a day this account only loses. Manage what the layer already holds before buying more. Use for the convexity layer.
+requires: [convexity_worst_case_share, convexity_layer_share, convexity_daily_debit, convexity_roundtrip_share, convexity_take]
+---
+
+# Convexity layer
+
+This layer exists for the day the market moves hard - the day the premium sold
+elsewhere loses all at once. So here we do not sell the move, we buy it, and we
+buy it for as close to nothing as the chain allows.
+
+## Before anything
+
+`read_envelope(tool="place_option_order")` in this turn, then the account and the
+positions.
+
+## Manage what is open first, then buy
+
+Do this before considering anything new. Otherwise convexity gets bought and never
+sold: the move comes intraday and gives itself back, and profit not taken is zero.
+
+- **Worth `convexity_take` of what was paid** - close it with an opposing mleg order
+  and say what you took. This is the day the layer was bought for.
+- **A day or less to expiry and the move never came** - close while something is
+  still bid. On the last day it is worth almost nothing and falls fastest.
+- **It outlives Friday** - close it Thursday. What survives the end of the week does
+  not belong to the week's result.
+- **None of these** - say in one line what you hold and why, and go on to a new one.
+
+## The structure
+
+A backspread: sell ONE option nearer the money and buy TWO of the same type and the
+same expiration further out. One mleg order for all three legs.
+
+- **Side.** Put backspread if it is our sold put spreads that need covering; call
+  backspread if we are mostly in call spreads. Look at which we hold more of and
+  cover that.
+- **Underlying.** SPY or QQQ - the narrowest bid-ask.
+- **Expiration.** Two to five trading days, so the move has time.
+- The sold leg must be covered by the bought ones in count: sell one, buy two.
+  Anything else is naked risk.
+
+## Size - by the WORST CASE, never by the entry price
+
+Entry here is near zero, so a limit worked out from what was paid constrains
+nothing: at two cents a set, "how much fits under the ceiling" means hundreds of
+sets. That is not a hypothetical - it is how this layer went wrong before.
+
+The worst case of a backspread sits in the valley: at the bought strike, at
+expiration. It is the width between the legs times a hundred times the number of
+sets, less the credit received.
+
+- One structure: worst case no more than `convexity_worst_case_share` of equity.
+- The whole layer, counting what is already open: no more than
+  `convexity_layer_share`. Read what the layer holds (`read_state`, intents marked
+  as convexity) and add it up. Out of room - say so in one line and finish.
+- Number of sets comes from the worst-case limit, never from the price. One
+  contract pays nothing, but "how many they will hand you" is not a size either.
+
+## Price is the SECOND filter, not the first
+
+Near zero or a credit. Nobody overpays for the ticket, but a cheap ticket is not a
+reason to buy an unsized one.
+
+- Debit across the layer, per day: no more than `convexity_daily_debit`.
+- **Work out the round trip before deciding, on all three legs.** Three legs cost
+  more to enter and leave than a vertical, and that cost is what turns "entry near
+  zero" into a daily expense. Measure it as a share of the structure's WIDTH, not
+  of the credit: the credit here is about zero, and dividing by it forbids
+  everything. Dearer than `convexity_roundtrip_share` - do not take it.
+- Already holding one on the same underlying and the same expiration - do not
+  double it. Take another underlying or say there is no room.
+
+## Say what it does not cover
+
+**The valley does not insure against a moderate move, it doubles the loss.** If the
+market slides a percent or two into expiration, the sold spreads lose and so does
+this - its worst point is exactly there. It pays on a large move. Say that in the
+thesis rather than presenting it as insurance against everything.
+
+## Before the order
+
+`record_intent`, and say in the thesis that this is the convexity layer and what it
+covers. Then one line: what you took, for how much, the largest loss, and the equity
+it is measured against.
