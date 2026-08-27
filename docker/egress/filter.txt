@@ -5,3 +5,8 @@
 ^auth\.openai\.com$
 # The room the harness posts to and reads from:
 ^api\.telegram\.org$
+# The policy gateway, when it is NOT on this machine's own network. A stack run
+# from somebody else's laptop reaches it by name over the internet, and that name
+# belongs to their deployment - so it is added here at build time rather than
+# written down: EXTRA_ALLOWED_HOSTS is a list of regular expressions, one per
+# line, appended to this file.

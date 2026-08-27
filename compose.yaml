@@ -364,6 +364,11 @@ services:
     build:
       context: .
       dockerfile: docker/egress.Dockerfile
+      args:
+        # Whatever else THIS deployment must reach, as regular expressions. The
+        # address of its policy gateway goes here when the gateway is not on the
+        # same machine; it is a property of the deployment, not of the project.
+        EXTRA_ALLOWED_HOSTS: ${EXTRA_ALLOWED_HOSTS:-}
     networks: [internal, outbound]
 
 networks:

@@ -8,6 +8,8 @@ The credential is per agent, so the record names WHICH agent made each call, and
 
 Its calls to the model go the same way, at `MODEL_GATEWAY_URL`, under a path that names the agent. The session keeps using its own subscription login - the gateway forwards it upstream unchanged and stores nothing - so what each agent asked the model is recorded without anyone handing over a credential. Its outbound requests go through the gateway too, which allows the hosts it is configured with and refuses the rest.
 
+That is true of a stack whose gateway sits on the same machine. A stack run elsewhere reaches the gateway over the internet for the BROKER only: the model and internet gateways are not published, because neither can require a credential yet. So "everything through the gateway" describes this deployment, and a second deployment records its broker calls and nothing else.
+
 Its limits come from outside it too. The session asks `read_envelope` before it builds anything and is told what applies to it and by which version of the rules; no number it sizes with is written anywhere in its prompt. That answer comes from the `envelope` service beside it, under the same server name - so a limit is **disclosed** there and **enforced** at the gateway, and neither is anything the session can talk its way out of.
 
 ## Services
