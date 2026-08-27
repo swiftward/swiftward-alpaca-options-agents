@@ -40,6 +40,14 @@ fi
         echo "base_url = \"${MODEL_GATEWAY_URL}\""
         echo "wire_api = \"responses\""
         echo "requires_openai_auth = true"
+        # Who is calling, in the gateway's OWN header: `Authorization` already
+        # carries the subscription login and is forwarded upstream untouched.
+        # The value is the same credential this agent carries to the broker -
+        # one machine, one key - so the gateway counts the spend against an
+        # identity it verified rather than a label in the URL.
+        if [ -n "${BROKER_MCP_TOKEN}" ]; then
+            echo "env_http_headers = { \"X-Swiftward-Authorization\" = \"BROKER_MCP_TOKEN\" }"
+        fi
     fi
     if [ -n "${SESSION_MCP_URL}" ]; then
         echo ""
