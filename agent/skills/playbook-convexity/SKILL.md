@@ -1,7 +1,7 @@
 ---
 name: playbook-convexity
 description: Buy a backspread for near nothing, so the day the market moves hard is not a day this account only loses. Manage what the layer already holds before buying more. Use for the convexity layer.
-requires: [convexity_worst_case_share, convexity_layer_share, convexity_daily_debit, convexity_roundtrip_share, convexity_take]
+requires: [convexity_worst_case_share, convexity_layer_share, convexity_daily_debit, convexity_roundtrip_share, convexity_take, convexity_horizon]
 ---
 
 # Convexity layer
@@ -24,8 +24,16 @@ sold: the move comes intraday and gives itself back, and profit not taken is zer
   and say what you took. This is the day the layer was bought for.
 - **A day or less to expiry and the move never came** - close while something is
   still bid. On the last day it is worth almost nothing and falls fastest.
-- **It outlives Friday** - close it Thursday. What survives the end of the week does
-  not belong to the week's result.
+- **It outlives `convexity_horizon`** - close it. That parameter is the last day
+  whose result is counted; a structure expiring after it cannot pay into the
+  answer this account is judged on, whatever it does afterwards.
+
+  Read the horizon, do not assume it. "The end of the week" is the wrong rule and
+  it cost a round trip on 27 August: the layer was opened on a Thursday for an
+  expiry six days out, and an hour later the same rule closed it - and by that
+  rule the layer could never open on any Thursday at all, because every
+  expiration the envelope permits outlives the Friday. The horizon is a date the
+  declaration knows and this file does not.
 - **None of these** - say in one line what you hold and why, and go on to a new one.
 
 ## The structure
