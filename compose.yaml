@@ -259,7 +259,7 @@ services:
       BROKER_MCP_TOKEN: ${BROKER_MCP_TOKEN}
       # The model through the policy gateway, under this agent's own name.
       MODEL_GATEWAY_URL: ${MODEL_GATEWAY_URL}
-      DECLARATION: ${DECLARATION:-/agent/agent.yaml}
+      DECLARATION: ${DECLARATION:-/mnt/agent/agent.yaml}
       GATEWAY_TOKEN: ${GATEWAY_TOKEN}
       # The ladder reads the SAME ruleset the envelope serves, so what one
       # position may lose stops being advice at the last point our code holds an
@@ -286,6 +286,14 @@ services:
       # Правка при этом доезжает до УЖЕ РАБОТАЮЩЕЙ сессии: харнесс тем же тактом,
       # что перечитывает декларацию, пересобирает каталог, если текст изменился.
       - ./agent/skills:/mnt/skills:ro
+      # Декларация из чекаута, а не из образа - по той же причине, что и скилы, и
+      # это ровно та ловушка, на которую мы уже наступили: правка в `agent.yaml`
+      # проходит тесты, а стенд крутит запечённую версию и молчит об этом. Видно
+      # это было только по строке `sessions:` в логе, и то если знать, куда
+      # смотреть. Здесь монтируется КАТАЛОГ, потому что оба агента берут из него
+      # разные файлы. В бою (`compose.prod.yaml`) этого монтирования нет: там
+      # стенд обязан крутить ровно то, что собрал CI.
+      - ./agent:/mnt/agent:ro
 
   # The second account: the same engine selling NEARER the money. It keeps its
   # own record, because a shared one would let this agent's restart close the
@@ -303,7 +311,7 @@ services:
       BROKER_MCP_URL: ${BROKER_NEAR_MCP_URL:-http://alpaca-mcp-agent-2:8000/mcp}
       BROKER_MCP_TOKEN: ${BROKER_NEAR_MCP_TOKEN}
       MODEL_GATEWAY_URL: ${MODEL_NEAR_GATEWAY_URL}
-      DECLARATION: /agent/experiment-near.yaml
+      DECLARATION: /mnt/agent/experiment-near.yaml
       GATEWAY_TOKEN: ${GATEWAY_NEAR_TOKEN}
       ENVELOPE_PATH: /policy/envelope.yaml
       ENVELOPE_IDENTITY: options-alpha-near
@@ -326,6 +334,14 @@ services:
       # Правка при этом доезжает до УЖЕ РАБОТАЮЩЕЙ сессии: харнесс тем же тактом,
       # что перечитывает декларацию, пересобирает каталог, если текст изменился.
       - ./agent/skills:/mnt/skills:ro
+      # Декларация из чекаута, а не из образа - по той же причине, что и скилы, и
+      # это ровно та ловушка, на которую мы уже наступили: правка в `agent.yaml`
+      # проходит тесты, а стенд крутит запечённую версию и молчит об этом. Видно
+      # это было только по строке `sessions:` в логе, и то если знать, куда
+      # смотреть. Здесь монтируется КАТАЛОГ, потому что оба агента берут из него
+      # разные файлы. В бою (`compose.prod.yaml`) этого монтирования нет: там
+      # стенд обязан крутить ровно то, что собрал CI.
+      - ./agent:/mnt/agent:ro
 
   # What the session asks about its own limits. It stands where the policy gateway
   # will stand, and answers the one question that gateway answers first: what am I
