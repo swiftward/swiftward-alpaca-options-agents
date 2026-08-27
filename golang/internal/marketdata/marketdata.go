@@ -29,6 +29,12 @@ type Broker struct {
 	token string
 }
 
+// brokerCallLimit is how long one tool call may take, start to finish. Generous
+// on purpose: the screener's pass has a budget of five minutes for work that
+// takes about two and a half, and bars for years back are a big answer. What it
+// stops is not slowness, it is silence that never ends.
+var brokerCallLimit = 90 * time.Second
+
 func NewBroker(url string) *Broker {
 	return &Broker{url: url, name: "swiftward-alpaca-options-agents-harness"}
 }
@@ -39,6 +45,16 @@ func NewBrokerWithToken(url, token string) *Broker {
 	broker.token = token
 
 	return broker
+}
+
+// roundTripper carries the credential where there is one. Where there is none -
+// the broker's own server, which asks for nothing - it is the plain transport.
+func (b *Broker) roundTripper() http.RoundTripper {
+	if b.token == "" {
+		return http.DefaultTransport
+	}
+
+	return bearer{token: b.token, next: http.DefaultTransport}
 }
 
 // bearer adds the credential to every request the transport makes. The MCP
@@ -302,11 +318,31 @@ func (b *Broker) Quotes(ctx context.Context, symbols []string) (map[string]Quote
 // is data: the broker's own wrapper says so, and nothing here treats it as
 // anything else.
 func (b *Broker) call(ctx context.Context, tool string, arguments map[string]any, into any) error {
-	client := mcp.NewClient(&mcp.Implementation{Name: b.name, Version: "v0.1.0"}, nil)
-	transport := &mcp.StreamableClientTransport{Endpoint: b.url}
-	if b.token != "" {
-		transport.HTTPClient = &http.Client{Transport: bearer{token: b.token, next: http.DefaultTransport}}
+	// Every call is bounded, whatever the caller handed us. The loops above this
+	// - the screener, the ladder, the defence - all run on the process context,
+	// which has no deadline and is not meant to have one: it ends when the
+	// process ends. Without a bound HERE, one server that accepts the connection
+	// and then says nothing stops that loop until somebody restarts the
+	// container, and the log goes quiet rather than loud. Measured, not feared:
+	// reading our own orders from a machine that could not reach the proxy sat
+	// inside Connect for eight minutes and came back with nothing.
+	//
+	// The bound is on the HTTP CLIENT, and that is not the first thing tried. A
+	// deadline on the context around Connect and CallTool reads as the obvious
+	// fix and does not work: the test in silence_test.go held a server open and
+	// the call outlived the deadline anyway. So the limit goes where it bites,
+	// on the requests themselves. Nothing is lost by it - a session here lives
+	// for exactly one call and is closed below - but it is the reason the client
+	// is built even when there is no credential to carry.
+	transport := &mcp.StreamableClientTransport{
+		Endpoint: b.url,
+		HTTPClient: &http.Client{
+			Timeout:   brokerCallLimit,
+			Transport: b.roundTripper(),
+		},
 	}
+
+	client := mcp.NewClient(&mcp.Implementation{Name: b.name, Version: "v0.1.0"}, nil)
 	session, err := client.Connect(ctx, transport, nil)
 	if err != nil {
 		return fmt.Errorf("reach the broker's server: %w", err)
