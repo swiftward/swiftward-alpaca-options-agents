@@ -48,8 +48,11 @@ fi
         # Two credentials, two slots: the agent's own key says WHO is calling,
         # the person's key says who it acts FOR. The user key is optional - an
         # agent nobody stands behind simply sends the first.
-        if [ -n "${BROKER_MCP_TOKEN}" ] && [ -n "${USER_TOKEN}" ]; then
-            echo "env_http_headers = { \"X-Swiftward-Authorization\" = \"BROKER_MCP_TOKEN\", \"X-Swiftward-User\" = \"USER_TOKEN\" }"
+        # `X-Swiftward-Authorization` is the GATEWAY's own slot and is fixed by
+        # it; the user header is ours, so it comes from the same value the
+        # endpoint declaration uses rather than being spelled again here.
+        if [ -n "${BROKER_MCP_TOKEN}" ] && [ -n "${USER_TOKEN}" ] && [ -n "${USER_HEADER_NAME}" ]; then
+            echo "env_http_headers = { \"X-Swiftward-Authorization\" = \"BROKER_MCP_TOKEN\", \"${USER_HEADER_NAME}\" = \"USER_TOKEN\" }"
         elif [ -n "${BROKER_MCP_TOKEN}" ]; then
             echo "env_http_headers = { \"X-Swiftward-Authorization\" = \"BROKER_MCP_TOKEN\" }"
         fi
@@ -87,8 +90,8 @@ fi
         # session's calls arrived with no user while the harness's, sent by our
         # own client, carried it. Measured 27 August by looking at a tool only a
         # session calls.
-        if [ -n "${USER_TOKEN}" ]; then
-            echo "http_headers = { \"X-Swiftward-User\" = \"${USER_TOKEN}\" }"
+        if [ -n "${USER_TOKEN}" ] && [ -n "${USER_HEADER_NAME}" ]; then
+            echo "http_headers = { \"${USER_HEADER_NAME}\" = \"${USER_TOKEN}\" }"
         fi
     fi
 } > "${CODEX_HOME}/config.toml"

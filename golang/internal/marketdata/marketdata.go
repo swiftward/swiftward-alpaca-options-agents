@@ -45,7 +45,10 @@ type Broker struct {
 	// header. Empty leaves them the machine's own, which is what a deployment
 	// with nobody behind the agent has.
 	userToken string
-	token     string
+	// userHeader is where that key travels, taken from the same declaration the
+	// gateway reads rather than written twice.
+	userHeader string
+	token      string
 }
 
 // brokerCallLimit is how long one tool call may take, start to finish. Generous
@@ -71,10 +74,16 @@ func NewBrokerWithToken(url, token string) *Broker {
 	return broker
 }
 
-// ActingFor names the person this client works for. The credential above says
-// WHICH machine is calling; this says who it calls for, and the gateway records
-// both. Empty leaves the calls as the machine's own.
-func (b *Broker) ActingFor(userToken string) *Broker {
+// ActingFor names the person this client works for, in the header the gateway
+// was declared to read. The credential above says WHICH machine is calling; this
+// says who it calls for, and the gateway records both.
+//
+// The header NAME is passed in rather than written here: the same name is in the
+// endpoint's own declaration, and two copies would drift apart in silence - the
+// gateway would look in one place and the client would write in another, with
+// nothing failing to build. Either part empty leaves the calls the machine's own.
+func (b *Broker) ActingFor(header, userToken string) *Broker {
+	b.userHeader = header
 	b.userToken = userToken
 
 	return b
@@ -96,7 +105,7 @@ func (b *Broker) roundTripper() http.RoundTripper {
 		return under
 	}
 
-	return bearer{token: b.token, userToken: b.userToken, next: under}
+	return bearer{token: b.token, userToken: b.userToken, userHeader: b.userHeader, next: under}
 }
 
 // bearer adds the credential to every request the transport makes. The MCP
@@ -105,18 +114,19 @@ func (b *Broker) roundTripper() http.RoundTripper {
 // separately, so the header cannot be attached to one request by hand.
 type bearer struct {
 	token string
-	// userToken is the person the agent acts for, in the gateway's own header.
-	// Authorization is taken by the machine's own credential.
-	userToken string
-	next      http.RoundTripper
+	// userToken is the person the agent acts for, and userHeader is where the
+	// endpoint declared it should travel. Authorization is taken by the machine.
+	userToken  string
+	userHeader string
+	next       http.RoundTripper
 }
 
 func (b bearer) RoundTrip(request *http.Request) (*http.Response, error) {
 	// The request belongs to the caller; a RoundTripper must not modify it.
 	carrying := request.Clone(request.Context())
 	carrying.Header.Set("Authorization", "Bearer "+b.token)
-	if b.userToken != "" {
-		carrying.Header.Set("X-Swiftward-User", b.userToken)
+	if b.userHeader != "" && b.userToken != "" {
+		carrying.Header.Set(b.userHeader, b.userToken)
 	}
 
 	return b.next.RoundTrip(carrying)

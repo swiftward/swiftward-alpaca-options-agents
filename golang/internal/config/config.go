@@ -82,6 +82,11 @@ type Config struct {
 	// own header beside the machine's credential, so the record reads as "this
 	// agent, for this person". Empty where nobody stands behind the agent.
 	UserToken string
+
+	// UserHeader is the header the endpoint was declared to read the person from.
+	// It comes from the same value the declaration uses, so the client writes
+	// where the gateway looks instead of the two agreeing by coincidence.
+	UserHeader string
 	// Execution walks an unfilled structure toward the price the book shows. Zero
 	// interval means the ladder does not run and an order rests where the session
 	// placed it.
@@ -272,6 +277,7 @@ func Load() (Config, error) {
 		HarnessBrokerMCPURL:   k.String("harness_broker_mcp_url"),
 		HarnessBrokerMCPToken: k.String("harness_broker_mcp_token"),
 		UserToken:             k.String("user_token"),
+		UserHeader:            k.String("user_header_name"),
 		BrokerMCPToken:        k.String("broker_mcp_token"),
 		AgentCallTimeout:      callTimeout,
 		ScreenerUnderlyings:   screened,
