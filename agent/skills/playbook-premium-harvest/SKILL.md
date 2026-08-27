@@ -1,6 +1,7 @@
 ---
 name: playbook-premium-harvest
 description: The rule for opening a premium-harvest position - sell a vertical credit spread and let time decay pay for it. Use in any entry window, whenever a task asks for premium-harvest.
+requires: [short_leg_delta, min_edge_points, min_edge_points_borrowed]
 ---
 
 # Premium harvest
@@ -12,6 +13,14 @@ Sell a vertical credit spread and hold it while time passes. The credit is taken
 The rule is here once. A task that asks for premium-harvest does not repeat it.
 
 **The numbers below are this playbook's usual ones, not its law.** Where your task names a different delta, a different credit-to-risk threshold or a different ceiling on the cost of the round trip, that number replaces the one here and the mechanics stay as written. Two accounts run this playbook side by side precisely so that such numbers can differ - a session that quietly keeps the number from this file has cancelled the experiment it was opened for. Say in one line which number you took and where it came from.
+
+Three of them are not this file's to hold at all, and it will not start without them. They stand at the top of your task, under "Numbers this agent runs on":
+
+- `short_leg_delta` - how far out the sold leg goes.
+- `min_edge_points` - the least `edge_points` a structure may show to be taken.
+- `min_edge_points_borrowed` - the same, where the volatility behind the measure was borrowed from another expiration.
+
+If they are not in front of you, something is wrong with how you were woken: say so and open nothing. Do not supply them from this file, from your notes, or from what a session did last week.
 
 The limits are the other way round: what the envelope hands you is never replaced by anything. The full order is in `AGENTS.md`.
 

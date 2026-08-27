@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -41,6 +42,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/screener"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/sessiontools"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/skills"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/volatility"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
@@ -169,13 +171,61 @@ func run(log *zap.Logger) error {
 		line = account.NewPostgres(pool)
 	}
 
-	// The declaration is read once: the harness wakes sessions by it, and the
-	// session reads it to answer when it will be woken next.
-	var declared *declaration.Declaration
-	if cfg.DeclarationPath != "" {
-		declared, err = declaration.Load(cfg.DeclarationPath)
+	// Which directory the session actually reads its skills from. Mounting a
+	// checkout over it is how a skill is edited while a session runs, and then
+	// this image's own copy is not what is checked: a skill the checkout has and
+	// the image does not is there, and the other way round it is not.
+	skillsRead, skillsTarget := cfg.SkillsDir, ""
+	if cfg.SkillsDir != "" && cfg.AgentDir != "" {
+		skillsTarget = filepath.Join(cfg.AgentDir, ".agents", "skills")
+		skillsRead, _, err = skills.Serving(cfg.SkillsDir, skillsTarget)
 		if err != nil {
 			return err
+		}
+	}
+
+	// The declaration is read here and re-read while the process runs: the harness
+	// wakes sessions by it, and the session reads it to answer when it will be
+	// woken next. Both go through the watcher, so an edited file reaches the clock
+	// and the session's own answer at the same moment.
+	//
+	// A declaration is only usable if the skills it names are there and the
+	// parameters they need are given, so that check stands between the file and
+	// the schedule - at start, where it is a failure to start, and at every
+	// re-read, where it keeps a half-finished edit from taking the schedule down.
+	var declared *declaration.Watcher
+	if cfg.DeclarationPath != "" {
+		declared, err = declaration.Watch(cfg.DeclarationPath, func(d *declaration.Declaration) error {
+			if skillsRead == "" {
+				return nil
+			}
+			_, err := skills.Check(skillsRead, d.Skills, d.Parameters)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	// The skills the declaration names are put where the agent reads them, before
+	// the conversation below is opened: the agent reads that directory once when
+	// it starts, so laying them out later would reach nobody until a restart.
+	if cfg.Has(config.RoleHarness) && skillsTarget != "" && declared != nil {
+		current := declared.Current()
+		laid, err := skills.Lay(cfg.SkillsDir, skillsTarget, current.Skills, current.Parameters)
+		if err != nil {
+			return err
+		}
+		if laid.Mounted {
+			// Nothing was written and nothing will be: the directory belongs to
+			// whoever mounted it. That is what lets an edit to a skill reach a
+			// session that is already running, and it also means the declaration's
+			// choice of skills is not what limits the set - what is mounted is.
+			log.Info("the skills directory is mounted from outside and was left as it is",
+				zap.String("dir", skillsTarget), zap.Strings("skills", laid.Names))
+		} else {
+			log.Info("skills laid out for the agent",
+				zap.String("dir", skillsTarget), zap.Strings("skills", laid.Names))
 		}
 	}
 
@@ -439,7 +489,8 @@ func run(log *zap.Logger) error {
 			h.Chat = chat
 		}
 		if declared != nil {
-			h.Declaration = declared
+			h.Declaration = declared.Current()
+			h.Reread = declared.Reread
 		}
 
 		// The agent is held open for the whole run: that is what lets a person

@@ -3,6 +3,7 @@ package declaration
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -194,4 +195,100 @@ sessions:
 	assert.Equal(t, "at 14:20, still valid for 45m after that, on mon, tue, wed, thu, fri (America/New_York)", schedule[0].When)
 	assert.Equal(t, "every 30m between 09:35 and 15:45 (America/New_York)", schedule[1].When)
 	assert.Equal(t, "gpt-5.6-luna", schedule[1].Model)
+}
+
+// The numbers an agent runs on stand at the top of every task, so a session
+// cannot follow a technique without seeing them.
+func TestParametersStandInFrontOfEveryTask(t *testing.T) {
+	d, err := Load(write(t, `
+kind: trading-agent
+name: options-alpha
+timezone: America/New_York
+skills:
+  - playbook-premium-harvest
+parameters:
+  short_leg_delta: 0.15
+  min_edge_points: "строго больше 0"
+sessions:
+  - name: entry
+    cause: "окно входа"
+    task: "Выполни premium-harvest."
+    at: "14:20"
+    within: 45m
+  - name: defend
+    cause: "защита"
+    task: "Проверь позиции."
+    every: 30m
+    between: ["09:40", "15:55"]
+`))
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"playbook-premium-harvest"}, d.Skills)
+	// Written as a number and read as written: a hand-edited file where 0.15 has
+	// to be quoted is a trap.
+	assert.Equal(t, "0.15", d.Parameters["short_leg_delta"])
+
+	for i := range d.Sessions {
+		prompt := d.Sessions[i].Prompt()
+		assert.Contains(t, prompt, "short_leg_delta = 0.15", d.Sessions[i].Name)
+		assert.Contains(t, prompt, "min_edge_points = строго больше 0", d.Sessions[i].Name)
+		// Why it was woken still comes first, and the task still comes last.
+		assert.Less(t, strings.Index(prompt, "Woken by the schedule"), strings.Index(prompt, "short_leg_delta"))
+		assert.Less(t, strings.Index(prompt, "short_leg_delta"), strings.Index(prompt, d.Sessions[i].Task))
+	}
+
+	// Sorted, because a prompt that reorders itself between turns is a prompt the
+	// agent has to read again.
+	prompt := d.Sessions[0].Prompt()
+	assert.Less(t, strings.Index(prompt, "min_edge_points"), strings.Index(prompt, "short_leg_delta"))
+}
+
+// A declaration written before these keys existed keeps the prompt it had.
+func TestWithNoParametersThePromptIsUnchanged(t *testing.T) {
+	d, err := Load(write(t, good))
+	require.NoError(t, err)
+
+	assert.Empty(t, d.Skills)
+	assert.Equal(t,
+		"Woken by the schedule: окно входа во второй половине сессии\nОцени условия входа и открой позицию, если они сошлись.",
+		d.Sessions[0].Prompt())
+}
+
+func TestLoadRefusesParametersThatCannotBeRead(t *testing.T) {
+	cases := map[string]struct{ body, want string }{
+		// YAML keeps the last of two identical keys, so the number in force would
+		// be whichever line sits lower in the file while the other reads as if it
+		// applied.
+		"named_twice": {
+			body: "parameters:\n  short_leg_delta: 0.15\n  short_leg_delta: 0.30\n",
+			want: `"short_leg_delta" is named twice`,
+		},
+		// A list would reach the session as Go's idea of how to print one.
+		"a_list": {
+			body: "parameters:\n  short_leg_delta: [0.15, 0.30]\n",
+			want: "holds a list or a mapping",
+		},
+		"not_a_mapping": {
+			body: "parameters: [short_leg_delta]\n",
+			want: "must be a mapping",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := Load(write(t, `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+`+tc.body+`sessions:
+  - name: entry
+    cause: c
+    task: t
+    at: "14:20"
+    within: 45m
+`))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+		})
+	}
 }

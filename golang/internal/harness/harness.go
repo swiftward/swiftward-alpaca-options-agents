@@ -79,8 +79,13 @@ type Harness struct {
 	Chat         Chat
 	Conversation Conversation
 	// Declaration names the sessions the clock wakes. Nil means the clock wakes
-	// nobody and the chat is the only cause.
+	// nobody and the chat is the only cause. It is the schedule the harness
+	// starts with; what is in force later comes from Reread.
 	Declaration *declaration.Declaration
+	// Reread hands back the declaration as it stands on disk, or the one already
+	// in force together with the reason the file could not replace it. Nil means
+	// the schedule is read once and only a restart can change it.
+	Reread func() (*declaration.Declaration, error)
 	// Record is where a turn, a tool call and an intent are written down. Nil
 	// means nothing is recorded, which is legal only in a test.
 	Record record.Keeper
@@ -121,7 +126,11 @@ type Harness struct {
 	statusID    int
 	turnFor     string
 	turnStarted time.Time
-	lastRun     map[string]time.Time
+	// declared is the schedule in force. It is read and replaced by the clock
+	// alone, so it needs no lock of its own; everything else that wants it - the
+	// session's own read_schedule - asks the watcher rather than the harness.
+	declared *declaration.Declaration
+	lastRun  map[string]time.Time
 	// refusedInterrupts counts how many times in a row the agent has refused to
 	// give up an overrunning turn. It resets the moment one is given up.
 	refusedInterrupts int
@@ -143,7 +152,8 @@ func (h *Harness) Run(ctx context.Context) error {
 	if h.Now == nil {
 		return fmt.Errorf("the harness has no clock")
 	}
-	h.lastRun = h.whatAlreadyRanToday(ctx)
+	h.declared = h.Declaration
+	h.lastRun = h.whatAlreadyRanToday(ctx, h.declared)
 
 	// Followed whether or not anybody is watching the chat: this is the loop that
 	// closes a turn in the record, and the record is read long after the room.
@@ -176,12 +186,12 @@ func (h *Harness) Run(ctx context.Context) error {
 // restart inside a session's window does not run that session a second time. A
 // record that cannot be read is not fatal: the harness says so and starts with
 // nothing, which is the state it had before this existed.
-func (h *Harness) whatAlreadyRanToday(ctx context.Context) map[string]time.Time {
-	if h.Record == nil || h.Declaration == nil {
+func (h *Harness) whatAlreadyRanToday(ctx context.Context, declared *declaration.Declaration) map[string]time.Time {
+	if h.Record == nil || declared == nil {
 		return map[string]time.Time{}
 	}
 
-	now := h.Now().In(h.Declaration.Location())
+	now := h.Now().In(declared.Location())
 	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	last, err := h.Record.LastRuns(ctx, midnight)
@@ -194,8 +204,8 @@ func (h *Harness) whatAlreadyRanToday(ctx context.Context) map[string]time.Time 
 	// session names. Keeping them would let a chat name that happens to match a
 	// session silence that session for the day.
 	ran := map[string]time.Time{}
-	for i := range h.Declaration.Sessions {
-		name := h.Declaration.Sessions[i].Name
+	for i := range declared.Sessions {
+		name := declared.Sessions[i].Name
 		if at, found := last[name]; found {
 			ran[name] = at
 		}
@@ -226,8 +236,50 @@ func (h *Harness) keepTheClock(ctx context.Context) {
 }
 
 func (h *Harness) tick(ctx context.Context) {
+	h.rereadTheDeclaration(ctx)
 	h.fireWakeups(ctx)
 	h.fireDue(ctx)
+}
+
+// rereadTheDeclaration puts a changed schedule in force between one tick and the
+// next.
+//
+// What it has to be careful about is the memory of what already ran. That memory
+// is kept by session NAME, and a name the previous declaration did not have has
+// no entry - which reads as "never ran". Left alone, a session renamed at midday
+// would open a second position in a window that already had one, and a session
+// added with `every:` would fire the same second it appeared. So the record is
+// asked about the names that are new, and only about those: a name already known
+// keeps the time this process saw, which is later than anything the record has
+// and is the one that matters.
+//
+// A name that has gone from the declaration keeps its entry. It costs a map
+// entry, and dropping it would let a session removed and put back within the
+// same day run twice.
+func (h *Harness) rereadTheDeclaration(ctx context.Context) {
+	if h.Reread == nil {
+		return
+	}
+
+	fresh, err := h.Reread()
+	if err != nil {
+		h.Log.Error("the declaration on disk cannot be used; the schedule in force is unchanged",
+			zap.Error(err))
+		return
+	}
+	if fresh == h.declared {
+		return
+	}
+
+	h.declared = fresh
+	for name, at := range h.whatAlreadyRanToday(ctx, fresh) {
+		if _, known := h.lastRun[name]; !known {
+			h.lastRun[name] = at
+		}
+	}
+	h.Log.Info("the declaration changed and the new one is in force",
+		zap.String("declaration", fresh.Name),
+		zap.Int("sessions", len(fresh.Sessions)))
 }
 
 // watchTheRunningTurn ends a turn that has outlived its limit.
@@ -369,13 +421,13 @@ func (h *Harness) Tell(ctx context.Context, prompt, who string) {
 }
 
 func (h *Harness) fireDue(ctx context.Context) {
-	if h.Declaration == nil {
+	if h.declared == nil {
 		return
 	}
-	now := h.Now().In(h.Declaration.Location())
+	now := h.Now().In(h.declared.Location())
 
-	for i := range h.Declaration.Sessions {
-		session := &h.Declaration.Sessions[i]
+	for i := range h.declared.Sessions {
+		session := &h.declared.Sessions[i]
 		if !session.Due(now, h.lastRun[session.Name]) {
 			continue
 		}

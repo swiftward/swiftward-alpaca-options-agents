@@ -75,18 +75,13 @@ mkdir -p /work/notes
 cp /agent/AGENTS.md /work/AGENTS.md
 
 # Skills are instructions too, and the agent looks for them in `.agents/skills`
-# inside the directory it works in. They follow the same rule as the file above,
-# with one step more: /work is a volume that outlives the image, so a plain copy
-# would leave behind a skill that was deleted upstream and the session would keep
-# reading an instruction this image no longer carries. The directory is replaced
-# whole, not merged into - which is why the removal is not conditional on there
-# being anything to put back. Carrying no skills at all is a state this image is
-# allowed to be in: git does not keep an empty directory, so deleting the last
-# skill deletes the tree, and a session with no skills is a working session.
-rm -rf /work/.agents/skills
-if [ -d /agent/skills ]; then
-    mkdir -p /work/.agents
-    cp -R /agent/skills /work/.agents/skills
-fi
+# inside the directory it works in. They are NOT laid out here, and the reason is
+# that the choice is no longer a copy: which skills an agent gets is written in
+# its declaration, this is a shell script, and a shell script that guesses at
+# YAML is a worse place for that decision than the process that already reads it.
+#
+# So the app below does it, and it also handles the case this script could not:
+# when that directory is mounted from outside, it is left alone rather than
+# deleted, because the files in it belong to whoever mounted them.
 
 exec /usr/local/bin/app "$@"

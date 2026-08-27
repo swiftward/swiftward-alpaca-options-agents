@@ -270,6 +270,11 @@ services:
       - codex-home:/home/agent/.codex
       - agent-work:/work
       - ./policy/envelope.yaml:/policy/envelope.yaml:ro
+      # Скилы из чекаута, а не из образа. Сессия открывает SKILL.md прямо в ходу -
+      # в записи ходов видно, как она его читает, - поэтому правка текста приёма
+      # доезжает до УЖЕ РАБОТАЮЩЕЙ сессии: ни пересборки, ни перезапуска. Только
+      # чтение: каталог принадлежит чекауту, и процессу нечего в нём писать.
+      - ./agent/skills:/work/.agents/skills:ro
 
   # The second account: the same engine selling NEARER the money. It keeps its
   # own record, because a shared one would let this agent's restart close the
@@ -300,6 +305,11 @@ services:
       - codex-home-near:/home/agent/.codex
       - agent-near-work:/work
       - ./policy/envelope.yaml:/policy/envelope.yaml:ro
+      # Скилы из чекаута, а не из образа. Сессия открывает SKILL.md прямо в ходу -
+      # в записи ходов видно, как она его читает, - поэтому правка текста приёма
+      # доезжает до УЖЕ РАБОТАЮЩЕЙ сессии: ни пересборки, ни перезапуска. Только
+      # чтение: каталог принадлежит чекауту, и процессу нечего в нём писать.
+      - ./agent/skills:/work/.agents/skills:ro
 
   # What the session asks about its own limits. It stands where the policy gateway
   # will stand, and answers the one question that gateway answers first: what am I

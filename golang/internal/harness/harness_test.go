@@ -1113,3 +1113,162 @@ func TestARefusedInterruptEndsTheProcessRatherThanWaitingForever(t *testing.T) {
 	assert.GreaterOrEqual(t, len(conversation.interrupted()), interruptAttempts,
 		"it should have asked the agreed number of times before giving up")
 }
+
+// The memory of what already ran is kept by session NAME, and a name the
+// previous declaration did not have has no entry - which reads as "never ran".
+// Left alone, a session renamed at midday would open a second position in a
+// window that already had one, and a session added with `every:` would fire the
+// same second it appeared. The record is asked about the names that are new.
+func TestARenamedSessionDoesNotRunASecondTimeToday(t *testing.T) {
+	now := time.Date(2026, 8, 25, 14, 40, 0, 0, time.UTC)
+
+	before, err := declaration.Load(write(t, `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: flatten
+    cause: "конец дня"
+    task: "Закрой всё."
+    at: "15:50"
+    within: 20m
+`))
+	require.NoError(t, err)
+
+	after, err := declaration.Load(write(t, `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: flatten
+    cause: "конец дня"
+    task: "Закрой всё."
+    at: "15:50"
+    within: 20m
+  - name: entry
+    cause: "окно входа"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+  - name: entry-morning
+    cause: "утреннее окно"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+`))
+	require.NoError(t, err)
+
+	// The turn the window already had, under the name the declaration is about to
+	// grow. Renaming a session is exactly what produces this.
+	kept := record.NewMemory()
+	require.NoError(t, kept.TurnStarted(context.Background(), record.Turn{
+		Ref: "turn-1", ThreadRef: "th-1", StartedAt: now.Add(-18 * time.Minute),
+		WokenBy: "entry", Cause: "declaration: entry",
+	}))
+
+	ctx := context.Background()
+	h := &Harness{
+		Declaration: before, Record: kept, CallTimeout: time.Second,
+		Now: func() time.Time { return now }, Log: zaptest.NewLogger(t),
+		Reread: func() (*declaration.Declaration, error) { return after, nil },
+	}
+	h.declared = before
+	h.lastRun = h.whatAlreadyRanToday(ctx, before)
+	require.Empty(t, h.lastRun)
+
+	h.rereadTheDeclaration(ctx)
+
+	assert.Same(t, after, h.declared, "the new declaration is the one in force")
+	assert.Equal(t, now.Add(-18*time.Minute), h.lastRun["entry"],
+		"what the record says about this name is what the clock must go by")
+	assert.False(t, after.Sessions[1].Due(now, h.lastRun["entry"]), "this window already had its session")
+
+	// And the guard must not become a harness that never wakes anybody: a name
+	// the record has never seen is genuinely new and runs.
+	assert.True(t, after.Sessions[2].Due(now, h.lastRun["entry-morning"]))
+}
+
+// A name this process has already woken keeps the time this process saw. The
+// record's time is older - it is written when the turn starts and the process
+// knows about turns the record has not been asked about since - and taking it
+// would let a session run twice inside one window.
+func TestARereadDoesNotForgetWhatThisProcessAlreadyWoke(t *testing.T) {
+	now := time.Date(2026, 8, 25, 14, 40, 0, 0, time.UTC)
+	body := `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: entry
+    cause: "окно входа"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+`
+	before, err := declaration.Load(write(t, body))
+	require.NoError(t, err)
+	after, err := declaration.Load(write(t, body+"    days: [mon, tue]\n"))
+	require.NoError(t, err)
+
+	kept := record.NewMemory()
+	require.NoError(t, kept.TurnStarted(context.Background(), record.Turn{
+		Ref: "turn-1", ThreadRef: "th-1", StartedAt: now.Add(-30 * time.Minute),
+		WokenBy: "entry", Cause: "declaration: entry",
+	}))
+
+	ctx := context.Background()
+	h := &Harness{
+		Declaration: before, Record: kept, CallTimeout: time.Second,
+		Now: func() time.Time { return now }, Log: zaptest.NewLogger(t),
+		Reread: func() (*declaration.Declaration, error) { return after, nil },
+	}
+	h.declared = before
+	h.lastRun = map[string]time.Time{"entry": now.Add(-2 * time.Minute)}
+
+	h.rereadTheDeclaration(ctx)
+
+	assert.Equal(t, now.Add(-2*time.Minute), h.lastRun["entry"])
+}
+
+// A file that cannot be used leaves the clock exactly as it was: an agent whose
+// schedule vanished halfway through a save wakes nobody for the rest of the day.
+func TestARereadThatFailsLeavesTheClockAlone(t *testing.T) {
+	declared, err := declaration.Load(write(t, `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: entry
+    cause: "окно входа"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+`))
+	require.NoError(t, err)
+
+	h := &Harness{
+		Declaration: declared, CallTimeout: time.Second,
+		Now: func() time.Time { return time.Date(2026, 8, 25, 14, 40, 0, 0, time.UTC) },
+		Log: zaptest.NewLogger(t),
+		Reread: func() (*declaration.Declaration, error) {
+			return declared, errors.New("the file on disk is half-saved")
+		},
+	}
+	h.declared = declared
+	h.lastRun = map[string]time.Time{}
+
+	h.rereadTheDeclaration(context.Background())
+
+	assert.Same(t, declared, h.declared)
+}
+
+// write puts a declaration in a file of its own, so a test can hold two versions
+// of the same schedule at once.
+func write(t *testing.T, body string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "agent.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	return path
+}
