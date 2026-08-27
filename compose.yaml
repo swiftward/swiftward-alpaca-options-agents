@@ -14,6 +14,12 @@ x-broker-service: &broker-service
     context: .
     dockerfile: docker/alpaca-mcp.Dockerfile
   networks: [internal, outbound]
+  # Свои резолверы, как и у прокси. Без них контейнер спрашивает резолвер машины,
+  # а тот 27 августа отдавал отказы всплесками: шесть невыполненных разрешений за
+  # три минуты, и каждое превращалось в «the broker refused get_orders» у
+  # лестницы - отказ, выглядящий как решение брокера, хотя брокера никто не
+  # спросил. Имя не разрешилось, до Alpaca даже не дошли.
+  dns: [1.1.1.1, 8.8.8.8]
 
 x-broker-environment: &broker-environment
   ALPACA_PAPER_TRADE: ${ALPACA_PAPER}
@@ -227,6 +233,9 @@ services:
       dockerfile: docker/app.Dockerfile
       target: page
     networks: [internal, outbound]
+    # Свои резолверы: страница ходит к шлюзу за деньгами, и отказ разрешения
+    # имени она показала бы как недоступность брокера.
+    dns: [1.1.1.1, 8.8.8.8]
     environment:
       ROLES: api
       ADDR: ":8080"

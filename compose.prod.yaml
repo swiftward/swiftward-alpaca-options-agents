@@ -42,6 +42,9 @@ services:
     restart: unless-stopped
     image: ghcr.io/swiftward/swiftward-alpaca-options-agents/alpaca-mcp:${IMAGE_TAG}
     networks: [internal, outbound]
+    # Свои резолверы, как и у прокси: контейнер, спрашивающий резолвер машины,
+    # получает его сбои, а выглядят они как отказ брокера.
+    dns: [1.1.1.1, 8.8.8.8]
     environment:
       ALPACA_API_KEY: ${ALPACA_API_KEY_ID}
       ALPACA_SECRET_KEY: ${ALPACA_API_SECRET_KEY}
@@ -51,6 +54,7 @@ services:
   page:
     image: ghcr.io/swiftward/swiftward-alpaca-options-agents/page:${IMAGE_TAG}
     networks: [internal, outbound]
+    dns: [1.1.1.1, 8.8.8.8]
     environment:
       ROLES: api
       ADDR: ":8080"
