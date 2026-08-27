@@ -346,26 +346,53 @@ func (b *Broker) Quotes(ctx context.Context, symbols []string) (map[string]Quote
 // is data: the broker's own wrapper says so, and nothing here treats it as
 // anything else.
 func (b *Broker) call(ctx context.Context, tool string, arguments map[string]any, into any) error {
-	session, err := b.connect(ctx)
-	if err != nil {
-		return err
+	// The bound below is held by THIS function and by nothing it calls, because
+	// every narrower place has already been tried and each let a live hang
+	// through. ResponseHeaderTimeout on the transport stops a server that
+	// accepts the connection and says nothing. It does NOT stop a server that
+	// answers the headers and then never carries the reply: measured on
+	// 27 August against a gateway that returned 200 in four milliseconds and
+	// then held the call, where the screener, the account recorder and the
+	// volatility recorder each stopped on their first call after boot and
+	// logged nothing for fifty minutes. A deadline on the context does not stop
+	// it either - the SDK waits on its own stream reader and returns when that
+	// reader does.
+	//
+	// So the work runs in its own goroutine and this function returns on its own
+	// limit whether or not that goroutine ever does. A caller that gets an error
+	// skips a turn and says why; a caller that gets nothing is a loop that has
+	// died in silence.
+	bounded, giveUp := context.WithTimeout(ctx, brokerCallLimit)
+	defer giveUp()
+
+	type answer struct {
+		result *mcp.CallToolResult
+		err    error
+	}
+	// Buffered: the goroutine must never block sending to a receiver this
+	// function has already stopped listening for.
+	answered := make(chan answer, 1)
+
+	go func() {
+		result, err := b.ask(bounded, tool, arguments)
+		answered <- answer{result: result, err: err}
+	}()
+
+	var result *mcp.CallToolResult
+	select {
+	case <-bounded.Done():
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		return fmt.Errorf("the broker's server did not answer %s within %s", tool, brokerCallLimit)
+	case got := <-answered:
+		if got.err != nil {
+			return got.err
+		}
+		result = got.result
 	}
 
-	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: arguments})
-	if err != nil {
-		// The session is kept, so a broken one would break every call after it
-		// rather than one. Drop it and try once more on a fresh one: a gateway
-		// restart, a rotated credential or an idle connection the far end closed
-		// all look like this, and none of them is a reason to fail a sweep.
-		b.drop(session)
-		if session, err = b.connect(ctx); err != nil {
-			return err
-		}
-		if result, err = session.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: arguments}); err != nil {
-			b.drop(session)
-			return fmt.Errorf("call %s: %w", tool, err)
-		}
-	}
 	if result.IsError {
 		return fmt.Errorf("the broker refused %s", tool)
 	}
@@ -379,6 +406,37 @@ func (b *Broker) call(ctx context.Context, tool string, arguments map[string]any
 	}
 
 	return nil
+}
+
+// ask makes the call on the kept session and, if that session has gone bad, once
+// more on a fresh one.
+func (b *Broker) ask(ctx context.Context, tool string, arguments map[string]any) (*mcp.CallToolResult, error) {
+	session, err := b.connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: arguments})
+	if err == nil {
+		return result, nil
+	}
+
+	// The session is kept, so a broken one would break every call after it
+	// rather than one. Drop it and try once more on a fresh one: a gateway
+	// restart, a rotated credential or an idle connection the far end closed all
+	// look like this, and none of them is a reason to fail a sweep.
+	b.drop(session)
+	if session, err = b.connect(ctx); err != nil {
+		return nil, err
+	}
+
+	result, err = session.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: arguments})
+	if err != nil {
+		b.drop(session)
+		return nil, fmt.Errorf("call %s: %w", tool, err)
+	}
+
+	return result, nil
 }
 
 // connect hands back the session, making it if there is none.
