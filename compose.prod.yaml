@@ -67,8 +67,8 @@ services:
       BROKER_MCP_TOKEN: ${PAGE_MCP_TOKEN}
       ORDERS_SHOWN: ${ORDERS_SHOWN}
       HISTORY_DAYS: ${HISTORY_DAYS}
-    ports:
-      - "${APP_PORT}:8080"
+    # Своего порта наружу у страницы нет: наружу смотрит только прокси, и он же
+    # держит сертификат. Порт остаётся внутренним, доступным прокси по имени.
     # The week runs unattended: a machine that reboots at three in the morning
     # must come back with the agent running, not with it waiting to be started.
     restart: unless-stopped
@@ -175,6 +175,51 @@ services:
         condition: service_completed_successfully
     profiles: [session]
 
+  # Единственное, что смотрит наружу. Держит сертификат и отдаёт страницу по
+  # домену: судья открывает адрес руками, и он обязан отвечать по https.
+  #
+  # Сертификат берётся и продлевается сам, по вызову на 80-м порту. Поэтому 80-й
+  # опубликован, хотя ничего, кроме перенаправления на 443, не отдаёт.
+  #
+  # Сокета докера у него нет намеренно: сокет в контейнере - это право поднять
+  # любой другой контейнер на машине, а этот контейнер единственный смотрит в
+  # интернет. Маршрут у нас один и не меняется, поэтому он описан файлом.
+  traefik:
+    image: traefik:v3.7.12
+    networks: [internal, outbound]
+    command:
+      - --entrypoints.http.address=:80
+      - --entrypoints.http.http.redirections.entrypoint.to=https
+      - --entrypoints.http.http.redirections.entrypoint.scheme=https
+      - --entrypoints.https.address=:443
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http
+      - --log.level=INFO
+      - --accesslog=true
+    environment:
+      # Домен, по которому судья открывает страницу. Подставляется в правило
+      # маршрута; проверено запуском, что файловый провайдер это умеет.
+      DASHBOARD_HOST: ${DASHBOARD_HOST}
+    volumes:
+      - ./docker/traefik:/etc/traefik/dynamic:ro
+      - acme:/acme
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    cap_drop: [ALL]
+    # Порты ниже 1024 иначе не занять, а занять их надо: судья открывает адрес
+    # без порта в нём.
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - page
+
   # Что сессия спрашивает про свои пределы. Файл монтируется из чекаута, а не
   # берётся из образа: опустить потолок должно быть одной правкой, которую
   # работающая сессия видит на следующем вопросе.
@@ -205,6 +250,7 @@ networks:
   outbound:
 
 volumes:
+  acme:
   pgdata:
   codex-home:
   agent-work:
