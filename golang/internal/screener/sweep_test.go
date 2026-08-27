@@ -60,17 +60,25 @@ func (b *brokerDouble) Chain(_ context.Context, underlying string, low, high flo
 	return contracts, quotes, nil
 }
 
-type keeperDouble struct{ kept []Candidate }
+type keeperDouble struct {
+	kept        []Candidate
+	purgedUntil time.Time
+}
 
-func (k *keeperDouble) ReplaceCandidates(_ context.Context, _ time.Time, found []Candidate) error {
+func (k *keeperDouble) RecordCandidates(_ context.Context, _ time.Time, found []Candidate) error {
 	k.kept = found
 	return nil
+}
+
+func (k *keeperDouble) PurgeCandidates(_ context.Context, before time.Time) (int64, error) {
+	k.purgedUntil = before
+	return 0, nil
 }
 
 func sweeping(broker Broker, kept Keeper, now func() time.Time, t *testing.T) *Sweep {
 	return &Sweep{
 		Broker: broker, Universe: []string{"QQQ"}, Wanted: anything(),
-		Every: time.Minute, Record: kept, PerMinute: 200, Expirations: 5,
+		Every: time.Minute, Keep: 72 * time.Hour, Record: kept, PerMinute: 200, Expirations: 5,
 		Now: now, Log: zaptest.NewLogger(t),
 	}
 }
@@ -208,4 +216,25 @@ func TestOneSweepSpendsTwoRequestsPerUnderlying(t *testing.T) {
 	// One batch of prices for both names, then one chain each.
 	assert.Equal(t, 3, broker.calls,
 		"a third request per underlying is a third of the universe given up")
+}
+
+// The sweeps are the only record of what the option book offered, so they
+// accumulate - and something has to bound them. The sweep purges by age on every
+// pass, counting back from the moment it started.
+func TestASweepDropsWhatAgedOut(t *testing.T) {
+	at := time.Date(2026, 8, 26, 14, 0, 0, 0, time.UTC)
+	broker := &brokerDouble{
+		open:      true,
+		prices:    map[string]float64{"QQQ": 710},
+		contracts: map[string][]marketdata.Contract{"QQQ": {put(700), put(701)}},
+		quotes: map[string]marketdata.Quote{
+			put(701).Symbol: quote(0.71, 0.79),
+			put(700).Symbol: quote(0.51, 0.59),
+		},
+	}
+	kept := &keeperDouble{}
+
+	sweeping(broker, kept, func() time.Time { return at }, t).once(context.Background())
+
+	require.Equal(t, at.Add(-72*time.Hour), kept.purgedUntil)
 }

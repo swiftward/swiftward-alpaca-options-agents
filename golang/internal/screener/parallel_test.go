@@ -59,9 +59,13 @@ func (b *slowBroker) Chain(_ context.Context, underlying string, _, _ float64,
 
 type countingKeeper struct{ kept atomic.Int64 }
 
-func (k *countingKeeper) ReplaceCandidates(context.Context, time.Time, []Candidate) error {
+func (k *countingKeeper) RecordCandidates(context.Context, time.Time, []Candidate) error {
 	k.kept.Add(1)
 	return nil
+}
+
+func (k *countingKeeper) PurgeCandidates(context.Context, time.Time) (int64, error) {
+	return 0, nil
 }
 
 // The sweep asks about several underlyings at once, and asks about each of them
@@ -106,7 +110,7 @@ func TestWithoutWorkersTheSweepAsksOneAtATime(t *testing.T) {
 		Broker: broker, Universe: []string{"AAA", "BBB", "CCC"}, Wanted: anything(),
 		Every: time.Minute, Record: &countingKeeper{}, PerMinute: 10_000,
 		Expirations: 5,
-		Now: time.Now, Log: zaptest.NewLogger(t),
+		Now:         time.Now, Log: zaptest.NewLogger(t),
 	}
 
 	sweep.once(context.Background())

@@ -10,15 +10,18 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/screener"
 )
 
-// ReplaceCandidates puts one sweep's findings in place of the last one.
+// RecordCandidates adds one sweep's findings to the ones already kept.
 //
-// Replacing rather than appending is the point: a candidate is a price, and a
-// price from the previous sweep is not history worth keeping beside a fresh one,
-// it is a wrong answer sitting next to a right one. What the sweep found before
-// is already in the log if anyone wants it.
-func (p *Postgres) ReplaceCandidates(ctx context.Context, at time.Time, found []screener.Candidate) error {
+// A candidate is a price, so a price from an earlier sweep must never be offered
+// beside a fresh one - but that is a rule for the READER, which takes the newest
+// sweep and nothing else, not a reason to destroy what was measured. Kept, the
+// sweeps are the only record we have of what the option book offered: the broker
+// publishes no history of two-sided option quotes, so a change to the thresholds
+// can be answered from these rows instead of from the next open market.
+//
+// PurgeCandidates bounds what this accumulates.
+func (p *Postgres) RecordCandidates(ctx context.Context, at time.Time, found []screener.Candidate) error {
 	batch := &pgx.Batch{}
-	batch.Queue(`DELETE FROM candidates`)
 	for _, one := range found {
 		batch.Queue(
 			`INSERT INTO candidates (swept_at, underlying, kind, expiration,
@@ -42,13 +45,13 @@ func (p *Postgres) ReplaceCandidates(ctx context.Context, at time.Time, found []
 	}
 
 	if err := p.pool.SendBatch(ctx, batch).Close(); err != nil {
-		return fmt.Errorf("replace the candidates: %w", err)
+		return fmt.Errorf("record the candidates: %w", err)
 	}
 
 	return nil
 }
 
-// Candidates reads the last sweep, richest first, and WHEN it was taken.
+// Candidates reads the NEWEST sweep, richest first, and WHEN it was taken.
 //
 // The time is not decoration. Rows outlive the sweep that wrote them: if the
 // screener stops, the table keeps its last answer for as long as the process
@@ -70,6 +73,7 @@ func (p *Postgres) Candidates(ctx context.Context, most int) ([]screener.Candida
 		        credit, risk, credit_to_risk_percent, cost, cost_share_percent,
 		        credit_after_cost, short_delta, edge_points, edge_from
 		   FROM candidates
+		  WHERE swept_at = (SELECT MAX(swept_at) FROM candidates)
 		  ORDER BY edge_points DESC NULLS LAST, credit_to_risk_percent DESC
 		  LIMIT @most`,
 		pgx.NamedArgs{"most": most})
@@ -113,4 +117,20 @@ func (p *Postgres) AskedInTurn(ctx context.Context, turnRef, tool string) (bool,
 	}
 
 	return asked, nil
+}
+
+// PurgeCandidates drops sweeps older than the given moment and says how many
+// rows went.
+//
+// The caller owns the age: how long the sweeps are worth keeping is a decision
+// an operator makes, not one this package can hold.
+func (p *Postgres) PurgeCandidates(ctx context.Context, before time.Time) (int64, error) {
+	tag, err := p.pool.Exec(ctx,
+		`DELETE FROM candidates WHERE swept_at < @before`,
+		pgx.NamedArgs{"before": before})
+	if err != nil {
+		return 0, fmt.Errorf("purge the candidates: %w", err)
+	}
+
+	return tag.RowsAffected(), nil
 }

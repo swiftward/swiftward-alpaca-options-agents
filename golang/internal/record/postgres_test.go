@@ -210,7 +210,7 @@ func TestPostgresKeepsEverythingTheScreenerWorkedOut(t *testing.T) {
 		CreditAfterCost: 0.08, Edge: &fromVolatility, EdgeFrom: screener.FromBorrowedVolatility,
 	}
 
-	require.NoError(t, kept.ReplaceCandidates(ctx, at, []screener.Candidate{measured, blind}))
+	require.NoError(t, kept.RecordCandidates(ctx, at, []screener.Candidate{measured, blind}))
 
 	found, takenAt, err := kept.Candidates(ctx, 10)
 	require.NoError(t, err)
@@ -227,4 +227,52 @@ func TestPostgresKeepsEverythingTheScreenerWorkedOut(t *testing.T) {
 	assert.Equal(t, measured, by["QQQ"])
 	assert.Equal(t, blind, by["SPY"])
 	assert.Nil(t, by["SPY"].Delta, "no delta is not a delta of zero")
+}
+
+// Two things have to hold at once, and they pull in opposite directions: the
+// agent must never be offered a price from an older sweep, and an older sweep
+// must not be destroyed - it is the only record of what the option book offered,
+// since the broker publishes no history of two-sided option quotes.
+func TestAnOlderSweepSurvivesButIsNotOffered(t *testing.T) {
+	pool, err := db.Open(context.Background(), dbtest.Fresh(t))
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	kept, err := NewPostgres(pool, 20)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	today := time.Date(2026, 8, 26, 0, 0, 0, 0, time.UTC)
+	earlier := time.Date(2026, 8, 26, 14, 0, 0, 0, time.UTC)
+	later := earlier.Add(10 * time.Minute)
+
+	sweep := func(underlying string) screener.Candidate {
+		return screener.Candidate{
+			Underlying: underlying, Type: "put", Expiration: today,
+			Short: underlying + "260826P00700000", Long: underlying + "260826P00699000",
+			ShortStrike: 700, LongStrike: 699, Price: 710, OutOfTheMoney: 1.41,
+			Credit: 0.20, Risk: 0.80, CreditToRisk: 25, Cost: 0.16, CostShare: 80,
+			CreditAfterCost: 0.12, EdgeFrom: screener.FromDelta,
+		}
+	}
+
+	require.NoError(t, kept.RecordCandidates(ctx, earlier, []screener.Candidate{sweep("QQQ")}))
+	require.NoError(t, kept.RecordCandidates(ctx, later, []screener.Candidate{sweep("SPY")}))
+
+	found, takenAt, err := kept.Candidates(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, found, 1, "only the newest sweep is offered")
+	assert.Equal(t, "SPY", found[0].Underlying)
+	assert.True(t, takenAt.Equal(later))
+
+	// The older sweep is still there. Reading it through the purge is what
+	// proves it: a purge that removes nothing would pass on an empty table.
+	gone, err := kept.PurgeCandidates(ctx, later)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), gone, "the earlier sweep was kept until the purge took it")
+
+	found, _, err = kept.Candidates(ctx, 10)
+	require.NoError(t, err)
+	require.Len(t, found, 1, "the purge took the old sweep and left the new one")
+	assert.Equal(t, "SPY", found[0].Underlying)
 }

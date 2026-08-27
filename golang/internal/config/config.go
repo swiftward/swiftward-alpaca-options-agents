@@ -113,6 +113,10 @@ type Config struct {
 	ScreenerUnderlyings []string
 	// ScreenerEvery is how often the whole universe is swept.
 	ScreenerEvery time.Duration
+	// ScreenerKeep is how long a sweep's findings are kept after a newer sweep
+	// replaced them. They are the only record of what the option book offered:
+	// the broker publishes no history of two-sided option quotes.
+	ScreenerKeep time.Duration
 	// ScreenerPerMinute is the broker's limit on requests, which the sweep never
 	// exceeds. The free plan allows 200.
 	ScreenerPerMinute int
@@ -218,6 +222,11 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("SCREENER_UNDERLYINGS is set but SCREENER_EVERY is not: a sweep with no interval never runs")
 	}
 
+	screenKeep, err := parseDuration("SCREENER_KEEP", k.String("screener_keep"))
+	if err != nil {
+		return Config{}, err
+	}
+
 	resumeLimit, err := parseDuration("THREAD_RESUME_LIMIT", k.String("thread_resume_limit"))
 	if err != nil {
 		return Config{}, err
@@ -282,6 +291,7 @@ func Load() (Config, error) {
 		AgentCallTimeout:      callTimeout,
 		ScreenerUnderlyings:   screened,
 		ScreenerEvery:         screenEvery,
+		ScreenerKeep:          screenKeep,
 		ScreenerPerMinute:     k.Int("screener_per_minute"),
 		ScreenerWorkers:       k.Int("screener_workers"),
 		ScreenerNearest:       k.Float64("screener_nearest"),

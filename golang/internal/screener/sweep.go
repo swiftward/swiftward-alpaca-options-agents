@@ -24,9 +24,11 @@ type Broker interface {
 	Chain(ctx context.Context, underlying string, low, high float64, until time.Time, most int) ([]marketdata.Contract, map[string]marketdata.Quote, error)
 }
 
-// Keeper is where a sweep's findings are left for the session to read.
+// Keeper is where a sweep's findings are left for the session to read and for
+// a later run to measure against.
 type Keeper interface {
-	ReplaceCandidates(ctx context.Context, at time.Time, found []Candidate) error
+	RecordCandidates(ctx context.Context, at time.Time, found []Candidate) error
+	PurgeCandidates(ctx context.Context, before time.Time) (int64, error)
 }
 
 // pricesPerCall is how many underlyings one price request carries. Measured
@@ -47,6 +49,10 @@ type Sweep struct {
 	Wanted   Wanted
 	Every    time.Duration
 	Record   Keeper
+	// Keep is how long a sweep's findings stay readable after the sweep that
+	// replaced them. They are the only record of what the option book offered,
+	// because the broker publishes no history of two-sided option quotes.
+	Keep time.Duration
 	// PerMinute is the broker's limit on requests. A sweep never exceeds it.
 	PerMinute int
 	// Expirations bounds how far out to look, in days.
@@ -85,6 +91,8 @@ func (s *Sweep) Run(ctx context.Context) error {
 		return fmt.Errorf("the screener needs the broker's rate limit: set SCREENER_PER_MINUTE")
 	case s.Now == nil:
 		return fmt.Errorf("the screener has no clock")
+	case s.Record != nil && s.Keep <= 0:
+		return fmt.Errorf("the screener needs how long to keep what it finds: set SCREENER_KEEP")
 	}
 
 	ticker := time.NewTicker(s.Every)
@@ -122,8 +130,15 @@ func (s *Sweep) once(ctx context.Context) {
 	found, refused := s.look(ctx)
 
 	if s.Record != nil {
-		if err := s.Record.ReplaceCandidates(ctx, started, found); err != nil {
+		if err := s.Record.RecordCandidates(ctx, started, found); err != nil {
 			s.Log.Error("could not write down what the sweep found", zap.Error(err))
+		}
+		// Kept beside the write, because the table grows by a sweep every few
+		// minutes and nothing else would ever shrink it.
+		if gone, err := s.Record.PurgeCandidates(ctx, started.Add(-s.Keep)); err != nil {
+			s.Log.Error("could not drop the sweeps that aged out", zap.Error(err))
+		} else if gone > 0 {
+			s.Log.Info("dropped the sweeps that aged out", zap.Int64("rows", gone))
 		}
 	}
 	// What each filter threw away is logged beside what survived. A sweep that

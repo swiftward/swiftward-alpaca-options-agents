@@ -70,6 +70,20 @@ func main() {
 	}
 }
 
+// whyStopped prefers the error that CANCELLED the run over the error that merely
+// noticed it. The workers start before the last of the startup steps, so one
+// worker refusing its configuration cancels the group and every step after it
+// fails with "context canceled" - which names the victim and buries the cause.
+// Measured 27 August: a screener missing SCREENER_KEEP killed the process in
+// seven milliseconds and reported a database write.
+func whyStopped(ctx context.Context, err error) error {
+	if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, context.Canceled) {
+		return cause
+	}
+
+	return err
+}
+
 // startLimit is how long the whole start may take before the process gives up on
 // itself. Generous: it covers reaching the database, the broker and the agent.
 // A variable rather than a constant so a test can prove the give-up without
@@ -442,7 +456,8 @@ func run(log *zap.Logger) error {
 				MaxCostShare: cfg.ScreenerDearest, MostDelta: cfg.ScreenerMostDelta,
 				LeastEdge: cfg.ScreenerLeastEdge,
 			},
-			Every: cfg.ScreenerEvery, PerMinute: cfg.ScreenerPerMinute,
+			Every: cfg.ScreenerEvery, Keep: cfg.ScreenerKeep,
+			PerMinute:   cfg.ScreenerPerMinute,
 			Workers:     cfg.ScreenerWorkers,
 			Expirations: cfg.ScreenerExpirations,
 			Now:         time.Now, Log: log.Named("screener"),
@@ -489,7 +504,7 @@ func run(log *zap.Logger) error {
 		// A turn open at startup was interrupted by whatever ended the last
 		// process. Saying so is the answer to "did we restart mid-work?".
 		if left, err := state.CloseTurnsLeftOpen(ctx, time.Now()); err != nil {
-			return err
+			return whyStopped(ctx, err)
 		} else if left > 0 {
 			log.Warn("turns were left open by an earlier process", zap.Int("turns", left))
 		}
@@ -497,7 +512,7 @@ func run(log *zap.Logger) error {
 		// A call in flight when a process dies may or may not have reached the
 		// broker. Saying which would be a guess, so the record says unknown.
 		if left, err := state.CloseCallsLeftOpen(ctx, time.Now()); err != nil {
-			return err
+			return whyStopped(ctx, err)
 		} else if left > 0 {
 			log.Warn("tool calls were in flight when an earlier process ended",
 				zap.Int("calls", left))

@@ -1615,7 +1615,6 @@ func TestReachingTheBrokerClearsTheCount(t *testing.T) {
 		"a healthy turn between two quiet ones means the tools are there")
 }
 
-
 // finishedTurns counts the turns the room has been told are done.
 func finishedTurns(chat *chatDouble) int {
 	done := 0
