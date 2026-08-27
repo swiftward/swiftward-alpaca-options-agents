@@ -148,15 +148,24 @@ func (r Refused) note(reason string) { r[reason]++ }
 
 // The reasons, one per place a structure can be dropped.
 const (
-	RefusedNoQuote       = "no two-sided quote"
-	RefusedNoCredit      = "no credit or no risk"
-	RefusedDistance      = "distance from the price"
-	RefusedPaysTooLittle = "pays too little for the risk"
-	RefusedPaysTooMuch   = "pays more than its width, so the quote is broken"
-	RefusedDelta         = "too likely to be crossed"
-	RefusedCost          = "the crossing costs more of the credit than the sanity bound"
-	RefusedEatenByCost   = "the crossing eats the whole credit"
-	RefusedEdge          = "pays less than what it must survive"
+	// RefusedNoAnswer and RefusedTooFewContracts are not the structure's fault
+	// at all - they say the sweep never got to look. They are counted beside the
+	// rest because the tally is what tells a quiet market from a broken path, and
+	// a skip that is neither counted nor logged makes the two identical. Measured
+	// on 27 August: the machine's resolver stopped answering for the gateway,
+	// every chain call failed, the sweep discarded all two hundred and eighty
+	// four names in silence and reported nothing at all.
+	RefusedNoAnswer        = "the broker did not answer"
+	RefusedTooFewContracts = "fewer than two contracts came back"
+	RefusedNoQuote         = "no two-sided quote"
+	RefusedNoCredit        = "no credit or no risk"
+	RefusedDistance        = "distance from the price"
+	RefusedPaysTooLittle   = "pays too little for the risk"
+	RefusedPaysTooMuch     = "pays more than its width, so the quote is broken"
+	RefusedDelta           = "too likely to be crossed"
+	RefusedCost            = "the crossing costs more of the credit than the sanity bound"
+	RefusedEatenByCost     = "the crossing eats the whole credit"
+	RefusedEdge            = "pays less than what it must survive"
 
 	// What the chance of surviving was read from.
 	FromDelta = "delta"

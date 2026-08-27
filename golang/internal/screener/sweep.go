@@ -196,7 +196,12 @@ func (s *Sweep) look(ctx context.Context) ([]Candidate, Refused) {
 				reach := price * s.Wanted.MaxOutOfTheMoney / 100
 				contracts, quotes, err := s.Broker.Chain(ctx, underlying,
 					price-reach, price+reach, s.Now().AddDate(0, 0, s.Expirations), chainMost)
-				if err != nil || len(contracts) < 2 {
+				switch {
+				case err != nil:
+					mine.note(RefusedNoAnswer)
+					continue
+				case len(contracts) < 2:
+					mine.note(RefusedTooFewContracts)
 					continue
 				}
 

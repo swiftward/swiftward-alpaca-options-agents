@@ -117,3 +117,34 @@ func TestWithoutWorkersTheSweepAsksOneAtATime(t *testing.T) {
 	require.Equal(t, 1, broker.most, "unset Workers must mean one at a time")
 	require.Len(t, broker.asked, 3)
 }
+
+// brokenBroker prices fine and then fails every chain call, the way a resolver
+// that has stopped answering looks from inside the sweep.
+type brokenBroker struct{ slowBroker }
+
+func (b *brokenBroker) Chain(context.Context, string, float64, float64,
+	time.Time, int) ([]marketdata.Contract, map[string]marketdata.Quote, error) {
+
+	return nil, nil, fmt.Errorf("the broker did not answer")
+}
+
+// A sweep that got no answers must SAY so. Measured on 27 August: the machine's
+// resolver stopped answering for the gateway, every chain call failed, and the
+// sweep discarded two hundred and eighty four names without a word - the log
+// looked exactly like a quiet market. The tally is the only thing that tells
+// the two apart, so a skip that never reaches it is a skip that lies.
+func TestASweepThatGotNoAnswersSaysSo(t *testing.T) {
+	broker := &brokenBroker{slowBroker{asked: map[string]int{}}}
+	kept := &countingKeeper{}
+	sweep := &Sweep{
+		Broker: broker, Universe: []string{"AAA", "BBB", "CCC"}, Wanted: anything(),
+		Every: time.Minute, Record: kept, PerMinute: 10_000, Expirations: 5, Workers: 3,
+		Now: time.Now, Log: zaptest.NewLogger(t),
+	}
+
+	found, refused := sweep.look(context.Background())
+
+	require.Empty(t, found)
+	require.Equal(t, 3, refused[RefusedNoAnswer],
+		"every name that got no answer is counted, not swallowed")
+}
