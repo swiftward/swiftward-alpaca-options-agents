@@ -52,6 +52,16 @@ The fuse is not enforced by anything but you. Nothing refuses the order if you s
   `fresh` false is no list at all; `fresh` true means use it - and still re-read
   the legs before ordering, because prices move inside a cycle even when the list
   is doing its job.
+- **A candidate that dies on the fresh quote does not end the turn - take the
+  next one.** The list is ranked, and the one at the top is the one whose edge
+  had furthest to fall. Re-read the legs of the best; if it no longer measures
+  up, go to the second, then the third, and stop only when the list runs out or
+  one holds. Refusing the best and going home is how a whole day produces no
+  trades while the list was full.
+  Measured 27 August on the first account: 19 entry windows ran to completion and
+  filled TWO orders. Every refusal read the same - screened +8.03 became -2.41 on
+  the fresh quote, +3.51 became -2.25, +2.87 became +1.40 - and most sessions
+  stopped at the first name instead of asking the second what it paid now.
 - **What to rank on.** `edge_points` from `read_candidates`: how many percentage points the structure pays above what it has to survive. Both halves at once - a delta ceiling keeps what is far and throws away what pays, a credit threshold keeps what pays and ignores how often it loses.
   Crossing the book is already taken out of it, so there is no separate rule about what the round trip costs. `credit_after_cost` beside `credit` shows how much a structure gives up getting in. A structure quoted wide shows a worse `edge_points` on its own; one measured on the displayed midpoint scored seven points better than the cheaper structure that actually earns.
 
