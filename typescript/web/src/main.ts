@@ -84,15 +84,23 @@ type State = { turns: Turn[]; calls: ToolCall[]; intents: Intent[] }
 
 // Same origin by default: the page is served by the read side that answers these
 // routes. A deployment that puts the page elsewhere sets this to that address.
+//
+// The routes below are RELATIVE - `api/money`, not `/api/money` - so the page
+// works wherever it is mounted. The public address has to share a port with
+// something else: a Tailscale funnel is allowed on three ports and all three are
+// taken, so the dashboard hangs off a path. Measured 27 August: the mount prefix
+// is stripped before the request reaches us, in both target forms, so a relative
+// route arrives as the route this server serves and an absolute one would leave
+// the mount entirely.
 const readSide = import.meta.env.VITE_STATE_URL ?? ''
 
 const refreshEvery = 15_000
 
 async function render(): Promise<void> {
   const [money, equity, state] = await Promise.all([
-    read<Money>('/api/money'),
-    read<Snapshot[]>('/api/equity'),
-    read<State>('/api/state'),
+    read<Money>('api/money'),
+    read<Snapshot[]>('api/equity'),
+    read<State>('api/state'),
   ])
 
   if (money.ok) {
