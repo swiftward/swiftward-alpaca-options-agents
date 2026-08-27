@@ -111,7 +111,7 @@ x-agent-environment: &agent-environment
   # there is a record of what was asked for.
   HTTP_PROXY: http://swiftward-hackathon-server:8097
   HTTPS_PROXY: http://swiftward-hackathon-server:8097
-  NO_PROXY: alpaca-mcp,alpaca-mcp-near,envelope,postgres,egress,swiftward-hackathon-server,localhost,127.0.0.1
+  NO_PROXY: alpaca-mcp-agent-1,alpaca-mcp-agent-2,alpaca-mcp-agent-tikhon,envelope,postgres,egress,swiftward-hackathon-server,localhost,127.0.0.1
   CODEX_HOME: /home/agent/.codex
 
 services:
@@ -156,7 +156,7 @@ services:
     working_dir: /src
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DATABASE}?sslmode=disable
-      BROKER_MCP_URL: http://alpaca-mcp:8000/mcp
+      BROKER_MCP_URL: http://alpaca-mcp-agent-1:8000/mcp
       GOFLAGS: -buildvcs=false
       # This network has no route out, so every module must already be in the
       # cache mounted below. A download here is an error, not a wait.
@@ -174,7 +174,7 @@ services:
 
   # Alpaca's own MCP server. The account keys live here and nowhere else; no host
   # port, so the only caller is the policy gateway.
-  alpaca-mcp:
+  alpaca-mcp-agent-1:
     <<: *broker-service
     environment:
       <<: *broker-environment
@@ -183,7 +183,7 @@ services:
 
   # The second account. Its keys are the only thing that differs: one server
   # holds one account's keys, given at startup, so an account needs a server.
-  alpaca-mcp-near:
+  alpaca-mcp-agent-2:
     <<: *broker-service
     environment:
       <<: *broker-environment
@@ -198,8 +198,8 @@ services:
   # server with no keys would answer every call with an authentication error that
   # reads like a broken gateway.
   #
-  #   docker compose --profile tikhon up -d alpaca-mcp-tikhon
-  alpaca-mcp-tikhon:
+  #   docker compose --profile tikhon up -d alpaca-mcp-agent-tikhon
+  alpaca-mcp-agent-tikhon:
     <<: *broker-service
     profiles: [tikhon]
     environment:
@@ -284,7 +284,7 @@ services:
     environment:
       <<: *agent-environment
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
-      BROKER_MCP_URL: ${BROKER_NEAR_MCP_URL:-http://alpaca-mcp-near:8000/mcp}
+      BROKER_MCP_URL: ${BROKER_NEAR_MCP_URL:-http://alpaca-mcp-agent-2:8000/mcp}
       BROKER_MCP_TOKEN: ${BROKER_NEAR_MCP_TOKEN}
       MODEL_GATEWAY_URL: ${MODEL_NEAR_GATEWAY_URL}
       DECLARATION: /agent/experiment-near.yaml
