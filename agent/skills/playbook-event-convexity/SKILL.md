@@ -51,8 +51,13 @@ each side under the envelope's per-position ceiling at the larger size.
 ## Size
 
 `event_bet_share` of equity, and inside whatever the envelope allows. It is the
-whole ticket price and it is expected to burn: money spent here is gone unless the
-number surprises.
+whole ticket price and it is expected to burn - and "expected" here is measured,
+not feared: across 25 reports the median outcome was -32.6% of what was paid, and
+it finished in profit 7 times out of 25. It paid only on large gaps: every one of
+the 15 reports that moved the market less than 0.8% lost.
+
+That is the shape being bought. It is not a good bet on its own arithmetic; it is
+bought because its right tail is uncapped and the rest of this book's is not.
 
 **Watch the per-position ceiling at the larger size.** The envelope caps what ONE
 position may lose, and the whole ticket is that loss. At the larger size the ticket
@@ -70,10 +75,14 @@ and only then send.
 
 Everything closed by `event_exit_by`. Two ways it goes:
 
-- **The gap is smaller than what the position needs to break even**: close at once,
-  in the first minutes. Decay on the day of expiry plus the volatility falling after
-  the number eat what is left within the hour. Waiting for it to come back is how
-  the whole ticket is lost instead of part of it.
+- **The gap is smaller than what the position needs to break even**: close, but
+  NOT in the first minutes. Measured on 25 reports back to February 2024: selling
+  at 9:35 averages -7.4% of what was paid, selling at 10:00 averages +2.0%. The
+  rush costs nine points. Decay and falling volatility do eat the ticket within
+  the hour - that is why there is an outer bound - but the first five minutes are
+  the worst price of the hour, not the best.
+  Do not wait past `event_exit_by` hoping it comes back. That is how the whole
+  ticket is lost instead of part of it.
 - **The gap is there**: sell in pieces as it moves, and be finished by
   `event_exit_by`. Nothing is carried into the afternoon: this position was bought
   for one move and holding it afterwards is a different trade nobody decided on.
