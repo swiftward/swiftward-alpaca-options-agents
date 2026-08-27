@@ -170,9 +170,20 @@ func run(log *zap.Logger) error {
 		line = account.NewPostgres(pool)
 	}
 
-	// Whether this process lays out skills at all. Only the role that starts the
-	// agent does: nothing else reads that directory.
-	laysOutSkills := cfg.Has(config.RoleHarness) && cfg.SkillsDir != "" && cfg.AgentDir != ""
+	// The skills the session reads, kept level with the source this deployment
+	// was given. Only the role that starts the agent lays them out: nothing else
+	// reads that directory.
+	//
+	// The source is READ from and never written to, which is what lets a checkout
+	// be mounted over it: the narrowing a declaration does then still applies,
+	// because this process is the one that copies the chosen skills across. The
+	// alternative - mounting over the directory the session reads - would hand it
+	// every skill in the checkout and make the same declaration behave one way
+	// here and another on a deployment.
+	var layer *skills.Layer
+	if cfg.Has(config.RoleHarness) && cfg.SkillsDir != "" && cfg.AgentDir != "" {
+		layer = &skills.Layer{Source: cfg.SkillsDir, AgentDir: cfg.AgentDir}
+	}
 
 	// The declaration is read here and re-read while the process runs: the harness
 	// wakes sessions by it, and the session reads it to answer when it will be
@@ -193,16 +204,7 @@ func run(log *zap.Logger) error {
 	var declared *declaration.Watcher
 	if cfg.DeclarationPath != "" {
 		declared, err = declaration.Watch(cfg.DeclarationPath, func(d *declaration.Declaration) error {
-			if !laysOutSkills {
-				return nil
-			}
-			laid, err := skills.Lay(cfg.SkillsDir, cfg.AgentDir, d.Skills, d.Parameters)
-			if err != nil {
-				return err
-			}
-			saySkills(log, laid)
-
-			return nil
+			return layTheSkills(log, layer, d.Skills, d.Parameters)
 		})
 		if err != nil {
 			return err
@@ -213,12 +215,10 @@ func run(log *zap.Logger) error {
 	// out - the behaviour this had before a declaration could choose. It is not
 	// skipped: the directory outlives the image, so leaving it untouched would
 	// leave a session reading whatever an older image put there.
-	if laysOutSkills && declared == nil {
-		laid, err := skills.Lay(cfg.SkillsDir, cfg.AgentDir, nil, nil)
-		if err != nil {
+	if layer != nil && declared == nil {
+		if err := layTheSkills(log, layer, nil, nil); err != nil {
 			return err
 		}
-		saySkills(log, laid)
 	}
 
 	// One broker connection serves whichever roles this process runs: the read
@@ -482,7 +482,25 @@ func run(log *zap.Logger) error {
 		}
 		if declared != nil {
 			h.Declaration = declared.Current()
-			h.Reread = declared.Reread
+			// One tick, both files. The declaration is re-read, and the skills are
+			// brought level with what the source holds now - a session opens
+			// SKILL.md while it works, so editing the text of a technique reaches a
+			// session already running rather than waiting for a restart.
+			//
+			// Laying them is also what puts a declaration in force, so the two
+			// cannot come apart: the watcher does it for a changed declaration, and
+			// this does it for a changed skill under an unchanged one.
+			h.Reread = func() (*declaration.Declaration, error) {
+				current, err := declared.Reread()
+				if err != nil {
+					return current, err
+				}
+				if err := layTheSkills(log, layer, current.Skills, current.Parameters); err != nil {
+					return current, err
+				}
+
+				return current, nil
+			}
 		}
 
 		// The agent is held open for the whole run: that is what lets a person
@@ -549,15 +567,26 @@ func serve(ctx context.Context, addr string, handler http.Handler, log *zap.Logg
 
 const shutdownGrace = 5 * time.Second
 
-// saySkills writes down what the session will be able to read, and how it got
-// there. A mounted directory is worth its own line: nothing was written to it,
-// and what is in it is more than the declaration named.
-func saySkills(log *zap.Logger, laid skills.Laid) {
-	if laid.Mounted {
-		log.Info("the skills directory is mounted from outside and was left as it is",
-			zap.String("dir", laid.Dir), zap.Strings("named", laid.Names))
-		return
+// layTheSkills makes the directory the agent reads hold what the declaration
+// named, and says so when that changed anything. A pass that found nothing moved
+// is silent: this runs once a minute, and a line a minute saying "still the same
+// two skills" would bury the one that matters.
+//
+// A nil layer is a process that lays out no skills - every role but the one that
+// starts the agent.
+func layTheSkills(log *zap.Logger, layer *skills.Layer, wanted []string, given map[string]string) error {
+	if layer == nil {
+		return nil
 	}
-	log.Info("skills laid out for the agent",
-		zap.String("dir", laid.Dir), zap.Strings("skills", laid.Names))
+
+	laid, err := layer.Lay(wanted, given)
+	if err != nil {
+		return err
+	}
+	if laid.Changed {
+		log.Info("skills laid out for the agent",
+			zap.String("dir", laid.Dir), zap.Strings("skills", laid.Names))
+	}
+
+	return nil
 }

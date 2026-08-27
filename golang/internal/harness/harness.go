@@ -24,10 +24,12 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
 
-// clockTick is how often the schedule is asked whether anything is due. The
+// clockTick is how often the schedule is asked whether anything is due, and how
+// often what the session reads is brought level with what is on disk. The
 // declaration speaks in minutes, so asking more often would only repeat the same
-// question.
-const clockTick = time.Minute
+// question. A variable rather than a constant so a test can prove that an edit
+// reaches a running harness without standing there for a minute.
+var clockTick = time.Minute
 
 // turnWatch is how often the running turn is measured against its limit. The
 // check reads one field under a lock, so it costs nothing to do often.
@@ -126,9 +128,10 @@ type Harness struct {
 	statusID    int
 	turnFor     string
 	turnStarted time.Time
-	// declared is the schedule in force. It is read and replaced by the clock
-	// alone, so it needs no lock of its own; everything else that wants it - the
-	// session's own read_schedule - asks the watcher rather than the harness.
+	// declared is the schedule in force. The clock is the only thing that replaces
+	// it; the lock is here because it is also read from outside that goroutine.
+	// Everything else that wants the schedule - the session's own read_schedule -
+	// asks the watcher rather than the harness.
 	declared *declaration.Declaration
 	lastRun  map[string]time.Time
 	// refusedInterrupts counts how many times in a row the agent has refused to
@@ -152,8 +155,10 @@ func (h *Harness) Run(ctx context.Context) error {
 	if h.Now == nil {
 		return fmt.Errorf("the harness has no clock")
 	}
+	h.mu.Lock()
 	h.declared = h.Declaration
-	h.lastRun = h.whatAlreadyRanToday(ctx, h.declared)
+	h.mu.Unlock()
+	h.lastRun = h.whatAlreadyRanToday(ctx, h.Declaration)
 
 	// Followed whether or not anybody is watching the chat: this is the loop that
 	// closes a turn in the record, and the record is read long after the room.
@@ -279,11 +284,13 @@ func (h *Harness) rereadTheDeclaration(ctx context.Context) {
 			zap.Error(err))
 		return
 	}
-	if fresh == h.declared {
+	if fresh == h.inForce() {
 		return
 	}
 
+	h.mu.Lock()
 	h.declared = fresh
+	h.mu.Unlock()
 	for name, at := range h.whatAlreadyRanToday(ctx, fresh) {
 		if _, known := h.lastRun[name]; !known {
 			h.lastRun[name] = at
@@ -432,14 +439,25 @@ func (h *Harness) Tell(ctx context.Context, prompt, who string) {
 	h.startTurnWith(ctx, prompt, who, "")
 }
 
+// inForce is the declaration the clock is waking by right now. It is read under
+// the lock because a test watches it from outside the clock's own goroutine;
+// the clock itself is the only writer.
+func (h *Harness) inForce() *declaration.Declaration {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.declared
+}
+
 func (h *Harness) fireDue(ctx context.Context) {
-	if h.declared == nil {
+	declared := h.inForce()
+	if declared == nil {
 		return
 	}
-	now := h.Now().In(h.declared.Location())
+	now := h.Now().In(declared.Location())
 
-	for i := range h.declared.Sessions {
-		session := &h.declared.Sessions[i]
+	for i := range declared.Sessions {
+		session := &declared.Sessions[i]
 		if !session.Due(now, h.lastRun[session.Name]) {
 			continue
 		}

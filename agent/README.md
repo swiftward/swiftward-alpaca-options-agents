@@ -10,13 +10,15 @@ Where its orders go is not decided here either. Today the session reaches the br
 
 Which of them an agent gets is its declaration's to say, under `skills:`, by the name in the skill's own front matter. The set is worth narrowing because the description of every skill an agent carries goes into the prompt of every turn, so an agent should carry its own and nobody else's. It is a property of the agent rather than of a session: the agent reads its skills directory once when it starts, and one process serves every session, so there is no directory to narrow for a single window. Which technique a session uses is still chosen the way it always was - the task asks for it by name.
 
-Putting them in place is part of putting a declaration in force, not a step beside it: `/work/.agents/skills/` - the directory the agent reads inside the one it works in - is replaced with the skills the declaration named, and a declaration whose skills cannot be laid out never goes into force. Replaces, not merges: `/work` outlives the image, so a skill deleted here has to disappear from the session too. A name nothing answers to is a failure to start, not a session quietly missing an instruction.
+Putting them in place is part of putting a declaration in force, not a step beside it: `/work/.agents/skills/` - the directory the agent reads inside the one it works in - is made to hold exactly the skills the declaration named, and a declaration whose skills cannot be laid out never goes into force. Replaced whole, not merged into: `/work` outlives the image, so a skill deleted here has to disappear from the session too. A name nothing answers to is a failure to start, not a session quietly missing an instruction.
 
-Because the declaration is re-read while the process runs, this happens again on every edit that is accepted. That is what keeps the two from drifting: a declaration that stops naming a skill would otherwise leave it sitting in the directory the session reads, invocable with none of the numbers it needs.
+### An edit while a session runs
 
-**Unless something is mounted there.** Mount a checkout over that directory - or over a single skill inside it, or over the directory above it - and the process leaves the tree alone, because the files in it are not its to delete. That is worth doing while a skill is being written: the session reads `SKILL.md` from disk as it works, so an edit reaches a session already running - no rebuild, no restart. The local stack in `compose.yaml` mounts it read-only for exactly that.
+The clock asks once a minute, and the same tick that re-reads the declaration brings that directory level with what the source holds now. A session opens `SKILL.md` while it works, so **editing the text of a technique reaches a session that is already running** - no image rebuilt, no process restarted. A pass that finds nothing moved writes nothing: the set is fingerprinted by its contents, not by a modification time.
 
-Then the declaration's `skills:` no longer narrows anything - what is mounted is what the session can reach - so **every** skill in the mounted tree is checked, not only the ones named. A skill added to the checkout and left out of `skills:` still has to have its numbers.
+The way in is to mount a checkout over the directory the skills are **read from**, and to say so with `SKILLS_DIR`. The local stack in `compose.yaml` mounts `./agent/skills` at `/mnt/skills`, read-only, and points `SKILLS_DIR` at it.
+
+Mounting over `/work/.agents/skills` instead - the directory the session reads - is refused, and the refusal says this. It would hand the session every skill in the checkout rather than the ones its declaration named, so the same declaration would behave one way on a developer machine and another on a deployment; and with two agents on one checkout, neither would get what it asked for. Tuning is done locally, so local has to be what ships.
 
 ### Numbers
 

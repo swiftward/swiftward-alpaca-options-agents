@@ -1279,3 +1279,67 @@ func write(t *testing.T, body string) string {
 
 	return path
 }
+
+// The clock is what carries an edit to a running session. Nothing here restarts:
+// the harness is started once, the thing behind Reread changes underneath it,
+// and the next tick has to pick it up.
+//
+// This is the half of "an edit reaches a session already running" that lives in
+// the harness. The other half - that the edit is a skill's text and that the
+// directory the agent reads is rebuilt from it - is proven in internal/skills.
+func TestARunningHarnessPicksUpAChangeWithoutARestart(t *testing.T) {
+	// The real tick is a minute, which is right for a schedule written in minutes
+	// and wrong for standing here waiting for one.
+	clockTick = 20 * time.Millisecond
+	t.Cleanup(func() { clockTick = time.Minute })
+
+	body := `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: entry
+    cause: "окно входа"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+`
+	before, err := declaration.Load(write(t, body))
+	require.NoError(t, err)
+	after, err := declaration.Load(write(t, body+"    days: [mon, tue]\n"))
+	require.NoError(t, err)
+
+	var mu sync.Mutex
+	current, asked := before, 0
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: conversation, Declaration: before, Record: record.NewMemory(),
+		CallTimeout: 2 * time.Second,
+		// Saturday: nothing is due, so this test measures the re-reading and
+		// nothing else.
+		Now: func() time.Time { return time.Date(2026, 8, 29, 14, 40, 0, 0, time.UTC) },
+		Log: zaptest.NewLogger(t),
+		Reread: func() (*declaration.Declaration, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			asked++
+
+			return current, nil
+		},
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { mu.Lock(); defer mu.Unlock(); return asked > 0 })
+
+	// What is on disk changes while the process runs. Nothing is restarted.
+	mu.Lock()
+	current = after
+	mu.Unlock()
+
+	waitFor(t, func() bool { return h.inForce() == after })
+	assert.Equal(t, []string{"mon", "tue"}, h.inForce().Sessions[0].Days,
+		"the schedule in force is the edited one")
+}
