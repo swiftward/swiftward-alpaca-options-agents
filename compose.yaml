@@ -235,7 +235,12 @@ services:
       # The read side asks the broker what the account is worth. It only reads:
       # the money questions have no order in them - and it carries a credential
       # that CANNOT send one, so a leak here is not a trade.
-      BROKER_MCP_URL: ${BROKER_MCP_URL}
+      #
+      # That last guarantee is the GATEWAY's, not this service's: the credential
+      # is refused an order because the gateway refuses it. Pointed at the
+      # broker's own server the same page could send one, so this address is its
+      # own variable and does not follow the harness off the gateway.
+      BROKER_MCP_URL: ${PAGE_MCP_URL}
       BROKER_MCP_TOKEN: ${PAGE_MCP_TOKEN}
       ORDERS_SHOWN: ${ORDERS_SHOWN}
       HISTORY_DAYS: ${HISTORY_DAYS}
