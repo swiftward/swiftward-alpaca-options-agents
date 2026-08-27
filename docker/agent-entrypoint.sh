@@ -77,8 +77,11 @@ fi
         if [ -n "${BROKER_MCP_TOKEN}" ]; then
             echo "bearer_token_env_var = \"BROKER_MCP_TOKEN\""
         fi
-        # The person the agent acts for, in the same header the model gateway
-        # reads. Bearer above says WHO is calling; this says who it calls FOR.
+        # The person this agent acts for. `bearer_token_env_var` above is the
+        # machine; this is who it works on behalf of, and the gateway records
+        # both. Where a gateway DECLARES a user source, sending it is not
+        # optional: a call arriving without one resolves no grants and is offered
+        # no tools at all.
         if [ -n "${USER_TOKEN}" ]; then
             echo "env_http_headers = { \"X-Swiftward-User\" = \"USER_TOKEN\" }"
         fi
