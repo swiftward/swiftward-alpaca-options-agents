@@ -23,6 +23,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 )
@@ -224,6 +225,11 @@ type Laid struct {
 	// same as last time and nothing was written. Most passes are like that: the
 	// clock asks once a minute and a skill is edited a few times a week.
 	Changed bool
+	// Adopted is true when the directory was already holding, byte for byte, what
+	// this pass would have put there, and all that was written was the mark
+	// saying so. Nothing was deleted. It is worth saying out loud, because the
+	// directory was one this process had no other proof of having written.
+	Adopted bool
 }
 
 // Layer keeps the directory the agent reads equal to the skills a declaration
@@ -253,6 +259,12 @@ type Layer struct {
 	// Source is where the skills come from, and AgentDir is the directory the
 	// session works in.
 	Source, AgentDir string
+
+	// one pass at a time. The clock calls this, and so does whatever puts the
+	// first declaration in force; two of them at once would be renaming the same
+	// directories out from under each other, and the loser would leave the
+	// session with a directory that is half of one set and half of another.
+	one sync.Mutex
 }
 
 // Lay makes the directory the agent reads hold exactly the skills wanted, with
@@ -264,6 +276,9 @@ type Layer struct {
 // number one requires, leaves the session with the skills it had rather than
 // with none.
 func (l *Layer) Lay(wanted []string, given map[string]string) (Laid, error) {
+	l.one.Lock()
+	defer l.one.Unlock()
+
 	target := filepath.Join(l.AgentDir, skillsUnder)
 
 	// Mounting over the target is the one arrangement this refuses, and it is
@@ -272,12 +287,18 @@ func (l *Layer) Lay(wanted []string, given map[string]string) (Laid, error) {
 	// declaration named - so the same declaration would behave one way on a
 	// developer machine and another on a deployment. That is the class of
 	// difference that is found at the worst possible moment.
-	if err := refuseAMountedTarget(l.AgentDir, target); err != nil {
-		return Laid{}, err
+	// All three directories this rebuild touches, not only the one the session
+	// reads: the other two are deleted outright on every pass, and a checkout
+	// mounted at either of them would go with them.
+	for _, dir := range []string{target, filepath.Join(l.AgentDir, building), filepath.Join(l.AgentDir, retiring)} {
+		if err := refuseAMountedTarget(l.AgentDir, dir); err != nil {
+			return Laid{}, err
+		}
 	}
 	// The second line, and the one that does not depend on a mount table being
 	// there to read: nothing is deleted that this process cannot prove it wrote.
-	marked, err := mayReplace(target)
+	// What the proof means is settled below, once the contents are known.
+	marked, err := ourMark(target)
 	if err != nil {
 		return Laid{}, err
 	}
@@ -321,48 +342,88 @@ func (l *Layer) Lay(wanted []string, given map[string]string) (Laid, error) {
 		return Laid{Dir: target, Names: names, Changed: false}, nil
 	}
 
-	if err := writeInto(l.AgentDir, target, chosen, want); err != nil {
+	// Something has to be written, so the question of whose directory this is has
+	// to be answered now.
+	if err := mayReplace(target, marked, want, have); err != nil {
 		return Laid{}, err
 	}
 
-	return Laid{Dir: target, Names: names, Changed: true}, nil
+	adopted := marked != want && have == want
+	if err := writeInto(l.AgentDir, target, want, marked, have, chosen); err != nil {
+		return Laid{}, err
+	}
+
+	return Laid{Dir: target, Names: names, Changed: true, Adopted: adopted}, nil
 }
 
-// mayReplace decides whether the directory may be deleted, and returns the
-// fingerprint the mark inside it carries.
+// ourMark reads the fingerprint this process left in the directory, or an empty
+// string when there is none to read.
 //
-// The rule is ownership, not appearance: a directory that is there and carries
-// no mark was put there by something else, and this process does not delete it -
-// whatever the mount table says, or fails to say. The mount table is the better
-// error message where it can be read, and this is the answer where it cannot:
-// on a machine with no /proc, "nothing is mounted" is a guess, and a guess in
-// favour of deleting somebody's files is not one to make.
-//
-// A directory that is not there yet is free to create; the mark it gets is what
-// makes every pass after the first one able to replace it.
-func mayReplace(target string) (string, error) {
+// What proves ownership is a fingerprint, not a file name. An empty mark, or one
+// holding something this never wrote, proves nothing - and an empty file is easy
+// to end up with, which is exactly when a rule that read only the name would
+// hand over somebody else's directory.
+func ourMark(target string) (string, error) {
 	mark, err := os.ReadFile(filepath.Join(target, laidMark))
-	if err == nil {
-		return strings.TrimSpace(string(mark)), nil
-	}
-	if !os.IsNotExist(err) {
-		return "", fmt.Errorf("read %s: %w", filepath.Join(target, laidMark), err)
-	}
-
-	// No mark. Either the directory is not there at all, which is fine, or it is
-	// there and belongs to somebody else.
-	if _, err := os.Stat(target); err != nil {
+	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil
 		}
-		return "", fmt.Errorf("look at %s: %w", target, err)
+		return "", fmt.Errorf("read %s: %w", filepath.Join(target, laidMark), err)
+	}
+	if stamp := strings.TrimSpace(string(mark)); isFingerprint(stamp) {
+		return stamp, nil
 	}
 
-	return "", fmt.Errorf("%s is there but carries no %s, so this process did not write it and will not delete it. "+
+	return "", nil
+}
+
+// mayReplace says whether this process is entitled to write over the directory.
+//
+// The rule is ownership, not appearance: a directory that is there and carries
+// no fingerprint of ours was put there by something else, and this process does
+// not delete it - whatever the mount table says, or fails to say. The mount
+// table is the better error message where it can be read, and this is the answer
+// where it cannot: on a machine with no /proc, "nothing is mounted" is a guess,
+// and a guess in favour of deleting somebody's files is not one to make.
+//
+// Two things count as proof. A fingerprint we wrote is the ordinary one. The
+// other is the contents themselves: when the directory already holds, byte for
+// byte, what this pass would put there, then whoever wrote it wrote what we
+// would have written, and restoring our own note about it deletes nothing. That
+// second case is what keeps a lost mark - the session works in that directory
+// and can write - from refusing every pass for the rest of an unattended week.
+//
+// A directory that is not there yet is free to create; the mark it gets is what
+// makes every pass after the first one able to replace it.
+func mayReplace(target, marked, want, have string) error {
+	if marked != "" || have == want {
+		return nil
+	}
+	if _, err := os.Stat(target); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("look at %s: %w", target, err)
+	}
+
+	return fmt.Errorf("%s is there but carries no fingerprint in %s, so this process did not write it and will not delete it. "+
 		"Two things look like this. It was laid by an older version of this image, which copied the skills from the entrypoint - "+
-		"then remove that directory once and start again, and it is rebuilt from SKILLS_DIR on the next start. "+
+		"then remove that directory ONCE and start again, and it is rebuilt from SKILLS_DIR. It lives in this container's work "+
+		"volume, so removing it takes a one-off container of its own; agent/README.md carries the command. "+
 		"Or a directory was mounted there - mount it at SKILLS_DIR instead, so the declaration's choice of skills still applies",
 		target, laidMark)
+}
+
+// isFingerprint says whether a mark holds something this process could have
+// written: the shape hashOf produces, and nothing else.
+func isFingerprint(stamp string) bool {
+	if len(stamp) != sha256.Size*2 {
+		return false
+	}
+	_, err := hex.DecodeString(stamp)
+
+	return err == nil
 }
 
 // writeInto builds the set beside the one in use and swaps it in by renaming,
@@ -373,7 +434,21 @@ func mayReplace(target string) (string, error) {
 // long as the copy takes, and would leave it missing for good if the copy failed
 // halfway. Two renames inside one directory cost the same either way, and
 // between them the old set is still on disk to be put back.
-func writeInto(agentDir, target string, chosen []Skill, stamp string) error {
+func writeInto(agentDir, target, stamp, marked, have string, chosen []Skill) error {
+	// The one thing in that directory that does not repair itself is this
+	// process's own proof of having written it: lose the mark and every later
+	// pass refuses, for the rest of an unattended week. The session works in
+	// there and can write, so losing it is not far-fetched.
+	//
+	// It repairs safely in the one case where nothing has to be deleted to do it:
+	// the directory already holds, byte for byte, what this pass would put there.
+	// Then writing the mark back changes nothing else and risks nothing - and if
+	// the directory is not ours to write to, the write fails and the refusal
+	// stands.
+	if marked != stamp && have == stamp {
+		return writeMark(filepath.Join(target, laidMark), stamp)
+	}
+
 	next := filepath.Join(agentDir, building)
 	previous := filepath.Join(agentDir, retiring)
 	if err := os.RemoveAll(next); err != nil {
@@ -393,12 +468,16 @@ func writeInto(agentDir, target string, chosen []Skill, stamp string) error {
 		}
 	}
 
-	// The mark goes in before the swap, so the directory is never in place
-	// without the thing that says it may be replaced. A pass that died between
-	// the two would leave a directory this process could not touch again.
-	mark := filepath.Join(next, laidMark)
-	if err := os.WriteFile(mark, []byte(stamp+"\n"), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", mark, err)
+	// The mark goes in before the swap, and is on the disk before it: the
+	// directory must never be in place without the thing that says it may be
+	// replaced. A process that died between the two would be recoverable, but a
+	// MACHINE that died could leave the rename durable and the mark's bytes not -
+	// and this stack is written for a host that reboots at three in the morning.
+	if err := writeMark(filepath.Join(next, laidMark), stamp); err != nil {
+		return err
+	}
+	if err := syncDir(next); err != nil {
+		return err
 	}
 
 	if err := os.RemoveAll(previous); err != nil {
@@ -430,6 +509,41 @@ func writeInto(agentDir, target string, chosen []Skill, stamp string) error {
 	}
 
 	return nil
+}
+
+// writeMark writes this process's proof of having laid a set, and waits for the
+// disk to say so. Everything else in the directory can be rebuilt from the
+// source; this cannot be rebuilt from anything.
+func writeMark(path, stamp string) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	if _, err := file.WriteString(stamp + "\n"); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	if err := file.Sync(); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+
+	return file.Close()
+}
+
+// syncDir makes the names in a directory durable, so a rename cannot outlive the
+// file it was supposed to carry.
+func syncDir(path string) error {
+	dir, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open %s: %w", path, err)
+	}
+	if err := dir.Sync(); err != nil {
+		_ = dir.Close()
+		return fmt.Errorf("sync %s: %w", path, err)
+	}
+
+	return dir.Close()
 }
 
 // tree is one skill's directory as it will sit under the target: the name it
@@ -541,14 +655,14 @@ func hashOf(files []named) string {
 // Where there is no /proc - a developer's machine, a test - nothing is mounted
 // as far as this can tell, which is the answer that writes only into what this
 // process itself put there.
-func refuseAMountedTarget(agentDir, target string) error {
-	mounted, err := mountsInTree(agentDir, target)
+func refuseAMountedTarget(agentDir, path string) error {
+	mounted, err := mountsInTree(agentDir, path)
 	if err != nil {
 		return err
 	}
 	if mounted {
 		return fmt.Errorf("something is mounted at or around %s, and this process rebuilds that directory: "+
-			"mount the checkout where the skills are READ from instead (SKILLS_DIR), so the declaration's choice of skills still applies", target)
+			"mount the checkout where the skills are READ from instead (SKILLS_DIR), so the declaration's choice of skills still applies", path)
 	}
 
 	return nil

@@ -1399,3 +1399,56 @@ sessions:
 		assert.Contains(t, turns[0], "short_leg_delta = 0,15 по модулю")
 	}
 }
+
+// The record answers "why did this turn happen" long after the room has
+// scrolled away, so the cause it files is the window, the wake-up or the message
+// - never the fixed sentence the agent's numbers open with. The older guard
+// missed this because its declaration carried no parameters at all.
+func TestTheRecordedCauseIsWhatWokeTheSessionNotTheNumbers(t *testing.T) {
+	declared, err := declaration.Load(write(t, `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+parameters:
+  short_leg_delta: "0,15 по модулю"
+sessions:
+  - name: flatten
+    cause: "закрыть всё перед концом дня"
+    task: "Закрой все позиции."
+    at: "15:50"
+    within: 20m
+`))
+	require.NoError(t, err)
+
+	kept := record.NewMemory()
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: conversation, Declaration: declared, Record: kept,
+		CallTimeout: 2 * time.Second, TickEvery: 20 * time.Millisecond,
+		Now: func() time.Time { return time.Date(2026, 8, 24, 15, 50, 0, 0, time.UTC) },
+		Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+	waitFor(t, func() bool {
+		state, err := kept.Read(ctx)
+
+		return err == nil && len(state.Turns) == 1
+	})
+
+	state, err := kept.Read(ctx)
+	require.NoError(t, err)
+	require.Len(t, state.Turns, 1)
+	assert.Equal(t, "flatten", state.Turns[0].WokenBy)
+	assert.Contains(t, state.Turns[0].Cause, "закрыть всё перед концом дня")
+	assert.NotContains(t, state.Turns[0].Cause, "Numbers this agent runs on")
+
+	// And the numbers did reach the session - the cause is trimmed, not the
+	// prompt.
+	turns, _, _ := conversation.seen()
+	assert.Contains(t, turns[0], "short_leg_delta = 0,15 по модулю")
+}

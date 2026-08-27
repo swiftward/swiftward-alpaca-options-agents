@@ -212,12 +212,17 @@ func run(log *zap.Logger) error {
 	}
 
 	// With no declaration to name them, every skill this image carries is laid
-	// out - the behaviour this had before a declaration could choose. It is not
-	// skipped: the directory outlives the image, so leaving it untouched would
-	// leave a session reading whatever an older image put there.
+	// out. It is not skipped: the directory outlives the image, so leaving it
+	// untouched would leave a session reading whatever an older image put there.
+	//
+	// A skill that needs numbers cannot be laid out this way, and that is a
+	// refusal rather than a skill handed over without them - the skill itself
+	// tells a session that finds its numbers missing to open nothing. The numbers
+	// live in a declaration, so the way out is to name one.
 	if layer != nil && declared == nil {
 		if err := layTheSkills(log, layer, nil, nil); err != nil {
-			return err
+			return fmt.Errorf("%w - and this process was started without DECLARATION, "+
+				"so there is nothing here that could give it: name a declaration, or point SKILLS_DIR at skills that need no numbers", err)
 		}
 	}
 
@@ -588,6 +593,17 @@ func layTheSkills(log *zap.Logger, layer *skills.Layer, wanted []string, given m
 		return err
 	}
 	if !laid.Changed {
+		return nil
+	}
+	if laid.Adopted {
+		// Nothing was deleted: the directory already held exactly this set, and
+		// only the note saying who laid it was written. Said out loud because it
+		// is the one case where a directory this process had no proof of writing
+		// becomes one it may rebuild - which is what an existing deployment meets
+		// on its first start after the skills stopped being copied by the
+		// entrypoint.
+		log.Info("the skills directory already held exactly this set and was adopted rather than rebuilt",
+			zap.String("dir", laid.Dir), zap.Strings("skills", laid.Names))
 		return nil
 	}
 	if len(laid.Names) == 0 {

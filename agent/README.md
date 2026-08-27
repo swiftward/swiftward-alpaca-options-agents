@@ -26,7 +26,18 @@ That directory is rebuilt, which means deleted, and the only thing that entitles
 
 The mark rather than the look of the contents, because a copy that looks like ours may not be ours. The mark rather than the mount table, because the mount table is not always there to read - on a machine without `/proc` "nothing is mounted" is a guess, and a guess in favour of deleting somebody's files is not one to make. The mount table is still read where it can be: it gives the more exact reason when a mount is what happened.
 
-**One-time step on a deployment that predates this.** The work volume outlives the image, so it already holds a `/work/.agents/skills` copied by the entrypoint of an older version, with no mark in it. The agent refuses to start and names the directory. Remove it once; the next start builds it from `SKILLS_DIR`. Nothing is deleted on the operator's behalf without being asked, which is the point of the rule.
+There is a second way to prove it, and it exists so that losing the mark cannot cost a week: when the directory already holds, byte for byte, what this pass would put there, whoever wrote it wrote what we would have written. Then the mark is written back, **nothing is deleted**, and the log says the directory was adopted rather than rebuilt. Contents that are anything else prove nothing about who put them there, and the refusal stands.
+
+**A deployment that predates this** meets one of those two. Its work volume outlives the image, so it already holds a `/work/.agents/skills` copied by the entrypoint of an older version, with no mark in it. If that copy is exactly what its declaration names, it is adopted on the first start and there is nothing to do. If it is not - the declaration narrows to fewer skills than the image carried, say - the agent refuses to start and names the directory. It lives in a named volume, so removing it takes a container of its own; the stack is down anyway, since the agent is the thing that will not start:
+
+```
+docker compose --env-file .env down
+docker run --rm -v swiftward-alpaca-options-agents_agent-work:/work alpine rm -rf /work/.agents/skills
+docker run --rm -v swiftward-alpaca-options-agents_agent-near-work:/work alpine rm -rf /work/.agents/skills
+docker compose --env-file .env up -d
+```
+
+The next start builds it from `SKILLS_DIR`. Nothing is deleted on the operator's behalf without being asked, which is the point of the rule.
 
 ### Numbers
 

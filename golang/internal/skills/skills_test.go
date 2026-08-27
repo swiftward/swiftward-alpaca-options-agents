@@ -22,14 +22,14 @@ func put(t *testing.T, source, dir, front, body string) {
 }
 
 // laidEarlier marks a directory as one this process built, the way a previous
-// pass would have. The fingerprint in it is deliberately not the current one:
-// these tests are about a set that has since moved on.
+// pass would have. The fingerprint in it is a real one in shape and deliberately
+// not the current one: these tests are about a set that has since moved on.
 func laidEarlier(t *testing.T, target string) {
 	t.Helper()
 
 	require.NoError(t, os.MkdirAll(target, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(target, ".laid-by-the-agent"),
-		[]byte("a fingerprint from an earlier set\n"), 0o600))
+		[]byte(strings.Repeat("a1", 32)+"\n"), 0o600))
 }
 
 func TestReadTakesTheNameFromTheFrontMatter(t *testing.T) {
@@ -496,7 +496,7 @@ func TestADirectoryThisProcessDidNotWriteIsNotDeleted(t *testing.T) {
 	// container that will not start.
 	assert.Contains(t, err.Error(), target)
 	assert.Contains(t, err.Error(), ".laid-by-the-agent")
-	assert.Contains(t, err.Error(), "remove that directory once")
+	assert.Contains(t, err.Error(), "remove that directory ONCE")
 	assert.Contains(t, err.Error(), "SKILLS_DIR")
 
 	// And nothing of theirs was touched on the way to refusing.
@@ -552,23 +552,6 @@ func TestOwnershipSurvivesARestart(t *testing.T) {
 	assert.False(t, again.Changed, "the directory this process wrote before is still its own, and still current")
 }
 
-// Deleting the mark is deleting the proof. The directory then belongs to nobody
-// this process can speak for, and it says so rather than rebuilding over it.
-func TestAMarkThatIsGoneTakesTheDirectoryWithIt(t *testing.T) {
-	source, work := t.TempDir(), t.TempDir()
-	put(t, source, "harvest", "name: playbook-premium-harvest", "Sell a spread.")
-
-	layer := &Layer{Source: source, AgentDir: work}
-	laid, err := layer.Lay(nil, nil)
-	require.NoError(t, err)
-
-	require.NoError(t, os.Remove(filepath.Join(laid.Dir, ".laid-by-the-agent")))
-
-	_, err = layer.Lay(nil, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), ".laid-by-the-agent")
-}
-
 // The mark is this process's note about the directory, not part of what it
 // holds: hashing it would make the fingerprint depend on itself, and a session
 // must never be offered it as a skill.
@@ -599,4 +582,150 @@ func TestTheMarkIsNeitherASkillNorPartOfTheFingerprint(t *testing.T) {
 	again, err := layer.Lay(nil, nil)
 	require.NoError(t, err)
 	assert.False(t, again.Changed)
+}
+
+// The mark proves ownership by what is IN it, not by its name. An empty file is
+// easy to end up with, and a rule that read only the name would hand somebody
+// else's directory over on the strength of one.
+func TestAMarkWithNoFingerprintInItProvesNothing(t *testing.T) {
+	source, work := t.TempDir(), t.TempDir()
+	put(t, source, "harvest", "name: playbook-premium-harvest", "from the source")
+
+	target := filepath.Join(work, ".agents", "skills")
+	put(t, target, "theirs", "name: playbook-theirs", "somebody else's")
+
+	layer := &Layer{Source: source, AgentDir: work}
+	for _, content := range []string{"", "   \n", "not a fingerprint", strings.Repeat("a1", 31)} {
+		require.NoError(t, os.WriteFile(filepath.Join(target, ".laid-by-the-agent"), []byte(content), 0o600))
+
+		_, err := layer.Lay(nil, nil)
+		require.Error(t, err, "mark content %q", content)
+		assert.Contains(t, err.Error(), "carries no fingerprint")
+
+		_, statErr := os.Stat(filepath.Join(target, "theirs", "SKILL.md"))
+		assert.NoError(t, statErr, "nothing of theirs is deleted on the strength of a file name")
+	}
+}
+
+// The mark is the one thing in that directory that cannot be rebuilt from the
+// source, and the session works in there and can write. Losing it must not brick
+// the agent for the rest of an unattended week - so it is restored in the one
+// case where nothing has to be deleted to do it: the contents are already, byte
+// for byte, what this pass would lay.
+func TestALostMarkIsRestoredWhenTheContentsProveIt(t *testing.T) {
+	source, work := t.TempDir(), t.TempDir()
+	put(t, source, "harvest", "name: playbook-premium-harvest", "Sell a spread.")
+
+	layer := &Layer{Source: source, AgentDir: work}
+	laid, err := layer.Lay(nil, nil)
+	require.NoError(t, err)
+
+	mark := filepath.Join(laid.Dir, ".laid-by-the-agent")
+	require.NoError(t, os.Remove(mark))
+
+	restored, err := layer.Lay(nil, nil)
+	require.NoError(t, err, "a directory whose contents are ours is not bricked by losing the note that says so")
+	assert.True(t, restored.Changed)
+	assert.True(t, restored.Adopted, "nothing was deleted: only the note was written back")
+
+	_, err = os.Stat(mark)
+	assert.NoError(t, err)
+
+	// And the pass after it has nothing left to do.
+	again, err := layer.Lay(nil, nil)
+	require.NoError(t, err)
+	assert.False(t, again.Changed)
+}
+
+// The repair is narrow on purpose. Contents that are NOT what this pass would
+// lay prove nothing about who put them there, so the refusal stands and nothing
+// of theirs is deleted.
+func TestALostMarkOverForeignContentsStillRefuses(t *testing.T) {
+	source, work := t.TempDir(), t.TempDir()
+	put(t, source, "harvest", "name: playbook-premium-harvest", "from the source")
+
+	target := filepath.Join(work, ".agents", "skills")
+	put(t, target, "harvest", "name: playbook-premium-harvest", "somebody else's text")
+
+	layer := &Layer{Source: source, AgentDir: work}
+	_, err := layer.Lay(nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "carries no fingerprint")
+
+	body, err := os.ReadFile(filepath.Join(target, "harvest", "SKILL.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "somebody else's text")
+}
+
+// The two scratch directories are deleted outright on every pass, so a checkout
+// mounted at either of them would go with them.
+func TestAMountAtAScratchDirectoryIsRefusedToo(t *testing.T) {
+	source, work := t.TempDir(), t.TempDir()
+	put(t, source, "harvest", "name: playbook-premium-harvest", "Sell a spread.")
+
+	for _, scratch := range []string{".agents/skills.next", ".agents/skills.old"} {
+		at := filepath.Join(work, scratch)
+		mountsInTree = func(_, path string) (bool, error) { return path == at, nil }
+
+		_, err := (&Layer{Source: source, AgentDir: work}).Lay(nil, nil)
+		require.Error(t, err, scratch)
+		assert.Contains(t, err.Error(), "SKILLS_DIR")
+	}
+	mountsInTree = mountedInTree
+}
+
+// What an existing deployment actually meets on its first start after the skills
+// stopped being copied by the entrypoint: a work volume holding that copy, with
+// no mark in it.
+//
+// When the copy is exactly what the declaration asks for, it is adopted - the
+// mark is written and nothing is deleted, so nobody has to be woken up. When it
+// is not, the refusal stands and names the one-time action. Both are here
+// because which one a deployment gets depends on what its declaration narrows
+// to, and both have to be right.
+func TestAnExistingVolumeIsAdoptedWhenItAlreadyHoldsThisSet(t *testing.T) {
+	source, work := t.TempDir(), t.TempDir()
+	put(t, source, "harvest", "name: playbook-premium-harvest", "Sell a spread.")
+	put(t, source, "envelope", "name: read-my-envelope", "Ask first.")
+
+	// `cp -R /agent/skills /work/.agents/skills`, as the old entrypoint did.
+	target := filepath.Join(work, ".agents", "skills")
+	put(t, target, "harvest", "name: playbook-premium-harvest", "Sell a spread.")
+	put(t, target, "envelope", "name: read-my-envelope", "Ask first.")
+
+	layer := &Layer{Source: source, AgentDir: work}
+	laid, err := layer.Lay(nil, nil)
+	require.NoError(t, err, "a copy identical to what this pass would lay needs nobody woken up")
+	assert.True(t, laid.Adopted)
+
+	// Both are still there - adopting deletes nothing.
+	for _, dir := range []string{"harvest", "envelope"} {
+		_, statErr := os.Stat(filepath.Join(target, dir, "SKILL.md"))
+		assert.NoError(t, statErr, dir)
+	}
+
+	// And from here on it is an ordinary directory of ours.
+	again, err := layer.Lay(nil, nil)
+	require.NoError(t, err)
+	assert.False(t, again.Changed)
+}
+
+func TestAnExistingVolumeIsRefusedWhenItHoldsSomethingElse(t *testing.T) {
+	source, work := t.TempDir(), t.TempDir()
+	put(t, source, "harvest", "name: playbook-premium-harvest", "Sell a spread.")
+
+	// The old copy carried a skill this declaration does not name, so it is not
+	// what this pass would lay and nothing here proves who wrote it.
+	target := filepath.Join(work, ".agents", "skills")
+	put(t, target, "harvest", "name: playbook-premium-harvest", "Sell a spread.")
+	put(t, target, "retired", "name: playbook-retired", "gone from the image")
+
+	layer := &Layer{Source: source, AgentDir: work}
+	_, err := layer.Lay(nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "carries no fingerprint")
+	assert.Contains(t, err.Error(), "remove that directory ONCE")
+
+	_, statErr := os.Stat(filepath.Join(target, "retired", "SKILL.md"))
+	assert.NoError(t, statErr, "nothing is deleted while the refusal stands")
 }

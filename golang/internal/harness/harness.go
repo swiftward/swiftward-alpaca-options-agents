@@ -581,6 +581,13 @@ func (h *Harness) numbersInFront(prompt string) string {
 // startTurnWith runs one turn. model names the model this particular turn is
 // worth: a session that only reads the news does not need the one that trades.
 func (h *Harness) startTurnWith(ctx context.Context, prompt, who, model string) {
+	// The cause is read off what WOKE the session, before the agent's numbers go
+	// in front of it. They open with a fixed sentence, so taking the first line
+	// afterwards would file every turn in the record under that sentence instead
+	// of under the window, the wake-up or the message that caused it - and the
+	// record is what answers "why did this happen" long after the room has
+	// scrolled away.
+	woke := prompt
 	prompt = h.numbersInFront(prompt)
 
 	agentCtx, done := h.boundToAgent(ctx)
@@ -624,7 +631,7 @@ func (h *Harness) startTurnWith(ctx context.Context, prompt, who, model string) 
 			ThreadRef: threadID,
 			StartedAt: h.Now(),
 			WokenBy:   who,
-			Cause:     firstLine(prompt),
+			Cause:     firstLine(woke),
 			Model:     h.modelOf(model),
 		}); err != nil {
 			h.Log.Error("could not record the turn", zap.Error(err))

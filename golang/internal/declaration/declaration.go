@@ -259,6 +259,15 @@ type Parameters map[string]string
 // has to be quoted is a trap - but a value that is itself a list or a mapping is
 // refused: it would reach the session as Go's idea of how to print it.
 func (p *Parameters) UnmarshalYAML(node *yaml.Node) error {
+	// `parameters:` with everything under it commented out - which is what
+	// tuning looks like - is no parameters, the same as leaving the key out. A
+	// skill that needs one then says which one, which is the useful complaint;
+	// refusing on the shape of the YAML is not.
+	if node.Tag == "!!null" {
+		*p = Parameters{}
+
+		return nil
+	}
 	if node.Kind != yaml.MappingNode {
 		return fmt.Errorf("parameters must be a mapping of name to value")
 	}
