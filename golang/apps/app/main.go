@@ -244,7 +244,7 @@ func run(log *zap.Logger) error {
 
 	var broker *marketdata.Broker
 	if brokerURL != "" {
-		broker = marketdata.NewBrokerWithToken(brokerURL, brokerToken)
+		broker = marketdata.NewBrokerWithToken(brokerURL, brokerToken).ActingFor(cfg.UserToken)
 	}
 
 	group, ctx := errgroup.WithContext(ctx)

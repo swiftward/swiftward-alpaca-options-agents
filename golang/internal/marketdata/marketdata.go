@@ -40,7 +40,12 @@ type Broker struct {
 	// token authenticates this client to whatever answers at url. It is empty
 	// where that is the broker's own server, which asks for nothing, and set
 	// where a policy gateway stands in front of it and asks who is calling.
-	token string
+	//
+	// userToken names the person those calls are made for, in the gateway's own
+	// header. Empty leaves them the machine's own, which is what a deployment
+	// with nobody behind the agent has.
+	userToken string
+	token     string
 }
 
 // brokerCallLimit is how long one tool call may take, start to finish. Generous
@@ -66,6 +71,15 @@ func NewBrokerWithToken(url, token string) *Broker {
 	return broker
 }
 
+// ActingFor names the person this client works for. The credential above says
+// WHICH machine is calling; this says who it calls for, and the gateway records
+// both. Empty leaves the calls as the machine's own.
+func (b *Broker) ActingFor(userToken string) *Broker {
+	b.userToken = userToken
+
+	return b
+}
+
 // roundTripper carries the credential where there is one. Where there is none -
 // the broker's own server, which asks for nothing - it is the plain transport.
 func (b *Broker) roundTripper() http.RoundTripper {
@@ -82,7 +96,7 @@ func (b *Broker) roundTripper() http.RoundTripper {
 		return under
 	}
 
-	return bearer{token: b.token, next: under}
+	return bearer{token: b.token, userToken: b.userToken, next: under}
 }
 
 // bearer adds the credential to every request the transport makes. The MCP
@@ -91,13 +105,19 @@ func (b *Broker) roundTripper() http.RoundTripper {
 // separately, so the header cannot be attached to one request by hand.
 type bearer struct {
 	token string
-	next  http.RoundTripper
+	// userToken is the person the agent acts for, in the gateway's own header.
+	// Authorization is taken by the machine's own credential.
+	userToken string
+	next      http.RoundTripper
 }
 
 func (b bearer) RoundTrip(request *http.Request) (*http.Response, error) {
 	// The request belongs to the caller; a RoundTripper must not modify it.
 	carrying := request.Clone(request.Context())
 	carrying.Header.Set("Authorization", "Bearer "+b.token)
+	if b.userToken != "" {
+		carrying.Header.Set("X-Swiftward-User", b.userToken)
+	}
 
 	return b.next.RoundTrip(carrying)
 }
@@ -175,7 +195,7 @@ type Order struct {
 	Class          string  `json:"class"`
 	Status         string  `json:"status"`
 	PositionIntent string  `json:"position_intent"`
-	Quantity float64 `json:"quantity"`
+	Quantity       float64 `json:"quantity"`
 	// Ratio is how many of this leg go into ONE SET of the structure, which is a
 	// different number from Quantity and the difference is not cosmetic. A
 	// backspread of two sets carries qty 2 on the sold leg and 4 on the bought

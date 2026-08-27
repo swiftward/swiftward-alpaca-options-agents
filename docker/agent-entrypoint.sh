@@ -45,7 +45,12 @@ fi
         # The value is the same credential this agent carries to the broker -
         # one machine, one key - so the gateway counts the spend against an
         # identity it verified rather than a label in the URL.
-        if [ -n "${BROKER_MCP_TOKEN}" ]; then
+        # Two credentials, two slots: the agent's own key says WHO is calling,
+        # the person's key says who it acts FOR. The user key is optional - an
+        # agent nobody stands behind simply sends the first.
+        if [ -n "${BROKER_MCP_TOKEN}" ] && [ -n "${USER_TOKEN}" ]; then
+            echo "env_http_headers = { \"X-Swiftward-Authorization\" = \"BROKER_MCP_TOKEN\", \"X-Swiftward-User\" = \"USER_TOKEN\" }"
+        elif [ -n "${BROKER_MCP_TOKEN}" ]; then
             echo "env_http_headers = { \"X-Swiftward-Authorization\" = \"BROKER_MCP_TOKEN\" }"
         fi
     fi
@@ -71,6 +76,11 @@ fi
         echo "url = \"${BROKER_MCP_URL}\""
         if [ -n "${BROKER_MCP_TOKEN}" ]; then
             echo "bearer_token_env_var = \"BROKER_MCP_TOKEN\""
+        fi
+        # The person the agent acts for, in the same header the model gateway
+        # reads. Bearer above says WHO is calling; this says who it calls FOR.
+        if [ -n "${USER_TOKEN}" ]; then
+            echo "env_http_headers = { \"X-Swiftward-User\" = \"USER_TOKEN\" }"
         fi
     fi
 } > "${CODEX_HOME}/config.toml"
