@@ -13,3 +13,4 @@ tmp/
 # backup of it holds the same broker keys - this history opens whole, so a
 # blanket `git add` must not be able to reach one.
 *.bak
+transcripts/

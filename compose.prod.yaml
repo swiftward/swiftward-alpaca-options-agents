@@ -155,6 +155,13 @@ services:
     volumes:
       - ${CODEX_AUTH_DIR}:/mnt/codex:ro
       - codex-home:/home/agent/.codex
+      # Полный след работы агента на диск машины, а не только в том. codex пишет
+      # сюда rollout по каждому треду: что подано на вход, какие инструменты
+      # вызваны и с каким ответом, что агент ответил. Postgres рядом держит то же
+      # разобранным по таблицам, но текстов - ни задачи, ни ответа - не держит.
+      # За неделю судейства это единственная запись, по которой можно показать,
+      # ЧТО агент делал, а не только что у него получилось.
+      - ./transcripts:/home/agent/.codex/sessions
       - agent-work:/work
     # The claims the architecture makes about this container, enforced here: it
     # cannot write outside its work directory, cannot gain privileges, and holds
