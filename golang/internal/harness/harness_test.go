@@ -1116,10 +1116,14 @@ func TestARefusedInterruptEndsTheProcessRatherThanWaitingForever(t *testing.T) {
 
 // The memory of what already ran is kept by session NAME, and a name the
 // previous declaration did not have has no entry - which reads as "never ran".
-// Left alone, a session renamed at midday would open a second position in a
-// window that already had one, and a session added with `every:` would fire the
-// same second it appeared. The record is asked about the names that are new.
-func TestARenamedSessionDoesNotRunASecondTimeToday(t *testing.T) {
+// Left alone, a name the record has already seen today would open a second
+// position in a window that already had one, and one with `every:` would fire
+// the same second it appeared. The record is asked about the names that are new.
+//
+// The other half of this test is the limit of the guard: a name the record has
+// never seen does run, because a session added at midday and a session renamed
+// at midday are the same thing on disk and the added one should run.
+func TestANameTheRecordAlreadySawDoesNotRunASecondTimeToday(t *testing.T) {
 	now := time.Date(2026, 8, 25, 14, 40, 0, 0, time.UTC)
 
 	before, err := declaration.Load(write(t, `
@@ -1158,8 +1162,9 @@ sessions:
 `))
 	require.NoError(t, err)
 
-	// The turn the window already had, under the name the declaration is about to
-	// grow. Renaming a session is exactly what produces this.
+	// The turn the window already had, under a name the declaration is about to
+	// grow. A session moved between declarations - or a process that had this name
+	// before the edit - is exactly what produces this.
 	kept := record.NewMemory()
 	require.NoError(t, kept.TurnStarted(context.Background(), record.Turn{
 		Ref: "turn-1", ThreadRef: "th-1", StartedAt: now.Add(-18 * time.Minute),
@@ -1183,8 +1188,10 @@ sessions:
 		"what the record says about this name is what the clock must go by")
 	assert.False(t, after.Sessions[1].Due(now, h.lastRun["entry"]), "this window already had its session")
 
-	// And the guard must not become a harness that never wakes anybody: a name
-	// the record has never seen is genuinely new and runs.
+	// And the guard must not become a harness that never wakes anybody: a name the
+	// record has never seen has never run under that name, and runs. This is also
+	// the guard's limit - a session RENAMED inside its own window looks like this
+	// and does run twice, which is why renaming happens outside the window.
 	assert.True(t, after.Sessions[2].Due(now, h.lastRun["entry-morning"]))
 }
 

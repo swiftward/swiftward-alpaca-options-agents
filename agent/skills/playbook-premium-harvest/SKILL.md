@@ -14,7 +14,7 @@ The rule is here once. A task that asks for premium-harvest does not repeat it.
 
 **The numbers below are this playbook's usual ones, not its law.** Where your task names a different delta, a different credit-to-risk threshold or a different ceiling on the cost of the round trip, that number replaces the one here and the mechanics stay as written. Two accounts run this playbook side by side precisely so that such numbers can differ - a session that quietly keeps the number from this file has cancelled the experiment it was opened for. Say in one line which number you took and where it came from.
 
-Three of them are not this file's to hold at all, and it will not start without them. They stand at the top of your task, under "Numbers this agent runs on":
+Three of them are not this file's to hold at all, and an agent that is not given them refuses to start. They stand at the top of your task, under "Numbers this agent runs on":
 
 - `short_leg_delta` - how far out the sold leg goes.
 - `min_edge_points` - the least `edge_points` a structure may show to be taken.

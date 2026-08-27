@@ -245,17 +245,25 @@ func (h *Harness) tick(ctx context.Context) {
 // next.
 //
 // What it has to be careful about is the memory of what already ran. That memory
-// is kept by session NAME, and a name the previous declaration did not have has
-// no entry - which reads as "never ran". Left alone, a session renamed at midday
-// would open a second position in a window that already had one, and a session
-// added with `every:` would fire the same second it appeared. So the record is
-// asked about the names that are new, and only about those: a name already known
-// keeps the time this process saw, which is later than anything the record has
-// and is the one that matters.
+// is kept by session NAME and starts from the record, so replacing the
+// declaration without touching it would be wrong twice over: every name would
+// keep a time this process happens to hold, and every name the new declaration
+// added would carry none at all - which reads as "never ran".
 //
-// A name that has gone from the declaration keeps its entry. It costs a map
-// entry, and dropping it would let a session removed and put back within the
-// same day run twice.
+// So the record is asked again, and what it says fills in the names that are
+// new, and only those. A name this process has already woken keeps the time this
+// process saw: that is later than anything the record can offer, because the
+// record is asked only about today and this process knows what it did minutes
+// ago. A name that has gone from the declaration keeps its entry too - it costs
+// a map entry, and dropping it would let a session removed and put back within
+// the same day run twice.
+//
+// What this CANNOT do is tell a renamed session from an added one. A name the
+// record has never seen has never run under that name, and both a session added
+// at midday and a session renamed at midday look exactly like that. The added
+// one should run, so it does. Renaming a session inside its own window still
+// runs it twice, and the way to avoid that is to rename outside the window -
+// there is nothing on disk that would tell the two apart.
 func (h *Harness) rereadTheDeclaration(ctx context.Context) {
 	if h.Reread == nil {
 		return
@@ -263,7 +271,11 @@ func (h *Harness) rereadTheDeclaration(ctx context.Context) {
 
 	fresh, err := h.Reread()
 	if err != nil {
-		h.Log.Error("the declaration on disk cannot be used; the schedule in force is unchanged",
+		// The error names what actually stopped it, which is not always the
+		// declaration: putting one in force lays out the skills it names, so a
+		// half-written SKILL.md refuses the re-read too. Saying "the declaration is
+		// broken" would point whoever reads this at the wrong file.
+		h.Log.Error("the declaration on disk could not be put in force; the schedule in force is unchanged",
 			zap.Error(err))
 		return
 	}

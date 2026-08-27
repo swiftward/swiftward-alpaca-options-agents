@@ -10,9 +10,13 @@ Where its orders go is not decided here either. Today the session reaches the br
 
 Which of them an agent gets is its declaration's to say, under `skills:`, by the name in the skill's own front matter. The set is worth narrowing because the description of every skill an agent carries goes into the prompt of every turn, so an agent should carry its own and nobody else's. It is a property of the agent rather than of a session: the agent reads its skills directory once when it starts, and one process serves every session, so there is no directory to narrow for a single window. Which technique a session uses is still chosen the way it always was - the task asks for it by name.
 
-On every start the process replaces `/work/.agents/skills/` - the directory the agent reads inside the one it works in - with the skills the declaration named. Replaces, not merges: `/work` outlives the image, so a skill deleted here has to disappear from the session too. A name nothing answers to is a failure to start, not a session quietly missing an instruction.
+Putting them in place is part of putting a declaration in force, not a step beside it: `/work/.agents/skills/` - the directory the agent reads inside the one it works in - is replaced with the skills the declaration named, and a declaration whose skills cannot be laid out never goes into force. Replaces, not merges: `/work` outlives the image, so a skill deleted here has to disappear from the session too. A name nothing answers to is a failure to start, not a session quietly missing an instruction.
 
-**Unless that directory is mounted.** Mount a checkout over it and the process leaves it alone, because the files in it are not its to delete. That is worth doing while a skill is being written: the session reads `SKILL.md` from disk as it works, so an edit reaches a session already running - no rebuild, no restart. The local stack in `compose.yaml` mounts it read-only for exactly that.
+Because the declaration is re-read while the process runs, this happens again on every edit that is accepted. That is what keeps the two from drifting: a declaration that stops naming a skill would otherwise leave it sitting in the directory the session reads, invocable with none of the numbers it needs.
+
+**Unless something is mounted there.** Mount a checkout over that directory - or over a single skill inside it, or over the directory above it - and the process leaves the tree alone, because the files in it are not its to delete. That is worth doing while a skill is being written: the session reads `SKILL.md` from disk as it works, so an edit reaches a session already running - no rebuild, no restart. The local stack in `compose.yaml` mounts it read-only for exactly that.
+
+Then the declaration's `skills:` no longer narrows anything - what is mounted is what the session can reach - so **every** skill in the mounted tree is checked, not only the ones named. A skill added to the checkout and left out of `skills:` still has to have its numbers.
 
 ### Numbers
 

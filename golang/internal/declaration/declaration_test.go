@@ -272,6 +272,12 @@ func TestLoadRefusesParametersThatCannotBeRead(t *testing.T) {
 			body: "parameters: [short_leg_delta]\n",
 			want: "must be a mapping",
 		},
+		// A name with nothing after it passes every check that asks whether the
+		// parameter is there and hands the session a blank line to trade by.
+		"no_value": {
+			body: "parameters:\n  short_leg_delta:\n",
+			want: `"short_leg_delta" is given no value`,
+		},
 	}
 
 	for name, tc := range cases {

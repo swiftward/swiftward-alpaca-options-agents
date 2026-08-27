@@ -88,12 +88,13 @@ func TestLayPutsOnlyWhatTheDeclarationNamed(t *testing.T) {
 	put(t, source, "backspread", "name: playbook-backspread", "Buy convexity.")
 
 	target := filepath.Join(work, ".agents", "skills")
-	laid, err := Lay(source, target,
+	laid, err := Lay(source, work,
 		[]string{"playbook-premium-harvest", "read-my-envelope"},
 		map[string]string{"short_leg_delta": "0,15"})
 	require.NoError(t, err)
 
 	assert.False(t, laid.Mounted)
+	assert.Equal(t, target, laid.Dir)
 	assert.Equal(t, []string{"playbook-premium-harvest", "read-my-envelope"}, laid.Names)
 
 	body, err := os.ReadFile(filepath.Join(target, "harvest", "SKILL.md"))
@@ -114,7 +115,7 @@ func TestNoChoiceMeansEverySkill(t *testing.T) {
 	put(t, source, "envelope", "name: read-my-envelope", "Ask first.")
 
 	target := filepath.Join(work, ".agents", "skills")
-	laid, err := Lay(source, target, nil, nil)
+	laid, err := Lay(source, work, nil, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{"playbook-premium-harvest", "read-my-envelope"}, laid.Names)
@@ -135,7 +136,7 @@ func TestLayClearsWhatAnEarlierStartLeft(t *testing.T) {
 	require.NoError(t, os.MkdirAll(stale, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(stale, "SKILL.md"), []byte("---\nname: retired\n---\n"), 0o600))
 
-	_, err := Lay(source, target, nil, nil)
+	_, err := Lay(source, work, nil, nil)
 	require.NoError(t, err)
 
 	_, err = os.Stat(stale)
@@ -149,7 +150,7 @@ func TestLayRefusesASkillThatIsNotThere(t *testing.T) {
 	target := filepath.Join(work, ".agents", "skills")
 	require.NoError(t, os.MkdirAll(filepath.Join(target, "harvest"), 0o755))
 
-	_, err := Lay(source, target, []string{"playbook-defence"}, nil)
+	_, err := Lay(source, work, []string{"playbook-defence"}, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `no skill called "playbook-defence"`)
 	assert.Contains(t, err.Error(), `"playbook-premium-harvest"`, "the error says what is actually there")
@@ -167,8 +168,7 @@ func TestLayRefusesWhenAParameterIsMissing(t *testing.T) {
 	put(t, source, "harvest",
 		"name: playbook-premium-harvest\nrequires: [short_leg_delta, min_edge_points]", "Sell a spread.")
 
-	_, err := Lay(source, filepath.Join(work, ".agents", "skills"), nil,
-		map[string]string{"short_leg_delta": "0,15"})
+	_, err := Lay(source, work, nil, map[string]string{"short_leg_delta": "0,15"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `"playbook-premium-harvest"`)
 	assert.Contains(t, err.Error(), `"min_edge_points"`)
@@ -194,10 +194,10 @@ func TestAMountedDirectoryIsLeftExactlyAsItIs(t *testing.T) {
 	put(t, target, "harvest", "name: playbook-premium-harvest", "the version being edited")
 	put(t, target, "draft", "name: playbook-draft", "not in the image at all")
 
-	mountedAt = func(path string) (bool, error) { return path == target, nil }
-	t.Cleanup(func() { mountedAt = Mounted })
+	mountsInTree = func(_, path string) (bool, error) { return path == target, nil }
+	t.Cleanup(func() { mountsInTree = mountedInTree })
 
-	laid, err := Lay(source, target, []string{"playbook-premium-harvest"}, nil)
+	laid, err := Lay(source, work, []string{"playbook-premium-harvest"}, nil)
 	require.NoError(t, err)
 	assert.True(t, laid.Mounted)
 
@@ -218,10 +218,10 @@ func TestAMountedDirectoryIsTheOneChecked(t *testing.T) {
 	target := filepath.Join(work, ".agents", "skills")
 	put(t, target, "harvest", "name: playbook-premium-harvest\nrequires: [short_leg_delta]", "being edited")
 
-	mountedAt = func(path string) (bool, error) { return path == target, nil }
-	t.Cleanup(func() { mountedAt = Mounted })
+	mountsInTree = func(_, path string) (bool, error) { return path == target, nil }
+	t.Cleanup(func() { mountsInTree = mountedInTree })
 
-	_, err := Lay(source, target, []string{"playbook-premium-harvest"}, nil)
+	_, err := Lay(source, work, []string{"playbook-premium-harvest"}, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `"short_leg_delta"`,
 		"the requirement added in the mounted copy is the one that counts")
@@ -231,33 +231,93 @@ func TestAMountedDirectoryIsTheOneChecked(t *testing.T) {
 // device comparison would answer "not mounted" about a directory that is - and
 // the operator's own files would be deleted for it. The mount table names mount
 // points exactly, which is why it is read instead.
-func TestTheMountTableIsReadForExactMountPoints(t *testing.T) {
-	table := strings.Join([]string{
-		"24 30 0:22 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw",
-		"31 30 0:26 / /work rw,relatime - ext4 /dev/sdb rw",
-		"32 31 0:27 /agent/skills /work/.agents/skills ro,relatime - ext4 /dev/sda rw",
-		`33 30 0:28 / /mnt/two\040words rw,relatime - ext4 /dev/sdc rw`,
-	}, "\n")
+//
+// Three shapes count, and they count for the same reason: the files there are
+// not this process's to delete. Mounted AT the directory is the documented one;
+// mounted BENEATH it is one skill being edited on its own, and rebuilding the
+// tree around it would fail on a busy mount point; mounted ABOVE it, but below
+// the directory this process works in, is the dangerous one - the tree we would
+// rebuild lives inside somebody else's mount, and the shorter check would have
+// deleted it.
+func TestTheMountTableIsReadForAnythingInTheTree(t *testing.T) {
+	const root = "/work"
 
-	for path, want := range map[string]bool{
-		"/work/.agents/skills":  true,
-		"/work/.agents/skills/": true,
-		"/work":                 true,
-		"/work/.agents":         false,
-		"/work/.agents/skills/playbook-premium-harvest": false,
-		"/mnt/two words": true,
-	} {
-		got, err := mountedIn(strings.NewReader(table), path)
-		require.NoError(t, err)
-		assert.Equal(t, want, got, path)
+	line := func(where string) string {
+		return "32 31 0:27 /agent/skills " + where + " ro,relatime - ext4 /dev/sda rw"
 	}
+	// The work directory is itself a mount - it is the volume this process is
+	// given - and that must not read as somebody else's.
+	volume := "31 30 0:26 / /work rw,relatime - ext4 /dev/sdb rw"
+
+	cases := map[string]struct {
+		table string
+		want  bool
+	}{
+		"nothing mounted in the tree": {
+			table: volume, want: false,
+		},
+		"mounted at the directory": {
+			table: volume + "\n" + line("/work/.agents/skills"), want: true,
+		},
+		"one skill mounted on its own": {
+			table: volume + "\n" + line("/work/.agents/skills/playbook-premium-harvest"), want: true,
+		},
+		"mounted above the directory": {
+			table: volume + "\n" + line("/work/.agents"), want: true,
+		},
+		"a neighbour that only shares a prefix": {
+			table: volume + "\n" + line("/work/.agents/skills-draft"), want: false,
+		},
+		"somewhere else entirely": {
+			table: volume + "\n" + line("/srv/skills"), want: false,
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got, err := mountedInTreeFrom(strings.NewReader(tc.table), root, "/work/.agents/skills")
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// A path with a space in it is two fields unless the octal escapes mountinfo
+// writes are read back.
+func TestAMountPointWithASpaceIsStillOneMountPoint(t *testing.T) {
+	table := `33 30 0:28 / /work/two\040words rw,relatime - ext4 /dev/sdc rw`
+
+	got, err := mountedInTreeFrom(strings.NewReader(table), "/work", "/work/two words")
+	require.NoError(t, err)
+	assert.True(t, got)
 }
 
 // Where there is no mount table - a developer's machine, this test - nothing is
 // mounted as far as this can tell, which is the answer that writes only into
 // what this process itself put there.
 func TestNoMountTableMeansNothingIsMounted(t *testing.T) {
-	mounted, err := Mounted(t.TempDir())
+	work := t.TempDir()
+
+	mounted, err := mountedInTree(work, filepath.Join(work, ".agents", "skills"))
 	require.NoError(t, err)
 	assert.False(t, mounted)
+}
+
+// With the tree mounted nothing narrowed the set, so a skill the declaration
+// never named is reachable all the same - and has to have its numbers.
+func TestAMountedSkillNobodyNamedStillNeedsItsNumbers(t *testing.T) {
+	source, work := t.TempDir(), t.TempDir()
+	put(t, source, "harvest", "name: playbook-premium-harvest", "in the image")
+
+	target := filepath.Join(work, ".agents", "skills")
+	put(t, target, "harvest", "name: playbook-premium-harvest", "being edited")
+	put(t, target, "draft", "name: playbook-draft\nrequires: [wing_width]", "written this morning")
+
+	mountsInTree = func(_, path string) (bool, error) { return path == target, nil }
+	t.Cleanup(func() { mountsInTree = mountedInTree })
+
+	_, err := Lay(source, work, []string{"playbook-premium-harvest"}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"playbook-draft"`)
+	assert.Contains(t, err.Error(), `"wing_width"`)
 }

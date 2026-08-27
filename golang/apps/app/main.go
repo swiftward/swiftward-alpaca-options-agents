@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -171,62 +170,55 @@ func run(log *zap.Logger) error {
 		line = account.NewPostgres(pool)
 	}
 
-	// Which directory the session actually reads its skills from. Mounting a
-	// checkout over it is how a skill is edited while a session runs, and then
-	// this image's own copy is not what is checked: a skill the checkout has and
-	// the image does not is there, and the other way round it is not.
-	skillsRead, skillsTarget := cfg.SkillsDir, ""
-	if cfg.SkillsDir != "" && cfg.AgentDir != "" {
-		skillsTarget = filepath.Join(cfg.AgentDir, ".agents", "skills")
-		skillsRead, _, err = skills.Serving(cfg.SkillsDir, skillsTarget)
-		if err != nil {
-			return err
-		}
-	}
+	// Whether this process lays out skills at all. Only the role that starts the
+	// agent does: nothing else reads that directory.
+	laysOutSkills := cfg.Has(config.RoleHarness) && cfg.SkillsDir != "" && cfg.AgentDir != ""
 
 	// The declaration is read here and re-read while the process runs: the harness
 	// wakes sessions by it, and the session reads it to answer when it will be
 	// woken next. Both go through the watcher, so an edited file reaches the clock
 	// and the session's own answer at the same moment.
 	//
-	// A declaration is only usable if the skills it names are there and the
-	// parameters they need are given, so that check stands between the file and
-	// the schedule - at start, where it is a failure to start, and at every
-	// re-read, where it keeps a half-finished edit from taking the schedule down.
+	// Putting the skills in place is part of putting a declaration in force, not a
+	// step beside it. A declaration that shrinks its `skills:` or drops a
+	// `parameters:` while the process runs would otherwise leave the skill it
+	// stopped naming sitting in the directory the session reads, invocable with
+	// none of the numbers it needs. Here the two cannot come apart: a declaration
+	// whose skills cannot be laid out never goes into force, and one that does go
+	// into force has had them laid out.
+	//
+	// At start that makes an unusable declaration a failure to start, exactly as
+	// an unreadable one always was. Later it makes it a re-read that is refused
+	// with the schedule already in force left running.
 	var declared *declaration.Watcher
 	if cfg.DeclarationPath != "" {
 		declared, err = declaration.Watch(cfg.DeclarationPath, func(d *declaration.Declaration) error {
-			if skillsRead == "" {
+			if !laysOutSkills {
 				return nil
 			}
-			_, err := skills.Check(skillsRead, d.Skills, d.Parameters)
-			return err
+			laid, err := skills.Lay(cfg.SkillsDir, cfg.AgentDir, d.Skills, d.Parameters)
+			if err != nil {
+				return err
+			}
+			saySkills(log, laid)
+
+			return nil
 		})
 		if err != nil {
 			return err
 		}
 	}
 
-	// The skills the declaration names are put where the agent reads them, before
-	// the conversation below is opened: the agent reads that directory once when
-	// it starts, so laying them out later would reach nobody until a restart.
-	if cfg.Has(config.RoleHarness) && skillsTarget != "" && declared != nil {
-		current := declared.Current()
-		laid, err := skills.Lay(cfg.SkillsDir, skillsTarget, current.Skills, current.Parameters)
+	// With no declaration to name them, every skill this image carries is laid
+	// out - the behaviour this had before a declaration could choose. It is not
+	// skipped: the directory outlives the image, so leaving it untouched would
+	// leave a session reading whatever an older image put there.
+	if laysOutSkills && declared == nil {
+		laid, err := skills.Lay(cfg.SkillsDir, cfg.AgentDir, nil, nil)
 		if err != nil {
 			return err
 		}
-		if laid.Mounted {
-			// Nothing was written and nothing will be: the directory belongs to
-			// whoever mounted it. That is what lets an edit to a skill reach a
-			// session that is already running, and it also means the declaration's
-			// choice of skills is not what limits the set - what is mounted is.
-			log.Info("the skills directory is mounted from outside and was left as it is",
-				zap.String("dir", skillsTarget), zap.Strings("skills", laid.Names))
-		} else {
-			log.Info("skills laid out for the agent",
-				zap.String("dir", skillsTarget), zap.Strings("skills", laid.Names))
-		}
+		saySkills(log, laid)
 	}
 
 	// One broker connection serves whichever roles this process runs: the read
@@ -556,3 +548,16 @@ func serve(ctx context.Context, addr string, handler http.Handler, log *zap.Logg
 }
 
 const shutdownGrace = 5 * time.Second
+
+// saySkills writes down what the session will be able to read, and how it got
+// there. A mounted directory is worth its own line: nothing was written to it,
+// and what is in it is more than the declaration named.
+func saySkills(log *zap.Logger, laid skills.Laid) {
+	if laid.Mounted {
+		log.Info("the skills directory is mounted from outside and was left as it is",
+			zap.String("dir", laid.Dir), zap.Strings("named", laid.Names))
+		return
+	}
+	log.Info("skills laid out for the agent",
+		zap.String("dir", laid.Dir), zap.Strings("skills", laid.Names))
+}

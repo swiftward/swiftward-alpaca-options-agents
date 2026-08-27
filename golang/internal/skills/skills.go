@@ -4,7 +4,7 @@
 // Two things live here that used to live in the shell entrypoint, and both are
 // the reason it moved: which skills an agent gets is written in its declaration,
 // and the entrypoint is a shell script that cannot read YAML. The second is that
-// the directory may be put there from outside - see Mounted - and a script that
+// the directory may be put there from outside - see Lay - and a script that
 // deletes it unconditionally deletes the operator's own files.
 //
 // Nothing here carries a limit. A skill describes a technique; what an agent is
@@ -24,8 +24,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// manifest is the file the agent reads. The name is the agent's, not ours.
-const manifest = "SKILL.md"
+// manifest is the file the agent reads, and skillsUnder is where it looks for
+// them inside the directory it works in. Both names are the agent's, not ours.
+const (
+	manifest    = "SKILL.md"
+	skillsUnder = ".agents/skills"
+)
 
 // Skill is one directory of instructions, as its own SKILL.md describes it.
 type Skill struct {
@@ -134,78 +138,118 @@ func Check(source string, wanted []string, given map[string]string) ([]Skill, er
 	if err != nil {
 		return nil, err
 	}
-
-	chosen := found
-	if len(wanted) > 0 {
-		byName := map[string]Skill{}
-		for _, skill := range found {
-			byName[skill.Name] = skill
-		}
-		chosen = make([]Skill, 0, len(wanted))
-		seen := map[string]bool{}
-		for _, name := range wanted {
-			if seen[name] {
-				return nil, fmt.Errorf("skill %q is named twice", name)
-			}
-			seen[name] = true
-			skill, ok := byName[name]
-			if !ok {
-				return nil, fmt.Errorf("no skill called %q in %s; there is %s",
-					name, source, listOf(found))
-			}
-			chosen = append(chosen, skill)
-		}
+	chosen, err := pick(found, wanted)
+	if err != nil {
+		return nil, err
 	}
-
-	// The numbers a technique is run with belong to the agent, not to the file
-	// that describes the technique. A skill that asks for one it was not given
-	// would fall back on its own example number, and the two accounts this
-	// project runs side by side exist precisely so those numbers can differ.
-	for _, skill := range chosen {
-		for _, needed := range skill.Requires {
-			if _, ok := given[needed]; !ok {
-				return nil, fmt.Errorf("skill %q needs the parameter %q and the declaration does not give it", skill.Name, needed)
-			}
-		}
+	if err := numbersFor(chosen, given); err != nil {
+		return nil, err
 	}
 
 	return chosen, nil
 }
 
+// pick takes the skills named out of the ones found, and refuses a name nothing
+// answers to by saying what is actually there - a misspelling is then one line
+// to fix rather than a hunt through the image.
+func pick(found []Skill, wanted []string) ([]Skill, error) {
+	if len(wanted) == 0 {
+		return found, nil
+	}
+
+	byName := map[string]Skill{}
+	for _, skill := range found {
+		byName[skill.Name] = skill
+	}
+
+	chosen := make([]Skill, 0, len(wanted))
+	seen := map[string]bool{}
+	for _, name := range wanted {
+		if seen[name] {
+			return nil, fmt.Errorf("skill %q is named twice", name)
+		}
+		seen[name] = true
+		skill, ok := byName[name]
+		if !ok {
+			return nil, fmt.Errorf("no skill called %q; there is %s", name, listOf(found))
+		}
+		chosen = append(chosen, skill)
+	}
+
+	return chosen, nil
+}
+
+// numbersFor refuses a skill whose parameters the declaration does not give.
+// The numbers a technique is run with belong to the agent, not to the file that
+// describes the technique: a skill that asks for one it was not given would fall
+// back on its own example number, and the two accounts this project runs side by
+// side exist precisely so those numbers can differ.
+func numbersFor(reachable []Skill, given map[string]string) error {
+	for _, skill := range reachable {
+		for _, needed := range skill.Requires {
+			if _, ok := given[needed]; !ok {
+				return fmt.Errorf("skill %q needs the parameter %q and the declaration does not give it", skill.Name, needed)
+			}
+		}
+	}
+
+	return nil
+}
+
 // Laid says what the session will read and how it got there.
 type Laid struct {
-	// Names are the skills the session can now reach, in the order chosen.
+	// Dir is the directory the session reads its skills from.
+	Dir string
+	// Names are the skills named by the declaration, in the order it named them.
 	Names []string
 	// Mounted is true when the directory was put there from outside this
 	// process. Then nothing was written: what the session reads is whatever is
-	// mounted, and the check above was made against that rather than against
-	// what this image carries.
+	// mounted, which is more than the declaration named and is checked as such.
 	Mounted bool
 }
 
-// Lay puts the chosen skills where the agent reads them.
+// Lay puts the skills a declaration names where the agent reads them, inside
+// agentDir.
 //
-// When target is a mount point it is left exactly as it is. Editing a skill and
-// having a working session read the new text on its next turn is the whole point
-// of mounting it, and a process that replaced the directory would undo that on
-// every restart - or, worse, delete files that belong to whoever mounted them.
+// When something is mounted into that tree it is left exactly as it is. Editing
+// a skill and having a working session read the new text on its next turn is the
+// whole point of mounting it, and a process that rebuilt the directory would
+// undo that on every restart - or, worse, delete files that belong to whoever
+// mounted them. What is mounted is also what is CHECKED, and every skill in it
+// is checked, not only the ones the declaration named: nothing narrowed the set,
+// so the session can reach all of them and all of them need their numbers.
 //
 // Otherwise the directory is rebuilt from source. Rebuilt, not merged into: the
 // directory it sits in outlives this image, so a skill deleted upstream has to
 // disappear from the session rather than linger as an instruction nothing
 // carries any more.
-func Lay(source, target string, wanted []string, given map[string]string) (Laid, error) {
-	from, mounted, err := Serving(source, target)
+func Lay(source, agentDir string, wanted []string, given map[string]string) (Laid, error) {
+	target := filepath.Join(agentDir, skillsUnder)
+	from, mounted, err := serving(source, agentDir, target)
 	if err != nil {
 		return Laid{}, err
 	}
 
-	chosen, err := Check(from, wanted, given)
+	found, err := Read(from)
 	if err != nil {
 		return Laid{}, err
 	}
+	chosen, err := pick(found, wanted)
+	if err != nil {
+		return Laid{}, fmt.Errorf("%w (looked in %s)", err, from)
+	}
 
-	laid := Laid{Mounted: mounted, Names: make([]string, 0, len(chosen))}
+	// What the session can reach is what has to hold up. With the tree mounted
+	// nothing narrowed it, so a skill nobody named is reachable all the same.
+	reachable := chosen
+	if mounted {
+		reachable = found
+	}
+	if err := numbersFor(reachable, given); err != nil {
+		return Laid{}, err
+	}
+
+	laid := Laid{Dir: target, Mounted: mounted, Names: make([]string, 0, len(chosen))}
 	for _, skill := range chosen {
 		laid.Names = append(laid.Names, skill.Name)
 	}
@@ -235,13 +279,10 @@ func Lay(source, target string, wanted []string, given map[string]string) (Laid,
 	return laid, nil
 }
 
-// Serving says which directory the session actually reads, and whether it was
-// put there from outside. With something mounted over the target, this image's
-// own copy is not what the session reads and must not be what is checked: a
-// skill added to the mounted checkout is there, and a skill the image carries
-// but the mount does not is not.
-func Serving(source, target string) (string, bool, error) {
-	mounted, err := mountedAt(target)
+// serving says which directory the session actually reads, and whether anything
+// was mounted into the tree this process would otherwise rebuild.
+func serving(source, agentDir, target string) (string, bool, error) {
+	mounted, err := mountsInTree(agentDir, target)
 	if err != nil {
 		return "", false, err
 	}
@@ -252,23 +293,25 @@ func Serving(source, target string) (string, bool, error) {
 	return source, false, nil
 }
 
-// mountedAt is Mounted, as a variable so a test can prove what Lay does with a
-// mounted directory without mounting one.
-var mountedAt = Mounted
+// mountsInTree is mountedInTree, as a variable so a test can prove what Lay does
+// with a mounted directory without mounting one.
+var mountsInTree = mountedInTree
 
-// Mounted reports whether path is a mount point - whether a filesystem was put
-// there from outside this process.
+// mountedInTree reports whether anything was mounted into the tree this process
+// would otherwise rebuild: at path itself, anywhere beneath it, or at any
+// directory between root and path. All three mean the same thing - the files
+// there are not this process's to delete - and all three are reachable by a
+// session, which is why the check is not just about path.
 //
-// It is read from /proc/self/mountinfo, which names mount points exactly.
-// Comparing the device of the directory against its parent's is the shorter
-// trick and the wrong one: a bind mount within one filesystem keeps the device,
-// so the check would answer "not mounted" about a directory that is, and the
-// operator's files would be deleted for it.
+// The mount table is read rather than device numbers compared, because a bind
+// mount within one filesystem keeps the device of its parent: the short trick
+// would answer "not mounted" about a directory that is, and the operator's own
+// files would be deleted for it.
 //
 // Where there is no /proc - a developer's machine, a test - nothing is mounted
 // as far as this can tell, which is the answer that writes only into what this
 // process itself put there.
-func Mounted(path string) (bool, error) {
+func mountedInTree(root, path string) (bool, error) {
 	file, err := os.Open("/proc/self/mountinfo")
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -278,14 +321,14 @@ func Mounted(path string) (bool, error) {
 	}
 	defer func() { _ = file.Close() }()
 
-	return mountedIn(file, path)
+	return mountedInTreeFrom(file, root, path)
 }
 
-// mountedIn answers Mounted's question about an already-open mount table. Each
-// line of mountinfo carries the mount point as its fifth field, with space, tab,
-// newline and backslash written as octal escapes.
-func mountedIn(table io.Reader, path string) (bool, error) {
-	want := filepath.Clean(path)
+// mountedInTreeFrom answers the question above about an already-open mount
+// table. Each line of mountinfo carries the mount point as its fifth field, with
+// space, tab, newline and backslash written as octal escapes.
+func mountedInTreeFrom(table io.Reader, root, path string) (bool, error) {
+	root, path = filepath.Clean(root), filepath.Clean(path)
 
 	scanner := bufio.NewScanner(table)
 	// Mount points can be long, and a line that does not fit would be read as two
@@ -296,7 +339,19 @@ func mountedIn(table io.Reader, path string) (bool, error) {
 		if len(fields) < 5 {
 			continue
 		}
-		if unescape(fields[4]) == want {
+		switch where := unescape(fields[4]); {
+		case where == path:
+			return true, nil
+		case strings.HasPrefix(where, path+string(filepath.Separator)):
+			// Mounted one level down - a single skill being edited on its own.
+			// Removing the tree around it fails, and would not be ours to do.
+			return true, nil
+		case strings.HasPrefix(path, where+string(filepath.Separator)) &&
+			strings.HasPrefix(where, root+string(filepath.Separator)):
+			// Mounted ABOVE the directory but below the one this process works in:
+			// the tree we would rebuild lives inside somebody else's mount. The
+			// work directory itself does not count - it is the volume this process
+			// is given, and it is where the tree belongs.
 			return true, nil
 		}
 	}

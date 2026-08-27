@@ -273,6 +273,11 @@ func (p *Parameters) UnmarshalYAML(node *yaml.Node) error {
 		if value.Kind != yaml.ScalarNode {
 			return fmt.Errorf("parameter %q holds a list or a mapping; a session is given one value", name.Value)
 		}
+		// A name with nothing after it passes every check that asks whether the
+		// parameter is there and hands the session a blank line to trade by.
+		if strings.TrimSpace(value.Value) == "" {
+			return fmt.Errorf("parameter %q is given no value", name.Value)
+		}
 		// A name written twice is the failure this catches: YAML keeps the last
 		// one, so the number in force would be whichever line happens to be lower
 		// in the file, and the other would read as if it applied.
