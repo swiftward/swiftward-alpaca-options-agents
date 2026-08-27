@@ -10,8 +10,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -23,6 +25,18 @@ import (
 type Broker struct {
 	url  string
 	name string
+	// session is the ONE connection this client keeps, and keeping it is the
+	// whole point. Measured against the policy gateway on 27 August: opening a
+	// session costs 2.68 seconds - initialize, initialized, tools/list - and a
+	// call on an open one costs 0.85. A sweep asks about two hundred and ninety
+	// things, so a session per call turned a four-minute pass into seventeen,
+	// and the list the entry windows read went stale faster than it was rebuilt.
+	//
+	// Guarded because the screener, the ladder, the defence and both recorders
+	// share one Broker. Only the making and the dropping are under the lock; the
+	// calls themselves are not, because the session multiplexes them.
+	mu      sync.Mutex
+	session *mcp.ClientSession
 	// token authenticates this client to whatever answers at url. It is empty
 	// where that is the broker's own server, which asks for nothing, and set
 	// where a policy gateway stands in front of it and asks who is calling.
@@ -34,6 +48,11 @@ type Broker struct {
 // takes about two and a half, and bars for years back are a big answer. What it
 // stops is not slowness, it is silence that never ends.
 var brokerCallLimit = 90 * time.Second
+
+// dialLimit bounds getting the connection up at all - the TCP dial and the TLS
+// handshake. Separate from the one above because a machine that cannot reach the
+// host should say so in seconds, not in a minute and a half.
+var dialLimit = 15 * time.Second
 
 func NewBroker(url string) *Broker {
 	return &Broker{url: url, name: "swiftward-alpaca-options-agents-harness"}
@@ -50,11 +69,20 @@ func NewBrokerWithToken(url, token string) *Broker {
 // roundTripper carries the credential where there is one. Where there is none -
 // the broker's own server, which asks for nothing - it is the plain transport.
 func (b *Broker) roundTripper() http.RoundTripper {
-	if b.token == "" {
-		return http.DefaultTransport
+	under := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           (&net.Dialer{Timeout: dialLimit}).DialContext,
+		TLSHandshakeTimeout:   dialLimit,
+		ResponseHeaderTimeout: brokerCallLimit,
+		IdleConnTimeout:       90 * time.Second,
+		MaxIdleConnsPerHost:   4,
 	}
 
-	return bearer{token: b.token, next: http.DefaultTransport}
+	if b.token == "" {
+		return under
+	}
+
+	return bearer{token: b.token, next: under}
 }
 
 // bearer adds the credential to every request the transport makes. The MCP
@@ -318,40 +346,25 @@ func (b *Broker) Quotes(ctx context.Context, symbols []string) (map[string]Quote
 // is data: the broker's own wrapper says so, and nothing here treats it as
 // anything else.
 func (b *Broker) call(ctx context.Context, tool string, arguments map[string]any, into any) error {
-	// Every call is bounded, whatever the caller handed us. The loops above this
-	// - the screener, the ladder, the defence - all run on the process context,
-	// which has no deadline and is not meant to have one: it ends when the
-	// process ends. Without a bound HERE, one server that accepts the connection
-	// and then says nothing stops that loop until somebody restarts the
-	// container, and the log goes quiet rather than loud. Measured, not feared:
-	// reading our own orders from a machine that could not reach the proxy sat
-	// inside Connect for eight minutes and came back with nothing.
-	//
-	// The bound is on the HTTP CLIENT, and that is not the first thing tried. A
-	// deadline on the context around Connect and CallTool reads as the obvious
-	// fix and does not work: the test in silence_test.go held a server open and
-	// the call outlived the deadline anyway. So the limit goes where it bites,
-	// on the requests themselves. Nothing is lost by it - a session here lives
-	// for exactly one call and is closed below - but it is the reason the client
-	// is built even when there is no credential to carry.
-	transport := &mcp.StreamableClientTransport{
-		Endpoint: b.url,
-		HTTPClient: &http.Client{
-			Timeout:   brokerCallLimit,
-			Transport: b.roundTripper(),
-		},
-	}
-
-	client := mcp.NewClient(&mcp.Implementation{Name: b.name, Version: "v0.1.0"}, nil)
-	session, err := client.Connect(ctx, transport, nil)
+	session, err := b.connect(ctx)
 	if err != nil {
-		return fmt.Errorf("reach the broker's server: %w", err)
+		return err
 	}
-	defer func() { _ = session.Close() }()
 
 	result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: arguments})
 	if err != nil {
-		return fmt.Errorf("call %s: %w", tool, err)
+		// The session is kept, so a broken one would break every call after it
+		// rather than one. Drop it and try once more on a fresh one: a gateway
+		// restart, a rotated credential or an idle connection the far end closed
+		// all look like this, and none of them is a reason to fail a sweep.
+		b.drop(session)
+		if session, err = b.connect(ctx); err != nil {
+			return err
+		}
+		if result, err = session.CallTool(ctx, &mcp.CallToolParams{Name: tool, Arguments: arguments}); err != nil {
+			b.drop(session)
+			return fmt.Errorf("call %s: %w", tool, err)
+		}
 	}
 	if result.IsError {
 		return fmt.Errorf("the broker refused %s", tool)
@@ -366,4 +379,68 @@ func (b *Broker) call(ctx context.Context, tool string, arguments map[string]any
 	}
 
 	return nil
+}
+
+// connect hands back the session, making it if there is none.
+func (b *Broker) connect(ctx context.Context) (*mcp.ClientSession, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.session != nil {
+		return b.session, nil
+	}
+
+	// The bounds are on the TRANSPORT, not on the http.Client, and that matters
+	// now that the session outlives the call. A client-wide Timeout would cut
+	// the standing stream this transport keeps open, once every limit. What we
+	// actually need to stop is a server that accepts the connection and then
+	// says nothing - measured: reading our own orders from a machine that could
+	// not reach the proxy sat inside Connect for eight minutes and came back
+	// with nothing. ResponseHeaderTimeout stops exactly that and leaves a body
+	// already streaming alone.
+	//
+	// A deadline on the context around Connect reads as the obvious fix and does
+	// not work; silence_test.go held a server open and the call outlived it.
+	transport := &mcp.StreamableClientTransport{
+		Endpoint:   b.url,
+		HTTPClient: &http.Client{Transport: b.roundTripper()},
+	}
+
+	session, err := mcp.NewClient(&mcp.Implementation{Name: b.name, Version: "v0.1.0"}, nil).
+		Connect(ctx, transport, nil)
+	if err != nil {
+		return nil, fmt.Errorf("reach the broker's server: %w", err)
+	}
+
+	b.session = session
+
+	return session, nil
+}
+
+// drop closes the session and forgets it, unless somebody already replaced it.
+func (b *Broker) drop(used *mcp.ClientSession) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.session != used {
+		return
+	}
+
+	b.session = nil
+	_ = used.Close()
+}
+
+// Close ends the session this client keeps.
+func (b *Broker) Close() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.session == nil {
+		return nil
+	}
+
+	session := b.session
+	b.session = nil
+
+	return session.Close()
 }
