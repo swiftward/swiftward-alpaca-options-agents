@@ -1452,3 +1452,73 @@ sessions:
 	turns, _, _ := conversation.seen()
 	assert.Contains(t, turns[0], "short_leg_delta = 0,15 по модулю")
 }
+
+// A turn where the agent produced neither a word nor a tool call did not decide
+// to do nothing - it never ran. On 27 August the model gateway began refusing
+// the agent's credential and eight turns in a row ended in ten seconds having
+// done nothing; every one of them was recorded as finished with no failure, and
+// the room showed a tick. The record has to say the opposite of "fine" here.
+func TestASilentTurnIsRecordedAsAFailure(t *testing.T) {
+	conversation := newConversationSpy()
+	kept := record.NewMemory()
+	chat := newChatDouble()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Record: kept,
+		CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	chat.inbound <- telegram.Message{Text: "посмотри рынок"}
+	waitFor(t, func() bool {
+		state, err := kept.Read(ctx)
+		return err == nil && len(state.Turns) == 1
+	})
+
+	// The agent ends the turn without a single text or tool event.
+	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
+	waitFor(t, func() bool {
+		state, err := kept.Read(ctx)
+		return err == nil && len(state.Turns) == 1 && state.Turns[0].FinishedAt != nil
+	})
+
+	state, err := kept.Read(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, record.SilentFailure, state.Turns[0].Failure,
+		"a turn that produced nothing was recorded as a clean finish, so nobody will ever look at it again")
+}
+
+// The same turn, once the agent has actually spoken, must NOT be marked failed:
+// a session that looked and had nothing to do says one line and that is success.
+func TestATurnThatSpokeIsNotMarkedFailed(t *testing.T) {
+	conversation := newConversationSpy()
+	kept := record.NewMemory()
+	chat := newChatDouble()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Record: kept,
+		CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	chat.inbound <- telegram.Message{Text: "посмотри рынок"}
+	waitFor(t, func() bool {
+		state, err := kept.Read(ctx)
+		return err == nil && len(state.Turns) == 1
+	})
+
+	conversation.events <- agent.Event{Kind: agent.KindText, Text: "открытых позиций нет"}
+	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
+	waitFor(t, func() bool {
+		state, err := kept.Read(ctx)
+		return err == nil && len(state.Turns) == 1 && state.Turns[0].FinishedAt != nil
+	})
+
+	state, err := kept.Read(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, state.Turns[0].Failure, "a turn that said its one line is a finished turn, not a failure")
+}

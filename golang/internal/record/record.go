@@ -124,6 +124,12 @@ type Keeper interface {
 // record says what happened rather than leaving the turn open.
 const RestartedFailure = "the process restarted while this turn was running"
 
+// SilentFailure is what a turn carries when the agent produced neither a word
+// nor a tool call. It did not decide to do nothing - it never ran: the model was
+// unreachable, or the thread was refused. Recorded as a failure because a turn
+// counted done is a turn nobody looks at again.
+const SilentFailure = "the agent ended the turn without saying or calling anything"
+
 // StatusUnknown is what a tool call carries when the process died while it was
 // in flight. An order in that state may or may not have reached the broker, and
 // saying either would be a guess.

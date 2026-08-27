@@ -133,6 +133,10 @@ type Harness struct {
 	statusID    int
 	turnFor     string
 	turnStarted time.Time
+	// turnActed records whether the agent said or called ANYTHING this turn. A
+	// turn that ends without either did not run - the model was unreachable, the
+	// thread was refused - and must be marked failed rather than counted done.
+	turnActed bool
 	// declared is the schedule in force. The clock is the only thing that replaces
 	// it; the lock is here because it is also read from outside that goroutine.
 	// Everything else that wants the schedule - the session's own read_schedule -
@@ -638,6 +642,10 @@ func (h *Harness) startTurnWith(ctx context.Context, prompt, who, model string) 
 		}
 	}
 
+	h.mu.Lock()
+	h.turnActed = false
+	h.mu.Unlock()
+
 	go h.showTyping(ctx, turnID)
 
 	h.Log.Info("turn started",
@@ -687,8 +695,10 @@ func (h *Harness) followTheSession(ctx context.Context) {
 			}
 			switch ev.Kind {
 			case agent.KindText:
+				h.markActed()
 				h.sayInTurn(ctx, ev.Text)
 			case agent.KindToolStarted:
+				h.markActed()
 				h.callStarted(ctx, ev)
 				h.updateStatus(ctx, working(h.runningFor(), ev.Call.Named()))
 			case agent.KindTool:
@@ -758,6 +768,7 @@ func (h *Harness) finishTurn(ctx context.Context, turnID string) {
 	status := h.statusID
 	who := h.turnFor
 	started := h.turnStarted
+	acted := h.turnActed
 	h.statusID = 0
 	h.mu.Unlock()
 
@@ -773,13 +784,31 @@ func (h *Harness) finishTurn(ctx context.Context, turnID string) {
 			h.Log.Debug("could not take down the status line", zap.Error(err))
 		}
 	}
-	h.say(ctx, finished(who, h.Now().Sub(started)))
+	failure := ""
+	if !acted {
+		failure = record.SilentFailure
+		h.Log.Error("the agent ended a turn without saying or calling anything",
+			zap.String("turn_id", turnID), zap.String("session", who))
+	}
+
+	if acted {
+		h.say(ctx, finished(who, h.Now().Sub(started)))
+	} else {
+		h.say(ctx, didNothing(who))
+	}
 	if h.Record != nil && turnID != "" {
-		if err := h.Record.TurnFinished(ctx, turnID, h.Now(), ""); err != nil {
+		if err := h.Record.TurnFinished(ctx, turnID, h.Now(), failure); err != nil {
 			h.Log.Error("could not close the turn in the record", zap.Error(err))
 		}
 	}
-	h.Log.Info("turn finished", zap.String("turn_id", turnID))
+	h.Log.Info("turn finished", zap.String("turn_id", turnID), zap.Bool("acted", acted))
+}
+
+// markActed notes that the agent produced something this turn.
+func (h *Harness) markActed() {
+	h.mu.Lock()
+	h.turnActed = true
+	h.mu.Unlock()
 }
 
 func (h *Harness) openThread(ctx context.Context) (string, error) {
@@ -856,6 +885,12 @@ func working(who, tool string) string {
 
 func finished(who string, took time.Duration) string {
 	return fmt.Sprintf("✅ %s · готово за %s", who, howLong(took))
+}
+
+// didNothing is said instead of a tick when the agent produced nothing at all.
+// The room must not read "done" for a session that never ran.
+func didNothing(who string) string {
+	return fmt.Sprintf("⚠️ %s · ход не состоялся: агент не сказал и не позвал ничего", who)
 }
 
 // howLong writes a duration the way the room reads it, in Russian and rounded:
