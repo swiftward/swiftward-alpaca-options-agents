@@ -51,7 +51,10 @@ func TestWhatOurRoundTripsEarned(t *testing.T) {
 	rounds := map[string]*money{}
 
 	for _, order := range orders {
-		if order.Status != "filled" || order.FilledAt == nil {
+		// Не "filled", а "что-то исполнилось": частично исполненная и затем снятая
+		// заявка двигала деньги ровно так же, и выбросить её значит разойтись со
+		// счётом на её величину.
+		if order.FilledQuantity <= 0 || order.FilledAt == nil {
 			continue
 		}
 		legs := order.Legs
@@ -63,9 +66,13 @@ func TestWhatOurRoundTripsEarned(t *testing.T) {
 			if !parsed {
 				continue
 			}
-			key := fmt.Sprintf("%s %s",
+			// Страйк в ключе обязателен: 25 августа в один день шли QQQ 706/705 и
+			// 710/709, и ключ из бумаги с датой слил бы их в один круг, которого
+			// никогда не было.
+			key := fmt.Sprintf("%s %s %.0f",
 				contract.Symbol[:len(contract.Symbol)-15],
-				contract.Expiration.Format("2006-01-02"))
+				contract.Expiration.Format("2006-01-02"),
+				contract.Strike)
 
 			round, seen := rounds[key]
 			if !seen {
@@ -117,6 +124,10 @@ func TestWhatOurRoundTripsEarned(t *testing.T) {
 	}
 
 	t.Logf("кругов: %d, итог %+.2f, из них сборы %.2f", len(keys), total, totalFees)
-	t.Log("ОГОВОРКА: серия, открытая и НЕ закрытая, показана как чистый кредит - " +
-		"её настоящий итог станет известен на истечении или при закрытии.")
+	t.Log("ОГОВОРКИ, обе важные:")
+	t.Log("  серия, открытая и НЕ закрытая, показана как чистый кредит - её настоящий " +
+		"итог станет известен на истечении или при закрытии;")
+	t.Log("  истечение в деньгах и исполнение в заявках НЕ ВИДНЫ вовсе: их делает " +
+		"брокер, а не мы. В плохой день итог этой таблицы разойдётся со счётом, и " +
+		"сверять её надо с движением капитала, а не с самой собой.")
 }

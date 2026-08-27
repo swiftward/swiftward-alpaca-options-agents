@@ -189,7 +189,14 @@ func (l *Ladder) step(ctx context.Context) {
 		}
 		if hasBook {
 			if worst, known := WorstCase(order); known {
-				if atRisk-worst > book {
+				// The same allowance the per-position check needs, for the same
+				// reason: equity moves with every tick, the session cannot express
+				// a position finer than one set, and cancelling for less than that
+				// punishes correct arithmetic - then does it again on the retry,
+				// spending the entry window and taking no position.
+				resting := order.Quantity - order.FilledQuantity
+				over := atRisk - worst - book
+				if over > 0 && (resting <= 0 || over > -worst/resting) {
 					l.overBook(ctx, order, atRisk, -worst, book)
 					continue
 				}
