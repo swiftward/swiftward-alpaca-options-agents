@@ -190,6 +190,23 @@ services:
       ALPACA_API_KEY: ${ALPACA_NEAR_API_KEY_ID}
       ALPACA_SECRET_KEY: ${ALPACA_NEAR_API_SECRET_KEY}
 
+  # A teammate's own account. Their server, their keys, and a gateway endpoint of
+  # its own - because this server reads its credentials from its own environment,
+  # so one process serves exactly one account and no request can say otherwise.
+  #
+  # Behind a profile: it does not start until someone asks for it by name, and a
+  # server with no keys would answer every call with an authentication error that
+  # reads like a broken gateway.
+  #
+  #   docker compose --profile tikhon up -d alpaca-mcp-tikhon
+  alpaca-mcp-tikhon:
+    <<: *broker-service
+    profiles: [tikhon]
+    environment:
+      <<: *broker-environment
+      ALPACA_API_KEY: ${ALPACA_TIKHON_API_KEY_ID}
+      ALPACA_SECRET_KEY: ${ALPACA_TIKHON_API_SECRET_KEY}
+
   # The session's container: the harness role plus the agent it starts. It holds
   # no credential of ours; the login it does carry is Codex's own, mounted from
   # the host that performed it.
