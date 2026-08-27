@@ -52,6 +52,13 @@ The fuse is not enforced by anything but you. Nothing refuses the order if you s
   `fresh` false is no list at all; `fresh` true means use it - and still re-read
   the legs before ordering, because prices move inside a cycle even when the list
   is doing its job.
+- **Ranking and the threshold are two different things.** `edge_points` orders the
+  list; the threshold is what your task names, and it applies to the number you
+  work out from FRESH quotes after re-reading the legs. Never treat the list's own
+  best value as the bar: the list has aged, the fresh number is almost always
+  lower, and "at least the best in the list" is a bar nothing can clear. That
+  happened on 27 August - 6.37 in the list, 2.2 on fresh quotes, refused, while
+  2.2 was the best thing seen all day.
 - **A candidate that dies on the fresh quote does not end the turn - take the
   next one.** The list is ranked, and the one at the top is the one whose edge
   had furthest to fall. Re-read the legs of the best; if it no longer measures
