@@ -261,6 +261,13 @@ services:
       # The broker's tools, reached through the policy gateway. The session sends
       # its own credential, so the record names WHICH agent made each call and one
       # agent can be stopped without touching the other.
+      # Наружу агент выходит через интернет-шлюз и предъявляет ему ТОТ ЖЕ ключ,
+      # что брокеру и модели. Ключ едет паролем в адресе прокси - так его шлёт
+      # любой стандартный клиент, а шлюз читает его из Proxy-Authorization.
+      # Без ключа он видел бы только TCP-соединение и записывал имя контейнера
+      # с пометкой «заявлено»; с ключом личность агента проверена, как везде.
+      HTTP_PROXY: ${OUTBOUND_PROXY:-http://agent:${BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
+      HTTPS_PROXY: ${OUTBOUND_PROXY:-http://agent:${BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
       BROKER_MCP_URL: ${BROKER_MCP_URL}
       # Куда идут ЧТЕНИЯ харнесса - цены, часы, счёт, цепочки. Пусто означает
       # «туда же, куда заявки». Разделять их можно потому, что строка выше
@@ -270,6 +277,7 @@ services:
       HARNESS_BROKER_MCP_URL: ${HARNESS_BROKER_MCP_URL:-}
       HARNESS_BROKER_MCP_TOKEN: ${HARNESS_BROKER_MCP_TOKEN:-}
       BROKER_MCP_TOKEN: ${BROKER_MCP_TOKEN}
+      USER_TOKEN: ${USER_TOKEN:-}
       # The model through the policy gateway, under this agent's own name.
       MODEL_GATEWAY_URL: ${MODEL_GATEWAY_URL}
       DECLARATION: ${DECLARATION:-/mnt/agent/agent.yaml}
@@ -328,8 +336,16 @@ services:
     environment:
       <<: *agent-environment
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
+      # Наружу агент выходит через интернет-шлюз и предъявляет ему ТОТ ЖЕ ключ,
+      # что брокеру и модели. Ключ едет паролем в адресе прокси - так его шлёт
+      # любой стандартный клиент, а шлюз читает его из Proxy-Authorization.
+      # Без ключа он видел бы только TCP-соединение и записывал имя контейнера
+      # с пометкой «заявлено»; с ключом личность агента проверена, как везде.
+      HTTP_PROXY: ${OUTBOUND_NEAR_PROXY:-http://agent:${BROKER_NEAR_MCP_TOKEN}@swiftward-hackathon-server:8097}
+      HTTPS_PROXY: ${OUTBOUND_NEAR_PROXY:-http://agent:${BROKER_NEAR_MCP_TOKEN}@swiftward-hackathon-server:8097}
       BROKER_MCP_URL: ${BROKER_NEAR_MCP_URL:-http://alpaca-mcp-agent-2:8000/mcp}
       BROKER_MCP_TOKEN: ${BROKER_NEAR_MCP_TOKEN}
+      USER_TOKEN: ${USER_TOKEN:-}
       HARNESS_BROKER_MCP_URL: ${HARNESS_BROKER_NEAR_MCP_URL:-}
       HARNESS_BROKER_MCP_TOKEN: ${HARNESS_BROKER_NEAR_MCP_TOKEN:-}
       MODEL_GATEWAY_URL: ${MODEL_NEAR_GATEWAY_URL}
