@@ -112,8 +112,11 @@ x-agent-environment: &agent-environment
   # the agent went and decides whether it may. The host list it enforces is the
   # one the outbound proxy enforced before it - nothing new is refused, and now
   # there is a record of what was asked for.
-  HTTP_PROXY: http://swiftward-hackathon-server:8097
-  HTTPS_PROXY: http://swiftward-hackathon-server:8097
+  # The way out. The default is the internet gateway that stands beside the rest
+  # of the stack; a stand running on someone's own machine is not on that network
+  # and names its own way out instead.
+  HTTP_PROXY: ${OUTBOUND_PROXY:-http://swiftward-hackathon-server:8097}
+  HTTPS_PROXY: ${OUTBOUND_PROXY:-http://swiftward-hackathon-server:8097}
   NO_PROXY: alpaca-mcp-agent-1,alpaca-mcp-agent-2,alpaca-mcp-agent-tikhon,envelope,postgres,egress,swiftward-hackathon-server,localhost,127.0.0.1
   CODEX_HOME: /home/agent/.codex
 
