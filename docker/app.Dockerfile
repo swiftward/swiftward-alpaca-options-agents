@@ -43,6 +43,11 @@ COPY docker/agent-entrypoint.sh /usr/local/bin/entrypoint
 COPY agent/ /agent/
 RUN chmod +x /usr/local/bin/entrypoint
 
+# Where this image carries the skills it can offer a session. Which of them an
+# agent actually gets is its declaration's to say, not this file's - two agents
+# run from this one image and need not read the same instructions.
+ENV SKILLS_DIR=/agent/skills
+
 # The session runs as the same user id that owns the login on the host: that file
 # is readable by its owner alone, and a mismatch here shows up as a session that
 # cannot start. AGENT_UID is a build argument for hosts where it is not 1000.

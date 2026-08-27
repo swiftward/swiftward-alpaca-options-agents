@@ -15,7 +15,12 @@ jobs:
           go-version: "1.27"
       - run: go vet ./...
         working-directory: golang
-      - run: go test ./...
+      # -count=1 always, for the same reason golang/Makefile passes it: several
+      # tests read the declarations and the skills, and Go caches a result against
+      # the Go files it compiled, which those are not. A cached pass on a file
+      # that has since broken is a guard that lies, and it cost a crash-looping
+      # agent on 26 August.
+      - run: go test -count=1 ./...
         working-directory: golang
       - run: go build ./...
         working-directory: golang

@@ -1113,3 +1113,342 @@ func TestARefusedInterruptEndsTheProcessRatherThanWaitingForever(t *testing.T) {
 	assert.GreaterOrEqual(t, len(conversation.interrupted()), interruptAttempts,
 		"it should have asked the agreed number of times before giving up")
 }
+
+// The memory of what already ran is kept by session NAME, and a name the
+// previous declaration did not have has no entry - which reads as "never ran".
+// Left alone, a name the record has already seen today would open a second
+// position in a window that already had one, and one with `every:` would fire
+// the same second it appeared. The record is asked about the names that are new.
+//
+// The other half of this test is the limit of the guard: a name the record has
+// never seen does run, because a session added at midday and a session renamed
+// at midday are the same thing on disk and the added one should run.
+func TestANameTheRecordAlreadySawDoesNotRunASecondTimeToday(t *testing.T) {
+	now := time.Date(2026, 8, 25, 14, 40, 0, 0, time.UTC)
+
+	before, err := declaration.Load(write(t, `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: flatten
+    cause: "конец дня"
+    task: "Закрой всё."
+    at: "15:50"
+    within: 20m
+`))
+	require.NoError(t, err)
+
+	after, err := declaration.Load(write(t, `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: flatten
+    cause: "конец дня"
+    task: "Закрой всё."
+    at: "15:50"
+    within: 20m
+  - name: entry
+    cause: "окно входа"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+  - name: entry-morning
+    cause: "утреннее окно"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+`))
+	require.NoError(t, err)
+
+	// The turn the window already had, under a name the declaration is about to
+	// grow. A session moved between declarations - or a process that had this name
+	// before the edit - is exactly what produces this.
+	kept := record.NewMemory()
+	require.NoError(t, kept.TurnStarted(context.Background(), record.Turn{
+		Ref: "turn-1", ThreadRef: "th-1", StartedAt: now.Add(-18 * time.Minute),
+		WokenBy: "entry", Cause: "declaration: entry",
+	}))
+
+	ctx := context.Background()
+	h := &Harness{
+		Declaration: before, Record: kept, CallTimeout: time.Second,
+		Now: func() time.Time { return now }, Log: zaptest.NewLogger(t),
+		Reread: func() (*declaration.Declaration, error) { return after, nil },
+	}
+	h.declared = before
+	h.lastRun = h.whatAlreadyRanToday(ctx, before)
+	require.Empty(t, h.lastRun)
+
+	h.rereadTheDeclaration(ctx)
+
+	assert.Same(t, after, h.declared, "the new declaration is the one in force")
+	assert.Equal(t, now.Add(-18*time.Minute), h.lastRun["entry"],
+		"what the record says about this name is what the clock must go by")
+	assert.False(t, after.Sessions[1].Due(now, h.lastRun["entry"]), "this window already had its session")
+
+	// And the guard must not become a harness that never wakes anybody: a name the
+	// record has never seen has never run under that name, and runs. This is also
+	// the guard's limit - a session RENAMED inside its own window looks like this
+	// and does run twice, which is why renaming happens outside the window.
+	assert.True(t, after.Sessions[2].Due(now, h.lastRun["entry-morning"]))
+}
+
+// A name this process has already woken keeps the time this process saw. The
+// record's time is older - it is written when the turn starts and the process
+// knows about turns the record has not been asked about since - and taking it
+// would let a session run twice inside one window.
+func TestARereadDoesNotForgetWhatThisProcessAlreadyWoke(t *testing.T) {
+	now := time.Date(2026, 8, 25, 14, 40, 0, 0, time.UTC)
+	body := `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: entry
+    cause: "окно входа"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+`
+	before, err := declaration.Load(write(t, body))
+	require.NoError(t, err)
+	after, err := declaration.Load(write(t, body+"    days: [mon, tue]\n"))
+	require.NoError(t, err)
+
+	kept := record.NewMemory()
+	require.NoError(t, kept.TurnStarted(context.Background(), record.Turn{
+		Ref: "turn-1", ThreadRef: "th-1", StartedAt: now.Add(-30 * time.Minute),
+		WokenBy: "entry", Cause: "declaration: entry",
+	}))
+
+	ctx := context.Background()
+	h := &Harness{
+		Declaration: before, Record: kept, CallTimeout: time.Second,
+		Now: func() time.Time { return now }, Log: zaptest.NewLogger(t),
+		Reread: func() (*declaration.Declaration, error) { return after, nil },
+	}
+	h.declared = before
+	h.lastRun = map[string]time.Time{"entry": now.Add(-2 * time.Minute)}
+
+	h.rereadTheDeclaration(ctx)
+
+	assert.Equal(t, now.Add(-2*time.Minute), h.lastRun["entry"])
+}
+
+// A file that cannot be used leaves the clock exactly as it was: an agent whose
+// schedule vanished halfway through a save wakes nobody for the rest of the day.
+func TestARereadThatFailsLeavesTheClockAlone(t *testing.T) {
+	declared, err := declaration.Load(write(t, `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: entry
+    cause: "окно входа"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+`))
+	require.NoError(t, err)
+
+	h := &Harness{
+		Declaration: declared, CallTimeout: time.Second,
+		Now: func() time.Time { return time.Date(2026, 8, 25, 14, 40, 0, 0, time.UTC) },
+		Log: zaptest.NewLogger(t),
+		Reread: func() (*declaration.Declaration, error) {
+			return declared, errors.New("the file on disk is half-saved")
+		},
+	}
+	h.declared = declared
+	h.lastRun = map[string]time.Time{}
+
+	h.rereadTheDeclaration(context.Background())
+
+	assert.Same(t, declared, h.declared)
+}
+
+// write puts a declaration in a file of its own, so a test can hold two versions
+// of the same schedule at once.
+func write(t *testing.T, body string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "agent.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+
+	return path
+}
+
+// The clock is what carries an edit to a running session. Nothing here restarts:
+// the harness is started once, the thing behind Reread changes underneath it,
+// and the next tick has to pick it up.
+//
+// This is the half of "an edit reaches a session already running" that lives in
+// the harness. The other half - that the edit is a skill's text and that the
+// directory the agent reads is rebuilt from it - is proven in internal/skills.
+func TestARunningHarnessPicksUpAChangeWithoutARestart(t *testing.T) {
+	body := `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+sessions:
+  - name: entry
+    cause: "окно входа"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+`
+	before, err := declaration.Load(write(t, body))
+	require.NoError(t, err)
+	after, err := declaration.Load(write(t, body+"    days: [mon, tue]\n"))
+	require.NoError(t, err)
+
+	var mu sync.Mutex
+	current, asked := before, 0
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: conversation, Declaration: before, Record: record.NewMemory(),
+		CallTimeout: 2 * time.Second,
+		// The real tick is a minute, which is right for a schedule written in
+		// minutes and wrong for standing here waiting for one.
+		TickEvery: 20 * time.Millisecond,
+		// Saturday: nothing is due, so this test measures the re-reading and
+		// nothing else.
+		Now: func() time.Time { return time.Date(2026, 8, 29, 14, 40, 0, 0, time.UTC) },
+		Log: zaptest.NewLogger(t),
+		Reread: func() (*declaration.Declaration, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			asked++
+
+			return current, nil
+		},
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { mu.Lock(); defer mu.Unlock(); return asked > 0 })
+
+	// What is on disk changes while the process runs. Nothing is restarted.
+	mu.Lock()
+	current = after
+	mu.Unlock()
+
+	waitFor(t, func() bool { return h.inForce() == after })
+	assert.Equal(t, []string{"mon", "tue"}, h.inForce().Sessions[0].Days,
+		"the schedule in force is the edited one")
+}
+
+// The numbers this agent runs on go in front of EVERY turn, not only a
+// scheduled one. A session woken by its own price wake-up is asked to follow the
+// same techniques, and the playbook tells a session that cannot see its numbers
+// to open nothing - so a wake-up without them would be a turn that can only
+// report a fault.
+func TestEveryCauseCarriesTheNumbersTheAgentRunsOn(t *testing.T) {
+	declared, err := declaration.Load(write(t, `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+parameters:
+  short_leg_delta: "0,15 по модулю"
+sessions:
+  - name: entry
+    cause: "окно входа"
+    task: "Продай спред."
+    at: "14:20"
+    within: 45m
+`))
+	require.NoError(t, err)
+
+	chat := newChatDouble()
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Declaration: declared,
+		Record: record.NewMemory(), CallTimeout: 2 * time.Second,
+		// Saturday, outside every window: nothing the clock does interferes.
+		Now: func() time.Time { return time.Date(2026, 8, 29, 11, 0, 0, 0, time.UTC) },
+		Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	// A wake-up the session asked itself for, in its own words.
+	h.Tell(ctx, "Woken by a condition you set: SPY прошла 640, проверь позиции", "wakeup w1")
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	turns, _, _ := conversation.seen()
+	assert.Contains(t, turns[0], "short_leg_delta = 0,15 по модулю",
+		"a turn woken by the session's own request still carries the agent's numbers")
+	assert.Contains(t, turns[0], "SPY прошла 640", "and still says why it was woken")
+
+	// And a person writing in the chat is the third cause, with the same answer.
+	chat.inbound <- telegram.Message{Text: "выполни premium-harvest", UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { turns, steered, _ := conversation.seen(); return len(turns)+len(steered) == 2 })
+
+	turns, steered, _ := conversation.seen()
+	if len(turns) == 2 {
+		assert.Contains(t, turns[1], "short_leg_delta = 0,15 по модулю")
+	} else {
+		// It went into the turn already running, which already carries them.
+		require.Len(t, steered, 1)
+		assert.Contains(t, turns[0], "short_leg_delta = 0,15 по модулю")
+	}
+}
+
+// The record answers "why did this turn happen" long after the room has
+// scrolled away, so the cause it files is the window, the wake-up or the message
+// - never the fixed sentence the agent's numbers open with. The older guard
+// missed this because its declaration carried no parameters at all.
+func TestTheRecordedCauseIsWhatWokeTheSessionNotTheNumbers(t *testing.T) {
+	declared, err := declaration.Load(write(t, `
+kind: trading-agent
+name: options-alpha
+timezone: UTC
+parameters:
+  short_leg_delta: "0,15 по модулю"
+sessions:
+  - name: flatten
+    cause: "закрыть всё перед концом дня"
+    task: "Закрой все позиции."
+    at: "15:50"
+    within: 20m
+`))
+	require.NoError(t, err)
+
+	kept := record.NewMemory()
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: conversation, Declaration: declared, Record: kept,
+		CallTimeout: 2 * time.Second, TickEvery: 20 * time.Millisecond,
+		Now: func() time.Time { return time.Date(2026, 8, 24, 15, 50, 0, 0, time.UTC) },
+		Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+	waitFor(t, func() bool {
+		state, err := kept.Read(ctx)
+
+		return err == nil && len(state.Turns) == 1
+	})
+
+	state, err := kept.Read(ctx)
+	require.NoError(t, err)
+	require.Len(t, state.Turns, 1)
+	assert.Equal(t, "flatten", state.Turns[0].WokenBy)
+	assert.Contains(t, state.Turns[0].Cause, "закрыть всё перед концом дня")
+	assert.NotContains(t, state.Turns[0].Cause, "Numbers this agent runs on")
+
+	// And the numbers did reach the session - the cause is trimmed, not the
+	// prompt.
+	turns, _, _ := conversation.seen()
+	assert.Contains(t, turns[0], "short_leg_delta = 0,15 по модулю")
+}

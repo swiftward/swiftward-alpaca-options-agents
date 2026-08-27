@@ -75,18 +75,18 @@ mkdir -p /work/notes
 cp /agent/AGENTS.md /work/AGENTS.md
 
 # Skills are instructions too, and the agent looks for them in `.agents/skills`
-# inside the directory it works in. They follow the same rule as the file above,
-# with one step more: /work is a volume that outlives the image, so a plain copy
-# would leave behind a skill that was deleted upstream and the session would keep
-# reading an instruction this image no longer carries. The directory is replaced
-# whole, not merged into - which is why the removal is not conditional on there
-# being anything to put back. Carrying no skills at all is a state this image is
-# allowed to be in: git does not keep an empty directory, so deleting the last
-# skill deletes the tree, and a session with no skills is a working session.
-rm -rf /work/.agents/skills
-if [ -d /agent/skills ]; then
-    mkdir -p /work/.agents
-    cp -R /agent/skills /work/.agents/skills
-fi
+# inside the directory it works in. They are NOT laid out here, and the reason is
+# that the choice is no longer a copy: which skills an agent gets is written in
+# its declaration, this is a shell script, and a shell script that guesses at
+# YAML is a worse place for that decision than the process that already reads it.
+#
+# The app below does it, reading them from SKILLS_DIR and copying the ones the
+# declaration names. To edit a skill and have a running session read the new
+# text, mount a checkout at SKILLS_DIR - not over /work/.agents/skills, which the
+# app rebuilds and will refuse to start on top of.
+#
+# It also refuses to start on a /work/.agents/skills it did not write, and the
+# copy THIS script used to make is one of those. On a work volume that predates
+# the change, remove that directory once; the app builds it on the next start.
 
 exec /usr/local/bin/app "$@"

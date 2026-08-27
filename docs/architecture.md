@@ -53,6 +53,8 @@ The agent sits on `internal` alone. Everything it can do is therefore enumerable
 
 The stack runs the same binary twice, against two accounts, under two sets of limits: one selling far from the price and one selling half as far. Only the declaration and the token differ - no code is branched, which is the point of putting the strategy in a declaration rather than in an interface.
 
+The declaration says three things: when each session wakes and what it is asked to do, which skills the agent is given, and the numbers those skills are run with. It is re-read while the process runs, so tightening a window or adding a session is one edit rather than a restart in the middle of a trading day. The same tick also brings the skills the session reads level with what the source holds, so editing the text of a technique reaches a session already at work. A file that is half-saved or does not check out is refused and said so in the log; the schedule already in force keeps working.
+
 Each has its own database. A shared one would let one agent's restart close the other's open turns - the query that closes what a dead process left behind cannot tell them apart - and would let either skip a session because the other had already run one by that name. Separate databases make that impossible by construction rather than by care.
 
 ## The record

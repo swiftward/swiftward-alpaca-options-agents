@@ -8,21 +8,44 @@ package declaration
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Declaration is one agent: who it is and when it wakes.
+// Declaration is one agent: who it is, when it wakes, which techniques it is
+// given and the numbers it runs them with.
 type Declaration struct {
 	Kind     string    `yaml:"kind"`
 	Name     string    `yaml:"name"`
 	Version  string    `yaml:"version"`
 	Timezone string    `yaml:"timezone"`
 	Sessions []Session `yaml:"sessions"`
+	// Skills are the techniques this agent is given, by the name in the skill's
+	// own front matter. Empty means all the ones shipped beside it.
+	//
+	// They belong to the agent and not to a session on purpose, and the reason is
+	// mechanical rather than a preference: the agent reads its skills directory
+	// once when it starts, and one agent process serves every session, so there
+	// is no directory to narrow for a single session. Which technique a session
+	// uses is chosen the way it always was - the task asks for it by name.
+	//
+	// The set is worth narrowing because a skill costs its description in every
+	// prompt of every turn, so an agent should carry its own and nobody else's.
+	Skills []string `yaml:"skills"`
+	// Parameters are the numbers this agent runs its skills with. A skill holds
+	// the technique and an example number; the number that is actually used lives
+	// here, because two accounts run the same skill on purpose and the difference
+	// between them is the whole experiment.
+	//
+	// They stand at the top of every task, so a session cannot follow a technique
+	// without seeing the numbers it belongs to.
+	Parameters Parameters `yaml:"parameters"`
 
-	location *time.Location
+	location   *time.Location
+	parameters string
 }
 
 // Session is one reason to wake the agent.
@@ -69,6 +92,12 @@ func Load(path string) (*Declaration, error) {
 		return nil, fmt.Errorf("read declaration: %w", err)
 	}
 
+	return parse(raw, path)
+}
+
+// parse is Load without the file, so the watcher can decide whether the bytes
+// changed before it decides whether the schedule did.
+func parse(raw []byte, path string) (*Declaration, error) {
 	var d Declaration
 	decoder := yaml.NewDecoder(strings.NewReader(string(raw)))
 	decoder.KnownFields(true)
@@ -95,6 +124,7 @@ func Load(path string) (*Declaration, error) {
 	}
 	d.location = location
 
+	d.parameters = d.Parameters.block()
 	for i := range d.Sessions {
 		if err := d.Sessions[i].check(); err != nil {
 			return nil, fmt.Errorf("declaration %s: %w", path, err)
@@ -202,9 +232,93 @@ func (s *Session) Due(now, last time.Time) bool {
 	return last.IsZero() || now.Sub(last) >= s.every
 }
 
-// Prompt is what the session is told: why it was woken, then what to do.
+// Prompt is what the session is told: why it was woken, then what to do. The
+// numbers this agent runs on are NOT here - they belong to every turn and not
+// only to a scheduled one, so the harness puts them in front of whatever woke
+// the session. See Numbers.
 func (s *Session) Prompt() string {
 	return fmt.Sprintf("Woken by the schedule: %s\n%s", s.Cause, s.Task)
+}
+
+// Numbers is what this agent runs its skills with, written the way a session
+// reads it. Empty when the declaration gives none.
+//
+// It goes in front of EVERY turn, not only a scheduled one. A session woken by
+// its own price wake-up, or by a person in the chat, is asked to follow the same
+// techniques by the same numbers - and a skill that finds its numbers missing is
+// told to open nothing, which would make a wake-up a turn that can only report a
+// fault. It is also why the numbers are not repeated inside a task: a number
+// written in eight windows is a number that will one day disagree with itself.
+func (d *Declaration) Numbers() string { return d.parameters }
+
+// Parameters are the numbers an agent runs its skills with, read as written.
+type Parameters map[string]string
+
+// UnmarshalYAML reads the parameters and refuses everything that would make one
+// ambiguous. Values may be written as numbers - a hand-edited file where 0.15
+// has to be quoted is a trap - but a value that is itself a list or a mapping is
+// refused: it would reach the session as Go's idea of how to print it.
+func (p *Parameters) UnmarshalYAML(node *yaml.Node) error {
+	// `parameters:` with everything under it commented out - which is what
+	// tuning looks like - is no parameters, the same as leaving the key out. A
+	// skill that needs one then says which one, which is the useful complaint;
+	// refusing on the shape of the YAML is not.
+	if node.Tag == "!!null" {
+		*p = Parameters{}
+
+		return nil
+	}
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("parameters must be a mapping of name to value")
+	}
+
+	out := Parameters{}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		name, value := node.Content[i], node.Content[i+1]
+		if name.Kind != yaml.ScalarNode {
+			return fmt.Errorf("a parameter is named by something that is not a name")
+		}
+		if value.Kind != yaml.ScalarNode {
+			return fmt.Errorf("parameter %q holds a list or a mapping; a session is given one value", name.Value)
+		}
+		// A name with nothing after it passes every check that asks whether the
+		// parameter is there and hands the session a blank line to trade by.
+		if strings.TrimSpace(value.Value) == "" {
+			return fmt.Errorf("parameter %q is given no value", name.Value)
+		}
+		// A name written twice is the failure this catches: YAML keeps the last
+		// one, so the number in force would be whichever line happens to be lower
+		// in the file, and the other would read as if it applied.
+		if _, already := out[name.Value]; already {
+			return fmt.Errorf("parameter %q is named twice", name.Value)
+		}
+		out[name.Value] = value.Value
+	}
+	*p = out
+
+	return nil
+}
+
+// block is the parameters as a session reads them. Sorted, because a prompt that
+// reorders itself between turns is a prompt the agent has to read again.
+func (p Parameters) block() string {
+	if len(p) == 0 {
+		return ""
+	}
+
+	names := make([]string, 0, len(p))
+	for name := range p {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var says strings.Builder
+	says.WriteString("Numbers this agent runs on. Where a skill carries its own, this one replaces it; where your task names a different one for this window, the task wins. Say in one line which you took.\n")
+	for _, name := range names {
+		says.WriteString(fmt.Sprintf("- %s = %s\n", name, p[name]))
+	}
+
+	return says.String()
 }
 
 func parseClock(value string) (time.Duration, error) {

@@ -47,6 +47,10 @@ type Config struct {
 	AgentDir     string
 	AgentSandbox string
 	AgentModel   string
+	// SkillsDir is where this image carries the skills it can offer a session.
+	// The declaration says which of them this agent gets. Empty means the process
+	// lays out no skills, which is what every role but the harness does.
+	SkillsDir string
 	// ThreadFile is where the conversation's identifier is kept between runs.
 	// Empty means a restart begins a new conversation.
 	ThreadFile string
@@ -237,6 +241,7 @@ func Load() (Config, error) {
 		AgentCommand:          k.String("agent_command"),
 		AgentDir:              k.String("agent_dir"),
 		AgentSandbox:          k.String("agent_sandbox"),
+		SkillsDir:             k.String("skills_dir"),
 		AgentModel:            k.String("agent_model"),
 		ThreadFile:            k.String("thread_file"),
 		WakeupFile:            k.String("wakeup_file"),

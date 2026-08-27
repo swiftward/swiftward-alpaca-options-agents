@@ -41,6 +41,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/screener"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/sessiontools"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/skills"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/volatility"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
@@ -169,13 +170,59 @@ func run(log *zap.Logger) error {
 		line = account.NewPostgres(pool)
 	}
 
-	// The declaration is read once: the harness wakes sessions by it, and the
-	// session reads it to answer when it will be woken next.
-	var declared *declaration.Declaration
+	// The skills the session reads, kept level with the source this deployment
+	// was given. Only the role that starts the agent lays them out: nothing else
+	// reads that directory.
+	//
+	// The source is READ from and never written to, which is what lets a checkout
+	// be mounted over it: the narrowing a declaration does then still applies,
+	// because this process is the one that copies the chosen skills across. The
+	// alternative - mounting over the directory the session reads - would hand it
+	// every skill in the checkout and make the same declaration behave one way
+	// here and another on a deployment.
+	var layer *skills.Layer
+	if cfg.Has(config.RoleHarness) && cfg.SkillsDir != "" && cfg.AgentDir != "" {
+		layer = &skills.Layer{Source: cfg.SkillsDir, AgentDir: cfg.AgentDir}
+	}
+
+	// The declaration is read here and re-read while the process runs: the harness
+	// wakes sessions by it, and the session reads it to answer when it will be
+	// woken next. Both go through the watcher, so an edited file reaches the clock
+	// and the session's own answer at the same moment.
+	//
+	// Putting the skills in place is part of putting a declaration in force, not a
+	// step beside it. A declaration that shrinks its `skills:` or drops a
+	// `parameters:` while the process runs would otherwise leave the skill it
+	// stopped naming sitting in the directory the session reads, invocable with
+	// none of the numbers it needs. Here the two cannot come apart: a declaration
+	// whose skills cannot be laid out never goes into force, and one that does go
+	// into force has had them laid out.
+	//
+	// At start that makes an unusable declaration a failure to start, exactly as
+	// an unreadable one always was. Later it makes it a re-read that is refused
+	// with the schedule already in force left running.
+	var declared *declaration.Watcher
 	if cfg.DeclarationPath != "" {
-		declared, err = declaration.Load(cfg.DeclarationPath)
+		declared, err = declaration.Watch(cfg.DeclarationPath, func(d *declaration.Declaration) error {
+			return layTheSkills(log, layer, d.Skills, d.Parameters)
+		})
 		if err != nil {
 			return err
+		}
+	}
+
+	// With no declaration to name them, every skill this image carries is laid
+	// out. It is not skipped: the directory outlives the image, so leaving it
+	// untouched would leave a session reading whatever an older image put there.
+	//
+	// A skill that needs numbers cannot be laid out this way, and that is a
+	// refusal rather than a skill handed over without them - the skill itself
+	// tells a session that finds its numbers missing to open nothing. The numbers
+	// live in a declaration, so the way out is to name one.
+	if layer != nil && declared == nil {
+		if err := layTheSkills(log, layer, nil, nil); err != nil {
+			return fmt.Errorf("%w - and this process was started without DECLARATION, "+
+				"so there is nothing here that could give it: name a declaration, or point SKILLS_DIR at skills that need no numbers", err)
 		}
 	}
 
@@ -439,7 +486,30 @@ func run(log *zap.Logger) error {
 			h.Chat = chat
 		}
 		if declared != nil {
-			h.Declaration = declared
+			h.Declaration = declared.Current()
+			// One tick, both files. The declaration is re-read, and the skills are
+			// brought level with what the source holds now - a session opens
+			// SKILL.md while it works, so editing the text of a technique reaches a
+			// session already running rather than waiting for a restart.
+			//
+			// A declaration that CHANGED had its skills laid by the watcher, as
+			// part of going into force; laying them a second time here could only
+			// fail on a source that moved in between, and that failure would tell
+			// the clock to keep the old schedule while the session's own
+			// read_schedule already answered with the new one. So that case is left
+			// alone and this covers the other two: an unchanged declaration under an
+			// edited skill, and a declaration that could not be read at all - which
+			// must not also freeze the text of the techniques, since a half-saved
+			// declaration is exactly what an operator has while editing.
+			h.Reread = func() (*declaration.Declaration, error) {
+				before := declared.Current()
+				current, err := declared.Reread()
+				if err == nil && current != before {
+					return current, nil
+				}
+
+				return current, errors.Join(err, layTheSkills(log, layer, current.Skills, current.Parameters))
+			}
 		}
 
 		// The agent is held open for the whole run: that is what lets a person
@@ -505,3 +575,48 @@ func serve(ctx context.Context, addr string, handler http.Handler, log *zap.Logg
 }
 
 const shutdownGrace = 5 * time.Second
+
+// layTheSkills makes the directory the agent reads hold what the declaration
+// named, and says so when that changed anything. A pass that found nothing moved
+// is silent: this runs once a minute, and a line a minute saying "still the same
+// two skills" would bury the one that matters.
+//
+// A nil layer is a process that lays out no skills - every role but the one that
+// starts the agent.
+func layTheSkills(log *zap.Logger, layer *skills.Layer, wanted []string, given map[string]string) error {
+	if layer == nil {
+		return nil
+	}
+
+	laid, err := layer.Lay(wanted, given)
+	if err != nil {
+		return err
+	}
+	if !laid.Changed {
+		return nil
+	}
+	if laid.Adopted {
+		// Nothing was deleted: the directory already held exactly this set, and
+		// only the note saying who laid it was written. Said out loud because it
+		// is the one case where a directory this process had no proof of writing
+		// becomes one it may rebuild - which is what an existing deployment meets
+		// on its first start after the skills stopped being copied by the
+		// entrypoint.
+		log.Info("the skills directory already held exactly this set and was adopted rather than rebuilt",
+			zap.String("dir", laid.Dir), zap.Strings("skills", laid.Names))
+		return nil
+	}
+	if len(laid.Names) == 0 {
+		// A session with no skills is a legal state - deleting the last one
+		// deletes the directory, and git keeps no empty directory - but it is also
+		// what a mistyped SKILLS_DIR looks like, and that one is silent unless
+		// somebody says it out loud.
+		log.Warn("the agent was given no skills at all",
+			zap.String("dir", laid.Dir), zap.String("read_from", layer.Source))
+		return nil
+	}
+	log.Info("skills laid out for the agent",
+		zap.String("dir", laid.Dir), zap.Strings("skills", laid.Names))
+
+	return nil
+}

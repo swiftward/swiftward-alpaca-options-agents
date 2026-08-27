@@ -24,9 +24,11 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
 
-// clockTick is how often the schedule is asked whether anything is due. The
+// clockTick is how often the schedule is asked whether anything is due, and how
+// often what the session reads is brought level with what is on disk. The
 // declaration speaks in minutes, so asking more often would only repeat the same
-// question.
+// question. Harness.TickEvery overrides it, which is how a test proves that an
+// edit reaches a running harness without standing there for a minute.
 const clockTick = time.Minute
 
 // turnWatch is how often the running turn is measured against its limit. The
@@ -79,8 +81,13 @@ type Harness struct {
 	Chat         Chat
 	Conversation Conversation
 	// Declaration names the sessions the clock wakes. Nil means the clock wakes
-	// nobody and the chat is the only cause.
+	// nobody and the chat is the only cause. It is the schedule the harness
+	// starts with; what is in force later comes from Reread.
 	Declaration *declaration.Declaration
+	// Reread hands back the declaration as it stands on disk, or the one already
+	// in force together with the reason the file could not replace it. Nil means
+	// the schedule is read once and only a restart can change it.
+	Reread func() (*declaration.Declaration, error)
 	// Record is where a turn, a tool call and an intent are written down. Nil
 	// means nothing is recorded, which is legal only in a test.
 	Record record.Keeper
@@ -111,7 +118,12 @@ type Harness struct {
 	// the loop that talks to the agent, so an unbounded call takes the room down
 	// with the session.
 	CallTimeout time.Duration
-	Log         *zap.Logger
+	// TickEvery is how often the schedule is asked whether anything is due, and
+	// how often the declaration and the skills are brought level with what is on
+	// disk. Zero means clockTick, which is what every deployment uses; a test sets
+	// it rather than standing there for a minute.
+	TickEvery time.Duration
+	Log       *zap.Logger
 
 	mu          sync.Mutex
 	lastSaid    time.Time
@@ -121,7 +133,12 @@ type Harness struct {
 	statusID    int
 	turnFor     string
 	turnStarted time.Time
-	lastRun     map[string]time.Time
+	// declared is the schedule in force. The clock is the only thing that replaces
+	// it; the lock is here because it is also read from outside that goroutine.
+	// Everything else that wants the schedule - the session's own read_schedule -
+	// asks the watcher rather than the harness.
+	declared *declaration.Declaration
+	lastRun  map[string]time.Time
 	// refusedInterrupts counts how many times in a row the agent has refused to
 	// give up an overrunning turn. It resets the moment one is given up.
 	refusedInterrupts int
@@ -143,7 +160,10 @@ func (h *Harness) Run(ctx context.Context) error {
 	if h.Now == nil {
 		return fmt.Errorf("the harness has no clock")
 	}
-	h.lastRun = h.whatAlreadyRanToday(ctx)
+	h.mu.Lock()
+	h.declared = h.Declaration
+	h.mu.Unlock()
+	h.lastRun = h.whatAlreadyRanToday(ctx, h.Declaration)
 
 	// Followed whether or not anybody is watching the chat: this is the loop that
 	// closes a turn in the record, and the record is read long after the room.
@@ -176,12 +196,12 @@ func (h *Harness) Run(ctx context.Context) error {
 // restart inside a session's window does not run that session a second time. A
 // record that cannot be read is not fatal: the harness says so and starts with
 // nothing, which is the state it had before this existed.
-func (h *Harness) whatAlreadyRanToday(ctx context.Context) map[string]time.Time {
-	if h.Record == nil || h.Declaration == nil {
+func (h *Harness) whatAlreadyRanToday(ctx context.Context, declared *declaration.Declaration) map[string]time.Time {
+	if h.Record == nil || declared == nil {
 		return map[string]time.Time{}
 	}
 
-	now := h.Now().In(h.Declaration.Location())
+	now := h.Now().In(declared.Location())
 	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	last, err := h.Record.LastRuns(ctx, midnight)
@@ -194,8 +214,8 @@ func (h *Harness) whatAlreadyRanToday(ctx context.Context) map[string]time.Time 
 	// session names. Keeping them would let a chat name that happens to match a
 	// session silence that session for the day.
 	ran := map[string]time.Time{}
-	for i := range h.Declaration.Sessions {
-		name := h.Declaration.Sessions[i].Name
+	for i := range declared.Sessions {
+		name := declared.Sessions[i].Name
 		if at, found := last[name]; found {
 			ran[name] = at
 		}
@@ -211,7 +231,11 @@ func (h *Harness) whatAlreadyRanToday(ctx context.Context) map[string]time.Time 
 // because the declaration speaks in minutes; a finer tick would only ask the same
 // question more often.
 func (h *Harness) keepTheClock(ctx context.Context) {
-	ticker := time.NewTicker(clockTick)
+	every := h.TickEvery
+	if every <= 0 {
+		every = clockTick
+	}
+	ticker := time.NewTicker(every)
 	defer ticker.Stop()
 
 	h.tick(ctx)
@@ -226,8 +250,64 @@ func (h *Harness) keepTheClock(ctx context.Context) {
 }
 
 func (h *Harness) tick(ctx context.Context) {
+	h.rereadTheDeclaration(ctx)
 	h.fireWakeups(ctx)
 	h.fireDue(ctx)
+}
+
+// rereadTheDeclaration puts a changed schedule in force between one tick and the
+// next.
+//
+// What it has to be careful about is the memory of what already ran. That memory
+// is kept by session NAME and starts from the record, so replacing the
+// declaration without touching it would be wrong twice over: every name would
+// keep a time this process happens to hold, and every name the new declaration
+// added would carry none at all - which reads as "never ran".
+//
+// So the record is asked again, and what it says fills in the names that are
+// new, and only those. A name this process has already woken keeps the time this
+// process saw: that is later than anything the record can offer, because the
+// record is asked only about today and this process knows what it did minutes
+// ago. A name that has gone from the declaration keeps its entry too - it costs
+// a map entry, and dropping it would let a session removed and put back within
+// the same day run twice.
+//
+// What this CANNOT do is tell a renamed session from an added one. A name the
+// record has never seen has never run under that name, and both a session added
+// at midday and a session renamed at midday look exactly like that. The added
+// one should run, so it does. Renaming a session inside its own window still
+// runs it twice, and the way to avoid that is to rename outside the window -
+// there is nothing on disk that would tell the two apart.
+func (h *Harness) rereadTheDeclaration(ctx context.Context) {
+	if h.Reread == nil {
+		return
+	}
+
+	fresh, err := h.Reread()
+	if err != nil {
+		// The error names what actually stopped it, which is not always the
+		// declaration: putting one in force lays out the skills it names, so a
+		// half-written SKILL.md refuses the re-read too. Saying "the declaration is
+		// broken" would point whoever reads this at the wrong file.
+		h.Log.Error("the declaration on disk could not be put in force; the schedule in force is unchanged",
+			zap.Error(err))
+		return
+	}
+	if fresh == h.inForce() {
+		return
+	}
+
+	h.mu.Lock()
+	h.declared = fresh
+	h.mu.Unlock()
+	for name, at := range h.whatAlreadyRanToday(ctx, fresh) {
+		if _, known := h.lastRun[name]; !known {
+			h.lastRun[name] = at
+		}
+	}
+	h.Log.Info("the declaration changed and the new one is in force",
+		zap.String("declaration", fresh.Name),
+		zap.Int("sessions", len(fresh.Sessions)))
 }
 
 // watchTheRunningTurn ends a turn that has outlived its limit.
@@ -368,14 +448,35 @@ func (h *Harness) Tell(ctx context.Context, prompt, who string) {
 	h.startTurnWith(ctx, prompt, who, "")
 }
 
+// inForce is the declaration the clock is waking by right now.
+//
+// Before Run has taken it up it falls back to the one the harness was built
+// with, because a turn can be started before then and from outside the clock:
+// the ladder wakes a session when an order fills, and that turn needs the same
+// numbers in front of it as any other.
+//
+// Read under the lock: the clock is the only writer, but the readers are the
+// chat's goroutine, the ladder's and a test's.
+func (h *Harness) inForce() *declaration.Declaration {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.declared != nil {
+		return h.declared
+	}
+
+	return h.Declaration
+}
+
 func (h *Harness) fireDue(ctx context.Context) {
-	if h.Declaration == nil {
+	declared := h.inForce()
+	if declared == nil {
 		return
 	}
-	now := h.Now().In(h.Declaration.Location())
+	now := h.Now().In(declared.Location())
 
-	for i := range h.Declaration.Sessions {
-		session := &h.Declaration.Sessions[i]
+	for i := range declared.Sessions {
+		session := &declared.Sessions[i]
 		if !session.Due(now, h.lastRun[session.Name]) {
 			continue
 		}
@@ -457,9 +558,38 @@ func (h *Harness) startTurn(ctx context.Context, msg telegram.Message) {
 	h.startTurnWith(ctx, promptFor(msg), msg.Username, "")
 }
 
+// numbersInFront puts the agent's own numbers ahead of whatever woke it.
+//
+// Every turn gets them, not only a scheduled one: a session woken by its own
+// price wake-up or by a person in the chat is asked to follow the same
+// techniques, and a skill that finds its numbers missing is told to open
+// nothing. Put here rather than in the declaration's own prompt so that all
+// three causes go through one place and none of them can be forgotten.
+func (h *Harness) numbersInFront(prompt string) string {
+	declared := h.inForce()
+	if declared == nil {
+		return prompt
+	}
+	numbers := declared.Numbers()
+	if numbers == "" {
+		return prompt
+	}
+
+	return numbers + "\n" + prompt
+}
+
 // startTurnWith runs one turn. model names the model this particular turn is
 // worth: a session that only reads the news does not need the one that trades.
 func (h *Harness) startTurnWith(ctx context.Context, prompt, who, model string) {
+	// The cause is read off what WOKE the session, before the agent's numbers go
+	// in front of it. They open with a fixed sentence, so taking the first line
+	// afterwards would file every turn in the record under that sentence instead
+	// of under the window, the wake-up or the message that caused it - and the
+	// record is what answers "why did this happen" long after the room has
+	// scrolled away.
+	woke := prompt
+	prompt = h.numbersInFront(prompt)
+
 	agentCtx, done := h.boundToAgent(ctx)
 	threadID, err := h.openThread(agentCtx)
 	done()
@@ -501,7 +631,7 @@ func (h *Harness) startTurnWith(ctx context.Context, prompt, who, model string) 
 			ThreadRef: threadID,
 			StartedAt: h.Now(),
 			WokenBy:   who,
-			Cause:     firstLine(prompt),
+			Cause:     firstLine(woke),
 			Model:     h.modelOf(model),
 		}); err != nil {
 			h.Log.Error("could not record the turn", zap.Error(err))

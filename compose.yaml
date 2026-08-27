@@ -104,6 +104,9 @@ x-agent-environment: &agent-environment
   # so the session cannot tell the two apart and needs no change when they swap.
   # The token is NOT here: which limits apply is the one thing the two agents must
   # not share.
+  # Читать приёмы отсюда, а не из образа: рядом смонтирован чекаут, и правка его
+  # текста доезжает до работающей сессии. В образе по умолчанию /agent/skills.
+  SKILLS_DIR: /mnt/skills
   GATEWAY_URL: ${GATEWAY_URL:-http://envelope:8090/mcp}
   # Every outbound request goes through the policy gateway, which records where
   # the agent went and decides whether it may. The host list it enforces is the
@@ -270,6 +273,16 @@ services:
       - codex-home:/home/agent/.codex
       - agent-work:/work
       - ./policy/envelope.yaml:/policy/envelope.yaml:ro
+      # Скилы из чекаута, а не из образа - в ИСТОЧНИК, а не в тот каталог, который
+      # читает сессия. Разница принципиальная: приложение само перекладывает
+      # отсюда в /work/.agents/skills те приёмы, которые названы в декларации,
+      # поэтому сужение работает и здесь, и в бою одинаково. Смонтируй мы поверх
+      # каталога сессии - она получила бы ВСЕ приёмы чекаута, и локально мы бы
+      # наблюдали не то поведение, которое поедет в бой. Тем более что оба агента
+      # монтируют один и тот же чекаут, а наборы `skills:` у них разные.
+      # Правка при этом доезжает до УЖЕ РАБОТАЮЩЕЙ сессии: харнесс тем же тактом,
+      # что перечитывает декларацию, пересобирает каталог, если текст изменился.
+      - ./agent/skills:/mnt/skills:ro
 
   # The second account: the same engine selling NEARER the money. It keeps its
   # own record, because a shared one would let this agent's restart close the
@@ -300,6 +313,16 @@ services:
       - codex-home-near:/home/agent/.codex
       - agent-near-work:/work
       - ./policy/envelope.yaml:/policy/envelope.yaml:ro
+      # Скилы из чекаута, а не из образа - в ИСТОЧНИК, а не в тот каталог, который
+      # читает сессия. Разница принципиальная: приложение само перекладывает
+      # отсюда в /work/.agents/skills те приёмы, которые названы в декларации,
+      # поэтому сужение работает и здесь, и в бою одинаково. Смонтируй мы поверх
+      # каталога сессии - она получила бы ВСЕ приёмы чекаута, и локально мы бы
+      # наблюдали не то поведение, которое поедет в бой. Тем более что оба агента
+      # монтируют один и тот же чекаут, а наборы `skills:` у них разные.
+      # Правка при этом доезжает до УЖЕ РАБОТАЮЩЕЙ сессии: харнесс тем же тактом,
+      # что перечитывает декларацию, пересобирает каталог, если текст изменился.
+      - ./agent/skills:/mnt/skills:ro
 
   # What the session asks about its own limits. It stands where the policy gateway
   # will stand, and answers the one question that gateway answers first: what am I
