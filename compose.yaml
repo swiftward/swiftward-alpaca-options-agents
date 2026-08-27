@@ -241,7 +241,7 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  agent:
+  alpaca-agent-1:
     <<: *agent-service
     environment:
       <<: *agent-environment
@@ -279,7 +279,7 @@ services:
   # was not possible: Telegram allows one reader per bot, so the two would have
   # taken the channel from each other in turns. Its own bot also names itself in
   # the room, so which of the two is speaking is read, not inferred.
-  agent-near:
+  alpaca-agent-2:
     <<: *agent-service
     environment:
       <<: *agent-environment
@@ -348,6 +348,9 @@ networks:
 volumes:
   pgdata:
   codex-home:
+  # The volume KEYS keep their old names on purpose: renaming one would create a
+  # new, empty volume, and the session's notes live in the old one. What a
+  # service is called and what its disk is called are separate facts.
   agent-work:
   codex-home-near:
   agent-near-work:
