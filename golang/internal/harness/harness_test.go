@@ -125,6 +125,9 @@ type conversationSpy struct {
 	// refuseInterrupt is what the agent answers to turn/interrupt. Nil accepts it.
 	refuseInterrupt error
 	nextTurn        int
+	// forgotten counts how many times the harness gave up on this conversation
+	// and asked for a fresh one.
+	forgotten int
 }
 
 func newConversationSpy() *conversationSpy {
@@ -132,6 +135,19 @@ func newConversationSpy() *conversationSpy {
 }
 
 func (c *conversationSpy) Open(context.Context) (string, error) { return "th-1", nil }
+
+func (c *conversationSpy) Forget() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.forgotten++
+}
+
+func (c *conversationSpy) timesForgotten() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.forgotten
+}
 
 func (c *conversationSpy) Turn(ctx context.Context, text, model string) (string, error) {
 	if c.hang != nil {
@@ -1521,4 +1537,93 @@ func TestATurnThatSpokeIsNotMarkedFailed(t *testing.T) {
 	state, err := kept.Read(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, state.Turns[0].Failure, "a turn that said its one line is a finished turn, not a failure")
+}
+
+// Turns that speak but never reach the broker end the conversation.
+//
+// The agent reads its list of tools ONCE per connection, so a broker that blinks
+// - a gateway restarted, a name that stopped resolving for a minute - is dropped
+// from that list and does not come back. The session then wakes on schedule,
+// reasons carefully and does nothing, turn after turn, and nobody logs an error
+// because there are no calls to fail. Measured on 27 August: in one thread
+// get_clock answered in 0.56 seconds at 12:11, and by 13:38 the session reported
+// that only its own tools were left.
+//
+// Restarting the process does not cure it - the thread is remembered on purpose
+// and a restart resumes the same one. Only a fresh conversation reconnects the
+// servers.
+func TestTurnsThatNeverReachTheBrokerEndTheConversation(t *testing.T) {
+	_, chat, conversation := start(t)
+
+	for turn := 1; turn <= 2; turn++ {
+		chat.inbound <- telegram.Message{Text: "what do we hold", UserID: 42, Username: "joker"}
+		waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == turn })
+
+		id := fmt.Sprintf("tu-%d", turn)
+		conversation.events <- agent.Event{Kind: agent.KindText, TurnID: id,
+			Text: "the broker's tools are not in my list this run"}
+		conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: id}
+
+		// The next message must start a NEW turn, not be steered into this one, so
+		// wait until this one is actually finished.
+		want := turn
+		waitFor(t, func() bool { return finishedTurns(chat) == want })
+	}
+
+	waitFor(t, func() bool { return conversation.timesForgotten() == 1 })
+	assert.Equal(t, 1, conversation.timesForgotten(),
+		"two turns in a row that spoke and never called the broker: the conversation is not worth resuming")
+}
+
+// One such turn is not enough. A date guard that says "not today" and a defence
+// run that finds nothing to defend both end early and honestly without asking
+// the broker anything, and neither is a reason to throw the conversation away.
+func TestOneTurnWithoutTheBrokerIsNotEnoughToStartOver(t *testing.T) {
+	_, chat, conversation := start(t)
+
+	chat.inbound <- telegram.Message{Text: "anything to do", UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+	conversation.events <- agent.Event{Kind: agent.KindText, TurnID: "tu-1", Text: "not today, finishing"}
+	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
+
+	waitFor(t, func() bool { return len(chat.postedTexts()) >= 2 })
+	assert.Zero(t, conversation.timesForgotten(), "one quiet turn is an answer, not a fault")
+}
+
+// A turn that DID reach the broker clears the count, so two brokerless turns
+// with a healthy one between them are not two in a row.
+func TestReachingTheBrokerClearsTheCount(t *testing.T) {
+	_, chat, conversation := start(t)
+
+	send := func(turn int, reached bool) {
+		chat.inbound <- telegram.Message{Text: "go", UserID: 42, Username: "joker"}
+		waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == turn })
+		id := fmt.Sprintf("tu-%d", turn)
+		if reached {
+			conversation.events <- agent.Event{Kind: agent.KindToolStarted, TurnID: id,
+				Call: agent.Call{Ref: "call-" + id, Server: "broker", Tool: "get_clock", Status: "inProgress"}}
+		}
+		conversation.events <- agent.Event{Kind: agent.KindText, TurnID: id, Text: "done"}
+		conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: id}
+		waitFor(t, func() bool { return finishedTurns(chat) == turn })
+	}
+
+	send(1, false)
+	send(2, true)
+	send(3, false)
+	assert.Zero(t, conversation.timesForgotten(),
+		"a healthy turn between two quiet ones means the tools are there")
+}
+
+
+// finishedTurns counts the turns the room has been told are done.
+func finishedTurns(chat *chatDouble) int {
+	done := 0
+	for _, text := range chat.postedTexts() {
+		if strings.Contains(text, "готово") || strings.Contains(text, "ничего не сделал") {
+			done++
+		}
+	}
+
+	return done
 }

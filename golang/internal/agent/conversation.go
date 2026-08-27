@@ -122,6 +122,18 @@ func (c *Conversation) remember(threadID string) {
 	_ = os.WriteFile(c.rememberIn, []byte(threadID+"\n"), 0o600)
 }
 
+// Forget drops the remembered thread AND the one held in memory, so the next
+// Open starts a fresh conversation rather than resuming this one.
+//
+// Both halves matter. The file is what survives a restart of this process; the
+// field is what this process would otherwise keep using without ever consulting
+// the file again. Forgetting one and not the other looks like it worked and
+// changes nothing.
+func (c *Conversation) Forget() {
+	c.threadID = ""
+	c.forget()
+}
+
 func (c *Conversation) forget() {
 	if c.rememberIn == "" {
 		return

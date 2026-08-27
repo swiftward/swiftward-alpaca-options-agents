@@ -66,6 +66,12 @@ type Prices interface {
 // Conversation is one thread with the agent, held open across turns.
 type Conversation interface {
 	Open(ctx context.Context) (threadID string, err error)
+	// Forget drops the remembered thread so the next Open starts a fresh one.
+	// Needed because a thread can outlive the tools it was opened with: the agent
+	// reads the list of tools ONCE per connection, so a server that blinks is
+	// gone for the rest of that thread - and resuming it carries the gap forward
+	// across restarts of this process too.
+	Forget()
 	Turn(ctx context.Context, text, model string) (turnID string, err error)
 	Steer(ctx context.Context, turnID, text string) error
 	Interrupt(ctx context.Context, turnID string) error
@@ -133,6 +139,14 @@ type Harness struct {
 	statusID    int
 	turnFor     string
 	turnStarted time.Time
+	// brokerCalled records whether THIS turn reached the broker at all, and
+	// brokerless counts the turns in a row that did not. A session that cannot
+	// see prices or positions still wakes, still reasons and still reports - it
+	// simply does nothing, and nothing is what a broken tool list looks like from
+	// the outside. See noteBrokerReach.
+	brokerCalled bool
+	brokerless   int
+
 	// turnActed records whether the agent said or called ANYTHING this turn. A
 	// turn that ends without either did not run - the model was unreachable, the
 	// thread was refused - and must be marked failed rather than counted done.
@@ -644,6 +658,7 @@ func (h *Harness) startTurnWith(ctx context.Context, prompt, who, model string) 
 
 	h.mu.Lock()
 	h.turnActed = false
+	h.brokerCalled = false
 	h.mu.Unlock()
 
 	go h.showTyping(ctx, turnID)
@@ -713,7 +728,24 @@ func (h *Harness) followTheSession(ctx context.Context) {
 // callStarted and callFinished write down what the session did with its hands.
 // The pair is kept rather than one row at the end, so a call that was in flight
 // when the process died is visible as unknown rather than as never made.
+// noteBrokerReach marks that this turn got as far as the broker. The server's
+// name is the agent's own for it, written in its config by the entrypoint.
+func (h *Harness) noteBrokerReach(server string) {
+	if server != brokerServer {
+		return
+	}
+
+	h.mu.Lock()
+	h.brokerCalled = true
+	h.mu.Unlock()
+}
+
+// brokerServer is what the broker's MCP server is called in the agent's config.
+const brokerServer = "broker"
+
 func (h *Harness) callStarted(ctx context.Context, ev agent.Event) {
+	h.noteBrokerReach(ev.Call.Server)
+
 	if h.Record == nil || ev.Call.Ref == "" {
 		return
 	}
@@ -769,6 +801,7 @@ func (h *Harness) finishTurn(ctx context.Context, turnID string) {
 	who := h.turnFor
 	started := h.turnStarted
 	acted := h.turnActed
+	reached := h.brokerCalled
 	h.statusID = 0
 	h.mu.Unlock()
 
@@ -802,6 +835,68 @@ func (h *Harness) finishTurn(ctx context.Context, turnID string) {
 		}
 	}
 	h.Log.Info("turn finished", zap.String("turn_id", turnID), zap.Bool("acted", acted))
+
+	h.checkBrokerReach(ctx, acted, reached, who)
+}
+
+// brokerlessBeforeFresh is how many turns in a row may finish without reaching
+// the broker before this process stops trusting the conversation it is in.
+//
+// Two, not one: a turn can legitimately end early without asking the broker
+// anything - a date guard that says "not today", a defence run that finds no
+// positions in its own record. Two in a row is not that.
+var brokerlessBeforeFresh = 2
+
+// checkBrokerReach ends a conversation whose tools have gone quiet.
+//
+// The agent reads the list of tools ONCE per connection. A broker that blinks -
+// a gateway restarted, a name that stopped resolving for a minute - is dropped
+// from that list and does not come back, and the session then wakes on schedule,
+// reasons carefully and does nothing, turn after turn. Measured on 27 August:
+// in one thread get_clock answered in 0.56 seconds at 12:11, and by 13:38 the
+// session reported that only its own tools were left. No error was logged by
+// anyone, because there were no calls to fail.
+//
+// Restarting this process does NOT cure it: the thread is remembered on purpose,
+// so a restart resumes the same conversation and inherits the same gap. Only a
+// fresh thread reconnects the servers. So that is what happens here.
+func (h *Harness) checkBrokerReach(ctx context.Context, acted, reached bool, who string) {
+	// A turn that did nothing at all is already reported as a silent failure, and
+	// counting it here would blame the tools for the agent's own silence.
+	if !acted {
+		return
+	}
+
+	h.mu.Lock()
+	if reached {
+		h.brokerless = 0
+		h.mu.Unlock()
+
+		return
+	}
+	h.brokerless++
+	count := h.brokerless
+	h.mu.Unlock()
+
+	if count < brokerlessBeforeFresh {
+		h.Log.Warn("a turn finished without reaching the broker",
+			zap.String("session", who), zap.Int("in_a_row", count))
+
+		return
+	}
+
+	h.Log.Error("no turn has reached the broker for several turns: starting a fresh conversation",
+		zap.Int("in_a_row", count),
+		zap.String("why", "the agent reads its tools once per connection, so a server that blinked is gone for this thread"))
+
+	h.Conversation.Forget()
+
+	h.mu.Lock()
+	h.threadID = ""
+	h.brokerless = 0
+	h.mu.Unlock()
+
+	h.say(ctx, "Инструменты брокера пропали из списка. Начинаю разговор заново - это единственное, что их возвращает.")
 }
 
 // markActed notes that the agent produced something this turn.
