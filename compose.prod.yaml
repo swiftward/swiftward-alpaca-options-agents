@@ -44,7 +44,7 @@ services:
 
   alpaca-mcp:
     restart: unless-stopped
-    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/alpaca-mcp:${IMAGE_TAG}
+    image: ghcr.io/swiftward/swiftward-alpaca-options-agents/alpaca-mcp:${IMAGE_TAG}
     networks: [internal, outbound]
     environment:
       ALPACA_API_KEY: ${ALPACA_API_KEY_ID}
@@ -53,7 +53,7 @@ services:
       ALPACA_TOOLSETS: ${ALPACA_TOOLSETS}
 
   page:
-    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/page:${IMAGE_TAG}
+    image: ghcr.io/swiftward/swiftward-alpaca-options-agents/page:${IMAGE_TAG}
     networks: [internal, outbound]
     environment:
       ROLES: api
@@ -64,6 +64,7 @@ services:
       # The read side asks the broker what the account is worth. It only reads:
       # the money questions have no order in them.
       BROKER_MCP_URL: ${BROKER_MCP_URL}
+      BROKER_MCP_TOKEN: ${PAGE_MCP_TOKEN}
       ORDERS_SHOWN: ${ORDERS_SHOWN}
       HISTORY_DAYS: ${HISTORY_DAYS}
     ports:
@@ -76,7 +77,7 @@ services:
         condition: service_completed_successfully
 
   agent:
-    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/agent:${IMAGE_TAG}
+    image: ghcr.io/swiftward/swiftward-alpaca-options-agents/agent:${IMAGE_TAG}
     networks: [internal]
     environment:
       ROLES: harness,mcp
@@ -125,11 +126,35 @@ services:
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}
       TELEGRAM_ALLOW_USER_IDS: ${TELEGRAM_ALLOW_USER_IDS}
-      GATEWAY_URL: ${GATEWAY_URL}
+      GATEWAY_URL: ${GATEWAY_URL:-http://envelope:8090/mcp}
       GATEWAY_TOKEN: ${GATEWAY_TOKEN}
-      HTTP_PROXY: http://egress:8888
-      HTTPS_PROXY: http://egress:8888
-      NO_PROXY: alpaca-mcp,postgres,egress,localhost,127.0.0.1
+      # Откуда берутся приёмы. В развёрнутом стенде - из образа: чекаута здесь
+      # нет, и правка текста приёма приезжает новым образом, как и всё остальное.
+      SKILLS_DIR: /agent/skills
+      # Кем этот процесс представляется конверту: лестница читает тот же предел
+      # позиции, по которому сессии велено считать размер.
+      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY}
+      # Ключ к брокеру, когда путь к нему идёт через шлюз.
+      BROKER_MCP_TOKEN: ${BROKER_MCP_TOKEN}
+      MODEL_GATEWAY_URL: ${MODEL_GATEWAY_URL}
+      # Что скринер просматривает и что считает годным к показу. Разбор -
+      # docs/screener.md; пустой список бумаг выключает и проход, и инструмент
+      # кандидатов у сессии, молча.
+      SCREENER_UNDERLYINGS: ${SCREENER_UNDERLYINGS}
+      SCREENER_EVERY: ${SCREENER_EVERY}
+      SCREENER_PER_MINUTE: ${SCREENER_PER_MINUTE}
+      SCREENER_EXPIRATIONS: ${SCREENER_EXPIRATIONS}
+      SCREENER_NEAREST: ${SCREENER_NEAREST}
+      SCREENER_FURTHEST: ${SCREENER_FURTHEST}
+      SCREENER_LEAST_PAID: ${SCREENER_LEAST_PAID}
+      SCREENER_MOST_PAID: ${SCREENER_MOST_PAID}
+      SCREENER_MOST_DELTA: ${SCREENER_MOST_DELTA}
+      SCREENER_LEAST_EDGE: ${SCREENER_LEAST_EDGE}
+      SCREENER_DEAREST: ${SCREENER_DEAREST}
+      THREAD_RESUME_LIMIT: ${THREAD_RESUME_LIMIT}
+      HTTP_PROXY: ${OUTBOUND_PROXY:-http://egress:8888}
+      HTTPS_PROXY: ${OUTBOUND_PROXY:-http://egress:8888}
+      NO_PROXY: alpaca-mcp,envelope,postgres,egress,localhost,127.0.0.1
       CODEX_HOME: /home/agent/.codex
     volumes:
       - ${CODEX_AUTH_DIR}:/mnt/codex:ro
@@ -150,9 +175,28 @@ services:
         condition: service_completed_successfully
     profiles: [session]
 
+  # Что сессия спрашивает про свои пределы. Файл монтируется из чекаута, а не
+  # берётся из образа: опустить потолок должно быть одной правкой, которую
+  # работающая сессия видит на следующем вопросе.
+  envelope:
+    image: ghcr.io/swiftward/swiftward-alpaca-options-agents/envelope:${IMAGE_TAG}
+    networks: [internal]
+    environment:
+      ROLES: envelope
+      ENVELOPE_ADDR: ":8090"
+      ENVELOPE_PATH: /policy/envelope.yaml
+      ENVELOPE_CALLERS: ${ENVELOPE_CALLERS}
+    volumes:
+      - ./policy/envelope.yaml:/policy/envelope.yaml:ro
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
   egress:
     restart: unless-stopped
-    image: ghcr.io/disciplinedware/swiftward-alpaca-options-agents/egress:${IMAGE_TAG}
+    image: ghcr.io/swiftward/swiftward-alpaca-options-agents/egress:${IMAGE_TAG}
     networks: [internal, outbound]
 
 networks:

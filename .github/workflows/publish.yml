@@ -1,0 +1,79 @@
+# Собирает образы и кладёт их в реестр, откуда их забирает развёрнутый стенд.
+#
+# Зачем не собирать на сервере: тогда он крутил бы то, чего никто не проверял.
+# Сборка на месте может отличаться от прошедшей проверку, а упавшая - оставить
+# стенд лежать. Забранный образ так не умеет.
+#
+# Обновление стенда при этом НЕ автоматическое и остаётся решением человека:
+# перезапуск обрывает идущий ход, а ход - это торговое решение.
+name: publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      # Один упавший образ не отменяет остальные: стенд обновляется по одному, и
+      # четыре готовых полезнее четырёх неначатых.
+      fail-fast: false
+      matrix:
+        include:
+          - name: agent
+            dockerfile: docker/app.Dockerfile
+            target: agent
+          - name: page
+            dockerfile: docker/app.Dockerfile
+            target: page
+          - name: envelope
+            dockerfile: docker/app.Dockerfile
+            target: envelope
+          - name: alpaca-mcp
+            dockerfile: docker/alpaca-mcp.Dockerfile
+            target: ""
+          - name: egress
+            dockerfile: docker/egress.Dockerfile
+            target: ""
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: names
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ matrix.name }}
+          # Две метки на сборку: неподвижная по коммиту и подвижная latest.
+          # Стенд под судейством пришпилен к коммиту - тогда видно, что именно
+          # на нём работает, и откат это смена одной строки.
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          # Только x86: стенд стоит на нём. Собирать вторую архитектуру нечем -
+          # разработка идёт на своих машинах, где образ собирается локально.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.names.outputs.tags }}
+          labels: ${{ steps.names.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
