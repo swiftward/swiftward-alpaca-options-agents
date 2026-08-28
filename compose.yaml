@@ -125,7 +125,7 @@ x-agent-environment: &agent-environment
   # and names its own way out instead.
   HTTP_PROXY: ${OUTBOUND_PROXY:-http://swiftward-hackathon-server:8097}
   HTTPS_PROXY: ${OUTBOUND_PROXY:-http://swiftward-hackathon-server:8097}
-  NO_PROXY: alpaca-mcp-agent-1,alpaca-mcp-agent-2,alpaca-mcp-agent-tikhon,envelope,postgres,egress,swiftward-hackathon-server,localhost,127.0.0.1
+  NO_PROXY: alpaca-mcp-agent-1,alpaca-mcp-agent-2,alpaca-mcp-agent-tikhon,alpaca-mcp-agent-tikhon-stand,envelope,postgres,egress,swiftward-hackathon-server,localhost,127.0.0.1
   CODEX_HOME: /home/agent/.codex
 
 services:
@@ -220,6 +220,19 @@ services:
       <<: *broker-environment
       ALPACA_API_KEY: ${ALPACA_TIKHON_API_KEY_ID}
       ALPACA_SECRET_KEY: ${ALPACA_TIKHON_API_SECRET_KEY}
+
+  # The same teammate's DEMO STAND, on a second account of his. One process per
+  # account is why this is a service of its own rather than a setting on the one
+  # above: the server reads its keys from its own environment.
+  #
+  #   docker compose --profile tikhon up -d alpaca-mcp-agent-tikhon-stand
+  alpaca-mcp-agent-tikhon-stand:
+    <<: *broker-service
+    profiles: [tikhon]
+    environment:
+      <<: *broker-environment
+      ALPACA_API_KEY: ${ALPACA_TIKHON_STAND_API_KEY_ID}
+      ALPACA_SECRET_KEY: ${ALPACA_TIKHON_STAND_API_SECRET_KEY}
 
   # The session's container: the harness role plus the agent it starts. It holds
   # no credential of ours; the login it does carry is Codex's own, mounted from
