@@ -504,8 +504,8 @@ func TestAPartlyFilledOrderIsNotCalledUnfilled(t *testing.T) {
 	rungs.step(context.Background())
 
 	require.Len(t, told, 1)
-	assert.Contains(t, told[0], "20 из 50")
-	assert.NotContains(t, told[0], "не исполнилась вовсе")
+	assert.Contains(t, told[0], "20 of 50")
+	assert.NotContains(t, told[0], "did not fill at all")
 }
 
 // A fill reaches the room once, however many times the ladder meets it. It polls
@@ -530,7 +530,7 @@ func TestAFillIsSaidOnceHoweverOftenItIsSeen(t *testing.T) {
 	}
 
 	require.Len(t, said, 1, "three passes over one filled order is one line")
-	assert.Equal(t, "✔ QQQ 701/700 put ×50, кредит 0.28", said[0])
+	assert.Equal(t, "✔ QQQ 701/700 put ×50, credit 0.28", said[0])
 
 	state, err := kept.Read(context.Background())
 	require.NoError(t, err)
@@ -565,7 +565,7 @@ func TestAFillThatCostMoneyIsCalledADebit(t *testing.T) {
 	rungs.step(context.Background())
 
 	require.Len(t, said, 1)
-	assert.Contains(t, said[0], "дебет 0.07")
+	assert.Contains(t, said[0], "debit 0.07")
 }
 
 // A fill from before this ladder started looking is written down and NOT said.
@@ -768,7 +768,7 @@ func TestAnOrderThatFillsTheBookIsCancelled(t *testing.T) {
 
 	select {
 	case cause := <-told:
-		assert.Contains(t, cause, "Место кончилось",
+		assert.Contains(t, cause, "no room left",
 			"the session is told the book is full, not that its order is too large")
 	default:
 		t.Fatal("the session was not told why its order went away")

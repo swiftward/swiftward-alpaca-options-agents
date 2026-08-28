@@ -274,7 +274,7 @@ func whatFilled(order marketdata.Order) string {
 		contract, known := marketdata.ContractFrom(leg.Symbol)
 		if !known {
 			// Nothing is guessed: a wrong strike in the room is worse than none.
-			return fmt.Sprintf("✔ исполнено %.0f по %.2f", order.FilledQuantity, order.FilledPrice)
+			return fmt.Sprintf("✔ filled %.0f at %.2f", order.FilledQuantity, order.FilledPrice)
 		}
 		if underlying == "" {
 			underlying = leg.Symbol[:len(leg.Symbol)-15]
@@ -283,10 +283,10 @@ func whatFilled(order marketdata.Order) string {
 		strikes = append(strikes, strconv.FormatFloat(contract.Strike, 'f', -1, 64))
 	}
 
-	money := "кредит"
+	money := "credit"
 	price := order.FilledPrice
 	if price > 0 {
-		money = "дебет"
+		money = "debit"
 	}
 	if price < 0 {
 		price = -price
@@ -301,8 +301,8 @@ func whatFilled(order marketdata.Order) string {
 // has to decide what to do instead, and it cannot decide from a count.
 func whatDidNotHappen(orders []marketdata.Order) string {
 	lines := make([]string, 0, len(orders)+2)
-	lines = append(lines, "Заявки, которые ты отправил, сняты по терпению: стакан не взял их "+
-		"по худшей цене, которую ты назвал. Твоё решение выполнено не так, как ты его принял.")
+	lines = append(lines, "The orders you sent were cancelled on patience: the book would not "+
+		"take them at the worst price you named. Your decision was not carried out as you made it.")
 	for _, order := range orders {
 		legs := make([]string, 0, len(order.Legs))
 		for _, leg := range order.Legs {
@@ -310,16 +310,16 @@ func whatDidNotHappen(orders []marketdata.Order) string {
 		}
 		// Part of an order can fill before the rest is cancelled. Saying "did not
 		// fill" there would send the session to re-open a position it already holds.
-		got := "не исполнилась вовсе"
+		got := "did not fill at all"
 		if order.FilledQuantity > 0 {
-			got = fmt.Sprintf("исполнилась частично: %.0f из %.0f", order.FilledQuantity, order.Quantity)
+			got = fmt.Sprintf("filled in part: %.0f of %.0f", order.FilledQuantity, order.Quantity)
 		}
-		lines = append(lines, fmt.Sprintf("- %s по цене %.2f, %s: %s",
+		lines = append(lines, fmt.Sprintf("- %s at %.2f, %s: %s",
 			order.ID, order.LimitPrice, got, strings.Join(legs, ", ")))
 	}
-	lines = append(lines, "Реши, что с этим делать: повторить по другой цене, взять другую "+
-		"конструкцию или оставить как есть. Позиции, заявки и капитал прочитай сам - "+
-		"здесь названы только те заявки, что не прошли.")
+	lines = append(lines, "Decide what to do about it: try again at another price, take a "+
+		"different structure, or leave it. Read the positions, the orders and the equity "+
+		"yourself - only the orders that did not go through are named here.")
 
 	return strings.Join(lines, "\n")
 }
@@ -513,9 +513,9 @@ func (l *Ladder) overBook(ctx context.Context, order marketdata.Order, held, add
 
 	if l.Wake != nil {
 		l.Wake(ctx, fmt.Sprintf(
-			"заявка %s снята: открытое уже рискует %.0f, эта добавила бы %.0f, "+
-				"а всему счёту разрешено %.0f. Место кончилось - закрой что-нибудь "+
-				"или бери меньше, и скажи одной строкой, сколько осталось.",
+			"order %s cancelled: what is open already risks %.0f, this would add %.0f, "+
+				"and the whole account is allowed %.0f. There is no room left - close "+
+				"something or take less, and say in one line how much is left.",
 			order.ID, held, adds, allowed))
 	}
 }
@@ -569,9 +569,9 @@ func (l *Ladder) tooBig(ctx context.Context, order marketdata.Order, ceiling flo
 
 	if l.Wake != nil {
 		l.Wake(ctx, fmt.Sprintf(
-			"заявка %s снята: её худший исход %.0f при разрешённых %.0f на позицию. "+
-				"Пересчитай размер от предела конверта, а не от покупательной способности, "+
-				"и скажи одной строкой, сколько насчитал.",
+			"order %s cancelled: its worst case is %.0f against the %.0f allowed on one "+
+				"position. Work the size out from the envelope's ceiling, not from buying "+
+				"power, and say in one line what you worked out.",
 			order.ID, -worst, ceiling))
 	}
 
