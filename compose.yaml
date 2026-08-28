@@ -329,14 +329,6 @@ services:
       ENVELOPE_IDENTITY: ${ENVELOPE_NEAR_IDENTITY:-options-alpha-near}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
       RECORD_SHOWS: ${RECORD_SHOWS}
-      # The read side asks the broker what the account is worth. It only reads:
-      # the money questions have no order in them - and it carries a credential
-      # that CANNOT send one, so a leak here is not a trade.
-      #
-      # That last guarantee is the GATEWAY's, not this service's: the credential
-      # is refused an order because the gateway refuses it. Pointed at the
-      # broker's own server the same page could send one, so this address is its
-      # own variable and does not follow the harness off the gateway.
       ORDERS_SHOWN: ${ORDERS_SHOWN}
       HISTORY_DAYS: ${HISTORY_DAYS}
     ports:

@@ -1,0 +1,9 @@
+.git
+
+# Host-installed packages overwrite what the image installed for itself, and the
+# image still builds: it breaks later, on a native binding built for another libc.
+**/node_modules
+typescript/web/dist
+
+.env
+.env.*
