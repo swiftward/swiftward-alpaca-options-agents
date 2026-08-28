@@ -385,7 +385,7 @@ services:
       HARNESS_BROKER_MCP_URL: ${HARNESS_BROKER_NEAR_MCP_URL:-}
       HARNESS_BROKER_MCP_TOKEN: ${HARNESS_BROKER_NEAR_MCP_TOKEN:-}
       MODEL_GATEWAY_URL: ${MODEL_NEAR_GATEWAY_URL}
-      DECLARATION: /mnt/agent/experiment-near.yaml
+      DECLARATION: ${DECLARATION_NEAR:-/mnt/agent/experiment-near.yaml}
       GATEWAY_TOKEN: ${GATEWAY_NEAR_TOKEN}
       ENVELOPE_PATH: /policy/envelope.yaml
       ENVELOPE_IDENTITY: options-alpha-near
