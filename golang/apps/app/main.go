@@ -37,6 +37,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/execution"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/harness"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/placement"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/reconcile"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/screener"
@@ -346,6 +347,21 @@ func run(log *zap.Logger) error {
 		}
 		if shortlist != nil {
 			tools.Asked = shortlist
+		}
+		// Куда ставить ноги конструкции, у которой худший случай в СЕРЕДИНЕ.
+		// Скринер отвечает на другую половину вопроса - какая бумага из всех, - и
+		// его мера годится только для вертикали, у которой выплата монотонна.
+		// Требует брокера: цена сейчас, книга на одну экспирацию и дневная история
+		// самой бумаги. Без него инструмент просто не предлагается.
+		if broker != nil {
+			tools.Placements = placement.Scorer{
+				Market: broker,
+				// Два года торговых дней. Меньше - и после отбора по режиму
+				// волатильности окон не остаётся, а число без выборки под ним хуже
+				// отсутствия числа.
+				History: 730,
+				Now:     time.Now,
+			}
 		}
 
 		handler := tools.Handler()

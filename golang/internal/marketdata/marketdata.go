@@ -307,6 +307,31 @@ func (b *Broker) LastTrades(ctx context.Context, symbols []string) (map[string]f
 	return answer.prices(), nil
 }
 
+// DailyCloses reads the underlying's own daily closes, oldest first. It is the
+// only question in this package that asks about the PAST rather than about now,
+// and it exists for one reason: a structure whose payoff has a valley cannot be
+// judged from a quote. What it pays depends on where the price lands, and the
+// only honest answer to "where does it land" is where it has landed before.
+//
+// Adjusted closes, not raw: a split inside the window would otherwise read as a
+// fifty percent crash and every window touching it would report a move that
+// never happened.
+func (b *Broker) DailyCloses(ctx context.Context, symbol string, days int) ([]float64, error) {
+	var answer barsAnswer
+	if err := b.call(ctx, "get_stock_bars", map[string]any{
+		"symbols":    strings.ToUpper(symbol),
+		"timeframe":  "1Day",
+		"days":       days,
+		"limit":      days + 10,
+		"adjustment": "all",
+		"sort":       "asc",
+	}, &answer); err != nil {
+		return nil, err
+	}
+
+	return answer.closes(symbol), nil
+}
+
 // MarketOpen answers whether the exchange is trading right now. Quotes outside
 // those hours are yesterday's, and a history built from them measures the clock
 // rather than the market.

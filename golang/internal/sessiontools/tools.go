@@ -17,6 +17,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/placement"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/screener"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/volatility"
@@ -56,6 +57,25 @@ type volatilityInput struct {
 // defaultVolatilityDays is how far back the history is read when the session did
 // not say. The record starts on kickoff day, so this is the whole of it.
 const defaultVolatilityDays = 30
+
+// scorePlacementsInput is deliberately without defaults for the two distances.
+// They are LIMITS, they live in the declaration, and a default here would be the
+// same number written in a second place - which is how the two drift apart and
+// nobody knows which one is in force. A session that has not read its own
+// declaration gets a refusal, not a guess.
+type scorePlacementsInput struct {
+	Underlying string `json:"underlying" jsonschema:"the symbol the structure is built on, for example SPY"`
+	Expiration string `json:"expiration" jsonschema:"the day the structure expires, as YYYY-MM-DD; all legs share it"`
+	Kind       string `json:"kind" jsonschema:"call or put"`
+	Bought     int    `json:"bought,omitempty" jsonschema:"how many are bought against the one sold; two is the backspread and two is the default"`
+
+	ShortLeastSigma  float64 `json:"short_least_sigma" jsonschema:"how far out the sold leg must sit at least, in sigmas of the move expected by expiry; this is YOUR limit, read it from the declaration"`
+	ValleyLeastSigma float64 `json:"valley_least_sigma" jsonschema:"how far out the bought strike - the valley, where the worst case sits - must sit at least, in the same sigmas; also yours"`
+	ShortMostSigma   float64 `json:"short_most_sigma,omitempty" jsonschema:"how far out to stop looking; four sigmas if left out, past which the quotes are a penny wide and mean nothing"`
+
+	WorstCaseMost float64 `json:"worst_case_most" jsonschema:"the most this position may lose in dollars at the valley; it decides how many sets fit"`
+	Most          int     `json:"most,omitempty" jsonschema:"how many placements to return, best first; five if left out"`
+}
 
 type postToChatInput struct {
 	Text string `json:"text" jsonschema:"what the people watching this session should read"`
@@ -161,6 +181,16 @@ type Tools struct {
 	// Asked answers whether a tool was called during one turn. Nil skips the
 	// check, which is what a run without a database does.
 	Asked Asked
+	// Placements scores where the legs of a ratio structure should go. Nil means
+	// no market is wired here and the tool is not offered - the same rule the rest
+	// of these follow.
+	Placements Placements
+}
+
+// Placements is the scorer, kept as an interface so the tool can be exercised
+// without a broker.
+type Placements interface {
+	Score(ctx context.Context, ask placement.Ask) (placement.Answer, error)
 }
 
 // Asked answers whether a tool was called during one turn.
@@ -340,6 +370,57 @@ func (t Tools) Handler() http.Handler {
 					return nil, volatility.Summary{}, err
 				}
 				return nil, summary, nil
+			})
+	}
+
+	if t.Placements != nil {
+		mcp.AddTool(server,
+			&mcp.Tool{
+				Name: "score_placements",
+				Description: "Ask where to put the legs of a structure whose worst case sits in the MIDDLE - a backspread, and anything else that sells one and buys several. " +
+					"Answers with every placement your own limits allow, priced at the sides of the book an order would cross, each replayed against this underlying's own history in weather like today's: " +
+					"what it is expected to make, the median, the worst, how often it ends in the red, where the valley sits in sigmas, and how much of the expectation comes from the best one percent of history. " +
+					"That last number is the one that cannot be seen by eye: a structure drawing most of its expectation from one percent of windows is a lottery ticket, not a cheap bet. " +
+					"It ranks and it reports. It chooses nothing and sends nothing. The screener answers the other half - WHICH underlying, across all of them; this answers where inside one.",
+			},
+			func(ctx context.Context, req *mcp.CallToolRequest, in scorePlacementsInput) (*mcp.CallToolResult, placement.Answer, error) {
+				expires, err := time.Parse(time.DateOnly, in.Expiration)
+				if err != nil {
+					return nil, placement.Answer{}, fmt.Errorf("expiration %q is not a date like 2026-09-04: %w", in.Expiration, err)
+				}
+				// Refused rather than defaulted. These are the declaration's numbers,
+				// and a session that did not bring them is a session that did not read
+				// its limits - which is exactly the case this project exists to make
+				// impossible.
+				if in.ShortLeastSigma <= 0 || in.ValleyLeastSigma <= 0 {
+					return nil, placement.Answer{}, fmt.Errorf(
+						"short_least_sigma and valley_least_sigma are required and come from YOUR declaration, not from here")
+				}
+				bought := in.Bought
+				if bought == 0 {
+					bought = 2
+				}
+				most := in.Most
+				if most == 0 {
+					most = 5
+				}
+
+				answer, err := t.Placements.Score(ctx, placement.Ask{
+					Underlying:       strings.ToUpper(in.Underlying),
+					Expiration:       expires,
+					Kind:             strings.ToLower(in.Kind),
+					Bought:           bought,
+					ShortLeastSigma:  in.ShortLeastSigma,
+					ValleyLeastSigma: in.ValleyLeastSigma,
+					ShortMostSigma:   in.ShortMostSigma,
+					WorstCaseMost:    in.WorstCaseMost,
+					Most:             most,
+				})
+				if err != nil {
+					return nil, placement.Answer{}, err
+				}
+
+				return nil, answer, nil
 			})
 	}
 

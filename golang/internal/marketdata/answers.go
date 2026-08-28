@@ -336,3 +336,31 @@ func (a chainAnswer) chain() ([]Contract, map[string]Quote, error) {
 
 	return contracts, quotes, nil
 }
+
+// barsAnswer is the broker's daily history for one or more symbols. Only the
+// close is read: the replay this feeds asks where the price ENDED a window, and
+// a high that was touched for a second is not where anything settled.
+type barsAnswer struct {
+	Data struct {
+		Bars map[string][]struct {
+			Close float64 `json:"c"`
+			At    string  `json:"t"`
+		} `json:"bars"`
+	} `json:"data"`
+}
+
+// closes returns the closes for symbol in the order the broker sent them, which
+// the caller asks to be ascending. A bar with no close is dropped rather than
+// read as zero: a zero in a price series turns into a -100% return and poisons
+// every window that touches it.
+func (a barsAnswer) closes(symbol string) []float64 {
+	bars := a.Data.Bars[strings.ToUpper(symbol)]
+	out := make([]float64, 0, len(bars))
+	for _, bar := range bars {
+		if bar.Close > 0 {
+			out = append(out, bar.Close)
+		}
+	}
+
+	return out
+}

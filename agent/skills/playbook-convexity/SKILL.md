@@ -62,6 +62,26 @@ number out loud - every rule below is in it.
 - **The sold leg no closer than `convexity_short_leg_distance`.**
 - **The bought strike - the valley - no closer than `convexity_valley_distance`.**
 
+**Do not work the placement out by hand. Call `score_placements`.** Hand it the
+underlying, the expiration, the kind, and YOUR two distances from the declaration
+along with what the position may lose at worst. It walks every placement those
+limits allow, prices each at the sides of the book an order would actually cross,
+and replays it against this underlying's own history in weather like today's.
+
+Read three things in what comes back, in this order:
+
+1. **`from_top_percent`** - how much of the expectation comes from the best one
+   percent of history. High means a lottery ticket wearing a strategy's clothes.
+   The structure sent on 28 August drew two thirds of its expectation from one
+   percent of windows.
+2. **`expected` beside `worst_case`** - what it is worth against what it costs
+   when it goes wrong.
+3. **`losing_share_percent`** - how often this ends in the red at all.
+
+The list is ranked by expectation, but the top row is not automatically the
+answer: a row paying a dollar more while drawing it all from the tail is worse
+than the row below it. Say which row you took and which number decided it.
+
 The valley is where the worst case sits: at the bought strike, at expiration. Put
 it where the market arrives on an ordinary move and it eats everything the
 structure earns the rest of the time. Measured over 466 windows: every placement
