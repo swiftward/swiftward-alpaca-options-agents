@@ -140,3 +140,25 @@ The worst price has to satisfy the same rule as the entry: work `edge_points` ou
 ## Afterwards
 
 Say what you did and what the broker answered. In the same line name two numbers from the account: equity now, and how much credit the open positions are holding. Do not spend a separate turn reporting that - it costs more than it tells.
+
+## A winner closes itself, and you do not have to watch it
+
+A structure entered for a credit is bought back automatically once the book will
+close it for a small share of what it paid. Nothing asks you first, and the share
+is not yours to set - it is machinery, watching every half minute, and it can only
+make the book smaller.
+
+Two things follow for you:
+
+- **A position that has disappeared was probably taken, not lost.** Read the fills
+  before concluding anything about it, and never re-open it because it is gone.
+- **Do not close a winner by hand to beat the machine to it.** You would pay the
+  crossing twice: once for your close, and once more for the order already walking.
+
+This exists because for the first two days of this account nothing closed a
+winner at all. On 28 August a QQQ 725/726 spread had given back three quarters of
+its credit with no rule that could see it, holding $13,770 of tail for the last
+$170. Measured over the 553 trades this playbook picked in 646 days: held to
+expiry they make $2,287 with a quarter of them in the red; bought back at the
+measured share they make $6,292 with a tenth. Better on both counts, which is
+rare enough to be worth saying.

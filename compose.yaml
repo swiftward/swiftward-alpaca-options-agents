@@ -104,6 +104,17 @@ x-agent-environment: &agent-environment
   ACCOUNT_EVERY: ${ACCOUNT_EVERY}
   # The ladder that walks an unfilled structure toward the price the book
   # shows. It finishes what a session started and can open nothing.
+  # Доля полученного кредита, при которой выигравшая конструкция выкупается.
+  # ПОСЧИТАНО: research/threshold.py, 29 августа 2026, по минутному пути всех
+  # 553 сделок, которые правило выбрало за 646 дней. Досидеть до истечения
+  # даёт 2 287 долларов и 26% убыточных сделок; закрыть на 35% даёт 6 292 и
+  # 9%. Лучше по обеим осям сразу. Вершина ровно на 35%, и обе половины
+  # истории на неё сходятся - плато 35-40, обрыв после 50.
+  TAKE_PROFIT_AT: ${TAKE_PROFIT_AT}
+  # Полминуты. Смысл в том, чтобы оказаться на месте, когда число пересекает
+  # черту: защита ходит раз в тридцать минут и 28 августа пропустила спред,
+  # отдавший три четверти кредита.
+  TAKE_PROFIT_EVERY: ${TAKE_PROFIT_EVERY}
   EXECUTION_EVERY: ${EXECUTION_EVERY}
   EXECUTION_STEP: ${EXECUTION_STEP}
   EXECUTION_PATIENCE: ${EXECUTION_PATIENCE}

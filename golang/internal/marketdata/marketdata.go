@@ -9,9 +9,11 @@ package marketdata
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -598,4 +600,73 @@ func (b *Broker) Close() error {
 	b.session = nil
 
 	return session.Close()
+}
+
+// Leg is one side of a structure being closed: which contract, how many of it go
+// into one set, and which way it moves.
+type Leg struct {
+	Symbol string
+	// Ratio is how many contracts of this leg go into ONE set. The order's
+	// quantity multiplies it.
+	Ratio int
+	// Buy is true where closing this leg means buying it back.
+	Buy bool
+}
+
+// CloseStructure sends an order that can only REDUCE what is held.
+//
+// This is the first thing in this codebase that places an order, and the
+// boundary it crosses deserves saying out loud. Every other order in this system
+// is placed by the session through the gateway, where the envelope can refuse
+// it. This one is placed by machinery, on a path the gateway is not on.
+//
+// It is safe for one reason, and only while that reason holds: the envelope
+// bounds what may be OPENED - the loss a position may carry, the underlyings
+// allowed, the expirations permitted - and closing cannot violate any of them.
+// A close makes the book smaller. There is nothing for the gateway to refuse.
+//
+// That the order can only close is not left to this function's good intentions.
+// Every leg carries position_intent of buy_to_close or sell_to_close, and the
+// BROKER refuses the order outright if it would open anything. So a bug here
+// fails as a rejected order rather than as a new position nobody chose.
+func (b *Broker) CloseStructure(ctx context.Context, legs []Leg, sets int, limit float64, name string) error {
+	if len(legs) == 0 {
+		return errors.New("no legs to close")
+	}
+	if sets < 1 {
+		return fmt.Errorf("sets is %d: there is nothing to close", sets)
+	}
+
+	shaped := make([]map[string]any, 0, len(legs))
+	for _, leg := range legs {
+		if leg.Ratio < 1 {
+			return fmt.Errorf("%s carries ratio %d: a leg of a set is at least one", leg.Symbol, leg.Ratio)
+		}
+		side, intent := "sell", "sell_to_close"
+		if leg.Buy {
+			side, intent = "buy", "buy_to_close"
+		}
+		shaped = append(shaped, map[string]any{
+			"symbol":          leg.Symbol,
+			"side":            side,
+			"ratio_qty":       strconv.Itoa(leg.Ratio),
+			"position_intent": intent,
+		})
+	}
+
+	var answer struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+
+	return b.call(ctx, "place_option_order", map[string]any{
+		"qty":             strconv.Itoa(sets),
+		"type":            "limit",
+		"time_in_force":   "day",
+		"order_class":     "mleg",
+		"limit_price":     fmt.Sprintf("%.2f", limit),
+		"client_order_id": name,
+		"legs":            shaped,
+	}, &answer)
 }

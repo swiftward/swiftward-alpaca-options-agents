@@ -43,6 +43,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/screener"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/sessiontools"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/skills"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/takeprofit"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/volatility"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
@@ -505,6 +506,24 @@ func run(log *zap.Logger) error {
 			zap.Int("per_minute", cfg.ScreenerPerMinute),
 			zap.Int("workers", max(cfg.ScreenerWorkers, 1)))
 		group.Go(func() error { return sweep.Run(ctx) })
+	}
+
+	// Сторож прибыли. Ходит без ИИ и умеет ровно одно - УМЕНЬШИТЬ книгу.
+	//
+	// Разделение то же, что у лестницы, перенесённое со входа на выход: решать,
+	// что продать и по какой цене, - суждение и принадлежит модели; смотреть на
+	// число раз в полминуты и действовать, когда оно пересекло черту, -
+	// арифметика по часам. Ход агента стоит полторы минуты, защита ходит раз в
+	// тридцать, и 28 августа спред QQQ отдал три четверти кредита незамеченным.
+	if cfg.Has(config.RoleHarness) && cfg.TakeProfitAt > 0 {
+		if broker == nil {
+			return errors.New("TAKE_PROFIT_AT is set but there is no broker to watch the book with")
+		}
+		watch := &takeprofit.Watch{
+			Broker: broker, At: cfg.TakeProfitAt, Every: cfg.TakeProfitEvery,
+			Now: time.Now, Log: log.Named("takeprofit"),
+		}
+		group.Go(func() error { return watch.Run(ctx) })
 	}
 
 	if cfg.Has(config.RoleHarness) && cfg.AccountEvery > 0 {
