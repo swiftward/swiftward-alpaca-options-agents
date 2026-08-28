@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"go.uber.org/zap"
@@ -175,7 +176,7 @@ func (r Read) Handler() (http.Handler, error) {
 	// половины отдаёт этот же процесс, - а про то, чтобы имя файла на странице
 	// однажды не закрыло собой маршрут с тем же именем. /healthz остаётся на
 	// корне: это проверка живости, её спрашивают снаружи, и она не данные.
-	mux.Handle("GET /", http.FileServer(http.Dir(r.WebDir)))
+	mux.Handle("GET /", spa(r.WebDir))
 	r.Log.Info("serving the built page", zap.String("web_dir", r.WebDir))
 
 	return mux, nil
@@ -211,6 +212,30 @@ func (r Read) answer(w http.ResponseWriter, value any) {
 func (r Read) fail(w http.ResponseWriter, says string, err error) {
 	r.Log.Error(says, zap.Error(err))
 	http.Error(w, says, http.StatusServiceUnavailable)
+}
+
+// spa отдаёт файл, если он есть, и страницу - если нет.
+//
+// Маршруты живут в браузере: /live это не файл, а состояние страницы. Файловый
+// сервер на такой путь отвечает 404, и посетитель, открывший ссылку или
+// обновивший вкладку, видит ошибку вместо того, что открывал. Поэтому всё, что
+// не найдено, получает index.html, и дальше маршрут разбирает страница.
+//
+// Данные сюда не попадают: они под /api, и этот обработчик стоит на корне, куда
+// более длинные пути не доходят.
+func spa(dir string) http.Handler {
+	files := http.FileServer(http.Dir(dir))
+
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		name := filepath.Join(dir, filepath.Clean(req.URL.Path))
+		if info, err := os.Stat(name); err == nil && !info.IsDir() {
+			files.ServeHTTP(w, req)
+
+			return
+		}
+
+		http.ServeFile(w, req, filepath.Join(dir, "index.html"))
+	})
 }
 
 // missing answers a route this deployment cannot serve. It is a plain refusal

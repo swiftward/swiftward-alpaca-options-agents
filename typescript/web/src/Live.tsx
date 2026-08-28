@@ -9,18 +9,19 @@ import {
   Minus,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 
 import type { Everything, Limits, Money, Said, State, Sweep, ToolCall, Turn } from './api'
 import { readEverything } from './api'
 import { Equity } from './Equity'
 import { ago, clock, dollars, percent, signed, took, trim } from './format'
-import { Card, Chip, Empty, Figure, Figures, Section, Table, Unavailable } from './parts'
+import { Card, Chip, Empty, Eyebrow, Figure, Figures, Section, Table, Unavailable } from './parts'
 
 // Раз в пятнадцать секунд. Не поток: данные и меняются раз в минуту-две, а
 // поток стоит сложности, которая на неделе не окупится.
 const refreshEvery = 15_000
 
-export function App() {
+export function Live() {
   const [all, setAll] = useState<Everything | null>(null)
   const [readAt, setReadAt] = useState<Date | null>(null)
 
@@ -48,22 +49,42 @@ export function App() {
 
   return (
     <main className="mx-auto max-w-6xl px-6 pb-24 pt-10 text-primary">
-      <header className="mb-10">
-        <h1 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
-          Опционный агент
+      <header className="mb-14">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <Eyebrow>[ live · alpaca paper trading ]</Eyebrow>
+          <Link
+            to="/"
+            className="font-mono text-xs uppercase tracking-[0.04em] text-muted hover:text-primary"
+          >
+            ← about
+          </Link>
+        </div>
+
+        <h1 className="mt-6 max-w-[20ch] text-[40px] font-medium leading-[1.05] tracking-[-0.024em] text-primary">
+          What the agent is doing, right now.
         </h1>
-        <p className="mt-3 max-w-2xl text-lg leading-relaxed text-secondary">
-          Самостоятельный агент, торгующий опционами на бумажном счёте Alpaca. Когда ему
-          работать, решает расписание; что торговать — решает он сам, и прежде чем отправить
-          заявку, говорит, что собирается сделать.
+        <p className="mt-4 max-w-[52ch] text-[20px] font-medium leading-[1.25] tracking-[-0.01em] text-secondary">
+          Every run it makes, every limit it was handed, and every conclusion it reached — in
+          its own words, refusals included.
         </p>
-        <p className="mt-3 text-xs text-muted">
-          {readAt ? `прочитано в ${clock(readAt.toISOString())}` : 'читаю…'}
-          {failed.length > 0 ? ` · не ответило: ${failed.join('; ')}` : ''}
+
+        <p className="mt-6 flex flex-wrap items-center gap-2">
+          <Chip tone={failed.length > 0 ? 'loss' : 'gain'}>
+            <span
+              className={`size-1.5 rounded-full ${failed.length > 0 ? 'bg-loss' : 'animate-pulse bg-gain'}`}
+              aria-hidden
+            />
+            {readAt ? `read ${clock(readAt.toISOString())}` : 'reading…'}
+          </Chip>
+          {failed.map((why) => (
+            <Chip key={why} tone="loss">
+              {why}
+            </Chip>
+          ))}
         </p>
       </header>
 
-      {all ? <Page all={all} /> : <Empty says="читаю…" />}
+      {all ? <Page all={all} /> : <Empty says="reading…" />}
     </main>
   )
 }
@@ -74,7 +95,7 @@ function Page({ all }: { all: Everything }) {
 
   return (
     <>
-      <Section title="Счёт">
+      <Section title="The account">
         {all.money.ok ? <Account money={all.money.value} /> : <Unavailable why={all.money.why} />}
         <div className="mt-4">
           {all.equity.ok ? <Equity line={all.equity.value} /> : <Unavailable why={all.equity.why} />}
@@ -82,34 +103,35 @@ function Page({ all }: { all: Everything }) {
       </Section>
 
       {state ? (
-        <Section title="Одним взглядом" explains="Неделя в числах: как часто агент просыпался, что отправил, что держит.">
+        <Section title="At a glance"
+        explains="The week in numbers: how often it woke, what it sent, what it holds.">
           <Counters state={state} money={money} />
         </Section>
       ) : null}
 
       <Section
-        title="Пределы, которые он обнаружил"
-        explains="Ничего из этого не вписано в инструкции агента. Он спрашивает свои пределы во время работы, и здесь тот же ответ, который получает он."
+        title="Limits it discovered"
+        explains="None of this is written into the agent\u0027s instructions. It asks what it may do while it works, and this is the same answer it gets — down to the rule that admits it exists and withholds its number."
       >
         {all.limits.ok ? <LimitsCard limits={all.limits.value} /> : <Unavailable why={all.limits.why} />}
       </Section>
 
       <Section
-        title="Что предлагает рынок"
-        explains="Скринер оценивает весь разрешённый список бумаг снова и снова. Это его последний проход."
+        title="What the market offers"
+        explains="The screener prices every permitted underlying, over and over. This is its last pass and how long ago it ran."
       >
         {all.sweep.ok ? <SweepCard sweep={all.sweep.value} /> : <Unavailable why={all.sweep.why} />}
       </Section>
 
-      <Section title="Открытые позиции" explains="Что агент держит прямо сейчас, в оценке брокера.">
-        {money ? <Positions money={money} /> : <Empty says="счёт недоступен" />}
+      <Section title="Open positions" explains="What it is holding right now, valued by the broker.">
+        {money ? <Positions money={money} /> : <Empty says="the account is unavailable" />}
       </Section>
 
       <Section
-        title="Ходы"
-        explains="Один запуск агента: когда, чем разбужен, сколько занял — и к чему он пришёл, его собственными словами."
+        title="Every run"
+        explains="When it ran, what woke it, what it asked — and what it concluded. The runs where it looked and did nothing are here too, and they say why."
       >
-        {state ? <Turns state={state} /> : <Empty says="запись недоступна" />}
+        {state ? <Turns state={state} /> : <Empty says="the record is unavailable" />}
       </Section>
     </>
   )
@@ -122,17 +144,17 @@ function Account({ money }: { money: Money }) {
   return (
     <Figures>
       {/* Число, ради которого страницу открывают. Одно на всю страницу. */}
-      <Figure name="капитал" value={dollars(money.account.equity)} hero />
+      <Figure name="equity" value={dollars(money.account.equity)} hero />
       {/* Стрелка не украшение: цвет один не читается теми, кто его не
           различает, и второй признак это чинит. */}
       <Figure
-        name="со вчерашнего закрытия"
+        name="since yesterday"
         value={`${signed(change)} (${percent(fraction)})`}
         tone={change > 0 ? 'gain' : change < 0 ? 'loss' : undefined}
         icon={change > 0 ? ArrowUpRight : change < 0 ? ArrowDownRight : Minus}
       />
-      <Figure name="наличные" value={dollars(money.account.cash)} />
-      <Figure name="покупательная способность" value={dollars(money.account.buying_power)} />
+      <Figure name="cash" value={dollars(money.account.cash)} />
+      <Figure name="buying power" value={dollars(money.account.buying_power)} />
     </Figures>
   )
 }
@@ -144,12 +166,12 @@ function Counters({ state, money }: { state: State; money?: Money }) {
 
   return (
     <Figures>
-      <Figure name="ходов" value={String(state.turns.length)} />
-      <Figure name="с отказом" value={String(refused)} tone={refused > 0 ? 'loss' : undefined} />
-      <Figure name="заявок отправлено" value={String(sent)} />
-      <Figure name="исполнено" value={String(filled)} tone={filled > 0 ? 'gain' : undefined} />
-      <Figure name="намерений" value={String(state.intents.length)} />
-      <Figure name="открыто позиций" value={String(money?.positions.length ?? 0)} />
+      <Figure name="runs" value={String(state.turns.length)} />
+      <Figure name="failed" value={String(refused)} tone={refused > 0 ? 'loss' : undefined} />
+      <Figure name="orders sent" value={String(sent)} />
+      <Figure name="filled" value={String(filled)} tone={filled > 0 ? 'gain' : undefined} />
+      <Figure name="intents" value={String(state.intents.length)} />
+      <Figure name="positions" value={String(money?.positions.length ?? 0)} />
     </Figures>
   )
 }
@@ -160,9 +182,9 @@ function LimitsCard({ limits }: { limits: Limits }) {
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-muted">
         <span className="font-medium text-primary">{limits.identity}</span>
         <Chip>{limits.tool}</Chip>
-        <Chip>правила {limits.ruleset_version}</Chip>
+        <Chip>ruleset {limits.ruleset_version}</Chip>
         <Chip tone={limits.governed ? 'gain' : 'loss'}>
-          {limits.governed ? 'под правилами' : 'без правил'}
+          {limits.governed ? 'governed' : 'ungoverned'}
         </Chip>
       </div>
       <ul className="mt-3 space-y-1.5">
@@ -172,9 +194,9 @@ function LimitsCard({ limits }: { limits: Limits }) {
                 что существует, и не выдаёт числа. Это и есть механика, которую
                 мы показываем, и она должна читаться с одного взгляда. */}
             {rule.disclosure === 'boundary' && rule.value !== undefined ? (
-              <Eye aria-label="число раскрыто" className="mt-0.5 size-3.5 shrink-0 text-muted" />
+              <Eye aria-label="number disclosed" className="mt-0.5 size-3.5 shrink-0 text-muted" />
             ) : (
-              <EyeOff aria-label="число не раскрыто" className="mt-0.5 size-3.5 shrink-0 text-muted" />
+              <EyeOff aria-label="number withheld" className="mt-0.5 size-3.5 shrink-0 text-muted" />
             )}
             <span>
             <span className="text-muted">{rule.rule}: </span>
@@ -187,7 +209,7 @@ function LimitsCard({ limits }: { limits: Limits }) {
               // Правило, которое сообщает, что СУЩЕСТВУЕТ, и не выдаёт числа.
               // Это не пробел в данных, а степень раскрытия, и её видно.
               <span className="italic text-muted">
-                {rule.disclosure === 'existence' ? 'существует, число не раскрыто' : 'не раскрыто'}
+                {rule.disclosure === 'existence' ? 'exists · number withheld' : 'withheld'}
               </span>
             )}
             </span>
@@ -199,15 +221,15 @@ function LimitsCard({ limits }: { limits: Limits }) {
 }
 
 function SweepCard({ sweep }: { sweep: Sweep }) {
-  if (sweep.candidates.length === 0) return <Empty says="прохода ещё не было или он ничего не нашёл" />
+  if (sweep.candidates.length === 0) return <Empty says="no sweep yet, or it found nothing" />
 
   return (
     <Card>
       <div className="flex flex-wrap items-baseline gap-x-4 text-xs text-muted">
         <span className="font-medium text-primary">
-          {sweep.candidates.length} конструкций
+          {sweep.candidates.length} structures
         </span>
-        <Chip>проход {ago(sweep.taken_at)}</Chip>
+        <Chip>swept {ago(sweep.taken_at)}</Chip>
       </div>
       <ul className="mt-3 space-y-1.5 text-sm">
         {sweep.candidates.slice(0, 6).map((one) => (
@@ -216,8 +238,8 @@ function SweepCard({ sweep }: { sweep: Sweep }) {
             <span className="text-muted">
               {one.type} {one.short_strike}/{one.long_strike}
             </span>{' '}
-            — кредит {one.credit.toFixed(2)} против риска {one.risk.toFixed(2)}
-            {one.edge_points === undefined ? '' : `, преимущество ${one.edge_points.toFixed(1)}`}
+            — credit {one.credit.toFixed(2)} against risk {one.risk.toFixed(2)}
+            {one.edge_points === undefined ? '' : `, edge ${one.edge_points.toFixed(1)}`}
           </li>
         ))}
       </ul>
@@ -228,7 +250,7 @@ function SweepCard({ sweep }: { sweep: Sweep }) {
 function Positions({ money }: { money: Money }) {
   return (
     <Table
-      head={['бумага', 'сторона', 'количество', 'вход', 'сейчас', 'стоимость', 'открытая прибыль']}
+      head={['symbol', 'side', 'quantity', 'entry', 'now', 'value', 'open profit']}
       rows={money.positions.map((position) => [
         position.symbol,
         position.side,
@@ -240,13 +262,13 @@ function Positions({ money }: { money: Money }) {
           {signed(position.unrealized_pl)} ({percent(position.unrealized_pl_fraction)})
         </span>,
       ])}
-      empty="сейчас ничего не держит"
+      empty="holding nothing right now"
     />
   )
 }
 
 function Turns({ state }: { state: State }) {
-  if (state.turns.length === 0) return <Empty says="ходов ещё не было: агента ничто не будило" />
+  if (state.turns.length === 0) return <Empty says="no runs yet: nothing has woken it" />
 
   const saidByTurn = new Map<string, Said[]>()
   for (const line of state.said ?? []) {
@@ -278,7 +300,7 @@ function TurnCard({ turn, said, calls }: { turn: Turn; said: Said[]; calls: Tool
     ? { text: turn.failure, colour: 'text-loss', Icon: CircleAlert }
     : turn.finished_at
       ? { text: took(turn.started_at, turn.finished_at), colour: '', Icon: CircleCheck }
-      : { text: 'идёт', colour: 'text-gain', Icon: LoaderCircle }
+      : { text: 'running', colour: 'text-gain', Icon: LoaderCircle }
 
   const refused = calls.filter((call) => call.status !== 'completed').length
 
@@ -293,8 +315,8 @@ function TurnCard({ turn, said, calls }: { turn: Turn; said: Said[]; calls: Tool
         </Chip>
         {calls.length > 0 ? (
           <Chip tone={refused > 0 ? 'loss' : undefined}>
-            вызовов {calls.length}
-            {refused > 0 ? ` · отказов ${refused}` : ''}
+            {calls.length} calls
+            {refused > 0 ? ` · ${refused} refused` : ''}
           </Chip>
         ) : null}
       </div>

@@ -116,3 +116,36 @@ func serving(t *testing.T, read Read) http.Handler {
 
 	return handler
 }
+
+// Маршрут страницы отдаётся страницей, а не отказом.
+//
+// /live - это не файл, а состояние страницы: маршруты живут в браузере.
+// Файловый сервер на такой путь отвечает 404, и посетитель, открывший ссылку или
+// просто обновивший вкладку, видит ошибку вместо того, что открывал. Проверять
+// это надо здесь, потому что иначе оно ломается молча и обнаруживается тем, кто
+// пришёл по ссылке.
+func TestAPageRouteIsAnsweredByThePage(t *testing.T) {
+	web := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(web, "index.html"), []byte("<!doctype html>страница"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(web, "app.js"), []byte("// настоящий файл"), 0o600))
+
+	handler := serving(t, Read{Record: record.NewMemory(), WebDir: web})
+
+	for _, route := range []string{"/", "/live", "/whatever/deep"} {
+		answer := httptest.NewRecorder()
+		handler.ServeHTTP(answer, httptest.NewRequest(http.MethodGet, route, nil))
+		require.Equal(t, http.StatusOK, answer.Code, route)
+		assert.Contains(t, answer.Body.String(), "страница", "%s должен отдавать страницу", route)
+	}
+
+	// Настоящий файл остаётся собой: подмена его страницей сломала бы сборку.
+	answer := httptest.NewRecorder()
+	handler.ServeHTTP(answer, httptest.NewRequest(http.MethodGet, "/app.js", nil))
+	assert.Contains(t, answer.Body.String(), "настоящий файл")
+
+	// Данные под /api не попадают под это правило: отказ там должен оставаться
+	// отказом, а не превращаться в страницу с кодом 200.
+	data := httptest.NewRecorder()
+	handler.ServeHTTP(data, httptest.NewRequest(http.MethodGet, "/api/limits", nil))
+	assert.Equal(t, http.StatusNotImplemented, data.Code)
+}
