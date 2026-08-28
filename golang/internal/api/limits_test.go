@@ -149,3 +149,23 @@ func TestAPageRouteIsAnsweredByThePage(t *testing.T) {
 	handler.ServeHTTP(data, httptest.NewRequest(http.MethodGet, "/api/limits", nil))
 	assert.Equal(t, http.StatusNotImplemented, data.Code)
 }
+
+// Пустой проход отдаётся пустым СПИСКОМ, а не null.
+//
+// Это не педантизм: 28 августа боевая /live показала белый экран целиком именно
+// на этом. Проходов на сервере ещё не было, обработчик отдал `candidates: null`,
+// страница сделала по нему `.length` и умерла. Читатель, получивший null, вдобавок
+// не отличит «прохода ещё не было» от «это поле сломалось».
+func TestAnEmptySweepIsAnEmptyListNotNull(t *testing.T) {
+	handler := serving(t, Read{
+		Record: record.NewMemory(), OrdersShown: 10,
+		Sweep: sweepDouble{found: nil, takenAt: time.Time{}},
+	})
+
+	answer := httptest.NewRecorder()
+	handler.ServeHTTP(answer, httptest.NewRequest(http.MethodGet, "/api/sweep", nil))
+	require.Equal(t, http.StatusOK, answer.Code)
+
+	assert.Contains(t, answer.Body.String(), `"candidates":[]`,
+		"пустой список, а не null: на null страница падает целиком")
+}

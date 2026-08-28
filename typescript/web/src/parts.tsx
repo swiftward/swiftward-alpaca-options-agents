@@ -1,6 +1,8 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { Boundary } from './Boundary'
+
 // Переиспользуемые части страницы.
 //
 // Правило, по которому они здесь заводятся, записано в ../CLAUDE.md: часть
@@ -33,7 +35,13 @@ export function Section({
       {explains ? (
         <p className="mt-2 max-w-[920px] text-[15px] leading-relaxed text-secondary">{explains}</p>
       ) : null}
-      <div className="mt-5">{children}</div>
+      {/* Каждый раздел под своей границей, и это здесь, а не по месту вызова:
+          иначе защиту получают те разделы, которые кто-то вспомнил обернуть.
+          28 августа одно поле со значением null унесло ВСЮ боевую страницу в
+          белый экран. Теперь падает раздел, остальное читается. */}
+      <div className="mt-5">
+        <Boundary says={`this section failed`}>{children}</Boundary>
+      </div>
     </section>
   )
 }

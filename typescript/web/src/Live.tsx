@@ -160,18 +160,18 @@ function Account({ money }: { money: Money }) {
 }
 
 function Counters({ state, money }: { state: State; money?: Money }) {
-  const refused = state.turns.filter((turn) => turn.failure).length
-  const sent = money?.orders.length ?? 0
-  const filled = money?.orders.filter((order) => order.status === 'filled').length ?? 0
+  const refused = (state.turns ?? []).filter((turn) => turn.failure).length
+  const sent = money?.orders?.length ?? 0
+  const filled = money?.orders?.filter((order) => order.status === 'filled').length ?? 0
 
   return (
     <Figures>
-      <Figure name="runs" value={String(state.turns.length)} />
+      <Figure name="runs" value={String((state.turns ?? []).length)} />
       <Figure name="failed" value={String(refused)} tone={refused > 0 ? 'loss' : undefined} />
       <Figure name="orders sent" value={String(sent)} />
       <Figure name="filled" value={String(filled)} tone={filled > 0 ? 'gain' : undefined} />
-      <Figure name="intents" value={String(state.intents.length)} />
-      <Figure name="positions" value={String(money?.positions.length ?? 0)} />
+      <Figure name="intents" value={String((state.intents ?? []).length)} />
+      <Figure name="positions" value={String(money?.positions?.length ?? 0)} />
     </Figures>
   )
 }
@@ -188,7 +188,7 @@ function LimitsCard({ limits }: { limits: Limits }) {
         </Chip>
       </div>
       <ul className="mt-3 space-y-1.5">
-        {limits.constraints.map((rule) => (
+        {(limits.constraints ?? []).map((rule) => (
           <li key={rule.rule} className="flex items-baseline gap-2 text-sm">
             {/* Открытый глаз - число названо; перечёркнутый - правило сообщает,
                 что существует, и не выдаёт числа. Это и есть механика, которую
@@ -221,18 +221,19 @@ function LimitsCard({ limits }: { limits: Limits }) {
 }
 
 function SweepCard({ sweep }: { sweep: Sweep }) {
-  if (sweep.candidates.length === 0) return <Empty says="no sweep yet, or it found nothing" />
+  const candidates = sweep.candidates ?? []
+  if (candidates.length === 0) return <Empty says="no sweep yet, or it found nothing" />
 
   return (
     <Card>
       <div className="flex flex-wrap items-baseline gap-x-4 text-xs text-muted">
         <span className="font-medium text-primary">
-          {sweep.candidates.length} structures
+          {candidates.length} structures
         </span>
         <Chip>swept {ago(sweep.taken_at)}</Chip>
       </div>
       <ul className="mt-3 space-y-1.5 text-sm">
-        {sweep.candidates.slice(0, 6).map((one) => (
+        {candidates.slice(0, 6).map((one) => (
           <li key={`${one.underlying}${one.type}${one.short_strike}${one.long_strike}`}>
             <span className="font-medium">{one.underlying}</span>{' '}
             <span className="text-muted">
@@ -251,7 +252,7 @@ function Positions({ money }: { money: Money }) {
   return (
     <Table
       head={['symbol', 'side', 'quantity', 'entry', 'now', 'value', 'open profit']}
-      rows={money.positions.map((position) => [
+      rows={(money.positions ?? []).map((position) => [
         position.symbol,
         position.side,
         trim(position.quantity),
@@ -277,9 +278,10 @@ function Turns({ state }: { state: State }) {
   useEffect(() => {
     const node = box.current
     if (node && atBottom.current) node.scrollTop = node.scrollHeight
-  }, [state.turns.length, state.said.length])
+  }, [state.turns?.length, state.said?.length])
 
-  if (state.turns.length === 0) return <Empty says="no runs yet: nothing has woken it" />
+  const turns = state.turns ?? []
+  if (turns.length === 0) return <Empty says="no runs yet: nothing has woken it" />
 
   const saidByTurn = new Map<string, Said[]>()
   for (const line of state.said ?? []) {
@@ -293,7 +295,7 @@ function Turns({ state }: { state: State }) {
 
   // Читается как переписка: старое сверху, свежее внизу. Запись приходит свежим
   // вперёд, поэтому здесь разворачивается.
-  const inOrder = [...state.turns].reverse()
+  const inOrder = [...turns].reverse()
 
   return (
     <div

@@ -148,6 +148,13 @@ func (r Read) Handler() (http.Handler, error) {
 			r.fail(w, "the screener's findings are unavailable", err)
 			return
 		}
+		// Пустой СПИСОК, а не null. Читатель, получивший null, не отличит «прохода
+		// ещё не было» от «это поле сломалось», а страница на нём падает целиком:
+		// 28 августа боевой /live отдал белый экран именно так - `candidates: null`
+		// и `.length` по нему.
+		if found == nil {
+			found = []screener.Candidate{}
+		}
 		r.answer(w, sweep{Candidates: found, TakenAt: takenAt})
 	})
 
