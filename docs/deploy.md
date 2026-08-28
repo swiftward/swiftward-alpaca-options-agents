@@ -76,9 +76,16 @@ https://github.com/settings/tokens/new?scopes=read:packages&description=alpaca-s
 Кладётся один раз, не показываясь ни в истории команд, ни в переписке:
 
 ```
-read -rs -p "токен: " T && ssh -i ~/.ssh/alpaca-swiftward root@<адрес> \
-  "echo '$T' | docker login ghcr.io -u <твой-логин> --password-stdin" && unset T
+read -rs "T?токен: "
+printf '%s' "$T" | ssh -i ~/.ssh/alpaca-swiftward root@<адрес> \
+  "docker login ghcr.io -u <твой-логин> --password-stdin"
+unset T
 ```
+
+Две мелочи в этой строке не случайны. Подсказка задана как `"T?токен: "`, а не
+через `-p`: в zsh `-p` означает «читать из сопроцесса» и даёт `no coprocess`. И
+токен идёт через стандартный ВВОД, а не в аргументах команды - иначе он виден в
+списке процессов на обеих машинах, пока команда выполняется.
 
 Дальше `pull` работает как с публичными. Секрет живёт в `~/.docker/config.json`
 на сервере и больше нигде - в `.env` его класть НЕ надо, иначе он поедет в
