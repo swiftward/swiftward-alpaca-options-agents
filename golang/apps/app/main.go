@@ -264,9 +264,21 @@ func run(log *zap.Logger) error {
 		brokerURL, brokerToken = cfg.HarnessBrokerMCPURL, cfg.HarnessBrokerMCPToken
 	}
 
+	// Two brokers, and which one a component gets is decided by ONE question: does
+	// it send an order. A read may skip the gateway - it carries no order, nothing
+	// can refuse it, and 28 August measured what the gateway costs a reader when it
+	// is busy. An order may not: sent around the gateway it is absent from the
+	// record and no rule sees it, and the record is what a judge is given.
 	var broker *marketdata.Broker
+	var orders *marketdata.Broker
 	if brokerURL != "" {
 		broker = marketdata.NewBrokerWithToken(brokerURL, brokerToken).ActingFor(cfg.UserHeader, cfg.UserToken)
+	}
+	// Тот, что несёт ЗАЯВКИ, всегда идёт на BROKER_MCP_URL - на шлюз, - и никогда
+	// не следует за HARNESS_BROKER_MCP_URL, куда уводят чтения.
+	if cfg.BrokerMCPURL != "" {
+		orders = marketdata.NewBrokerWithToken(cfg.BrokerMCPURL, cfg.BrokerMCPToken).
+			ActingFor(cfg.UserHeader, cfg.UserToken)
 	}
 
 	group, ctx := errgroup.WithContext(ctx)
@@ -407,15 +419,20 @@ func run(log *zap.Logger) error {
 	// The ladder finishes what the session started: it can move a price and cancel
 	// an order, and it can open nothing.
 	if cfg.Has(config.RoleHarness) && cfg.ExecutionEvery > 0 {
-		if broker == nil {
-			return errors.New("EXECUTION_EVERY is set but there is no broker to walk orders at")
+		// Проверяется ТОТ, кем лестница пользуется. Стояла проверка broker, а
+		// передавался orders - и пустой orders прошёл бы её незамеченным, после
+		// чего каждый шаг лестницы падал бы на пустом указателе. Лестница ведёт к
+		// исполнению КАЖДУЮ заявку.
+		if orders == nil {
+			return errors.New("EXECUTION_EVERY is set but BROKER_MCP_URL is empty: " +
+				"the ladder moves orders, and orders go through the gateway")
 		}
 		step := cfg.ExecutionStep
 		if step <= 0 {
 			step = defaultExecutionStep
 		}
 		ladder := &execution.Ladder{
-			Broker: broker, Every: cfg.ExecutionEvery, Step: step, Record: state,
+			Broker: orders, Every: cfg.ExecutionEvery, Step: step, Record: state,
 			Patience: cfg.ExecutionPatience, Now: time.Now, Log: log.Named("execution"),
 		}
 		// What one position may lose, in dollars, from the SAME ruleset the
@@ -522,42 +539,35 @@ func run(log *zap.Logger) error {
 	// арифметика по часам. Ход агента стоит полторы минуты, защита ходит раз в
 	// тридцать, и 28 августа спред QQQ отдал три четверти кредита незамеченным.
 	if cfg.Has(config.RoleHarness) && cfg.TakeProfitAt > 0 {
-		// Без адреса шлюза сторож поднялся бы, написал "watching for structures
-		// worth closing" и не закрыл бы НИЧЕГО - каждый выкуп падал бы в лог и
-		// только. Мёртвый сторож, который выглядит живым, хуже выключенного.
-		//
-		// Но и падать здесь нельзя. В этом же процессе живут замеры капитала,
-		// скринер и история волатильности: отказ стартовать унёс бы кривую,
-		// которую видит судья, ради слоя, который без шлюза всё равно не
-		// торгует. Отказывает СТОРОЖ, а не процесс.
-		switch {
-		case broker == nil:
-			log.Error("the profit watch is off: there is no broker to watch the book with")
-
-		case cfg.BrokerMCPURL == "":
+		if orders == nil {
+			// Не падаем: в этом же процессе живут замеры капитала, скринер и
+			// история волатильности. Отказ стартовать унёс бы кривую, которую
+			// видит судья, ради слоя, который без шлюза всё равно не закроет
+			// ничего. Отказывает СТОРОЖ, а не процесс - как и при нулевой доле.
 			log.Error("the profit watch is off: TAKE_PROFIT_AT is set but BROKER_MCP_URL is empty",
 				zap.String("why", "the watch sends orders and they go through the gateway; "+
 					"without its address it would run and close nothing"))
-
-		default:
-			// Этот сторож ОТПРАВЛЯЕТ ЗАЯВКИ, поэтому идёт через шлюз, даже когда
-			// остальные обращения харнесса направлены к брокеру напрямую. `broker`
-			// выше следует HARNESS_BROKER_MCP_URL, и тот существует ради ЧТЕНИЙ:
-			// чтение не несёт заявки и ничего не теряет, минуя шлюз. Закрытие -
-			// несёт. Отправленное мимо, оно отсутствовало бы в записи: входы видны,
-			// выходы нет, а именно на выходах этот приём и зарабатывает.
-			closer := marketdata.NewBrokerWithToken(cfg.BrokerMCPURL, cfg.BrokerMCPToken).
-				ActingFor(cfg.UserHeader, cfg.UserToken)
-			exchange, err := time.LoadLocation("America/New_York")
-			if err != nil {
-				return fmt.Errorf("load the exchange calendar: %w", err)
-			}
-			watch := &takeprofit.Watch{
-				Broker: closer, At: cfg.TakeProfitAt, Every: cfg.TakeProfitEvery,
-				Now: time.Now, Where: exchange, Log: log.Named("takeprofit"),
-			}
-			group.Go(func() error { return watch.Run(ctx) })
+			cfg.TakeProfitAt = 0
 		}
+	}
+
+	if cfg.Has(config.RoleHarness) && cfg.TakeProfitAt > 0 {
+		// This watch SENDS ORDERS, so it goes to the gateway even though every
+		// other harness call may be pointed straight at the broker. `broker`
+		// above follows HARNESS_BROKER_MCP_URL, which exists for reads: a read
+		// carries no order and loses nothing by skipping the gateway. A close
+		// does. Sent around the gateway it would be absent from the record - the
+		// entries visible and the exits not, which is exactly where this
+		// strategy makes its money - and no rule could refuse it.
+		exchange, err := time.LoadLocation("America/New_York")
+		if err != nil {
+			return fmt.Errorf("load the exchange calendar: %w", err)
+		}
+		watch := &takeprofit.Watch{
+			Broker: orders, At: cfg.TakeProfitAt, Every: cfg.TakeProfitEvery,
+			Now: time.Now, Where: exchange, Log: log.Named("takeprofit"),
+		}
+		group.Go(func() error { return watch.Run(ctx) })
 	}
 
 	if cfg.Has(config.RoleHarness) && cfg.AccountEvery > 0 {
