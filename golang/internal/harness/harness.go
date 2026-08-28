@@ -711,6 +711,7 @@ func (h *Harness) followTheSession(ctx context.Context) {
 			switch ev.Kind {
 			case agent.KindText:
 				h.markActed()
+				h.writeDown(ctx, ev)
 				h.sayInTurn(ctx, ev.Text)
 			case agent.KindToolStarted:
 				h.markActed()
@@ -897,6 +898,30 @@ func (h *Harness) checkBrokerReach(ctx context.Context, acted, reached bool, who
 	h.mu.Unlock()
 
 	h.say(ctx, "Инструменты брокера пропали из списка. Начинаю разговор заново - это единственное, что их возвращает.")
+}
+
+// writeDown keeps what the agent said, so the reasoning behind a decision
+// survives somewhere a reader can reach.
+//
+// The calls and their answers already say WHAT happened. They do not say why,
+// and "why" is what the page is for: a judge opening the address should see the
+// decision in words - what the entry was justified by, why a session refused,
+// what it found in the chain - and not only the curve it produced.
+//
+// The agent's own transcript keeps this too, but in its format, in files, with
+// no link to our turns. This is the same words beside the turn they belong to.
+func (h *Harness) writeDown(ctx context.Context, ev agent.Event) {
+	if h.Record == nil || ev.TurnID == "" || strings.TrimSpace(ev.Text) == "" {
+		return
+	}
+
+	if err := h.Record.AppendSaid(ctx, record.Said{
+		TurnRef: ev.TurnID, At: h.Now(), Text: ev.Text,
+	}); err != nil {
+		// Losing a line of reasoning must not cost the turn it belongs to: the
+		// trade is the point, the record of it is second.
+		h.Log.Error("could not write down what the agent said", zap.Error(err))
+	}
 }
 
 // markActed notes that the agent produced something this turn.

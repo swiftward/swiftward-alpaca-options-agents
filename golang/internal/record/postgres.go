@@ -46,6 +46,17 @@ func (p *Postgres) AppendIntent(ctx context.Context, intent Intent) error {
 
 // TurnStarted records a turn. The agent's own identifier is the key: a turn
 // written twice is the same turn, not a second one.
+func (p *Postgres) AppendSaid(ctx context.Context, said Said) error {
+	_, err := p.pool.Exec(ctx,
+		`INSERT INTO said (turn_ref, at, text) VALUES (@turn, @at, @text)`,
+		pgx.NamedArgs{"turn": said.TurnRef, "at": said.At, "text": said.Text})
+	if err != nil {
+		return fmt.Errorf("record what was said: %w", err)
+	}
+
+	return nil
+}
+
 func (p *Postgres) TurnStarted(ctx context.Context, turn Turn) error {
 	_, err := p.pool.Exec(ctx,
 		`INSERT INTO turns (turn_ref, thread_ref, started_at, woken_by, cause, model)
@@ -196,7 +207,7 @@ func (p *Postgres) CloseTurnsLeftOpen(ctx context.Context, at time.Time) (int, e
 }
 
 func (p *Postgres) Read(ctx context.Context) (State, error) {
-	state := State{Turns: []Turn{}, Calls: []ToolCall{}, Steps: []ExecutionStep{}, Intents: []Intent{}}
+	state := State{Turns: []Turn{}, Calls: []ToolCall{}, Steps: []ExecutionStep{}, Intents: []Intent{}, Said: []Said{}}
 
 	turns, err := p.pool.Query(ctx,
 		`SELECT turn_ref, thread_ref, started_at, finished_at, woken_by, cause, model, failure

@@ -222,7 +222,12 @@ func start(t *testing.T) (*Harness, *chatDouble, *conversationSpy) {
 
 	chat := newChatDouble()
 	conversation := newConversationSpy()
-	h := &Harness{Chat: chat, Conversation: conversation, CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t)}
+	// С записью, а не без: половина того, что харнесс делает, - это запись, и
+	// заготовка без неё проверяла бы только вторую половину.
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Record: record.NewMemory(),
+		CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t),
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1625,4 +1630,57 @@ func finishedTurns(chat *chatDouble) int {
 	}
 
 	return done
+}
+
+// Что агент сказал, попадает в запись рядом с ходом, которому принадлежит.
+//
+// Вызовы и их ответы показывают, ЧТО произошло. Почему - не показывают, а это
+// то, ради чего судья открывает адрес: увидеть решение словами, а не только
+// кривую, которую оно оставило. Транскрипт агента хранит те же слова, но в
+// своём формате, файлами и без связи с нашими ходами.
+func TestWhatTheAgentSaysIsWrittenDownBesideItsTurn(t *testing.T) {
+	harness, chat, conversation := start(t)
+
+	chat.inbound <- telegram.Message{Text: "что держим", UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	conversation.events <- agent.Event{Kind: agent.KindText, TurnID: "tu-1",
+		Text: "Вход не беру: свежая котировка дала 2,2 при пороге 3."}
+	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
+
+	waitFor(t, func() bool {
+		state, err := harness.Record.Read(context.Background())
+
+		return err == nil && len(state.Said) == 1
+	})
+
+	state, err := harness.Record.Read(context.Background())
+	require.NoError(t, err)
+	require.Len(t, state.Said, 1)
+	assert.Equal(t, "tu-1", state.Said[0].TurnRef, "реплика привязана к своему ходу")
+	assert.Contains(t, state.Said[0].Text, "при пороге 3",
+		"пишется решение целиком, а не его пересказ")
+}
+
+// Пустая реплика записью не считается: агент иногда шлёт пробелы между кусками
+// работы, и страница, полная пустых строк, читается хуже, чем короткая.
+func TestEmptyLinesAreNotWrittenDown(t *testing.T) {
+	harness, chat, conversation := start(t)
+
+	chat.inbound <- telegram.Message{Text: "что держим", UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	conversation.events <- agent.Event{Kind: agent.KindText, TurnID: "tu-1", Text: "   \n  "}
+	conversation.events <- agent.Event{Kind: agent.KindText, TurnID: "tu-1", Text: "готово"}
+	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
+
+	waitFor(t, func() bool {
+		state, err := harness.Record.Read(context.Background())
+
+		return err == nil && len(state.Said) == 1
+	})
+
+	state, err := harness.Record.Read(context.Background())
+	require.NoError(t, err)
+	assert.Len(t, state.Said, 1, "записана одна реплика из двух: пустая не в счёт")
 }

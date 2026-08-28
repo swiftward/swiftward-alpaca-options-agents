@@ -29,6 +29,13 @@ type Intent struct {
 }
 
 // Turn is one run of the agent: when it ran, who woke it and why.
+// Said is one thing the agent told the room during a turn.
+type Said struct {
+	TurnRef string    `json:"turn_ref"`
+	At      time.Time `json:"at"`
+	Text    string    `json:"text"`
+}
+
 type Turn struct {
 	Ref        string     `json:"ref"`
 	ThreadRef  string     `json:"thread_ref"`
@@ -89,6 +96,7 @@ type State struct {
 	Calls   []ToolCall      `json:"calls"`
 	Steps   []ExecutionStep `json:"steps"`
 	Intents []Intent        `json:"intents"`
+	Said    []Said          `json:"said"`
 }
 
 // Keeper is what the rest of the program writes to and reads from. The tools a
@@ -96,6 +104,11 @@ type State struct {
 type Keeper interface {
 	Read(ctx context.Context) (State, error)
 	AppendIntent(ctx context.Context, intent Intent) error
+	// AppendSaid writes down what the agent SAID inside a turn. The calls and
+	// their answers already show what happened; this is the only place the
+	// reasoning behind it survives in a form anything can read - the transcripts
+	// keep it too, but in the agent's own format and with no link to our turns.
+	AppendSaid(ctx context.Context, said Said) error
 	TurnStarted(ctx context.Context, turn Turn) error
 	AppendExecutionStep(ctx context.Context, step ExecutionStep) error
 	// NoteFill writes a fill down once and answers whether this call was the one
@@ -157,6 +170,7 @@ func (m *Memory) Read(context.Context) (State, error) {
 		Steps:   append(make([]ExecutionStep, 0, len(m.state.Steps)), m.state.Steps...),
 		Turns:   append(make([]Turn, 0, len(m.state.Turns)), m.state.Turns...),
 		Intents: append(make([]Intent, 0, len(m.state.Intents)), m.state.Intents...),
+		Said:    append(make([]Said, 0, len(m.state.Said)), m.state.Said...),
 	}
 
 	return out, nil
@@ -166,6 +180,14 @@ func (m *Memory) AppendIntent(_ context.Context, intent Intent) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.state.Intents = append(m.state.Intents, intent)
+
+	return nil
+}
+
+func (m *Memory) AppendSaid(_ context.Context, said Said) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.state.Said = append(m.state.Said, said)
 
 	return nil
 }
