@@ -99,7 +99,15 @@ function Page({ all }: { all: Everything }) {
         {all.money.ok ? (
           <Account money={all.money.value} line={all.equity.ok ? all.equity.value : undefined} />
         ) : (
-          <Unavailable why={all.money.why} />
+          // Брокер молчит - но прибыль считается из НАШЕЙ истории, и она пришла.
+          // Показывать отказ поверх данных, которые есть, значит скрывать от
+          // читателя то единственное, ради чего он открыл страницу.
+          <>
+            {all.equity.ok ? <FromHistory line={all.equity.value} /> : null}
+            <div className="mt-4">
+              <Unavailable why={all.money.why} />
+            </div>
+          </>
         )}
         <div className="mt-4">
           {all.equity.ok ? <Equity line={all.equity.value} /> : <Unavailable why={all.equity.why} />}
@@ -180,6 +188,32 @@ function Account({ money, line }: { money: Money; line?: Snapshot[] }) {
       />
       <Figure name="cash" value={dollars(money.account.cash)} />
       <Figure name="buying power" value={dollars(money.account.buying_power)} />
+    </Figures>
+  )
+}
+
+// Счёт по нашей записи, когда брокер не отвечает. Числа те же и берутся из того
+// же ряда, что и кривая; разница лишь в том, что «сейчас» здесь - последний
+// записанный замер, а не живой ответ брокера, и подпись об этом говорит.
+function FromHistory({ line }: { line: Snapshot[] }) {
+  const points = line ?? []
+  if (points.length === 0) return null
+
+  const opened = points[0].equity
+  const now = points[points.length - 1].equity
+  const total = now - opened
+  const share = opened === 0 ? 0 : total / opened
+
+  return (
+    <Figures>
+      <Figure name="equity (last reading)" value={dollars(now)} hero />
+      <Figure
+        name="profit since the start"
+        value={`${signed(total)} (${percent(share)})`}
+        tone={total > 0 ? 'gain' : total < 0 ? 'loss' : undefined}
+        icon={total > 0 ? ArrowUpRight : total < 0 ? ArrowDownRight : Minus}
+        hero
+      />
     </Figures>
   )
 }
