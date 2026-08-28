@@ -13,8 +13,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/account"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/envelope"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/screener"
 )
 
 // Broker is the money side of the page: what the account is worth now, what is
@@ -43,6 +45,20 @@ type Read struct {
 	OrdersShown int
 	// HistoryDays is how far back the equity line is drawn.
 	HistoryDays int
+	// EnvelopePath and EnvelopeIdentity are the limits AS THE AGENT READS THEM.
+	// The page answers them from the same file and the same call the agent's own
+	// question goes through, so what a reader sees is the thing itself and not a
+	// retelling that can drift from it.
+	//
+	// This is worth a route of its own. Limits reaching the agent by discovery
+	// rather than by being written into its prompt is the distinctive claim of
+	// this project, and a claim is worth more shown than described.
+	EnvelopePath     string
+	EnvelopeIdentity string
+	// Sweep is the screener's last pass: how much was priced and how much of it
+	// survived. Small, and it does what no other number does - proves the page is
+	// live rather than a screenshot.
+	Sweep Sweep
 	// WebDir holds the built page. Empty serves the JSON alone, and the log says
 	// so, because a page served from nowhere looks like a broken deployment.
 	WebDir string
@@ -50,6 +66,18 @@ type Read struct {
 }
 
 // money is what the page shows above everything else.
+// Sweep is the screener's last pass, read the same way the session reads it.
+type Sweep interface {
+	Candidates(ctx context.Context, most int) ([]screener.Candidate, time.Time, error)
+}
+
+type sweep struct {
+	Candidates []screener.Candidate `json:"candidates"`
+	// TakenAt is when the pass behind this list ran. Rows outlive their sweep, so
+	// a list an hour old reads exactly like one a minute old unless it says which.
+	TakenAt time.Time `json:"taken_at"`
+}
+
 type money struct {
 	Account   marketdata.Account    `json:"account"`
 	Positions []marketdata.Position `json:"positions"`
@@ -85,6 +113,41 @@ func (r Read) Handler() (http.Handler, error) {
 			return
 		}
 		r.answer(w, read)
+	})
+
+	mux.HandleFunc("GET /api/limits", func(w http.ResponseWriter, req *http.Request) {
+		if r.EnvelopePath == "" || r.EnvelopeIdentity == "" {
+			r.missing(w, "no envelope is served here")
+			return
+		}
+
+		set, err := envelope.Load(r.EnvelopePath)
+		if err != nil {
+			r.fail(w, "the envelope is unreadable", err)
+			return
+		}
+		// The tool an order travels through: its limits are the ones that decide
+		// what may be opened, and they are what a reader came to see.
+		limits, err := set.For(r.EnvelopeIdentity, "place_option_order")
+		if err != nil {
+			r.fail(w, "the envelope has nothing for this identity", err)
+			return
+		}
+		r.answer(w, limits)
+	})
+
+	mux.HandleFunc("GET /api/sweep", func(w http.ResponseWriter, req *http.Request) {
+		if r.Sweep == nil {
+			r.missing(w, "no screener runs here")
+			return
+		}
+
+		found, takenAt, err := r.Sweep.Candidates(req.Context(), r.OrdersShown)
+		if err != nil {
+			r.fail(w, "the screener's findings are unavailable", err)
+			return
+		}
+		r.answer(w, sweep{Candidates: found, TakenAt: takenAt})
 	})
 
 	mux.HandleFunc("GET /api/equity", func(w http.ResponseWriter, req *http.Request) {

@@ -277,6 +277,15 @@ func run(log *zap.Logger) error {
 		if line != nil {
 			read.History = line
 		}
+		// Пределы отдаются из ТОГО ЖЕ файла и тем же вызовом, каким на них
+		// отвечают агенту. Иначе страница показывала бы пересказ, который однажды
+		// разойдётся с тем, по чему на самом деле торгуют.
+		if cfg.EnvelopePath != "" && cfg.EnvelopeIdentity != "" {
+			read.EnvelopePath, read.EnvelopeIdentity = cfg.EnvelopePath, cfg.EnvelopeIdentity
+		}
+		if shortlist != nil {
+			read.Sweep = shortlist
+		}
 
 		handler, err := read.Handler()
 		if err != nil {
