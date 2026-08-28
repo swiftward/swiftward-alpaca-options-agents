@@ -309,6 +309,30 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 		return State{}, fmt.Errorf("read the intents: %w", err)
 	}
 
+	// Слова агента. Их писали с самого начала, а читать забыли: State заводил
+	// пустой список, запроса не было, и страница честно показывала ноль реплик
+	// при шестнадцати строках в таблице. Заголовки ходов при этом рисовались, и
+	// расхождение выглядело как «агент молчит», а не как «мы не спросили».
+	said, err := p.pool.Query(ctx,
+		`SELECT turn_ref, at, text
+		   FROM said ORDER BY at DESC LIMIT @shows`,
+		pgx.NamedArgs{"shows": p.shows})
+	if err != nil {
+		return State{}, fmt.Errorf("read what was said: %w", err)
+	}
+	defer said.Close()
+
+	for said.Next() {
+		var was Said
+		if err := said.Scan(&was.TurnRef, &was.At, &was.Text); err != nil {
+			return State{}, fmt.Errorf("read something said: %w", err)
+		}
+		state.Said = append(state.Said, was)
+	}
+	if err := said.Err(); err != nil {
+		return State{}, fmt.Errorf("read what was said: %w", err)
+	}
+
 	return state, nil
 }
 

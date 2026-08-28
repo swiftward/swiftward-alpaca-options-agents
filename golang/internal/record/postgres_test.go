@@ -53,6 +53,10 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 	}))
 	require.NoError(t, kept.CallFinished(ctx, "call-2", started.Add(41*time.Second), "completed", "",
 		`{"orders": []}`))
+	require.NoError(t, kept.AppendSaid(ctx, Said{
+		TurnRef: "turn-1", At: started.Add(50 * time.Second),
+		Text: "No positions are open; no defense action taken.",
+	}))
 
 	state, err := kept.Read(ctx)
 	require.NoError(t, err)
@@ -64,6 +68,13 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 	require.Len(t, state.Intents, 1)
 	assert.Equal(t, "1% of capital", state.Intents[0].MaxLoss)
 	assert.Equal(t, "turn-1", state.Intents[0].TurnRef, "an intent belongs to the turn that produced it")
+	// Слова агента читаются наравне со всем остальным. Проверка стоит здесь
+	// потому, что её отсутствие уже стоило нам расхождения: строки писались,
+	// Read их не спрашивал, и страница показывала агента молчащим, пока в
+	// Telegram он рассказывал, что делает.
+	require.Len(t, state.Said, 1, "what the agent said is read back, not only written")
+	assert.Equal(t, "No positions are open; no defense action taken.", state.Said[0].Text)
+	assert.Equal(t, "turn-1", state.Said[0].TurnRef, "a word belongs to the turn that produced it")
 
 	// The page carries the newest rows, and only as many as it was told to show.
 	for i := range 3 {

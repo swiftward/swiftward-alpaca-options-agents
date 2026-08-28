@@ -342,9 +342,15 @@ function Turns({ state }: { state: State }) {
   const turns = state.turns ?? []
   if (turns.length === 0) return <Empty says="no runs yet: nothing has woken it" />
 
+  // Реплики приходят от новых к старым - так их берут по десятку последних. Но
+  // внутри одного хода это рассуждение, и читать его надо с начала: иначе вывод
+  // стоит первым, а посылка последней.
   const saidByTurn = new Map<string, Said[]>()
   for (const line of state.said ?? []) {
     saidByTurn.set(line.turn_ref, [...(saidByTurn.get(line.turn_ref) ?? []), line])
+  }
+  for (const lines of saidByTurn.values()) {
+    lines.sort((a, b) => a.at.localeCompare(b.at))
   }
 
   const callsByTurn = new Map<string, ToolCall[]>()
