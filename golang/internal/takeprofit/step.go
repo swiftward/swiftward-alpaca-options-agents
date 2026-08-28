@@ -135,7 +135,15 @@ func (w *Watch) consider(ctx context.Context, s Structure, walking map[string]bo
 		zap.Int("sets", s.Sets),
 		zap.Float64("keeping_dollars", kept*100*float64(s.Sets)))
 
-	if err := w.Broker.CloseStructure(ctx, legs, s.Sets, -cost,
+	// Знак: у брокера ПЛЮС значит "мы платим", минус - "нам платят". Открывающая
+	// заявка шла с -0.07 и принесла кредит; закрытие кредитной конструкции стоит
+	// денег, значит лимит положительный.
+	//
+	// Стояло -cost, и это просило заплатить НАМ за выкуп. Такие заявки не
+	// исполняются никогда: 28 августа их ушло тринадцать, все отменены по
+	// терпению. Единственная исполнившаяся сработала случайно - книга была
+	// перевёрнута, cost вышел отрицательным, и минус на минус дал верный знак.
+	if err := w.Broker.CloseStructure(ctx, legs, s.Sets, cost,
 		fmt.Sprintf("tp-%s-%d", name, w.Now().Unix())); err != nil {
 		w.Log.Error("the close was refused", zap.String("structure", name), zap.Error(err))
 		return

@@ -151,7 +151,10 @@ func TestItClosesWhenEnoughOfTheCreditIsBack(t *testing.T) {
 	require.Len(t, b.sent, 1)
 	sent := b.sent[0]
 	assert.Equal(t, 170, sent.sets)
-	assert.InDelta(t, -0.08, sent.limit, 1e-9, "закрытие за дебет, значит цена отрицательна")
+	// Знак не косметика: у брокера плюс - "мы платим". Отрицательный лимит просил
+	// бы ЗАПЛАТИТЬ НАМ за выкуп, и такие заявки не исполняются. 28 августа их
+	// ушло тринадцать, все отменены по терпению.
+	assert.InDelta(t, 0.08, sent.limit, 1e-9, "выкуп стоит денег, значит лимит положительный")
 	require.Len(t, sent.legs, 2)
 	for _, l := range sent.legs {
 		assert.Equal(t, 1, l.Ratio)
