@@ -1,3 +1,13 @@
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  CircleAlert,
+  CircleCheck,
+  Eye,
+  EyeOff,
+  LoaderCircle,
+  Minus,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import type { Everything, Limits, Money, Said, State, Sweep, ToolCall, Turn } from './api'
@@ -120,10 +130,13 @@ function Account({ money }: { money: Money }) {
           {dollars(money.account.equity)}
         </dd>
       </div>
+      {/* Стрелка не украшение: цвет один не читается теми, кто его не
+          различает, и второй признак это чинит. */}
       <Figure
         name="со вчерашнего закрытия"
         value={`${signed(change)} (${percent(fraction)})`}
         tone={change > 0 ? 'gain' : change < 0 ? 'loss' : undefined}
+        icon={change > 0 ? ArrowUpRight : change < 0 ? ArrowDownRight : Minus}
       />
       <Figure name="наличные" value={dollars(money.account.cash)} />
       <Figure name="покупательная способность" value={dollars(money.account.buying_power)} />
@@ -161,7 +174,16 @@ function LimitsCard({ limits }: { limits: Limits }) {
       </div>
       <ul className="mt-3 space-y-1.5">
         {limits.constraints.map((rule) => (
-          <li key={rule.rule} className="text-sm">
+          <li key={rule.rule} className="flex items-baseline gap-2 text-sm">
+            {/* Открытый глаз - число названо; перечёркнутый - правило сообщает,
+                что существует, и не выдаёт числа. Это и есть механика, которую
+                мы показываем, и она должна читаться с одного взгляда. */}
+            {rule.disclosure === 'boundary' && rule.value !== undefined ? (
+              <Eye aria-label="число раскрыто" className="mt-0.5 size-3.5 shrink-0 text-neutral-400" />
+            ) : (
+              <EyeOff aria-label="число не раскрыто" className="mt-0.5 size-3.5 shrink-0 text-neutral-400" />
+            )}
+            <span>
             <span className="text-neutral-500 dark:text-neutral-400">{rule.rule}: </span>
             {rule.disclosure === 'boundary' && rule.value !== undefined ? (
               <span>
@@ -175,6 +197,7 @@ function LimitsCard({ limits }: { limits: Limits }) {
                 {rule.disclosure === 'existence' ? 'существует, число не раскрыто' : 'не раскрыто'}
               </span>
             )}
+            </span>
           </li>
         ))}
       </ul>
@@ -259,10 +282,10 @@ function Turns({ state }: { state: State }) {
 
 function TurnCard({ turn, said, calls }: { turn: Turn; said: Said[]; calls: ToolCall[] }) {
   const state = turn.failure
-    ? { text: turn.failure, colour: 'text-loss' }
+    ? { text: turn.failure, colour: 'text-loss', Icon: CircleAlert }
     : turn.finished_at
-      ? { text: took(turn.started_at, turn.finished_at), colour: '' }
-      : { text: 'идёт', colour: 'text-gain' }
+      ? { text: took(turn.started_at, turn.finished_at), colour: '', Icon: CircleCheck }
+      : { text: 'идёт', colour: 'text-gain', Icon: LoaderCircle }
 
   const refused = calls.filter((call) => call.status !== 'completed').length
 
@@ -271,7 +294,10 @@ function TurnCard({ turn, said, calls }: { turn: Turn; said: Said[]; calls: Tool
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-neutral-500 dark:text-neutral-400">
         <span>{clock(turn.started_at)}</span>
         <span className="font-medium text-neutral-900 dark:text-neutral-100">{turn.woken_by}</span>
-        <span className={state.colour}>{state.text}</span>
+        <span className={`inline-flex items-center gap-1.5 ${state.colour}`}>
+          <state.Icon className={`size-3.5 ${turn.finished_at || turn.failure ? '' : 'animate-spin'}`} />
+          {state.text}
+        </span>
         {calls.length > 0 ? (
           <span>
             вызовов {calls.length}

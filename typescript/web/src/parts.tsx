@@ -1,3 +1,4 @@
+import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 // Мелкие части страницы. Вынесены отдельно не ради порядка, а потому что вид
@@ -53,7 +54,17 @@ export function Unavailable({ why }: { why: string }) {
   )
 }
 
-export function Figure({ name, value, tone }: { name: string; value: string; tone?: 'gain' | 'loss' }) {
+export function Figure({
+  name,
+  value,
+  tone,
+  icon: Icon,
+}: {
+  name: string
+  value: string
+  tone?: 'gain' | 'loss'
+  icon?: LucideIcon
+}) {
   const colour = tone === 'gain' ? 'text-gain' : tone === 'loss' ? 'text-loss' : ''
 
   return (
@@ -61,7 +72,10 @@ export function Figure({ name, value, tone }: { name: string; value: string; ton
       <dt className="text-[0.68rem] font-medium uppercase tracking-[0.1em] text-neutral-500 dark:text-neutral-400">
         {name}
       </dt>
-      <dd className={`text-2xl font-semibold leading-none ${colour}`}>{value}</dd>
+      <dd className={`flex items-center gap-1.5 text-2xl font-semibold leading-none ${colour}`}>
+        {Icon ? <Icon className="size-5 shrink-0" aria-hidden /> : null}
+        {value}
+      </dd>
     </div>
   )
 }
