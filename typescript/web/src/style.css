@@ -1,166 +1,24 @@
-:root {
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+
+/* Тема задаётся здесь, а не классами по месту: цвет решения принимается один
+   раз, иначе он расползается и однажды перестаёт совпадать сам с собой. */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Прибыль зелёная, убыток красный - и оба приглушены. Яркие сигнальные цвета
+     на странице, где числа меняются каждую минуту, читаются как тревога. */
+  --color-gain: oklch(58% 0.13 155);
+  --color-loss: oklch(58% 0.16 27);
+}
+
+html {
   color-scheme: light dark;
-  --ink: #16181d;
-  --dim: #5c6270;
-  --line: #dfe3ea;
-  --card: #ffffff;
-  --page: #f6f7f9;
-  --stopped: #b3261e;
-  --running: #1a6b3c;
 }
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #e7e9ee;
-    --dim: #99a0ae;
-    --line: #2b3038;
-    --card: #181b21;
-    --page: #111318;
-    --stopped: #f2836f;
-    --running: #6fd39b;
-  }
-}
-
-* { box-sizing: border-box; }
 
 body {
-  margin: 0;
-  background: var(--page);
-  color: var(--ink);
-  font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-
-main {
-  max-width: 52rem;
-  margin: 0 auto;
-  padding: 2.5rem 1.25rem 4rem;
-}
-
-h1 { font-size: 1.6rem; margin: 0 0 0.5rem; }
-h2 { font-size: 1.1rem; margin: 2.5rem 0 0.25rem; }
-
-.lede { margin: 0 0 1rem; max-width: 44rem; }
-.explains { margin: 0 0 1rem; color: var(--dim); max-width: 44rem; }
-.freshness { margin: 0; color: var(--dim); font-size: 0.85rem; }
-
-.cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
-
-.card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  padding: 0.75rem 0.9rem;
-}
-
-.card .head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-  align-items: baseline;
-  font-size: 0.85rem;
-  color: var(--dim);
-}
-
-.card .who { color: var(--ink); font-weight: 600; }
-.card .body { margin-top: 0.35rem; white-space: pre-wrap; }
-.card .stopped { color: var(--stopped); }
-.card .running { color: var(--running); }
-
-.empty { color: var(--dim); font-style: italic; }
-
-dl.pairs { margin: 0.35rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.15rem 0.75rem; }
-dl.pairs dt { color: var(--dim); }
-dl.pairs dd { margin: 0; }
-
-.figures {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
-  gap: 0.75rem 1.25rem;
-  margin: 0 0 1.5rem;
-}
-
-.figures > div { min-width: 0; }
-
-.figures dt {
-  color: var(--dim);
-  font-size: 0.8rem;
-  text-transform: lowercase;
-}
-
-.figures dd {
-  margin: 0.1rem 0 0;
-  font-size: 1.25rem;
+  /* Табличные цифры на всю страницу: без них колонка позиций читается как
+     лестница, и глаз пересчитывает вместо того, чтобы сравнивать. */
   font-variant-numeric: tabular-nums;
-}
-
-.up { color: var(--running); }
-.down { color: var(--stopped); }
-
-figure { margin: 0 0 0.5rem; }
-
-#equity[hidden] { display: none; }
-
-#equity {
-  width: 100%;
-  height: 10rem;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-}
-
-#equity polyline {
-  fill: none;
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
-}
-
-#equity polyline.up { stroke: var(--running); }
-#equity polyline.down { stroke: var(--stopped); }
-
-figcaption {
-  margin-top: 0.35rem;
-  color: var(--dim);
-  font-size: 0.8rem;
-}
-
-.scrolls { overflow-x: auto; }
-
-/* An argument list can be long; the row stays readable and the full text is in
-   the title. */
-#calls td:nth-child(3) {
-  max-width: 28rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
-}
-
-th, td {
-  text-align: left;
-  padding: 0.4rem 0.75rem 0.4rem 0;
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
-}
-
-th { color: var(--dim); font-weight: 500; }
-
-caption.empty { text-align: left; padding: 0.4rem 0; }
-
-.unavailable { color: var(--stopped); margin: 0.5rem 0 0; }
-
-/* Реплика агента внутри карточки хода. Отбита слева, потому что это его слова, а
-   не наши: читатель должен видеть границу между тем, что записала система, и
-   тем, что сказал агент. */
-.said {
-  margin: 0.4rem 0 0 0;
-  padding-left: 0.75rem;
-  border-left: 2px solid var(--line, #d0d0d0);
-  color: var(--ink, #222);
-  white-space: pre-wrap;
-  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
 }

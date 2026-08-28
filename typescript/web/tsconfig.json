@@ -8,12 +8,14 @@
     "noUnusedParameters": true,
     "noEmit": true,
     "lib": [
-      "ES2022",
-      "DOM"
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
     ],
     "types": [
       "vite/client"
-    ]
+    ],
+    "jsx": "react-jsx"
   },
   "include": [
     "src"
