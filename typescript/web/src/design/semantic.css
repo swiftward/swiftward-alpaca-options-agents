@@ -1,0 +1,59 @@
+/* ============================================================
+   Haia Design Tokens — Layer 2: semantic
+   Maps raw tokens to UI roles. Themes via [data-theme].
+   Use a section attribute [data-theme="dark"|"light"] anywhere
+   to swap context inside a single page.
+   ============================================================ */
+
+/* ---------- LIGHT (default) ---------- */
+[data-theme="light"],
+:root {
+  --bg:                 var(--ink-0);
+  --bg-alt:             var(--ink-40);
+  --surface:            var(--ink-60);
+  --surface-raised:     var(--ink-0);
+  --surface-sunk:       var(--ink-80);
+
+  --text-primary:       var(--ink-950);
+  --text-strong:        var(--ink-850);
+  --text-secondary:     var(--ink-450);
+  --text-muted:         var(--ink-400);
+  --text-on-accent:     var(--ink-950);
+  --text-inverse:       var(--ink-100);
+
+  --border:             var(--ink-125);
+  --border-strong:      var(--ink-200);
+  --divider:            var(--ink-125);
+
+  --accent:             var(--accent-green-500);
+  --accent-ink:         var(--ink-950);   /* primary button bg */
+  --accent-info:        var(--accent-blue-500);
+
+  --focus-ring:         var(--accent-blue-500);
+}
+
+/* ---------- DARK ---------- */
+[data-theme="dark"] {
+  --bg:                 var(--ink-900);
+  --bg-alt:             var(--ink-950);
+  --surface:            var(--ink-800);
+  --surface-raised:     var(--ink-800);
+  --surface-sunk:       var(--ink-700);
+
+  --text-primary:       var(--ink-100);
+  --text-strong:        var(--ink-0);
+  --text-secondary:     var(--ink-250);
+  --text-muted:         var(--ink-350);
+  --text-on-accent:     var(--ink-950);
+  --text-inverse:       var(--ink-950);
+
+  --border:             var(--ink-650);
+  --border-strong:      var(--ink-600);
+  --divider:            var(--ink-650);
+
+  --accent:             var(--accent-green-500);
+  --accent-ink:         var(--ink-0);     /* primary button on dark = white */
+  --accent-info:        var(--accent-blue-500);
+
+  --focus-ring:         var(--accent-green-500);
+}

@@ -1,23 +1,96 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Шрифты системы: Inter Variable для текста, Geist Mono для чисел и кодов. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&family=Geist+Mono:wght@100..900&display=swap');
+
+/* Дизайн-система Haia: сырые значения и роли. Правятся в самой системе, сюда
+   переносятся целиком - см. design/README.md. */
+@import './design/tokens.css';
+@import './design/semantic.css';
+
 @import 'tailwindcss';
 
-/* Тема задаётся здесь, а не классами по месту: цвет решения принимается один
-   раз, иначе он расползается и однажды перестаёт совпадать сам с собой. */
-@theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+/* ============================================================
+   Роли системы связаны с утилитами Tailwind.
+   Без этого пришлось бы писать style={{ background: 'var(--surface)' }}
+   по месту, и семантика жила бы в двух видах сразу.
+   ============================================================ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-alt: var(--bg-alt);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunk: var(--surface-sunk);
 
-  /* Прибыль зелёная, убыток красный - и оба приглушены. Яркие сигнальные цвета
-     на странице, где числа меняются каждую минуту, читаются как тревога. */
-  --color-gain: oklch(58% 0.13 155);
-  --color-loss: oklch(58% 0.16 27);
+  --color-primary: var(--text-primary);
+  --color-strong: var(--text-strong);
+  --color-secondary: var(--text-secondary);
+  --color-muted: var(--text-muted);
+  --color-inverse: var(--text-inverse);
+  --color-on-accent: var(--text-on-accent);
+
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-info: var(--accent-info);
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-xs: var(--r-xs);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --radius-2xl: var(--r-2xl);
 }
 
-html {
-  color-scheme: light dark;
+/* ============================================================
+   НАШЕ РАСШИРЕНИЕ, а не система.
+   У Haia нет ролей прибыли и убытка - она про продукт и маркетинг, а не про
+   счёт. Странице, где числа меняются каждую минуту, они нужны.
+   Зелёный системы (--accent, #00FF4D) занят СИГНАЛОМ: живая точка, призыв к
+   действию. Если им же красить прибыль, два разных значения сольются в одно, и
+   зелёная страница будет означать одновременно «работает» и «в плюсе».
+   Поэтому прибыль и убыток - свои, приглушённые.
+   ============================================================ */
+@theme inline {
+  --color-gain: var(--gain);
+  --color-loss: var(--loss);
+}
+
+:root {
+  --gain: #1a7f4b;
+  --loss: #c2402f;
+}
+
+/* Тёмные значения оставлены на случай, если страницу когда-нибудь переключат:
+   роли системы это умеют. Сейчас не используются - тема закреплена светлой на
+   <html>, потому что страницу открывает судья и она должна выглядеть одинаково
+   у всех, а не по настройкам его машины. */
+[data-theme='dark'] {
+  --gain: #4ecb87;
+  --loss: #f0836c;
+}
+
+/* Голос системы: оптический размер прибит к 32 на всём, чтобы каждый элемент
+   рисовался в отображательном конце шкалы независимо от кегля. Это её правило,
+   не наше усмотрение. */
+*,
+*::before,
+*::after {
+  font-variation-settings: 'opsz' 32;
+  font-optical-sizing: none;
 }
 
 body {
-  /* Табличные цифры на всю страницу: без них колонка позиций читается как
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  /* ss02 и cv11 - различимость знаков и одноэтажная «a». Голос Haia. */
+  font-feature-settings: 'ss02', 'cv11';
+  /* Табличные цифры на всю страницу: без них колонка чисел читается как
      лестница, и глаз пересчитывает вместо того, чтобы сравнивать. */
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;

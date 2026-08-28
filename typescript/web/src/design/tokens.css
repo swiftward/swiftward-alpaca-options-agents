@@ -1,0 +1,154 @@
+/* ============================================================
+   Haia Design Tokens — Layer 1: raw palette + primitives
+   Single source of truth. Edit values here.
+   Layer 2 (semantic.css) references these.
+   ============================================================ */
+
+:root {
+  /* ----------  Neutrals · ink scale (dark → light) ---------- */
+  --ink-1000: #000000;
+  --ink-950:  #0A0A0A;   /* true ink, primary on light */
+  --ink-900:  #18181C;   /* dark page bg */
+  --ink-850:  #1A1A1D;   /* dark text on light */
+  --ink-800:  #1F1F23;   /* dark surface · chips/cards */
+  --ink-750:  #22222A;   /* dark hover */
+  --ink-700:  #26262B;
+  --ink-650:  #2E2E32;   /* dark border */
+  --ink-600:  #3A3A3F;   /* secondary button border on dark */
+  --ink-500:  #5A5A60;
+  --ink-450:  #5B5D68;   /* secondary text on light */
+  --ink-400:  #6A6A6A;   /* eyebrow on light */
+  --ink-350:  #7E7E84;   /* muted on dark */
+  --ink-300:  #898992;   /* eyebrow on dark */
+  --ink-250:  #A4A4AA;   /* secondary on dark */
+  --ink-200:  #D0D0D0;
+  --ink-150:  #E0E0E0;
+  --ink-125:  #E5E5E5;   /* divider on light */
+  --ink-100:  #E3E3E5;   /* primary on dark */
+  --ink-80:   #EFEFEF;
+  --ink-60:   #F4F3F3;   /* surface card on light */
+  --ink-40:   #FAFAFA;   /* surface page-alt on light */
+  --ink-0:    #FFFFFF;
+
+  /* ----------  Saturated accents ---------- */
+  --accent-green-500:  #00FF4D;   /* Haia signal · live dot · CTA */
+  --accent-blue-500:   #5F8AFF;   /* info · alert · activity */
+  --accent-violet-500: #7B5FFF;   /* derived from pastel pair, for decoration */
+  --accent-cyan-500:   #00D2E0;   /* derived, decorative */
+  --accent-amber-500:  #FFB23F;   /* derived from peach pair */
+  --accent-mint-500:   #2BE6A9;   /* derived from mint pair */
+
+  /* ----------  Pastel accents (light tints) ---------- */
+  --pastel-violet:  #F8F4FF;
+  --pastel-cyan:    #DFFAFF;
+  --pastel-yellow:  #FFF4D5;
+  --pastel-peach:   #FFE3D5;
+  --pastel-mint:    #D5FFF2;
+  --pastel-sky:     #C4D6FF;
+  --pastel-rose:    #FFE0EC;
+  --pastel-lime:    #ECFFC9;
+
+  /* ----------  Gradients (saturated · for hero & accents) ---------- */
+  --gradient-signal:   linear-gradient(135deg, var(--accent-green-500) 0%, var(--accent-mint-500) 100%);
+  --gradient-cosmic:   linear-gradient(135deg, var(--accent-violet-500) 0%, var(--accent-blue-500) 100%);
+  --gradient-sunset:   linear-gradient(135deg, var(--accent-amber-500) 0%, #FF5F5F 100%);
+  --gradient-ink:      linear-gradient(180deg, var(--ink-900) 0%, var(--ink-950) 100%);
+  --gradient-aurora:   linear-gradient(45deg, #00FF9D 0%, #00AAFF 50%, #0028AD 100%);
+  --gradient-card-dark:       linear-gradient(180deg, #2A2A30 0%, #212226 100%);
+  --gradient-card-dark-hover: linear-gradient(180deg, #3B3C41 0%, #25272C 100%);
+
+  /* ----------  Gradients (pastel · for cards & decorative surfaces) ---------- */
+  --gradient-pastel-violet-cyan: linear-gradient(180deg, var(--pastel-violet) 0%, var(--pastel-cyan) 100%);
+  --gradient-pastel-yellow-peach: linear-gradient(180deg, var(--pastel-yellow) 0%, var(--pastel-peach) 100%);
+  --gradient-pastel-mint-sky:    linear-gradient(180deg, var(--pastel-mint) 0%, var(--pastel-sky) 100%);
+  --gradient-pastel-rose-lime:   linear-gradient(180deg, var(--pastel-rose) 0%, var(--pastel-lime) 100%);
+
+  /* ----------  Typography ---------- */
+  --font-sans:  'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:  'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Inter feature settings — single-storey a, round dots, opsz max */
+  --font-features-sans: "ss02", "cv11";       /* ss02: disambiguation set · cv11: single-storey a */
+  --font-variation-sans: "opsz" 32;           /* push optical size to display end */
+
+  /* Type scale (rem-based, 16px root) */
+  --fs-eyebrow:    0.75rem;     /* 12 */
+  --fs-eyebrow-l:  0.8125rem;   /* 13 */
+  --fs-caption:    0.875rem;    /* 14 */
+  --fs-body-s:     0.9375rem;   /* 15 */
+  --fs-body:       1rem;        /* 16 */
+  --fs-body-l:     1.0625rem;   /* 17 */
+  --fs-lede-s:     1.125rem;    /* 18 */
+  --fs-lede:       1.25rem;     /* 20 */
+  --fs-lede-l:     1.375rem;    /* 22 */
+  --fs-h4:         1.5rem;      /* 24 */
+  --fs-h3:         1.625rem;    /* 26 */
+  --fs-h2-s:       2rem;        /* 32 */
+  --fs-h2:         2.5rem;      /* 40 */
+  --fs-h1-s:       3.5rem;      /* 56 */
+  --fs-h1:         4.5rem;      /* 72 */
+  --fs-display:    5rem;        /* 80 — landing hero */
+
+  --lh-tight:      1.0;
+  --lh-snug:       1.1;
+  --lh-headline:   1.2;
+  --lh-display:    1.25;
+  --lh-body:       1.4;
+  --lh-relaxed:    1.45;
+  --lh-loose:      1.5;
+
+  --tracking-display:    -0.024em;
+  --tracking-display-xl: -0.03em;   /* 80px hero (−2.4px) */
+  --tracking-lede:    -0.01em;
+  --tracking-body:    0;
+  --tracking-button:   0.02em;
+  --tracking-nav:      0.02em;    /* header links · mono 14 upper */
+  --tracking-mono:     0.04em;
+
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semi:    600;
+
+  /* ----------  Radii ---------- */
+  --r-xs:   6px;
+  --r-sm:   12px;
+  --r-md:   16px;   /* rounded-2xl */
+  --r-lg:   20px;
+  --r-xl:   24px;
+  --r-2xl:  32px;
+  --r-pill: 9999px;
+
+  /* ----------  Spacing scale (4px grid) ---------- */
+  --s-1: 0.25rem;   /* 4 */
+  --s-2: 0.5rem;    /* 8 */
+  --s-3: 0.75rem;   /* 12 */
+  --s-4: 1rem;      /* 16 */
+  --s-5: 1.25rem;   /* 20 */
+  --s-6: 1.5rem;    /* 24 */
+  --s-8: 2rem;      /* 32 */
+  --s-10: 2.5rem;   /* 40 */
+  --s-12: 3rem;     /* 48 */
+  --s-16: 4rem;     /* 64 */
+  --s-20: 5rem;     /* 80 */
+  --s-24: 6rem;     /* 96 */
+  --s-32: 8rem;     /* 128 */
+
+  /* Container widths */
+  --maxw-prose:  920px;
+  --maxw-narrow: 1100px;
+  --maxw-page:   1290px;
+  --maxw-wide:   1520px;
+
+  /* ----------  Shadows ---------- */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 16px 40px rgba(0,0,0,0.12);
+  --shadow-pop: 0 24px 60px rgba(0,0,0,0.25);
+
+  /* ----------  Motion ---------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 360ms;
+}

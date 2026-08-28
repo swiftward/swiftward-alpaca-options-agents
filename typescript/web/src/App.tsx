@@ -14,7 +14,7 @@ import type { Everything, Limits, Money, Said, State, Sweep, ToolCall, Turn } fr
 import { readEverything } from './api'
 import { Equity } from './Equity'
 import { ago, clock, dollars, percent, signed, took, trim } from './format'
-import { Card, Empty, Figure, Section, Table, Unavailable } from './parts'
+import { Card, Chip, Empty, Figure, Figures, Section, Table, Unavailable } from './parts'
 
 // Раз в пятнадцать секунд. Не поток: данные и меняются раз в минуту-две, а
 // поток стоит сложности, которая на неделе не окупится.
@@ -47,17 +47,17 @@ export function App() {
     : []
 
   return (
-    <main className="mx-auto max-w-6xl px-6 pb-24 pt-10 text-neutral-900 dark:text-neutral-100">
+    <main className="mx-auto max-w-6xl px-6 pb-24 pt-10 text-primary">
       <header className="mb-10">
-        <h1 className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500 dark:text-neutral-400">
+        <h1 className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">
           Опционный агент
         </h1>
-        <p className="mt-3 max-w-2xl text-lg leading-relaxed text-neutral-700 dark:text-neutral-300">
+        <p className="mt-3 max-w-2xl text-lg leading-relaxed text-secondary">
           Самостоятельный агент, торгующий опционами на бумажном счёте Alpaca. Когда ему
           работать, решает расписание; что торговать — решает он сам, и прежде чем отправить
           заявку, говорит, что собирается сделать.
         </p>
-        <p className="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
+        <p className="mt-3 text-xs text-muted">
           {readAt ? `прочитано в ${clock(readAt.toISOString())}` : 'читаю…'}
           {failed.length > 0 ? ` · не ответило: ${failed.join('; ')}` : ''}
         </p>
@@ -120,16 +120,9 @@ function Account({ money }: { money: Money }) {
   const fraction = money.account.last_equity === 0 ? 0 : change / money.account.last_equity
 
   return (
-    <dl className="m-0 flex flex-wrap gap-x-10 gap-y-6 rounded-xl border border-neutral-200 bg-white px-6 py-5 dark:border-neutral-800 dark:bg-neutral-900">
-      {/* Число, ради которого страницу открывают. Оно и должно быть крупнейшим. */}
-      <div className="flex flex-col gap-1">
-        <dt className="text-[0.68rem] font-medium uppercase tracking-[0.1em] text-neutral-500 dark:text-neutral-400">
-          капитал
-        </dt>
-        <dd className="text-4xl font-semibold leading-none tracking-tight">
-          {dollars(money.account.equity)}
-        </dd>
-      </div>
+    <Figures>
+      {/* Число, ради которого страницу открывают. Одно на всю страницу. */}
+      <Figure name="капитал" value={dollars(money.account.equity)} hero />
       {/* Стрелка не украшение: цвет один не читается теми, кто его не
           различает, и второй признак это чинит. */}
       <Figure
@@ -140,7 +133,7 @@ function Account({ money }: { money: Money }) {
       />
       <Figure name="наличные" value={dollars(money.account.cash)} />
       <Figure name="покупательная способность" value={dollars(money.account.buying_power)} />
-    </dl>
+    </Figures>
   )
 }
 
@@ -150,27 +143,27 @@ function Counters({ state, money }: { state: State; money?: Money }) {
   const filled = money?.orders.filter((order) => order.status === 'filled').length ?? 0
 
   return (
-    <dl className="m-0 flex flex-wrap gap-x-10 gap-y-6 rounded-xl border border-neutral-200 bg-white px-6 py-5 dark:border-neutral-800 dark:bg-neutral-900">
+    <Figures>
       <Figure name="ходов" value={String(state.turns.length)} />
       <Figure name="с отказом" value={String(refused)} tone={refused > 0 ? 'loss' : undefined} />
       <Figure name="заявок отправлено" value={String(sent)} />
       <Figure name="исполнено" value={String(filled)} tone={filled > 0 ? 'gain' : undefined} />
       <Figure name="намерений" value={String(state.intents.length)} />
       <Figure name="открыто позиций" value={String(money?.positions.length ?? 0)} />
-    </dl>
+    </Figures>
   )
 }
 
 function LimitsCard({ limits }: { limits: Limits }) {
   return (
     <Card>
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-neutral-500 dark:text-neutral-400">
-        <span className="font-medium text-neutral-900 dark:text-neutral-100">{limits.identity}</span>
-        <span>{limits.tool}</span>
-        <span>правила {limits.ruleset_version}</span>
-        <span className={limits.governed ? 'text-gain' : 'text-loss'}>
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-muted">
+        <span className="font-medium text-primary">{limits.identity}</span>
+        <Chip>{limits.tool}</Chip>
+        <Chip>правила {limits.ruleset_version}</Chip>
+        <Chip tone={limits.governed ? 'gain' : 'loss'}>
           {limits.governed ? 'под правилами' : 'без правил'}
-        </span>
+        </Chip>
       </div>
       <ul className="mt-3 space-y-1.5">
         {limits.constraints.map((rule) => (
@@ -179,12 +172,12 @@ function LimitsCard({ limits }: { limits: Limits }) {
                 что существует, и не выдаёт числа. Это и есть механика, которую
                 мы показываем, и она должна читаться с одного взгляда. */}
             {rule.disclosure === 'boundary' && rule.value !== undefined ? (
-              <Eye aria-label="число раскрыто" className="mt-0.5 size-3.5 shrink-0 text-neutral-400" />
+              <Eye aria-label="число раскрыто" className="mt-0.5 size-3.5 shrink-0 text-muted" />
             ) : (
-              <EyeOff aria-label="число не раскрыто" className="mt-0.5 size-3.5 shrink-0 text-neutral-400" />
+              <EyeOff aria-label="число не раскрыто" className="mt-0.5 size-3.5 shrink-0 text-muted" />
             )}
             <span>
-            <span className="text-neutral-500 dark:text-neutral-400">{rule.rule}: </span>
+            <span className="text-muted">{rule.rule}: </span>
             {rule.disclosure === 'boundary' && rule.value !== undefined ? (
               <span>
                 {shorten(JSON.stringify(rule.value))}
@@ -193,7 +186,7 @@ function LimitsCard({ limits }: { limits: Limits }) {
             ) : (
               // Правило, которое сообщает, что СУЩЕСТВУЕТ, и не выдаёт числа.
               // Это не пробел в данных, а степень раскрытия, и её видно.
-              <span className="italic text-neutral-500 dark:text-neutral-400">
+              <span className="italic text-muted">
                 {rule.disclosure === 'existence' ? 'существует, число не раскрыто' : 'не раскрыто'}
               </span>
             )}
@@ -210,17 +203,17 @@ function SweepCard({ sweep }: { sweep: Sweep }) {
 
   return (
     <Card>
-      <div className="flex flex-wrap items-baseline gap-x-4 text-xs text-neutral-500 dark:text-neutral-400">
-        <span className="font-medium text-neutral-900 dark:text-neutral-100">
+      <div className="flex flex-wrap items-baseline gap-x-4 text-xs text-muted">
+        <span className="font-medium text-primary">
           {sweep.candidates.length} конструкций
         </span>
-        <span>проход {ago(sweep.taken_at)}</span>
+        <Chip>проход {ago(sweep.taken_at)}</Chip>
       </div>
       <ul className="mt-3 space-y-1.5 text-sm">
         {sweep.candidates.slice(0, 6).map((one) => (
           <li key={`${one.underlying}${one.type}${one.short_strike}${one.long_strike}`}>
             <span className="font-medium">{one.underlying}</span>{' '}
-            <span className="text-neutral-500 dark:text-neutral-400">
+            <span className="text-muted">
               {one.type} {one.short_strike}/{one.long_strike}
             </span>{' '}
             — кредит {one.credit.toFixed(2)} против риска {one.risk.toFixed(2)}
@@ -291,22 +284,22 @@ function TurnCard({ turn, said, calls }: { turn: Turn; said: Said[]; calls: Tool
 
   return (
     <Card>
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-neutral-500 dark:text-neutral-400">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-muted">
         <span>{clock(turn.started_at)}</span>
-        <span className="font-medium text-neutral-900 dark:text-neutral-100">{turn.woken_by}</span>
-        <span className={`inline-flex items-center gap-1.5 ${state.colour}`}>
-          <state.Icon className={`size-3.5 ${turn.finished_at || turn.failure ? '' : 'animate-spin'}`} />
+        <span className="font-medium text-primary">{turn.woken_by}</span>
+        <Chip tone={turn.failure ? 'loss' : turn.finished_at ? undefined : 'gain'}>
+          <state.Icon className={`size-3 ${turn.finished_at || turn.failure ? '' : 'animate-spin'}`} />
           {state.text}
-        </span>
+        </Chip>
         {calls.length > 0 ? (
-          <span>
+          <Chip tone={refused > 0 ? 'loss' : undefined}>
             вызовов {calls.length}
-            {refused > 0 ? `, отказов ${refused}` : ''}
-          </span>
+            {refused > 0 ? ` · отказов ${refused}` : ''}
+          </Chip>
         ) : null}
       </div>
 
-      <p className="mt-2 text-sm text-neutral-700 dark:text-neutral-300">{turn.cause}</p>
+      <p className="mt-2 text-sm text-secondary">{turn.cause}</p>
 
       {/* Его собственные слова. Отбиты слева, потому что это граница между тем,
           что записала система, и тем, что сказал агент. Ради этой полосы
@@ -314,7 +307,7 @@ function TurnCard({ turn, said, calls }: { turn: Turn; said: Said[]; calls: Tool
       {said.map((line, index) => (
         <p
           key={index}
-          className="mt-3 whitespace-pre-wrap border-l-2 border-neutral-900 pl-3 text-[0.94rem] leading-relaxed dark:border-neutral-100"
+          className="mt-3 whitespace-pre-wrap border-l-2 border-accent-ink pl-3.5 text-[15px] leading-relaxed text-primary"
         >
           {line.text}
         </p>
