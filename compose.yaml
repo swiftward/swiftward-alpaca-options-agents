@@ -107,6 +107,13 @@ x-agent-environment: &agent-environment
   EXECUTION_EVERY: ${EXECUTION_EVERY}
   EXECUTION_STEP: ${EXECUTION_STEP}
   EXECUTION_PATIENCE: ${EXECUTION_PATIENCE}
+  # The whole policy directory is mounted, never the single file inside it. A
+  # one-file bind mount holds the file's inode, so anything that REPLACES the
+  # file rather than rewriting it - git checkout, a rebase, an editor that writes
+  # through a temporary - leaves the container reading the old content and says
+  # nothing. Measured 28 August: limits were lowered on the host and the envelope
+  # served the previous numbers for seven minutes, while the code that re-reads
+  # the file on every call was working exactly as written.
   # Where the session asks what it is allowed to do. Until the policy gateway is
   # in front of the broker, this is the stand-in beside it - under the same name,
   # so the session cannot tell the two apart and needs no change when they swap.
@@ -282,7 +289,7 @@ services:
       # Только на чтение: страница показывает пределы и не умеет их менять. Тот
       # же файл, что читают конверт и лестница - один источник на всех, иначе
       # показанное и действующее разойдутся молча.
-      - ./policy/envelope.yaml:/policy/envelope.yaml:ro
+      - ./policy:/policy:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -338,7 +345,7 @@ services:
       # файлу, а внутри тома он недосягаем без docker cp.
       - ./transcripts:/home/agent/.codex/sessions
       - agent-work:/work
-      - ./policy/envelope.yaml:/policy/envelope.yaml:ro
+      - ./policy:/policy:ro
       # Скилы из чекаута, а не из образа - в ИСТОЧНИК, а не в тот каталог, который
       # читает сессия. Разница принципиальная: приложение само перекладывает
       # отсюда в /work/.agents/skills те приёмы, которые названы в декларации,
@@ -397,7 +404,7 @@ services:
       - ${CODEX_AUTH_DIR}:/mnt/codex:ro
       - codex-home-near:/home/agent/.codex
       - agent-near-work:/work
-      - ./policy/envelope.yaml:/policy/envelope.yaml:ro
+      - ./policy:/policy:ro
       # Скилы из чекаута, а не из образа - в ИСТОЧНИК, а не в тот каталог, который
       # читает сессия. Разница принципиальная: приложение само перекладывает
       # отсюда в /work/.agents/skills те приёмы, которые названы в декларации,
@@ -441,7 +448,7 @@ services:
       # The working copy over the shipped one: an operator lowering a ceiling
       # edits this file, and the session reads the new number on its next
       # question, with nothing restarted.
-      - ./policy/envelope.yaml:/policy/envelope.yaml:ro
+      - ./policy:/policy:ro
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
