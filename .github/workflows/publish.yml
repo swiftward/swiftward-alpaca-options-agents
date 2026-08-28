@@ -12,6 +12,10 @@ name: publish
 on:
   push:
     branches: [main]
+    # A version tag builds the same images under that name. The stand is pinned to
+    # a tag rather than to `latest`, so that "what is running" has an answer and a
+    # rollback is one line changed rather than an investigation.
+    tags: ['v*']
   workflow_dispatch:
 
 jobs:
@@ -67,6 +71,7 @@ jobs:
           tags: |
             type=sha,format=long
             type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=tag
 
       - uses: docker/build-push-action@v7
         with:

@@ -1,0 +1,110 @@
+# Выкатывает собранную версию на стенд.
+#
+# Отдельно от сборки, и это главное решение в этом файле. Сборка безопасна в
+# любую минуту, выкатка - нет: перезапуск обрывает идущий ход, а ход это торговое
+# решение. Поэтому сборка идёт сама на теге, а выкатка только кнопкой, чтобы
+# момент выбирал человек.
+#
+# На сервер едут ДВА файла и больше ничего. Исходники там не нужны - всё в
+# образах. А `.env` не ездит через GitHub никогда: в нём ключи брокера и токены
+# шлюза. Он живёт на машине и правится руками, и это единственное, что осталось
+# ручным намеренно.
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Версия из реестра, например v0.0.1 или latest'
+        required: true
+        default: latest
+      force:
+        description: 'Выкатывать при открытом рынке (оборвёт идущий ход)'
+        type: boolean
+        default: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Рынок открыт - по умолчанию не выкатываем. Не запрет, а вопрос: галочка
+      # force проходит. Причина в том, что перезапуск обрывает ход, а ход может
+      # быть окном входа или защитой.
+      - name: Проверить час
+        if: ${{ !inputs.force }}
+        run: |
+          ny=$(TZ=America/New_York date '+%H%M')
+          dow=$(TZ=America/New_York date '+%u')
+          if [ "$dow" -le 5 ] && [ "$ny" -ge 0930 ] && [ "$ny" -le 1600 ]; then
+            echo "::error::Рынок открыт ($ny по Нью-Йорку). Перезапуск оборвёт идущий ход."
+            echo "::error::Если это осознанно - запусти снова с галочкой force."
+            exit 1
+          fi
+          echo "Рынок закрыт ($ny по Нью-Йорку), выкатываем."
+
+      - name: Положить ключ
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      # Только настройка. Не весь репозиторий: сервер не должен уметь собирать,
+      # иначе однажды он соберёт то, чего никто не проверял.
+      - name: Отвезти настройку
+        run: |
+          scp compose.prod.yaml \
+            root@${{ secrets.DEPLOY_HOST }}:/opt/alpaca-stand/compose.prod.yaml
+          scp docker/traefik/dynamic.yml \
+            root@${{ secrets.DEPLOY_HOST }}:/opt/alpaca-stand/docker/traefik/dynamic.yml
+
+      - name: Выкатить
+        run: |
+          ssh root@${{ secrets.DEPLOY_HOST }} bash -s <<'REMOTE'
+            set -e
+            cd /opt/alpaca-stand
+            mkdir -p transcripts
+            # IMAGE_TAG переписывается, а не дописывается: два значения в одном
+            # файле дали бы стенд, работающий не на том, что показывает лог.
+            sed -i '/^IMAGE_TAG=/d' .env
+            echo "IMAGE_TAG=${{ inputs.tag }}" >> .env
+            docker compose --env-file .env -f compose.prod.yaml pull
+            docker compose --env-file .env -f compose.prod.yaml up -d
+          REMOTE
+
+      # Выкатка без проверки бессмысленна: «контейнер запущен» не значит
+      # «работает». Отметки именно эти - `conversation ready` и `started`. Не
+      # `listening`: порт открывается раньше, и 27 августа харнесс на этом висел
+      # пять с половиной часов, пока лог показывал, что всё хорошо.
+      - name: Убедиться, что поднялось
+        run: |
+          ssh root@${{ secrets.DEPLOY_HOST }} bash -s <<'REMOTE'
+            cd /opt/alpaca-stand
+            for i in $(seq 1 24); do
+              sleep 5
+              broken=$(docker compose -f compose.prod.yaml ps --format '{{.Service}} {{.State}}' \
+                       | awk '$2 == "restarting" {print $1}' | tr '\n' ' ')
+              [ -z "$broken" ] && break
+            done
+
+            echo "=== состояние служб ==="
+            docker compose -f compose.prod.yaml ps --format '{{.Service}}\t{{.State}}\t{{.Status}}'
+
+            if [ -n "$broken" ]; then
+              echo "::error::перезапускаются по кругу: $broken"
+              docker compose -f compose.prod.yaml logs --tail 15 $broken
+              exit 1
+            fi
+
+            if docker compose -f compose.prod.yaml ps --services | grep -q '^agent$'; then
+              if docker compose -f compose.prod.yaml logs --since 5m agent 2>&1 | grep -q '"msg":"started"'; then
+                echo "агент поднялся: дошёл до started"
+              else
+                echo "::error::агент не дошёл до started за отведённое время"
+                docker compose -f compose.prod.yaml logs --tail 20 agent
+                exit 1
+              fi
+            fi
+          REMOTE
