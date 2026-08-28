@@ -414,18 +414,76 @@ function TurnCard({ turn, said, calls }: { turn: Turn; said: Said[]; calls: Tool
 
       <p className="mt-2 text-sm text-secondary">{turn.cause}</p>
 
-      {/* Его собственные слова. Отбиты слева, потому что это граница между тем,
-          что записала система, и тем, что сказал агент. Ради этой полосы
-          страница и открывается: кривую покажет любой, решение словами — мало кто. */}
+      {/* Его собственные слова. Ради них страница и открывается: кривую покажет
+          любой, решение словами - мало кто. Отделены от причины запуска цветом
+          текста, а не полосой: причина серая, слова чёрные. */}
       {said.map((line, index) => (
-        <p
-          key={index}
-          className="mt-3 whitespace-pre-wrap border-l-2 border-accent-ink pl-3.5 text-[15px] leading-relaxed text-primary"
-        >
-          {line.text}
-        </p>
+        <div key={index} className="mt-3 text-[15px] leading-relaxed text-primary">
+          <Spoken text={line.text} />
+        </div>
       ))}
     </div>
+  )
+}
+
+// Разметка в словах агента.
+//
+// Своя, а не библиотекой, и это посчитано: в накопленных репликах встречаются
+// ровно `**жирный**` (15 раз), `` `код` `` (14) и два пункта списка. Ни
+// заголовков, ни ссылок, ни таблиц, ни блоков кода. Полноценный разборщик стоит
+// сотню килобайт поверх уже добавленных ста восьмидесяти - за две конструкции
+// это плохая сделка.
+//
+// Незнакомое остаётся текстом как есть: заголовок, если он однажды появится,
+// покажется строкой с решёткой - ровно так же, как сегодня, и не хуже.
+// Подстановки HTML тут быть не может: React выводит текст экранированным, мы
+// собираем узлы, а не строку разметки.
+const marks = /(\*\*[^*]+\*\*|`[^`]+`)/g
+
+function inline(text: string) {
+  return text.split(marks).map((piece, index) => {
+    if (piece.startsWith('**') && piece.endsWith('**') && piece.length > 4) {
+      return <strong key={index} className="font-semibold">{piece.slice(2, -2)}</strong>
+    }
+    if (piece.startsWith('`') && piece.endsWith('`') && piece.length > 2) {
+      return (
+        <code key={index} className="rounded bg-surface-sunk px-1 py-0.5 font-mono text-[13px]">
+          {piece.slice(1, -1)}
+        </code>
+      )
+    }
+
+    return piece
+  })
+}
+
+function Spoken({ text }: { text: string }) {
+  // Строки собираются в куски: подряд идущие пункты - в один список, всё
+  // остальное - в абзац с сохранением переносов, как их поставил агент.
+  const blocks: Array<{ list: boolean; lines: string[] }> = []
+  for (const line of text.split('\n')) {
+    const bullet = /^\s*[-*]\s+/.test(line)
+    const last = blocks[blocks.length - 1]
+    if (last && last.list === bullet) last.lines.push(line)
+    else blocks.push({ list: bullet, lines: [line] })
+  }
+
+  return (
+    <>
+      {blocks.map((block, index) =>
+        block.list ? (
+          <ul key={index} className="my-1.5 list-disc space-y-1 pl-5">
+            {block.lines.map((line, at) => (
+              <li key={at}>{inline(line.replace(/^\s*[-*]\s+/, ''))}</li>
+            ))}
+          </ul>
+        ) : (
+          <p key={index} className="whitespace-pre-wrap">
+            {inline(block.lines.join('\n'))}
+          </p>
+        ),
+      )}
+    </>
   )
 }
 
