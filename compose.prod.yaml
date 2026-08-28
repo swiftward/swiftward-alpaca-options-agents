@@ -158,6 +158,10 @@ services:
       SCREENER_MOST_PAID: ${SCREENER_MOST_PAID}
       SCREENER_MOST_DELTA: ${SCREENER_MOST_DELTA}
       SCREENER_LEAST_EDGE: ${SCREENER_LEAST_EDGE}
+      # Сколько живут находки прохода после того, как их сменил новый. Без
+      # значения процесс НЕ СТАРТУЕТ: история кандидатов - то, на чём считаются
+      # пороги, и молча копить её ноль времени хуже, чем отказаться работать.
+      SCREENER_KEEP: ${SCREENER_KEEP}
       SCREENER_DEAREST: ${SCREENER_DEAREST}
       THREAD_RESUME_LIMIT: ${THREAD_RESUME_LIMIT}
       HTTP_PROXY: ${OUTBOUND_PROXY:-http://egress:8888}

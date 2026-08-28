@@ -107,6 +107,22 @@ unset T
 | `ALPACA_API_KEY_ID` и секрет | сервер брокера | перезапускается по кругу |
 | `BROKER_MCP_URL` | агент | брокера нет вовсе |
 | `PAGE_MCP_TOKEN` | страница | деньги не показывает, отвечает 503 |
+| `SCREENER_KEEP` | харнесс | `the screener needs how long to keep what it finds` |
+| `CODEX_AUTH_DIR` и вход | агент | `no login at /mnt/codex/auth.json` |
+
+Вход в codex делается один раз и на машине без браузера - только так:
+
+```
+docker run --rm -it --entrypoint codex \
+  -v /opt/alpaca-stand/codex-auth:/home/agent/.codex \
+  ghcr.io/swiftward/swiftward-alpaca-options-agents/agent:<версия> login --device-auth
+```
+
+Три подробности, каждая стоила попытки. `--device-auth`, потому что обычный вход
+ждёт обратного вызова на `localhost`, и через проброс порта он не проходит.
+Каталог принадлежит `1000:1000` - образ работает от этого пользователя, и от root
+получается `Permission denied`. И лежит он рядом со стендом, а не под `/root`:
+туда контейнеру ходу нет вовсе.
 
 `GATEWAY_TOKEN` и `ENVELOPE_CALLERS` - НАШИ собственные строки, не от брокера и
 не от чужого шлюза. Ключ один на агента нарочно: пределы применяются к тому, кто
