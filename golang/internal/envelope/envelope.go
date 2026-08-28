@@ -66,7 +66,13 @@ const (
 // and the session cannot see the difference. A value outside these lists fails to
 // load rather than reaching an agent.
 var (
-	subjects = []string{"position_max_loss", "portfolio_max_loss", "underlying", "expiration"}
+	// same_direction_max_loss bounds the SUM of what every open structure betting
+	// the same way can lose. Short puts are one bet and short calls the other:
+	// each pays while the underlying stays on its side, and a market that moves
+	// takes them all at once. Measured 28 August - four short put spreads, each
+	// inside its own limit, lost 19 193 together on one ordinary move down,
+	// because no rule looked at their sum.
+	subjects = []string{"position_max_loss", "portfolio_max_loss", "same_direction_max_loss", "underlying", "expiration"}
 	units    = []string{"percent_of_equity", "trading_days_from_today"}
 	kinds    = []string{"maximum", "minimum", "enum", "range"}
 )

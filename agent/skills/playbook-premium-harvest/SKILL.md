@@ -102,6 +102,8 @@ Work out the largest loss the structure can produce: the width times a hundred t
 
 Then check it fits: add up what every open position can lose and keep the total inside the envelope's `portfolio_max_loss`. The limit is held by risk, not by a count - ten small positions are an underfilled book, not a full one.
 
+**Then check the one side.** Add up what every open structure betting the SAME WAY can lose, and keep that inside the envelope's `same_direction_max_loss`. Short put spreads are one bet and short call spreads the other: each pays while the underlying stays on its side, so one move takes them all together. Four positions each inside `position_max_loss` are not four bets if all four are short puts - they are one bet, four times over. Measured 28 August: four short put spreads, every one of them legal on its own, lost 19,193 together on an ordinary move down, because nothing looked at their sum. When the side is full, the answer is not a smaller position on that side - it is a structure on the OTHER side, or no trade.
+
 ## How often
 
 Not more than four entries into one underlying a day, and not more than twelve in a day altogether. Do not return to an underlying whose position the defence closed today because price crossed the short strike; a position closed in profit does not block a return - going back in is the point of taking profit.

@@ -48,6 +48,34 @@ func TestTheShippedRulesetGivesTheShareTheLadderEnforces(t *testing.T) {
 		"the two agents run the same limit; one drifting from the other is a slip, not a choice")
 }
 
+// The one-side ceiling has to sit BETWEEN the two others, and the shipped file is
+// where that is checked: above it, one position could fill the side by itself and
+// the rule would bind nothing; at or above the book, the whole book could stand on
+// one side and the rule would again bind nothing. Measured 28 August - four short
+// put spreads, each legal alone, lost 19,193 together because no rule looked at
+// their sum.
+func TestTheOneSideCeilingSitsBetweenThePositionAndTheBook(t *testing.T) {
+	set, err := Load(filepath.Join("..", "..", "..", "policy", "envelope.yaml"))
+	require.NoError(t, err)
+
+	for _, identity := range []string{"options-alpha", "options-alpha-near"} {
+		out, err := set.For(identity, "place_option_order")
+		require.NoError(t, err, identity)
+
+		position, err := out.PercentOfEquity("max-loss-per-position")
+		require.NoError(t, err, identity)
+		side, err := out.PercentOfEquity("max-loss-on-one-side")
+		require.NoError(t, err, identity)
+		book, err := out.PercentOfEquity("max-loss-across-portfolio")
+		require.NoError(t, err, identity)
+
+		assert.Greater(t, side, position, identity,
+			"a side that fits one position is not a limit on concentration")
+		assert.Less(t, side, book, identity,
+			"a side as large as the book lets the whole book stand on one side")
+	}
+}
+
 // A rule stated in something other than a share of the account is refused, not
 // read as one. The same rule could be stated in dollars one day, and reading a
 // dollar figure as a percentage raises the ceiling a thousandfold in silence.
