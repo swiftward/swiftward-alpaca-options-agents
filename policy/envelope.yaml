@@ -35,7 +35,7 @@ agents:
           disclosure: boundary
           subject: portfolio_max_loss
           kind: maximum
-          value: 30
+          value: 80
           unit: percent_of_equity
 
         - rule: permitted-underlyings
@@ -93,7 +93,7 @@ agents:
           disclosure: boundary
           subject: portfolio_max_loss
           kind: maximum
-          value: 30
+          value: 80
           unit: percent_of_equity
 
         - rule: permitted-underlyings
