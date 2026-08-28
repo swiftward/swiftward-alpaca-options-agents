@@ -1,6 +1,7 @@
 package wakeup
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -152,4 +153,36 @@ func TestAnUnreadableFileIsAnError(t *testing.T) {
 
 	_, err := Open(path)
 	require.Error(t, err)
+}
+
+// A price wake-up has no time: it waits for a number. Carrying `at` as the zero
+// value told the session something false - `0001-01-01T00:00:00Z` reads as a
+// moment, and sorting standing wake-ups by it puts every price one first, in the
+// first year of our era.
+func TestAPriceWakeupCarriesNoTime(t *testing.T) {
+	store, err := Open(filepath.Join(t.TempDir(), "wakeups.json"))
+	require.NoError(t, err)
+
+	now := time.Date(2026, 9, 4, 13, 30, 0, 0, time.UTC)
+
+	priced, err := store.AddPrice("цена подошла к проданному страйку", "SPY", Below, 600, now)
+	require.NoError(t, err)
+	timed, err := store.AddAt("посмотреть, как открылась позиция", now.Add(time.Hour), now)
+	require.NoError(t, err)
+
+	byPrice, err := json.Marshal(priced)
+	require.NoError(t, err)
+	assert.NotContains(t, string(byPrice), "0001-01-01")
+	assert.NotContains(t, string(byPrice), `"at"`, "у ценового пробуждения времени нет вовсе")
+	assert.Contains(t, string(byPrice), `"level":600`)
+
+	byTime, err := json.Marshal(timed)
+	require.NoError(t, err)
+	assert.Contains(t, string(byTime), `"at":"2026-09-04T14:30:00Z"`,
+		"а у временного оно обязано остаться на месте")
+
+	// И то, что записано на диск, читается обратно тем же.
+	reopened, err := Open(store.path)
+	require.NoError(t, err)
+	assert.Len(t, reopened.List(), 2)
 }

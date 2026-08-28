@@ -49,6 +49,30 @@ type Wakeup struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// MarshalJSON leaves out a time that was never set.
+//
+// `omitempty` cannot do it: a struct is never "empty" to encoding/json, so a
+// price wake-up - which has no time at all, it waits for a number - was carried
+// as `"at":"0001-01-01T00:00:00Z"`, both to the session and into the file. A
+// reader sorting standing wake-ups by that field puts every price one in the
+// first year of our era, and one reading it as "when this fires" is simply told
+// something false. Found 28 August by a session that set a price wake-up and
+// read its own list back.
+func (w Wakeup) MarshalJSON() ([]byte, error) {
+	// plain has no method set of its own, so marshalling it does not recur.
+	type plain Wakeup
+	if !w.At.IsZero() {
+		return json.Marshal(plain(w))
+	}
+
+	// The shallower field wins in encoding/json, and an empty string with
+	// omitempty is left out - which is what "no time here" should look like.
+	return json.Marshal(struct {
+		plain
+		At string `json:"at,omitempty"`
+	}{plain: plain(w)})
+}
+
 // Cause is the sentence the session wrote. It is a named type so that nothing
 // can pass an empty string by accident.
 type Cause string
