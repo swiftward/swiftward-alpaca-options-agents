@@ -28,6 +28,20 @@ const (
 	RoleEnvelope Role = "envelope"
 )
 
+// Driver is how the harness reaches the agent. It says nothing about which agent
+// that is - a driver is a way of speaking, not a vendor.
+type Driver string
+
+const (
+	// DriverCodex starts the agent as a child process and speaks to it over its
+	// own protocol on a pipe.
+	DriverCodex Driver = "codex"
+	// DriverMailbox parks turns for a client that polls. The client may be
+	// anything that can run a command and read its output, which includes the
+	// harnesses a person sits in.
+	DriverMailbox Driver = "mailbox"
+)
+
 type Config struct {
 	Roles []Role
 
@@ -167,6 +181,35 @@ type Config struct {
 	// that talks to the agent.
 	AgentCallTimeout time.Duration
 
+	// AgentDriver is HOW the harness reaches the agent, as opposed to which agent
+	// it is. Empty means DriverCodex, which is what this program did before there
+	// was a choice.
+	//
+	// The choice exists because starting the agent as a child process is the one
+	// thing here that decides which agents may ever run: a session a person sits
+	// in, or a harness on another machine, cannot be started as our child and so
+	// could not be woken by this clock at all. DriverMailbox parks the turn for a
+	// client that polls instead, and everything else - the schedule, the
+	// wake-ups, the room, the record - is the same code either way. That sameness
+	// is the point: two agents driven differently are still comparable, because
+	// only the driver differs.
+	AgentDriver Driver
+	// MailboxAddr is where the mailbox is served. It is its own listener rather
+	// than a path on an existing one because the thing that polls it is outside
+	// this deployment, and what is exposed outward should be one address that
+	// carries nothing else.
+	MailboxAddr string
+	// MailboxToken is the one credential, and it is also the identity: the token
+	// in the URL names which agent's turns those are. Ten agents means ten
+	// mailboxes with ten tokens, and nothing joins them.
+	MailboxToken string
+	// MailboxHold is the longest one poll is held open before it answers that
+	// there is nothing. Empty takes the mailbox's own default.
+	MailboxHold time.Duration
+	// MailboxStale is how long a parked turn may go unclaimed before it is given
+	// up on and said out loud. Empty takes the mailbox's own default.
+	MailboxStale time.Duration
+
 	// Shared.
 	DatabaseURL string
 	// RecordShows is how many turns, calls and intents the page carries. The
@@ -277,6 +320,22 @@ func Load() (Config, error) {
 		}
 	}
 
+	driver, err := parseDriver(k.String("agent_driver"), roles,
+		k.String("mailbox_addr"), k.String("mailbox_token"))
+	if err != nil {
+		return Config{}, err
+	}
+
+	mailboxHold, err := parseDuration("MAILBOX_HOLD", k.String("mailbox_hold"))
+	if err != nil {
+		return Config{}, err
+	}
+
+	mailboxStale, err := parseDuration("MAILBOX_STALE", k.String("mailbox_stale"))
+	if err != nil {
+		return Config{}, err
+	}
+
 	ordersShown := k.Int("orders_shown")
 	if ordersShown <= 0 {
 		ordersShown = defaultOrdersShown
@@ -341,6 +400,11 @@ func Load() (Config, error) {
 		EnvelopePath:          k.String("envelope_path"),
 		EnvelopeIdentity:      k.String("envelope_identity"),
 		EnvelopeCallers:       callers,
+		AgentDriver:           driver,
+		MailboxAddr:           k.String("mailbox_addr"),
+		MailboxToken:          k.String("mailbox_token"),
+		MailboxHold:           mailboxHold,
+		MailboxStale:          mailboxStale,
 		Telegram: telegram.Config{
 			Token:        k.String("telegram_bot_token"),
 			ChatID:       k.Int64("telegram_chat_id"),
@@ -348,6 +412,51 @@ func Load() (Config, error) {
 			AllowUserIDs: allowUserIDs,
 		},
 	}, nil
+}
+
+// parseDriver reads how the harness is to reach the agent, and refuses a
+// mailbox that could not be reached.
+//
+// The refusal is the point. A mailbox with no address is served nowhere and a
+// mailbox with no token refuses everyone, and in both cases the harness would
+// start, keep its clock, wake its sessions on time and park every one of them
+// for a client that can never arrive. That failure looks exactly like a quiet
+// day. So it is made a failure to start instead: a declared way of reaching the
+// agent that does not reach the agent must not be allowed to look like working.
+func parseDriver(raw string, roles []Role, addr, token string) (Driver, error) {
+	switch driver := Driver(strings.TrimSpace(raw)); driver {
+	case "", DriverCodex:
+		return DriverCodex, nil
+	case DriverMailbox:
+		var missing []string
+		if strings.TrimSpace(addr) == "" {
+			missing = append(missing, "MAILBOX_ADDR")
+		}
+		if strings.TrimSpace(token) == "" {
+			missing = append(missing, "MAILBOX_TOKEN")
+		}
+		// Only the harness drives an agent. A process running the api or mcp role
+		// alone has no clock and no turns, and asking it for a mailbox address
+		// would refuse a deployment that is entirely correct.
+		if len(missing) > 0 && hasRole(roles, RoleHarness) {
+			return "", fmt.Errorf("AGENT_DRIVER=mailbox needs %s: without it the harness parks every turn where nobody can take it",
+				strings.Join(missing, " and "))
+		}
+
+		return DriverMailbox, nil
+	default:
+		return "", fmt.Errorf("unknown AGENT_DRIVER %q: expected codex or mailbox", raw)
+	}
+}
+
+func hasRole(roles []Role, want Role) bool {
+	for _, role := range roles {
+		if role == want {
+			return true
+		}
+	}
+
+	return false
 }
 
 func parseRoles(raw string) ([]Role, error) {
@@ -584,11 +693,4 @@ func parseTimeout(raw string, roles []Role) (time.Duration, error) {
 	return timeout, nil
 }
 
-func (c Config) Has(role Role) bool {
-	for _, r := range c.Roles {
-		if r == role {
-			return true
-		}
-	}
-	return false
-}
+func (c Config) Has(role Role) bool { return hasRole(c.Roles, role) }

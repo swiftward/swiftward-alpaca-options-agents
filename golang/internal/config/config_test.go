@@ -200,3 +200,63 @@ func TestTheRecordShowsSomethingByDefault(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, defaultRecordShows, cfg.RecordShows)
 }
+
+// A driver names how the agent is reached, and a mailbox that could not be
+// reached is a failure to start rather than a harness that looks busy.
+//
+// The failure it prevents is the quiet one: with no address or no token the
+// clock still runs, sessions still wake on time, and every one of them is parked
+// where nobody can ever take it. That is indistinguishable from a day on which
+// nothing happened.
+func TestParseDriver(t *testing.T) {
+	harnessOnly := []Role{RoleHarness}
+	readOnly := []Role{RoleAPI, RoleMCP}
+
+	cases := []struct {
+		name    string
+		raw     string
+		roles   []Role
+		addr    string
+		token   string
+		want    Driver
+		wantErr string
+	}{
+		{name: "empty_is_how_this_behaved_before", raw: "", roles: harnessOnly, want: DriverCodex},
+		{name: "codex_named", raw: "codex", roles: harnessOnly, want: DriverCodex},
+		{
+			name: "mailbox_with_both", raw: "mailbox", roles: harnessOnly,
+			addr: ":8090", token: "t", want: DriverMailbox,
+		},
+		{
+			name: "mailbox_without_an_address_refuses", raw: "mailbox", roles: harnessOnly,
+			token: "t", wantErr: "MAILBOX_ADDR",
+		},
+		{
+			name: "mailbox_without_a_token_refuses", raw: "mailbox", roles: harnessOnly,
+			addr: ":8090", wantErr: "MAILBOX_TOKEN",
+		},
+		{
+			name: "mailbox_naming_neither_says_so_once", raw: "mailbox", roles: harnessOnly,
+			wantErr: "MAILBOX_ADDR and MAILBOX_TOKEN",
+		},
+		{
+			// A process with no clock drives nobody, and asking it for a mailbox
+			// address would refuse a deployment that is entirely correct.
+			name: "no_harness_needs_nothing", raw: "mailbox", roles: readOnly, want: DriverMailbox,
+		},
+		{name: "unknown_refuses", raw: "acp", roles: harnessOnly, wantErr: `unknown AGENT_DRIVER "acp"`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseDriver(tc.raw, tc.roles, tc.addr, tc.token)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}

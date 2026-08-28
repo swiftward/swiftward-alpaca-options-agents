@@ -36,6 +36,7 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/envelope"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/execution"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/harness"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/mailbox"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/placement"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/reconcile"
@@ -95,6 +96,11 @@ var startLimit = 90 * time.Second
 // defaultExecutionStep is one tick on these contracts: the broker quotes them in
 // cents, and a step smaller than that is refused.
 const defaultExecutionStep = 0.01
+
+// mailboxBase is where a mailbox is served on its own listener. It is a constant
+// rather than a setting because the token in the path is the part that varies,
+// and a client holding one URL should not also have to be told the shape of it.
+const mailboxBase = "/mailbox/"
 
 func run(log *zap.Logger) error {
 	cfg, err := config.Load()
@@ -628,7 +634,34 @@ func run(log *zap.Logger) error {
 
 		// The agent is held open for the whole run: that is what lets a person
 		// reach work already in progress instead of waiting for it to end.
-		{
+		//
+		// How it is reached is a choice; who it is is not made here. With the
+		// mailbox the agent is not started at all - it comes and takes its turns -
+		// so there is no process to dial, nothing to resume, and the opening below
+		// costs nothing. Everything past this block is the same either way, which
+		// is what makes two agents on two drivers worth comparing.
+		switch cfg.AgentDriver {
+		case config.DriverMailbox:
+			box := mailbox.New(cfg.MailboxToken, cfg.MailboxHold, cfg.MailboxStale, log.Named("mailbox"))
+
+			threadID, err := box.Open(ctx)
+			if err != nil {
+				return err
+			}
+			log.Info("mailbox ready",
+				zap.String("thread_id", threadID),
+				zap.String("addr", cfg.MailboxAddr))
+
+			// Giving up on turns nobody came for is the mailbox's own work, and it
+			// has to happen when no poll is arriving - which is the case it exists
+			// for.
+			group.Go(func() error { return box.Run(ctx) })
+			group.Go(func() error {
+				return serve(ctx, cfg.MailboxAddr, box.Handler(mailboxBase), log.Named("mailbox"))
+			})
+
+			h.Conversation = box
+		default:
 			client, err := agent.Dial(ctx, cfg.AgentCommand, cfg.AgentCallTimeout, log.Named("agent"))
 			if err != nil {
 				return err
