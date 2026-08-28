@@ -87,11 +87,38 @@ func whyStopped(ctx context.Context, err error) error {
 	return err
 }
 
-// startLimit is how long the whole start may take before the process gives up on
-// itself. Generous: it covers reaching the database, the broker and the agent.
+// startFloor is the least a start is ever given, for a deployment that opens no
+// conversation at all: reaching the database, the broker and the envelope.
+//
 // A variable rather than a constant so a test can prove the give-up without
 // standing there for a minute.
-var startLimit = 90 * time.Second
+var startFloor = 90 * time.Second
+
+// startLimit is how long the whole start may take before the process gives up on
+// itself. It is DERIVED from the bounds the start actually obeys, not chosen.
+//
+// Chosen, it was ninety seconds while the settings allowed two hundred: resuming
+// yesterday's thread may take THREAD_RESUME_LIMIT, and starting a fresh one after
+// that failed may take AGENT_CALL_TIMEOUT - twenty and a hundred and eighty here.
+// So a start doing exactly what it was told was killed at ninety, and the process
+// came up only on the retry, when the failed thread had already been forgotten
+// and one request was left. Four times on 28 August, including the rehearsal.
+//
+// The watchdog exists to catch a start that is stuck, and a start still inside
+// its own bounds is not stuck. Half again on top leaves room for the database and
+// the broker, which are reached before any of this.
+func startLimitFor(cfg config.Config) time.Duration {
+	opening := cfg.ThreadResumeLimit + cfg.AgentCallTimeout
+	if opening <= 0 {
+		return startFloor
+	}
+	limit := opening + opening/2
+	if limit < startFloor {
+		return startFloor
+	}
+
+	return limit
+}
 
 // defaultExecutionStep is one tick on these contracts: the broker quotes them in
 // cents, and a step smaller than that is refused.
@@ -121,6 +148,7 @@ func run(log *zap.Logger) error {
 	// Dying is the useful answer here. Whatever supervises this process can start
 	// it again; nothing can talk a stuck start into finishing.
 	started := make(chan struct{})
+	startLimit := startLimitFor(cfg)
 	go func() {
 		select {
 		case <-started:
