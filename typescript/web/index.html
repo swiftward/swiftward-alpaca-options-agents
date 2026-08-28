@@ -30,6 +30,30 @@
       </section>
 
       <section>
+        <h2>At a glance</h2>
+        <p class="explains">The week in numbers: how often the agent ran, what it sent, what it holds.</p>
+        <dl id="counters" class="figures"></dl>
+      </section>
+
+      <section id="limits-section">
+        <h2>The limits it discovered</h2>
+        <p class="explains">
+          Nothing here is written into the agent's instructions. It asks for its limits
+          while it works, and this is the same answer it gets, from the same ruleset.
+        </p>
+        <div id="limits" class="cards"></div>
+      </section>
+
+      <section>
+        <h2>What the market offers</h2>
+        <p class="explains">
+          The screener prices the whole permitted universe over and over. This is its last
+          pass, and how long ago it ran.
+        </p>
+        <div id="sweep" class="cards"></div>
+      </section>
+
+      <section>
         <h2>Open positions</h2>
         <p class="explains">What the agent is holding right now, valued by the broker.</p>
         <div class="scrolls"><table id="positions"></table></div>
@@ -65,7 +89,10 @@
 
       <section>
         <h2>Turns</h2>
-        <p class="explains">One run of the agent: when it ran, what woke it, and how long it took.</p>
+        <p class="explains">
+          One run of the agent: when it ran, what woke it, how long it took - and what it
+          concluded, in its own words.
+        </p>
         <ol id="turns" class="cards"></ol>
       </section>
     </main>

@@ -20,6 +20,11 @@ RUN CGO_ENABLED=0 go build -o /out/app ./apps/app
 FROM alpine:3.22 AS page
 COPY --from=build /out/app /usr/local/bin/app
 COPY --from=web /src/dist /srv/web
+# Правила едут и сюда: страница показывает пределы, каким их читает агент, и
+# берёт их из того же файла тем же вызовом. Показывать пересказ нельзя - он
+# однажды разойдётся с тем, по чему торгуют, и читателю мы покажем не систему, а
+# рассказ о ней. В разработке поверх монтируется рабочая копия, как и у конверта.
+COPY policy/envelope.yaml /policy/envelope.yaml
 USER 65534
 ENTRYPOINT ["/usr/local/bin/app"]
 

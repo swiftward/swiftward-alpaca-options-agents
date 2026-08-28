@@ -152,3 +152,15 @@ th { color: var(--dim); font-weight: 500; }
 caption.empty { text-align: left; padding: 0.4rem 0; }
 
 .unavailable { color: var(--stopped); margin: 0.5rem 0 0; }
+
+/* Реплика агента внутри карточки хода. Отбита слева, потому что это его слова, а
+   не наши: читатель должен видеть границу между тем, что записала система, и
+   тем, что сказал агент. */
+.said {
+  margin: 0.4rem 0 0 0;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--line, #d0d0d0);
+  color: var(--ink, #222);
+  white-space: pre-wrap;
+  line-height: 1.45;
+}

@@ -80,7 +80,42 @@ type ToolCall = {
   answer?: string
 }
 
-type State = { turns: Turn[]; calls: ToolCall[]; intents: Intent[] }
+// Said - это то, что агент СКАЗАЛ внутри хода. Вызовы показывают, что он делал;
+// это - почему. Ради него страница и открывается: кривую покажет любой, решение
+// словами - мало кто.
+type Said = { turn_ref: string; at: string; text: string }
+
+type State = { turns: Turn[]; calls: ToolCall[]; intents: Intent[]; said: Said[] }
+
+type Constraint = {
+  rule: string
+  disclosure: string
+  subject?: string
+  kind?: string
+  value?: unknown
+  unit?: string
+}
+
+type Limits = {
+  tool: string
+  identity: string
+  ruleset_version: string
+  governed: boolean
+  constraints: Constraint[]
+}
+
+type Candidate = {
+  underlying: string
+  type: string
+  short_strike: number
+  long_strike: number
+  credit: number
+  risk: number
+  edge_points?: number
+  short_delta?: number
+}
+
+type Sweep = { candidates: Candidate[]; taken_at: string }
 
 // Same origin by default: the page is served by the read side that answers these
 // routes. A deployment that puts the page elsewhere sets this to that address.
@@ -97,10 +132,12 @@ const readSide = import.meta.env.VITE_STATE_URL ?? ''
 const refreshEvery = 15_000
 
 async function render(): Promise<void> {
-  const [money, equity, state] = await Promise.all([
+  const [money, equity, state, limits, sweep] = await Promise.all([
     read<Money>('api/money'),
     read<Snapshot[]>('api/equity'),
     read<State>('api/state'),
+    read<Limits>('api/limits'),
+    read<Sweep>('api/sweep'),
   ])
 
   if (money.ok) {
@@ -116,10 +153,25 @@ async function render(): Promise<void> {
   if (state.ok) {
     fillTable('#calls', callsTable(state.value.calls))
     fill('#intents', state.value.intents, intentCard, 'no intents yet: the agent has not planned an order')
-    fill('#turns', state.value.turns, turnCard, 'no turns yet: nothing has woken the agent')
+    // Реплики раскладываются по ходам ЗДЕСЬ, а не на сервере: связь у них одна -
+    // turn_ref, - и склеивать её в базе значило бы отдавать одно и то же дважды.
+    const saidByTurn = new Map<string, Said[]>()
+    for (const line of state.value.said ?? []) {
+      const kept = saidByTurn.get(line.turn_ref) ?? []
+      kept.push(line)
+      saidByTurn.set(line.turn_ref, kept)
+    }
+    fill('#turns', state.value.turns, (turn) => turnCard(turn, saidByTurn.get(turn.ref) ?? []),
+      'no turns yet: nothing has woken the agent')
+    showCounters(state.value, money.ok ? money.value : undefined)
   }
 
-  const failed = [money, equity, state].filter((answer) => !answer.ok)
+  if (limits.ok) showLimits(limits.value)
+  else showUnavailable('#limits-section', limits.why)
+
+  if (sweep.ok) showSweep(sweep.value)
+
+  const failed = [money, equity, state, limits, sweep].filter((answer) => !answer.ok)
   say(
     failed.length === 0
       ? `read at ${clock(new Date().toISOString())}`
@@ -341,7 +393,81 @@ function fill<T>(selector: string, rows: T[], card: (row: T) => HTMLElement, whe
   list.replaceChildren(...rows.map(card))
 }
 
-function turnCard(turn: Turn): HTMLElement {
+// Пределы, каким их читает агент. Не наш пересказ: страница спрашивает тот же
+// конверт тем же вызовом, и версия правил названа рядом - по ней сверяют отказ.
+function showLimits(limits: Limits): void {
+  const box = document.querySelector('#limits')
+  if (!(box instanceof HTMLElement)) return
+
+  box.textContent = ''
+  box.append(
+    head([
+      { text: limits.identity, className: 'who' },
+      { text: limits.tool },
+      { text: `правила ${limits.ruleset_version}` },
+      { text: limits.governed ? 'под правилами' : 'без правил', className: limits.governed ? 'up' : 'down' },
+    ]),
+  )
+
+  for (const rule of limits.constraints) {
+    const shown =
+      rule.disclosure === 'boundary' && rule.value !== undefined
+        ? `${JSON.stringify(rule.value)}${rule.unit ? ` ${rule.unit}` : ''}`
+        : rule.disclosure === 'existence'
+          ? 'есть, но число не раскрыто'
+          : 'не раскрыто'
+    box.append(body(`${rule.rule}: ${shown}`))
+  }
+}
+
+// Проход скринера. Одно число, которого нет больше нигде: оно доказывает, что
+// страница живая, а не снимок.
+function showSweep(sweep: Sweep): void {
+  const box = document.querySelector('#sweep')
+  if (!(box instanceof HTMLElement)) return
+
+  const age = Math.round((Date.now() - new Date(sweep.taken_at).getTime()) / 1000)
+  box.textContent = ''
+  box.append(
+    head([
+      { text: `${sweep.candidates.length} конструкций`, className: 'who' },
+      { text: Number.isFinite(age) ? `проход ${age} с назад` : 'прохода ещё не было' },
+    ]),
+  )
+  for (const one of sweep.candidates.slice(0, 5)) {
+    const edge = one.edge_points === undefined ? '' : `, преимущество ${one.edge_points.toFixed(1)}`
+    box.append(
+      body(
+        `${one.underlying} ${one.type} ${one.short_strike}/${one.long_strike}: ` +
+          `кредит ${one.credit.toFixed(2)} против риска ${one.risk.toFixed(2)}${edge}`,
+      ),
+    )
+  }
+}
+
+// Счётчики считаются ЗДЕСЬ, из того, что уже отдано. Тянуть их в API незачем:
+// он остаётся глупым, а страница и так держит все три ответа в руках.
+function showCounters(state: State, money?: Money): void {
+  const box = document.querySelector('#counters')
+  if (!(box instanceof HTMLElement)) return
+
+  const turns = state.turns.length
+  const refused = state.turns.filter((turn) => turn.failure).length
+  const filled = (money?.orders ?? []).filter((order) => order.status === 'filled').length
+  const sent = (money?.orders ?? []).length
+
+  box.textContent = ''
+  box.append(
+    figure('ходов', String(turns)),
+    figure('с отказом', String(refused), refused > 0 ? 'down' : ''),
+    figure('заявок отправлено', String(sent)),
+    figure('исполнено', String(filled), filled > 0 ? 'up' : ''),
+    figure('намерений', String(state.intents.length)),
+    figure('открыто позиций', String((money?.positions ?? []).length)),
+  )
+}
+
+function turnCard(turn: Turn, said: Said[] = []): HTMLElement {
   const item = shell()
   const state = turn.failure
     ? { text: turn.failure, className: 'down' }
@@ -358,6 +484,16 @@ function turnCard(turn: Turn): HTMLElement {
     ]),
     body(turn.cause),
   )
+
+  // Что агент сказал внутри этого хода. Ради этого страница и открывается:
+  // причина показывает, ЗАЧЕМ его разбудили, а это - к чему он пришёл.
+  for (const line of said) {
+    const spoken = document.createElement('p')
+    spoken.className = 'said'
+    spoken.textContent = line.text
+    item.append(spoken)
+  }
+
   return item
 }
 

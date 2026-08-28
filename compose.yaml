@@ -240,6 +240,12 @@ services:
       ROLES: api
       ADDR: ":8080"
       WEB_DIR: /srv/web
+      # Пределы страница отдаёт из ТОГО ЖЕ файла и тем же вызовом, каким на них
+      # отвечают агенту. Иначе она показывала бы пересказ, а он однажды разойдётся
+      # с тем, по чему на самом деле торгуют, и судье мы покажем не систему, а
+      # рассказ о ней. Читает и только читает: править конверт страница не умеет.
+      ENVELOPE_PATH: /policy/envelope.yaml
+      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY:-options-alpha}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       RECORD_SHOWS: ${RECORD_SHOWS}
       # The read side asks the broker what the account is worth. It only reads:
@@ -259,6 +265,11 @@ services:
     # The week runs unattended: a machine that reboots at three in the morning
     # must come back with the agent running, not with it waiting to be started.
     restart: unless-stopped
+    volumes:
+      # Только на чтение: страница показывает пределы и не умеет их менять. Тот
+      # же файл, что читают конверт и лестница - один источник на всех, иначе
+      # показанное и действующее разойдутся молча.
+      - ./policy/envelope.yaml:/policy/envelope.yaml:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
