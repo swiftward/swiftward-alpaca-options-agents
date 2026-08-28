@@ -264,7 +264,13 @@ func run(log *zap.Logger) error {
 		brokerURL, brokerToken = cfg.HarnessBrokerMCPURL, cfg.HarnessBrokerMCPToken
 	}
 
+	// Two brokers, and which one a component gets is decided by ONE question: does
+	// it send an order. A read may skip the gateway - it carries no order, nothing
+	// can refuse it, and 28 August measured what the gateway costs a reader when it
+	// is busy. An order may not: sent around the gateway it is absent from the
+	// record and no rule sees it, and the record is what a judge is given.
 	var broker *marketdata.Broker
+	var orders *marketdata.Broker
 	if brokerURL != "" {
 		broker = marketdata.NewBrokerWithToken(brokerURL, brokerToken).ActingFor(cfg.UserHeader, cfg.UserToken)
 	}
@@ -415,7 +421,7 @@ func run(log *zap.Logger) error {
 			step = defaultExecutionStep
 		}
 		ladder := &execution.Ladder{
-			Broker: broker, Every: cfg.ExecutionEvery, Step: step, Record: state,
+			Broker: orders, Every: cfg.ExecutionEvery, Step: step, Record: state,
 			Patience: cfg.ExecutionPatience, Now: time.Now, Log: log.Named("execution"),
 		}
 		// What one position may lose, in dollars, from the SAME ruleset the
@@ -542,14 +548,12 @@ func run(log *zap.Logger) error {
 				"the watch sends orders and they go through the gateway, so without its " +
 				"address it would run and close nothing")
 		}
-		closer := marketdata.NewBrokerWithToken(cfg.BrokerMCPURL, cfg.BrokerMCPToken).
-			ActingFor(cfg.UserHeader, cfg.UserToken)
 		exchange, err := time.LoadLocation("America/New_York")
 		if err != nil {
 			return fmt.Errorf("load the exchange calendar: %w", err)
 		}
 		watch := &takeprofit.Watch{
-			Broker: closer, At: cfg.TakeProfitAt, Every: cfg.TakeProfitEvery,
+			Broker: orders, At: cfg.TakeProfitAt, Every: cfg.TakeProfitEvery,
 			Now: time.Now, Where: exchange, Log: log.Named("takeprofit"),
 		}
 		group.Go(func() error { return watch.Run(ctx) })
