@@ -286,6 +286,22 @@ func (m *Mailbox) Interrupt(_ context.Context, turnID string) error {
 // Events is what the client said, in the harness's own vocabulary.
 func (m *Mailbox) Events() <-chan agent.Event { return m.events }
 
+// ReportsToolCalls is false: a mailbox carries what the agent SAYS, not what it
+// does. The client takes its turn and then calls its own servers - the broker,
+// this project's own - and those calls never pass through here.
+//
+// Saying so is the point. The harness watches whether a turn reached the broker
+// and, after several that did not, throws the conversation away on the theory
+// that the tools fell out of the agent's list. Under this driver every turn looks
+// brokerless no matter how much work was done, so the watchdog fires on a healthy
+// agent: measured 28 August, three scan turns in a row warned "a turn finished
+// without reaching the broker" while the session was reading chains and quotes
+// throughout.
+//
+// The honest answer is not to guess better but to stop claiming: what this driver
+// cannot see, it does not report on.
+func (m *Mailbox) ReportsToolCalls() bool { return false }
+
 // Run gives up on turns nobody came for.
 //
 // It is a goroutine of its own rather than work done inside a poll, because the

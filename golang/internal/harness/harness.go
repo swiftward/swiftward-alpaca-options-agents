@@ -861,7 +861,38 @@ var brokerlessBeforeFresh = 2
 // Restarting this process does NOT cure it: the thread is remembered on purpose,
 // so a restart resumes the same conversation and inherits the same gap. Only a
 // fresh thread reconnects the servers. So that is what happens here.
+// ReportsToolCalls is implemented by a conversation that streams the agent's
+// tool calls back as events. A driver that does not implement it is assumed to,
+// which keeps the behaviour of the one that always did.
+//
+// It exists because the check below judges a turn by whether it reached the
+// broker, and that can only be seen where tool calls travel through us. When the
+// agent is a session we do not run - it takes its turn from the mailbox and calls
+// its own servers - the calls never pass this way, every turn looks brokerless,
+// and the watchdog fires on a healthy agent: measured 28 August, three scan turns
+// in a row, each ending "a turn finished without reaching the broker" while the
+// session was in fact reading chains and quotes the whole time.
+type ReportsToolCalls interface {
+	ReportsToolCalls() bool
+}
+
+// watchesBrokerReach says whether the broker watchdog can see anything at all.
+func (h *Harness) watchesBrokerReach() bool {
+	if reporter, ok := h.Conversation.(ReportsToolCalls); ok {
+		return reporter.ReportsToolCalls()
+	}
+
+	return true
+}
+
 func (h *Harness) checkBrokerReach(ctx context.Context, acted, reached bool, who string) {
+	// Silence about what cannot be observed. The alternative is worse than no
+	// check: a warning on every turn, and every few turns a conversation thrown
+	// away for a fault that never happened.
+	if !h.watchesBrokerReach() {
+		return
+	}
+
 	// A turn that did nothing at all is already reported as a silent failure, and
 	// counting it here would blame the tools for the agent's own silence.
 	if !acted {

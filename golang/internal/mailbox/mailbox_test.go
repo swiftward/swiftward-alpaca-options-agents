@@ -292,3 +292,17 @@ func maybeNext(m *mailbox.Mailbox) *agent.Event {
 		return nil
 	}
 }
+
+// The harness must not judge a driver on what that driver cannot show it. A
+// mailbox carries what the agent says, not what it does: the client calls its own
+// servers, and those calls never pass through here. Without this, the broker
+// watchdog fires on a perfectly healthy agent - three scan turns in a row on 28
+// August warned "a turn finished without reaching the broker" while the session
+// was reading chains and quotes the whole time.
+func TestAMailboxDoesNotClaimToSeeToolCalls(t *testing.T) {
+	var conversation harness.Conversation = mailbox.New(token, time.Second, time.Minute, nil)
+
+	reporter, ok := conversation.(harness.ReportsToolCalls)
+	require.True(t, ok, "ящик обязан отвечать на вопрос, видит ли он вызовы инструментов")
+	assert.False(t, reporter.ReportsToolCalls())
+}
