@@ -91,6 +91,9 @@ nobody is reading, and it is then simply lost.
 
 ## Attaching Claude Code
 
+The whole installation as one prompt to paste into a session: **`INSTALL.md`**
+beside this file. What follows is what that prompt does.
+
 Claude Code wakes on the output of a long-running command, so it takes the
 streaming shape:
 
