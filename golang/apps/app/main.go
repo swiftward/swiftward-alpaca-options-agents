@@ -302,8 +302,9 @@ func run(log *zap.Logger) error {
 	if brokerURL != "" {
 		broker = marketdata.NewBrokerWithToken(brokerURL, brokerToken).ActingFor(cfg.UserHeader, cfg.UserToken)
 	}
-	// Тот, что несёт ЗАЯВКИ, всегда идёт на BROKER_MCP_URL - на шлюз, - и никогда
-	// не следует за HARNESS_BROKER_MCP_URL, куда уводят чтения.
+	// Always the gateway, never the bypass above. Where the two addresses are the
+	// same this is the same connection twice, which costs nothing and keeps the
+	// rule readable: whoever sends an order holds THIS one.
 	if cfg.BrokerMCPURL != "" {
 		orders = marketdata.NewBrokerWithToken(cfg.BrokerMCPURL, cfg.BrokerMCPToken).
 			ActingFor(cfg.UserHeader, cfg.UserToken)
@@ -458,6 +459,9 @@ func run(log *zap.Logger) error {
 		step := cfg.ExecutionStep
 		if step <= 0 {
 			step = defaultExecutionStep
+		}
+		if orders == nil {
+			return errors.New("EXECUTION_EVERY is set but BROKER_MCP_URL is empty: the ladder sends orders and they go through the gateway")
 		}
 		ladder := &execution.Ladder{
 			Broker: orders, Every: cfg.ExecutionEvery, Step: step, Record: state,
