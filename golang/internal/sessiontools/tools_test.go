@@ -609,3 +609,60 @@ func TestWithoutARecordTheCheckIsSkipped(t *testing.T) {
 
 	assert.False(t, statingAnIntent(t, session).IsError)
 }
+
+// The structured answer of a tool must be an OBJECT, and list_wakeups was the one
+// that forgot: it handed back the slice itself, which declares
+// `"type": ["null","array"]` at the top level of its schema. A client that
+// validates the answer against the schema it was given refuses it before the
+// session sees anything:
+//
+//	structuredContent: expected record, received null   (nothing standing)
+//	structuredContent: expected record, received array  (one wake-up standing)
+//
+// Found 28 August by a session that could set a wake-up and then had no way to
+// read back what was standing. The test above did not catch it because it asked
+// what the answer CONTAINS, not what shape it has - and this client does not
+// validate output schemas, so the wrong shape travelled unnoticed.
+//
+// The empty case matters most: it is the one every session meets first.
+func TestListWakeupsAnswersWithAnObject(t *testing.T) {
+	store, err := wakeup.Open(filepath.Join(t.TempDir(), "wakeups.json"))
+	require.NoError(t, err)
+
+	at := time.Date(2026, 9, 4, 13, 30, 0, 0, time.UTC)
+	server := httptest.NewServer(Tools{Record: record.NewMemory(), Now: func() time.Time { return at }, Wakeups: store}.Handler())
+	t.Cleanup(server.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	shape := func(what string) {
+		t.Helper()
+		res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_wakeups"})
+		require.NoError(t, err)
+		require.False(t, res.IsError, res.Content)
+
+		raw, err := json.Marshal(res.StructuredContent)
+		require.NoError(t, err)
+
+		var object map[string]any
+		require.NoError(t, json.Unmarshal(raw, &object),
+			"%s: ответ обязан быть объектом, а пришло %s", what, raw)
+		assert.Contains(t, object, "wakeups", "%s: список живёт под своим именем", what)
+	}
+
+	shape("ничего не стоит")
+
+	_, err = session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "wake_me_at",
+		Arguments: map[string]any{
+			"cause": "посмотреть, как открылась позиция",
+			"at":    at.Add(time.Hour).Format(time.RFC3339),
+		},
+	})
+	require.NoError(t, err)
+
+	shape("одно пробуждение стоит")
+}

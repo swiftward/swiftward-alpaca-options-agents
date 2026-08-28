@@ -118,6 +118,21 @@ type wakeupOutput struct {
 	ID string `json:"id" jsonschema:"the identifier to cancel it with"`
 }
 
+// wakeupsOutput wraps the list because a tool's structured result must be an
+// OBJECT. Returning the slice itself declared `"type": ["null","array"]` at the
+// top level, and a client that validates the answer against the schema it was
+// given refuses it before the session ever sees it:
+//
+//	structuredContent: expected record, received null   (nothing standing)
+//	structuredContent: expected record, received array  (one wake-up standing)
+//
+// Found 28 August by a session that could set a wake-up and then had no way to
+// read back what was standing. The neighbouring read_schedule always wrapped its
+// slice and never had the problem.
+type wakeupsOutput struct {
+	Wakeups []wakeup.Wakeup `json:"wakeups" jsonschema:"the wake-ups standing right now"`
+}
+
 type cancelWakeupInput struct {
 	ID string `json:"id" jsonschema:"the identifier from the list"`
 }
@@ -484,8 +499,8 @@ func (t Tools) Handler() http.Handler {
 				Name:        "list_wakeups",
 				Description: "List the wake-ups you have standing, with their identifiers.",
 			},
-			func(ctx context.Context, req *mcp.CallToolRequest, _ noInput) (*mcp.CallToolResult, []wakeup.Wakeup, error) {
-				return nil, wakeups.List(), nil
+			func(ctx context.Context, req *mcp.CallToolRequest, _ noInput) (*mcp.CallToolResult, wakeupsOutput, error) {
+				return nil, wakeupsOutput{Wakeups: wakeups.List()}, nil
 			})
 
 		mcp.AddTool(server,
