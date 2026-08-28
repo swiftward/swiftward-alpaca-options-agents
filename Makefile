@@ -5,38 +5,38 @@ SHELL := /bin/bash
 
 .PHONY: help up down build test test-db test-broker lint migrate fmt
 
-help: ## Показать список целей
+help: ## List the targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS=":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
-up: ## Поднять локальный стек из этой копии
+up: ## Start the local stack from this checkout
 	docker compose --env-file .env up -d --build
 
-down: ## Остановить стек, тома сохранить
+down: ## Stop the stack, keeping the volumes
 	docker compose --env-file .env down
 
-prod-up: ## Поднять стек на опубликованных образах
+prod-up: ## Start the stack from the published images
 	docker compose --env-file .env -f compose.prod.yaml up -d
 
-build: ## Собрать всё
+build: ## Build everything
 	$(MAKE) -C golang build
 	$(MAKE) -C typescript build
 
-test: ## Прогнать тесты
+test: ## Run the tests
 	$(MAKE) -C golang test
 	$(MAKE) -C typescript test
 
-test-db: ## Прогнать тесты записи в настоящем Postgres
+test-db: ## Run the record's tests against a real Postgres
 	docker compose --env-file .env run --rm tests
 
-test-broker: ## Прогнать тесты против сервера брокера на счёте для разработки
+test-broker: ## Run the tests against the broker's server on the development account
 	docker compose --env-file .env run --rm tests go test -tags broker -count=1 ./internal/marketdata/...
 
-lint: ## Проверить стиль
+lint: ## Check the style
 	$(MAKE) -C golang lint
 	$(MAKE) -C typescript lint
 
-fmt: ## Отформатировать
+fmt: ## Format
 	$(MAKE) -C golang fmt
 
-migrate: ## Накатить миграции (стек делает это сам при подъёме)
+migrate: ## Apply the migrations (the stack does this itself on start)
 	docker compose --env-file .env run --rm migrate

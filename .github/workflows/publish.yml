@@ -1,11 +1,12 @@
-# Собирает образы и кладёт их в реестр, откуда их забирает развёрнутый стенд.
+# Builds the images and puts them in the registry, where the deployed stand pulls
+# them from.
 #
-# Зачем не собирать на сервере: тогда он крутил бы то, чего никто не проверял.
-# Сборка на месте может отличаться от прошедшей проверку, а упавшая - оставить
-# стенд лежать. Забранный образ так не умеет.
+# Why not build on the server: it would then run something nobody checked. A build
+# made in place can differ from the one that passed the gate, and a failed one can
+# leave the stand down. A pulled image cannot do either.
 #
-# Обновление стенда при этом НЕ автоматическое и остаётся решением человека:
-# перезапуск обрывает идущий ход, а ход - это торговое решение.
+# Updating the stand is NOT automatic and stays a person's decision: a restart
+# cuts off the turn in flight, and a turn is a trading decision.
 name: publish
 
 on:
@@ -21,8 +22,8 @@ jobs:
       packages: write
 
     strategy:
-      # Один упавший образ не отменяет остальные: стенд обновляется по одному, и
-      # четыре готовых полезнее четырёх неначатых.
+      # One failed image does not cancel the rest: the stand is updated one image
+      # at a time, and four that are ready beat four that were never started.
       fail-fast: false
       matrix:
         include:
@@ -60,9 +61,9 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}/${{ matrix.name }}
-          # Две метки на сборку: неподвижная по коммиту и подвижная latest.
-          # Стенд под судейством пришпилен к коммиту - тогда видно, что именно
-          # на нём работает, и откат это смена одной строки.
+          # Two tags per build: one fixed to the commit and a moving latest. The
+          # stand under judging is pinned to the commit - then what runs on it is
+          # visible, and a rollback is one line changed.
           tags: |
             type=sha,format=long
             type=raw,value=latest,enable={{is_default_branch}}
@@ -72,8 +73,9 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           target: ${{ matrix.target }}
-          # Только x86: стенд стоит на нём. Собирать вторую архитектуру нечем -
-          # разработка идёт на своих машинах, где образ собирается локально.
+          # x86 only: that is what the stand runs on. There is nothing to build a
+          # second architecture for - development happens on our own machines,
+          # where the image is built locally.
           platforms: linux/amd64
           push: true
           tags: ${{ steps.names.outputs.tags }}

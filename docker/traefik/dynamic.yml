@@ -1,10 +1,11 @@
-# Единственный маршрут наружу: страница чтения.
+# The only route out: the read-only page.
 #
-# Описан файлом, а не метками контейнеров, и это выбор, а не привычка. Метки
-# читаются через сокет докера, а сокет в контейнере - это право поднимать любой
-# другой контейнер на этой машине. Стек рядом объявляет о себе обратное:
-# файловая система только на чтение, никаких лишних прав, ничего сверх данного.
-# Маршрут у нас один и не меняется, так что за метки платить нечем.
+# Declared in a file rather than by container labels, and that is a choice rather
+# than a habit. Labels are read through the Docker socket, and a socket inside a
+# container is the right to start any other container on this machine. The stack
+# beside it declares the opposite of itself: a read-only filesystem, no extra
+# capabilities, nothing beyond what it was given. We have one route and it does
+# not change, so there is nothing to pay labels for.
 http:
   routers:
     page:
