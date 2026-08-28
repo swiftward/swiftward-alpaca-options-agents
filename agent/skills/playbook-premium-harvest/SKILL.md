@@ -98,7 +98,7 @@ events by BUYING convexity, not by selling premium.
 
 ## Sizing
 
-Work out the largest loss the structure can produce: the width times a hundred times the contracts, less the credit. Take the contract count as the largest whole number that stays inside the envelope's `position_max_loss`, computed against equity read from the broker.
+Work out the largest loss the structure can produce: the width times a hundred times the contracts, less the credit. Take the contract count as the largest whole number that stays inside NINE TENTHS of the envelope's `position_max_loss`, computed against equity read from the broker. The tenth part is not caution, it is what keeps the order alive: the ceiling is a share of equity, equity moves every second the order rests in the book, and an order written to 99% of the ceiling becomes illegal on the first tick down and is cancelled - not for being a bad trade, but because the ceiling sank beneath it. Measured 28 August: five of seven cancelled orders died that way, each within seconds and none having exhausted the price it was allowed to walk.
 
 Then check it fits: add up what every open position can lose and keep the total inside the envelope's `portfolio_max_loss`. The limit is held by risk, not by a count - ten small positions are an underfilled book, not a full one.
 
