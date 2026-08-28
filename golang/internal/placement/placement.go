@@ -113,6 +113,11 @@ type Placement struct {
 	// between a cheap bet and a lottery ticket: the structure sent on 28 August
 	// drew two thirds of its expectation from one percent of history.
 	//
+	// It can exceed a hundred, and that is not a fault: where everything outside
+	// the tail loses money, the tail carries more than the whole of what is left.
+	// A row reading 255 is a structure that loses almost always and is redeemed
+	// entirely by the rarest windows in the sample.
+	//
 	// Absent where the placement is not in the black: a share OF a negative
 	// expectation is not a share of anything, and the reader has already been told
 	// what matters about such a row by Expected itself.
