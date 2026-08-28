@@ -182,9 +182,18 @@ func TestTheShippedRulesetCarriesWhatTheTasksGaveUp(t *testing.T) {
 	// measured at 26.4 percent of risk against 50 permitted. His words: a fifth
 	// of the account at risk each day arrives nowhere, and the week is for
 	// winning, not for surviving.
+	//
+	// Then 15 to 5 to 8 within three minutes on 28 August, all Kostya, each with
+	// a reason of its own. The one that stands: eight, because ten to twelve
+	// names clear the threshold on every sweep, so the book fills without any one
+	// name deciding the week. Five was too tight for that and fifteen let three
+	// positions be the whole account.
+	//
+	// The build was red through all three - this test is the tripwire, and a
+	// tripwire is only worth having if somebody walks back and resets it.
 	for identity, expected := range map[string]float64{
-		"options-alpha":      15,
-		"options-alpha-near": 15,
+		"options-alpha":      8,
+		"options-alpha-near": 8,
 	} {
 		out, err := set.For(identity, "place_option_order")
 		require.NoError(t, err, identity)
