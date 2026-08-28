@@ -128,9 +128,24 @@ type Harness struct {
 	// how often the declaration and the skills are brought level with what is on
 	// disk. Zero means clockTick, which is what every deployment uses; a test sets
 	// it rather than standing there for a minute.
+	//
+	// A tick costs no network, but it is NOT free: unless RereadEvery says
+	// otherwise it also re-reads the declaration and re-stamps the skill tree,
+	// which reads every skill file twice and parses the mount table. Lower this
+	// without lowering that and the cost follows the tick, sixty times a minute
+	// at a second.
 	TickEvery time.Duration
+	// RereadEvery is how often the declaration and the skills are brought level
+	// with the disk. Zero means every tick, which is what this did before the
+	// three were told apart.
+	//
+	// It is separate because it is the only one of the three that touches the
+	// filesystem, and its cost grows with the skill tree rather than with
+	// anything the schedule needs. A minute here and a second in TickEvery is the
+	// combination that buys accuracy without buying the reading.
+	RereadEvery time.Duration
 	// PriceEvery is how often the prices a wake-up watches are read. Zero means
-	// every tick, which is what this ran on before the two were separated.
+	// every tick, which is what this ran on before the three were separated.
 	//
 	// They were separated because they cost different things and were tied
 	// together for no reason but that one loop did both. Asking the schedule
@@ -184,9 +199,12 @@ type Harness struct {
 	// asks the watcher rather than the harness.
 	declared *declaration.Declaration
 	lastRun  map[string]time.Time
-	// lastPricePoll is when prices were last read. Touched only by the clock
-	// goroutine, so it needs no lock - and taking one here would say the opposite.
+	// lastPricePoll is when prices were last read, and lastReread is when the
+	// declaration was last brought level with the disk. Both are touched only by
+	// the clock goroutine, so they need no lock - and taking one would say the
+	// opposite.
 	lastPricePoll time.Time
+	lastReread    time.Time
 	// refusedInterrupts counts how many times in a row the agent has refused to
 	// give up an overrunning turn. It resets the moment one is given up.
 	refusedInterrupts int
@@ -279,11 +297,7 @@ func (h *Harness) whatAlreadyRanToday(ctx context.Context, declared *declaration
 // because the declaration speaks in minutes; a finer tick would only ask the same
 // question more often.
 func (h *Harness) keepTheClock(ctx context.Context) {
-	every := h.TickEvery
-	if every <= 0 {
-		every = clockTick
-	}
-	ticker := time.NewTicker(every)
+	ticker := time.NewTicker(h.tickCadence())
 	defer ticker.Stop()
 
 	h.tick(ctx)
@@ -298,7 +312,9 @@ func (h *Harness) keepTheClock(ctx context.Context) {
 }
 
 func (h *Harness) tick(ctx context.Context) {
-	h.rereadTheDeclaration(ctx)
+	if h.rereadDue() {
+		h.rereadTheDeclaration(ctx)
+	}
 	h.fireWakeups(ctx)
 	h.fireDue(ctx)
 }
@@ -457,6 +473,8 @@ func (h *Harness) fireWakeups(ctx context.Context) {
 	// A tick that skips the read still fires the wake-ups that wait for a TIME:
 	// an empty price map is not a failure, it is simply a tick that asked the
 	// market nothing. A wake-up waiting for a price waits one more tick.
+	//
+	// The order of this condition is load-bearing; priceDue says why.
 	if watching := h.Wakeups.Watching(); len(watching) > 0 && h.Prices != nil && h.priceDue() {
 		read, done := h.boundToAgent(ctx)
 		last, err := h.Prices.LastTrades(read, watching)
@@ -469,11 +487,15 @@ func (h *Harness) fireWakeups(ctx context.Context) {
 
 		// The cadence goes into the line that reports the read, so that a day
 		// later the question "was the finer tick worth it" is answered by the
-		// record instead of by memory.
-		h.Log.Debug("read the prices a wake-up watches",
-			zap.Strings("symbols", watching),
-			zap.Duration("price_every", h.priceCadence()),
-			zap.Int("read", len(last)))
+		// record instead of by memory. It is written at Info on purpose: Debug is
+		// off on every deployment we have, and a line nobody keeps answers
+		// nothing. At the default cadence this is one line a minute.
+		if err == nil {
+			h.Log.Info("read the prices a wake-up watches",
+				zap.Strings("symbols", watching),
+				zap.Duration("price_every", h.priceCadence()),
+				zap.Int("read", len(last)))
+		}
 	}
 
 	for _, due := range h.Wakeups.Due(h.Now(), prices) {
@@ -585,31 +607,65 @@ func (h *Harness) inForce() *declaration.Declaration {
 	return h.Declaration
 }
 
-// priceDue says whether this tick should read prices, and remembers that it
-// did. Called only from the clock goroutine, which is the only place a tick
-// happens; nothing else may call it, or the cadence stops meaning anything.
+// priceDue says whether this tick should read prices, and remembers that it did.
+//
+// It HAS a side effect, and the place it is called from matters: it must be
+// reached only on ticks where a price would actually be read. Moving it ahead of
+// the "is anyone watching" test would advance the cadence through a quiet
+// afternoon, and the first price wake-up set after that would then wait a whole
+// cadence before anybody looked.
 func (h *Harness) priceDue() bool {
-	every := h.priceCadence()
+	return elapsed(&h.lastPricePoll, h.Now(), h.PriceEvery)
+}
+
+// rereadDue says whether this tick should bring the declaration and the skills
+// level with the disk.
+func (h *Harness) rereadDue() bool {
+	return elapsed(&h.lastReread, h.Now(), h.RereadEvery)
+}
+
+// elapsed reports whether every has passed since last, and records now when it
+// has. Zero means "every time", which is how an unset interval keeps the
+// behaviour this had before the intervals existed.
+//
+// A clock that steps BACKWARDS reads as due rather than as not-yet. The other
+// way round is a trap: the difference goes negative, the caller is told to wait,
+// and the stamp is never moved - so a jump back of an hour would stop the
+// reading for an hour. Nothing does that today, because Now is time.Now and its
+// monotonic reading survives NTP; virtual clocks are exactly where it would.
+func elapsed(last *time.Time, now time.Time, every time.Duration) bool {
 	if every <= 0 {
 		return true
 	}
-
-	now := h.Now()
-	// The first tick reads: a harness that has just started knows no price at
+	// The first call is due: a harness that has just started knows nothing at
 	// all, and waiting out a cadence before the first read would leave a standing
-	// price wake-up blind for exactly that long after every restart.
-	if !h.lastPricePoll.IsZero() && now.Sub(h.lastPricePoll) < every {
+	// price wake-up blind for that long after every restart.
+	if !last.IsZero() && !now.Before(*last) && now.Sub(*last) < every {
 		return false
 	}
-	h.lastPricePoll = now
+	*last = now
 
 	return true
 }
 
-// priceCadence is PriceEvery, or every tick when it was never set - which is the
-// behaviour every deployment had before the two were told apart.
+// priceCadence is how often prices are read, said in a way that is true in a log
+// line: an unset PriceEvery means every tick, and the tick has a length.
 func (h *Harness) priceCadence() time.Duration {
-	return h.PriceEvery
+	if h.PriceEvery > 0 {
+		return h.PriceEvery
+	}
+
+	return h.tickCadence()
+}
+
+// tickCadence is TickEvery, or the minute this program used before it was a
+// parameter.
+func (h *Harness) tickCadence() time.Duration {
+	if h.TickEvery > 0 {
+		return h.TickEvery
+	}
+
+	return clockTick
 }
 
 func (h *Harness) fireDue(ctx context.Context) {

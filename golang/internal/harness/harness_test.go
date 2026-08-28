@@ -2009,3 +2009,50 @@ func TestATimeWakeupFiresOnATickThatReadsNoPrice(t *testing.T) {
 	assert.Contains(t, turns[0], "через десять секунд")
 	assert.Equal(t, 1, prices.timesAsked(), "рынок спрашивается один раз за час, а не на каждом такте")
 }
+
+// Reading the disk is the one thing a tick does that is not free, so it has its
+// own cadence. A finer tick has to buy accuracy in the schedule without buying
+// the reading, or lowering it stops being cheap and the whole separation is a
+// lie the operator pays for.
+func TestTheDeclarationIsRereadOnItsOwnCadenceNotOnEveryTick(t *testing.T) {
+	start := time.Date(2026, 8, 28, 15, 0, 0, 0, time.UTC)
+	clock := start
+
+	var reads int
+	h := &Harness{
+		Conversation: newConversationSpy(),
+		Reread: func() (*declaration.Declaration, error) {
+			reads++
+
+			return nil, nil
+		},
+		RereadEvery: 30 * time.Second,
+		CallTimeout: 2 * time.Second,
+		Now:         func() time.Time { return clock },
+		Log:         zaptest.NewLogger(t),
+	}
+
+	// Семь тактов по десять секунд: 0, 10, 20, 30, 40, 50, 60.
+	for i := 0; i < 7; i++ {
+		h.tick(t.Context())
+		clock = clock.Add(10 * time.Second)
+	}
+
+	assert.Equal(t, 3, reads,
+		"диск читается на нулевой, тридцатой и шестидесятой секунде, а не семь раз")
+}
+
+// A clock that steps backwards has to read as due. The other way round is a
+// trap: the difference goes negative, the caller waits, the stamp never moves,
+// and a jump back of an hour stops the reading for an hour.
+func TestAClockThatStepsBackDoesNotStopTheReading(t *testing.T) {
+	start := time.Date(2026, 8, 28, 15, 0, 0, 0, time.UTC)
+	last := start
+
+	assert.False(t, elapsed(&last, start.Add(time.Second), time.Minute),
+		"секунда из минуты ещё не прошла")
+	assert.True(t, elapsed(&last, start.Add(-time.Hour), time.Minute),
+		"часы шагнули назад - читаем, а не залипаем")
+	assert.Equal(t, start.Add(-time.Hour), last,
+		"после чтения отметка обязана переехать на новое время, иначе следующее чтение снова ждёт")
+}

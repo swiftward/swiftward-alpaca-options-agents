@@ -169,12 +169,21 @@ type Config struct {
 	// TickEvery is how often the harness asks its schedule whether anything is
 	// due. Zero leaves the harness on its own default of a minute.
 	//
-	// It is separated from PriceEvery because the two cost different things. This
-	// one costs nothing but a wakeup of one goroutine: the schedule lives in
-	// memory and nothing is asked of anybody. So a finer tick here buys accuracy
-	// for free, and the only reason it was ever a minute is that the declaration
-	// speaks in minutes.
+	// It is separated from the other two because the three cost different things.
+	// This one asks nobody anything: the schedule is a map in memory, and no
+	// request leaves the process. What it is NOT is free - unless RereadEvery
+	// says otherwise, a tick also re-reads the declaration and re-stamps the
+	// skill tree, which reads every skill file twice and parses the mount table.
+	// Lower this alone and that reading follows it.
 	TickEvery time.Duration
+	// RereadEvery is how often the declaration and the skills are brought level
+	// with the disk. Zero means every tick, which is what this did before the
+	// three were told apart - so leaving it empty changes nothing.
+	//
+	// Set it whenever TICK_EVERY goes below a minute. It is the only one of the
+	// three that touches the filesystem, and its cost grows with the skill tree,
+	// not with anything the schedule needs.
+	RereadEvery time.Duration
 	// PriceEvery is how often the prices a wake-up watches are read. Zero means
 	// every tick, which is what this program did before the two were separated.
 	//
@@ -335,12 +344,17 @@ func Load() (Config, error) {
 		}
 	}
 
-	tickEvery, err := parseInterval(k.String("tick_every"), "TICK_EVERY")
+	tickEvery, err := parseDuration("TICK_EVERY", k.String("tick_every"))
 	if err != nil {
 		return Config{}, err
 	}
 
-	priceEvery, err := parseInterval(k.String("price_every"), "PRICE_EVERY")
+	rereadEvery, err := parseDuration("REREAD_EVERY", k.String("reread_every"))
+	if err != nil {
+		return Config{}, err
+	}
+
+	priceEvery, err := parseDuration("PRICE_EVERY", k.String("price_every"))
 	if err != nil {
 		return Config{}, err
 	}
@@ -392,6 +406,7 @@ func Load() (Config, error) {
 		UserHeader:            k.String("user_header_name"),
 		BrokerMCPToken:        k.String("broker_mcp_token"),
 		TickEvery:             tickEvery,
+		RereadEvery:           rereadEvery,
 		PriceEvery:            priceEvery,
 		AgentCallTimeout:      callTimeout,
 		ScreenerUnderlyings:   screened,
@@ -720,25 +735,3 @@ func parseTimeout(raw string, roles []Role) (time.Duration, error) {
 }
 
 func (c Config) Has(role Role) bool { return hasRole(c.Roles, role) }
-
-// parseInterval reads an optional interval. Empty means "leave it alone", which
-// is how both intervals stay at today's behaviour until somebody sets them.
-//
-// A negative one is refused rather than clamped: an operator who wrote -10s
-// meant something, and quietly running at a different rate than the one written
-// is how a measurement ends up explaining the wrong thing.
-func parseInterval(raw, name string) (time.Duration, error) {
-	if strings.TrimSpace(raw) == "" {
-		return 0, nil
-	}
-
-	every, err := time.ParseDuration(raw)
-	if err != nil {
-		return 0, fmt.Errorf("%s %q is not a duration like 10s: %w", name, raw, err)
-	}
-	if every < 0 {
-		return 0, fmt.Errorf("%s %q is negative", name, raw)
-	}
-
-	return every, nil
-}

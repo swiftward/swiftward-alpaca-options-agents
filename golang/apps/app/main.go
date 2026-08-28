@@ -329,6 +329,7 @@ func run(log *zap.Logger) error {
 			CallTimeout:  cfg.AgentCallTimeout,
 			TurnLimit:    cfg.TurnLimit,
 			TickEvery:    cfg.TickEvery,
+			RereadEvery:  cfg.RereadEvery,
 			PriceEvery:   cfg.PriceEvery,
 			SayEvery:     cfg.SayEvery,
 			DefaultModel: cfg.AgentModel,
