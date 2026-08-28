@@ -11,7 +11,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 
-import type { Everything, Limits, Money, Said, State, Sweep, ToolCall, Turn } from './api'
+import type { Everything, Limits, Money, Said, Snapshot, State, Sweep, ToolCall, Turn } from './api'
 import { readEverything } from './api'
 import { Equity } from './Equity'
 import { ago, clock, dollars, percent, signed, took, trim } from './format'
@@ -96,7 +96,11 @@ function Page({ all }: { all: Everything }) {
   return (
     <>
       <Section title="The account">
-        {all.money.ok ? <Account money={all.money.value} /> : <Unavailable why={all.money.why} />}
+        {all.money.ok ? (
+          <Account money={all.money.value} line={all.equity.ok ? all.equity.value : undefined} />
+        ) : (
+          <Unavailable why={all.money.why} />
+        )}
         <div className="mt-4">
           {all.equity.ok ? <Equity line={all.equity.value} /> : <Unavailable why={all.equity.why} />}
         </div>
@@ -137,21 +141,42 @@ function Page({ all }: { all: Everything }) {
   )
 }
 
-function Account({ money }: { money: Money }) {
-  const change = money.account.equity - money.account.last_equity
-  const fraction = money.account.last_equity === 0 ? 0 : change / money.account.last_equity
+function Account({ money, line }: { money: Money; line?: Snapshot[] }) {
+  const day = money.account.equity - money.account.last_equity
+  const dayShare = money.account.last_equity === 0 ? 0 : day / money.account.last_equity
+
+  // P&L от НАЧАЛА, а не со вчерашнего закрытия. Это первое, чем оценивают
+  // работу, и до сих пор его на странице не было вовсе: стояло изменение за
+  // сутки, которое к недельному результату отношения не имеет.
+  //
+  // Считается от первого записанного замера, а не от вымышленных ста тысяч:
+  // счёт может быть заведён с другой суммой, а угаданное число на странице,
+  // которую читают ради чисел, хуже отсутствующего. Подпись говорит, от чего
+  // считали.
+  const opened = (line ?? [])[0]?.equity
+  const total = opened === undefined ? undefined : money.account.equity - opened
+  const totalShare = opened ? (total ?? 0) / opened : 0
 
   return (
     <Figures>
       {/* Число, ради которого страницу открывают. Одно на всю страницу. */}
       <Figure name="equity" value={dollars(money.account.equity)} hero />
+      {total === undefined ? null : (
+        <Figure
+          name="profit since the start"
+          value={`${signed(total)} (${percent(totalShare)})`}
+          tone={total > 0 ? 'gain' : total < 0 ? 'loss' : undefined}
+          icon={total > 0 ? ArrowUpRight : total < 0 ? ArrowDownRight : Minus}
+          hero
+        />
+      )}
       {/* Стрелка не украшение: цвет один не читается теми, кто его не
           различает, и второй признак это чинит. */}
       <Figure
-        name="since yesterday"
-        value={`${signed(change)} (${percent(fraction)})`}
-        tone={change > 0 ? 'gain' : change < 0 ? 'loss' : undefined}
-        icon={change > 0 ? ArrowUpRight : change < 0 ? ArrowDownRight : Minus}
+        name="today"
+        value={`${signed(day)} (${percent(dayShare)})`}
+        tone={day > 0 ? 'gain' : day < 0 ? 'loss' : undefined}
+        icon={day > 0 ? ArrowUpRight : day < 0 ? ArrowDownRight : Minus}
       />
       <Figure name="cash" value={dollars(money.account.cash)} />
       <Figure name="buying power" value={dollars(money.account.buying_power)} />
