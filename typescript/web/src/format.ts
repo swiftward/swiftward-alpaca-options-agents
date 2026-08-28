@@ -38,14 +38,14 @@ export function clock(at: string): string {
 
 export function took(from: string, to: string): string {
   const seconds = Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 1000))
-  if (seconds < 60) return `${seconds} с`
+  if (seconds < 60) return `${seconds}s`
 
-  return `${Math.floor(seconds / 60)} мин ${seconds % 60} с`
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
 }
 
 export function ago(at: string): string {
   const seconds = Math.max(0, Math.round((Date.now() - Date.parse(at)) / 1000))
-  if (seconds < 90) return `${seconds} с назад`
+  if (seconds < 90) return `${seconds}s ago`
 
-  return `${Math.round(seconds / 60)} мин назад`
+  return `${Math.round(seconds / 60)}m ago`
 }

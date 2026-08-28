@@ -111,7 +111,7 @@ function Page({ all }: { all: Everything }) {
 
       <Section
         title="Limits it discovered"
-        explains="None of this is written into the agent\u0027s instructions. It asks what it may do while it works, and this is the same answer it gets — down to the rule that admits it exists and withholds its number."
+        explains="None of this is written into the agent’s instructions. It asks what it may do while it works, and this is the same answer it gets — down to the rule that admits it exists and withholds its number."
       >
         {all.limits.ok ? <LimitsCard limits={all.limits.value} /> : <Unavailable why={all.limits.why} />}
       </Section>
@@ -198,7 +198,7 @@ function LimitsCard({ limits }: { limits: Limits }) {
             ) : (
               <EyeOff aria-label="number withheld" className="mt-0.5 size-3.5 shrink-0 text-muted" />
             )}
-            <span>
+            <span className="min-w-0 break-words">
             <span className="text-muted">{rule.rule}: </span>
             {rule.disclosure === 'boundary' && rule.value !== undefined ? (
               <span>

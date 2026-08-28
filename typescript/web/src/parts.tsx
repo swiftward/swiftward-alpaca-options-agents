@@ -82,7 +82,7 @@ export function Empty({ says }: { says: string }) {
 export function Unavailable({ why }: { why: string }) {
   return (
     <p className="m-0 rounded-xl border border-dashed border-loss/50 px-6 py-5 text-[15px] text-loss">
-      не ответило: {why}
+      unavailable: {why}
     </p>
   )
 }

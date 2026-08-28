@@ -11,8 +11,8 @@ export function Equity({ line }: { line: Snapshot[] }) {
     return (
       <p className="rounded-xl border border-dashed border-neutral-300 px-4 py-5 text-sm text-neutral-500 dark:border-neutral-700 dark:text-neutral-400">
         {line.length === 0
-          ? 'история счёта ещё не записана'
-          : 'записан один замер: для линии нужны два'}
+          ? 'no account history recorded yet'
+          : 'one reading so far: a line needs two'}
       </p>
     )
   }
@@ -41,7 +41,7 @@ export function Equity({ line }: { line: Snapshot[] }) {
         viewBox={`0 0 ${width} ${height}`}
         preserveAspectRatio="none"
         role="img"
-        aria-label={`Капитал счёта: ${dollars(values[0])} в начале, ${dollars(values[values.length - 1])} сейчас`}
+        aria-label={`Account equity: ${dollars(values[0])} at the start, ${dollars(values[values.length - 1])} now`}
         className="block h-44 w-full rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900"
       >
         {/* Заливка под линией - не украшение: она показывает, что величина
@@ -52,10 +52,10 @@ export function Equity({ line }: { line: Snapshot[] }) {
         <circle cx={lastX} cy={lastY} r="3.5" fill={stroke} vectorEffect="non-scaling-stroke" />
       </svg>
       <figcaption className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-        {line.length} замеров, {clock(line[0].recorded_at)} — {clock(line[line.length - 1].recorded_at)}
+        {line.length} readings, {clock(line[0].recorded_at)} — {clock(line[line.length - 1].recorded_at)}
         {span === 0
-          ? ' · без изменений'
-          : ` · низ ${dollars(lowest)} · верх ${dollars(highest)}`}
+          ? ' · unchanged'
+          : ` · low ${dollars(lowest)} · high ${dollars(highest)}`}
       </figcaption>
     </figure>
   )
