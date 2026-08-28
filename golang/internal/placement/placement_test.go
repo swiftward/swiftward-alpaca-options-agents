@@ -2,6 +2,7 @@ package placement
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand"
@@ -34,7 +35,10 @@ func (b *book) DailyCloses(context.Context, string, int) ([]float64, error) {
 	return b.closes, nil
 }
 
-func (b *book) Chain(_ context.Context, _ string, low, high float64, _ time.Time, _ int) ([]marketdata.Contract, map[string]marketdata.Quote, error) {
+func (b *book) ChainOn(_ context.Context, _ string, low, high float64, _ time.Time, kind string, _ int) ([]marketdata.Contract, map[string]marketdata.Quote, error) {
+	if kind != b.kind {
+		return nil, nil, fmt.Errorf("asked for %q where the book holds %q", kind, b.kind)
+	}
 	b.asked++
 	var contracts []marketdata.Contract
 	quotes := map[string]marketdata.Quote{}
@@ -231,11 +235,41 @@ func TestItSaysHowMuchOfTheExpectationComesFromTheTail(t *testing.T) {
 
 	for _, at := range answer.Placements {
 		if at.Expected <= 0 {
+			assert.Nil(t, at.FromTopPercent, "a share of a negative expectation is a share of nothing")
 			continue
 		}
-		assert.False(t, math.IsNaN(at.FromTopPercent), "a placement in the black owes this number")
-		assert.Greater(t, at.FromTopPercent, 0.0)
+		require.NotNil(t, at.FromTopPercent, "a placement in the black owes this number")
+		assert.Greater(t, *at.FromTopPercent, 0.0)
 	}
+}
+
+// Every number that leaves this package has to survive being written down. NaN
+// does not: one row carrying it failed the whole answer with "json: unsupported
+// value: NaN", and in a quiet market most rows are in the red - so the tool broke
+// exactly when it was worth asking. Found in review, on 28 August 2026.
+func TestEveryAnswerCanBeWrittenDown(t *testing.T) {
+	held := aBook("call")
+	// Priced so that crossing the book eats the structure: every placement comes
+	// back in the red, which is the case the tail share has no answer for.
+	held.priceFor = func(strike float64) (float64, float64) {
+		away := math.Abs(strike-771.0) / 10
+		mid := 6 * math.Exp(-away*away/2)
+		if mid < 0.02 {
+			mid = 0.02
+		}
+		return mid * 0.2, mid * 3
+	}
+
+	answer, err := aScorer(held).Score(context.Background(), anAsk())
+	require.NoError(t, err)
+
+	raw, err := json.Marshal(answer)
+	require.NoError(t, err, "an answer that cannot be marshalled reaches the session as nothing at all")
+	assert.NotContains(t, string(raw), "NaN")
+
+	var back Answer
+	require.NoError(t, json.Unmarshal(raw, &back))
+	assert.Equal(t, len(answer.Placements), len(back.Placements))
 }
 
 // History a session cannot stand on must be refused rather than averaged over

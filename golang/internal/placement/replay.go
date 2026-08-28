@@ -98,10 +98,20 @@ func windows(closes []float64, days int) ([]float64, float64, error) {
 
 	moves := make([]float64, 0, len(closes))
 	for i := 0; i+days < len(closes); i++ {
-		// The volatility AS IT STOOD when the window opened, which is what a
-		// session comparing today against history actually has.
-		at := i + days - 1
-		if at >= len(rolling) || math.IsNaN(rolling[at]) {
+		// The volatility as it stood when the window OPENED - rolling[i-1], which
+		// is built from returns up to the close of day i and is the last reading a
+		// session standing there could have had.
+		//
+		// It said i+days-1 until review on 28 August 2026, and that is the twenty
+		// days ending on the window's LAST day - the window judged by its own
+		// outcome. The bias is not academic and it runs the wrong way for exactly
+		// this measurement: a calm week that ends in a jump has a loud closing
+		// volatility, so every window where the big move actually HAPPENED was
+		// thrown out, while windows that opened in a panic and settled were kept.
+		// The tail a backspread is bought for was being filtered out of the sample
+		// used to price it.
+		at := i - 1
+		if at < 0 || at >= len(rolling) || math.IsNaN(rolling[at]) {
 			continue
 		}
 		if rolling[at] < now*(1-near) || rolling[at] > now*(1+near) {
@@ -142,11 +152,23 @@ func deviation(of []float64) float64 {
 // three in the afternoon is after midnight of the same day. Sigma came out a
 // quarter short and every distance with it.
 //
+// And the date is the EXCHANGE'S, not the machine's. This team works from UTC+8:
+// Thursday evening in New York is already Friday morning here, so a Friday
+// expiration counted from the local date left no days at all and the tool
+// refused every American afternoon. Mid-week the same shift lost a day, which
+// makes sigma smaller and every distance measured in it LARGER - so a leg
+// standing closer than the declaration allows would pass as permitted. That is
+// the mistake of 28 August coming back through the clock.
+//
 // Holidays are not in it: the broker's calendar would answer better, and being
 // one day long on Labor Day week moves sigma by three percent, which does not
 // change which placement wins.
-func tradingDaysUntil(now, expiry time.Time) int {
-	from := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+func tradingDaysUntil(now, expiry time.Time, where *time.Location) int {
+	if where == nil {
+		where = time.UTC
+	}
+	here := now.In(where)
+	from := time.Date(here.Year(), here.Month(), here.Day(), 0, 0, 0, 0, time.UTC)
 	until := time.Date(expiry.Year(), expiry.Month(), expiry.Day(), 0, 0, 0, 0, time.UTC)
 
 	days := 0

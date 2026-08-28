@@ -394,6 +394,35 @@ func (b *Broker) Chain(ctx context.Context, underlying string, low, high float64
 	return answer.chain()
 }
 
+// ChainOn is the same question as Chain narrowed to ONE expiration and one type.
+//
+// Separate rather than a widening of Chain, because the two are asked for
+// different reasons and the screener's version must not change under it. Chain
+// sweeps everything up to a date on purpose - that is how it finds what exists.
+//
+// This one exists because that breadth does not fit in an answer. SPY expires
+// every trading day, so "up to 4 September" is a dozen expirations of calls AND
+// puts with a full snapshot each, and the broker refuses the whole thing: "the
+// chain did not fit in one answer". Asking for the day and the side actually
+// wanted cuts it by more than an order of magnitude.
+func (b *Broker) ChainOn(ctx context.Context, underlying string, low, high float64,
+	on time.Time, kind string, most int) ([]Contract, map[string]Quote, error) {
+
+	var answer chainAnswer
+	if err := b.call(ctx, "get_option_chain", map[string]any{
+		"underlying_symbol": underlying,
+		"strike_price_gte":  fmt.Sprintf("%.2f", low),
+		"strike_price_lte":  fmt.Sprintf("%.2f", high),
+		"expiration_date":   on.Format(time.DateOnly),
+		"type":              kind,
+		"limit":             most,
+	}, &answer); err != nil {
+		return nil, nil, err
+	}
+
+	return answer.chain()
+}
+
 // Quotes reads the quote, the implied volatility and the delta of each contract
 // named. The broker returns them together in one snapshot, and only there.
 func (b *Broker) Quotes(ctx context.Context, symbols []string) (map[string]Quote, error) {

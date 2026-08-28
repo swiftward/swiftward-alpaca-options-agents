@@ -39,7 +39,7 @@ import (
 // expiration, and the underlying's own past.
 type Market interface {
 	LastTrades(ctx context.Context, symbols []string) (map[string]float64, error)
-	Chain(ctx context.Context, underlying string, low, high float64, until time.Time, most int) ([]marketdata.Contract, map[string]marketdata.Quote, error)
+	ChainOn(ctx context.Context, underlying string, low, high float64, on time.Time, kind string, most int) ([]marketdata.Contract, map[string]marketdata.Quote, error)
 	DailyCloses(ctx context.Context, symbol string, days int) ([]float64, error)
 }
 
@@ -96,11 +96,32 @@ type Placement struct {
 	Worst    float64 `json:"worst"`
 	// LosingShare is the share of windows that end in the red, as a percent.
 	LosingShare float64 `json:"losing_share_percent"`
+	// TouchedShare is the share of windows in which the price reached the sold
+	// strike at all - that is, in which this structure did ANYTHING beyond keeping
+	// its credit.
+	//
+	// It is here because without it the ranking lies by omission. Past about two
+	// and a half sigmas the history holds almost nothing, so every placement out
+	// there scores the same - expectation, median and worst all equal to the
+	// credit - and the order among them falls through to whichever fits the most
+	// sets, which is the narrowest width and has nothing to do with being better.
+	// A zero here says plainly: history has no opinion about this row, only about
+	// the pennies it collects.
+	TouchedShare float64 `json:"touched_share_percent"`
 	// FromTopPercent is how much of Expected comes from the best one percent of
 	// windows. This is the number no one finds by eye, and it is the difference
 	// between a cheap bet and a lottery ticket: the structure sent on 28 August
 	// drew two thirds of its expectation from one percent of history.
-	FromTopPercent float64 `json:"from_top_percent"`
+	//
+	// Absent where the placement is not in the black: a share OF a negative
+	// expectation is not a share of anything, and the reader has already been told
+	// what matters about such a row by Expected itself.
+	//
+	// A pointer rather than a NaN, and that is not a matter of taste. NaN cannot
+	// be written as JSON, so ONE such row failed the WHOLE answer with "json:
+	// unsupported value: NaN" - and in a quiet market most placements are in the
+	// red, which is to say the tool broke precisely when it was worth asking.
+	FromTopPercent *float64 `json:"from_top_percent,omitempty"`
 }
 
 // Answer is what the caller gets back.
@@ -117,8 +138,14 @@ type Answer struct {
 	// Windows is how many pieces of history the replay stood on, and Regime says
 	// what made them comparable. A number without them is a number without a
 	// sample.
-	Windows int    `json:"windows"`
-	Regime  string `json:"regime"`
+	Windows int `json:"windows"`
+	// Independent is roughly how many of those windows do not overlap. Windows
+	// step one day at a time, so at five days to expiry each shares four fifths
+	// of its path with the next: four hundred windows are not four hundred
+	// observations, and the best one percent of them is likely ONE episode
+	// counted five times. The honest figure to read a tail against is this one.
+	Independent int    `json:"independent_windows"`
+	Regime      string `json:"regime"`
 	// Considered is the whole permitted space; Placements is the best of it.
 	Considered int         `json:"placements_considered"`
 	Placements []Placement `json:"placements"`
@@ -128,11 +155,18 @@ type Answer struct {
 // lives here.
 type Scorer struct {
 	Market Market
-	// History is how many calendar days of closes to ask for. Two years of
-	// trading is about seven hundred and thirty.
+	// History is how many calendar days of closes to ask for.
+	//
+	// Three years rather than two. The regime filter throws away most of what it
+	// is given - two years came back as 216 usable windows against the 466 the
+	// same measurement stood on in research - and the tail is exactly where a
+	// thin sample stops being able to tell one placement from another.
 	History int
 	// Now is the clock, injectable so a test is not at the mercy of the date.
 	Now func() time.Time
+	// Where is the exchange's own timezone, in which a trading day begins and
+	// ends. Nil means UTC, which is right for a test and wrong for this team.
+	Where *time.Location
 }
 
 // vol is the window realised volatility is measured over, in trading days. It
@@ -174,7 +208,7 @@ func (s Scorer) Score(ctx context.Context, ask Ask) (Answer, error) {
 	if err != nil {
 		return Answer{}, fmt.Errorf("read the history: %w", err)
 	}
-	days := tradingDaysUntil(s.Now(), ask.Expiration)
+	days := tradingDaysUntil(s.Now(), ask.Expiration, s.Where)
 	if days < 1 {
 		return Answer{}, errors.New("the expiration is today or past: there is no window left to replay")
 	}
@@ -190,7 +224,7 @@ func (s Scorer) Score(ctx context.Context, ask Ask) (Answer, error) {
 	}
 
 	low, high := s.band(ask, spot, sigma)
-	contracts, quotes, err := s.Market.Chain(ctx, ask.Underlying, low, high, ask.Expiration, 500)
+	contracts, quotes, err := s.Market.ChainOn(ctx, ask.Underlying, low, high, ask.Expiration, ask.Kind, 500)
 	if err != nil {
 		return Answer{}, fmt.Errorf("read the chain: %w", err)
 	}
@@ -211,6 +245,7 @@ func (s Scorer) Score(ctx context.Context, ask Ask) (Answer, error) {
 		Volatility:  vol,
 		Sigma:       sigma,
 		Windows:     len(moves),
+		Independent: len(moves) / days,
 		Regime: fmt.Sprintf("windows whose own volatility sat within %.0f%% of today's %.1f%% annual",
 			near*100, vol*100),
 		Considered: considered,

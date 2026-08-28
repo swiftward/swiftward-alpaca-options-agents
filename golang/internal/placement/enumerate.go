@@ -46,6 +46,16 @@ func (s Scorer) enumerate(ask Ask, legs []leg, spot, sigma float64, moves []floa
 				// this ceiling was meant to size.
 				continue
 			}
+			// A credit worth more than half the width is a broken quote, and the
+			// screener already refuses verticals on the same grounds. Here it
+			// matters more than there, because sets are what the ceiling divides
+			// by: as the credit walks toward the width the worst case per set
+			// walks toward zero, hundreds of sets fit, and expectation - which is
+			// linear in sets - carries a placement built on a stale one-lot bid
+			// straight to the top of the list. Found in review on 28 August 2026.
+			if credit > width/2 {
+				continue
+			}
 			sets := int(math.Floor(ask.WorstCaseMost / perSet))
 			if sets < 1 {
 				continue
@@ -103,15 +113,18 @@ func (s Scorer) replay(ask Ask, moves []float64, spot, short, long, credit float
 		out[i] = (value + credit) * 100 * float64(sets)
 	}
 
-	total, losing := 0.0, 0
+	total, losing, touched := 0.0, 0, 0
 	worst := math.Inf(1)
-	for _, x := range out {
+	for i, x := range out {
 		total += x
 		if x < 0 {
 			losing++
 		}
 		if x < worst {
 			worst = x
+		}
+		if reached(ask.Kind, spot*moves[i], short) {
+			touched++
 		}
 	}
 	expected := total / float64(len(out))
@@ -129,9 +142,10 @@ func (s Scorer) replay(ask Ask, moves []float64, spot, short, long, credit float
 	for _, x := range sorted[len(sorted)-top:] {
 		tail += x
 	}
-	fromTop := math.NaN()
+	var fromTop *float64
 	if expected > 0 {
-		fromTop = 100 * (tail / float64(len(sorted))) / expected
+		share := 100 * (tail / float64(len(sorted))) / expected
+		fromTop = &share
 	}
 
 	return Placement{
@@ -139,8 +153,20 @@ func (s Scorer) replay(ask Ask, moves []float64, spot, short, long, credit float
 		Median:         median(sorted),
 		Worst:          worst,
 		LosingShare:    100 * float64(losing) / float64(len(out)),
+		TouchedShare:   100 * float64(touched) / float64(len(out)),
 		FromTopPercent: fromTop,
 	}
+}
+
+// reached says whether the price ended at or past the sold strike, on the side
+// the structure is built. Below it the structure did nothing at all and kept its
+// credit, which is worth knowing separately from what it is worth.
+func reached(kind string, end, short float64) bool {
+	if kind == "call" {
+		return end >= short
+	}
+
+	return end <= short
 }
 
 func median(sorted []float64) float64 {
