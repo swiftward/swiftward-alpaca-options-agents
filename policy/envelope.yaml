@@ -28,7 +28,7 @@ agents:
           disclosure: boundary
           subject: position_max_loss
           kind: maximum
-          value: 5.0
+          value: 8.0
           unit: percent_of_equity
 
         - rule: max-loss-across-portfolio
@@ -86,7 +86,7 @@ agents:
           disclosure: boundary
           subject: position_max_loss
           kind: maximum
-          value: 5.0
+          value: 8.0
           unit: percent_of_equity
 
         - rule: max-loss-across-portfolio
