@@ -532,6 +532,16 @@ func run(log *zap.Logger) error {
 		// does. Sent around the gateway it would be absent from the record - the
 		// entries visible and the exits not, which is exactly where this
 		// strategy makes its money - and no rule could refuse it.
+		// И отказываемся стартовать, если адреса шлюза нет. Без него сторож
+		// поднялся бы, написал в журнал "watching for structures worth closing" и
+		// не закрыл бы НИЧЕГО - каждый выкуп падал бы в лог и только. Это тот же
+		// тихий отказ, от которого выше защищает нулевая доля, и он опаснее:
+		// доля видна в настройках, а мёртвый сторож выглядит живым.
+		if cfg.BrokerMCPURL == "" {
+			return errors.New("TAKE_PROFIT_AT is set but BROKER_MCP_URL is empty: " +
+				"the watch sends orders and they go through the gateway, so without its " +
+				"address it would run and close nothing")
+		}
 		closer := marketdata.NewBrokerWithToken(cfg.BrokerMCPURL, cfg.BrokerMCPToken).
 			ActingFor(cfg.UserHeader, cfg.UserToken)
 		watch := &takeprofit.Watch{
