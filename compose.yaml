@@ -290,6 +290,54 @@ services:
       # же файл, что читают конверт и лестница - один источник на всех, иначе
       # показанное и действующее разойдутся молча.
       - ./policy:/policy:ro
+
+  # Вторая страница: та же программа на записи ВТОРОГО счёта. Записи у агентов
+  # раздельные - `agents` и `agents_near`, - поэтому одна страница физически не
+  # может показать оба, а какой счёт мы покажем судье, решается в последний день.
+  # Денег она пока не показывает: роли наблюдателя и ключа под второй счёт нет,
+  # и адрес брокера у неё поэтому пуст. Запись - ходы, вызовы, намерения, слова -
+  # видна полностью.
+  page-near:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      target: page
+    networks: [internal, outbound]
+    # Свои резолверы: страница ходит к шлюзу за деньгами, и отказ разрешения
+    # имени она показала бы как недоступность брокера.
+    dns: [1.1.1.1, 8.8.8.8]
+    environment:
+      ROLES: api
+      ADDR: ":8080"
+      WEB_DIR: /srv/web
+      # Пределы страница отдаёт из ТОГО ЖЕ файла и тем же вызовом, каким на них
+      # отвечают агенту. Иначе она показывала бы пересказ, а он однажды разойдётся
+      # с тем, по чему на самом деле торгуют, и судье мы покажем не систему, а
+      # рассказ о ней. Читает и только читает: править конверт страница не умеет.
+      ENVELOPE_PATH: /policy/envelope.yaml
+      ENVELOPE_IDENTITY: ${ENVELOPE_NEAR_IDENTITY:-options-alpha-near}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
+      RECORD_SHOWS: ${RECORD_SHOWS}
+      # The read side asks the broker what the account is worth. It only reads:
+      # the money questions have no order in them - and it carries a credential
+      # that CANNOT send one, so a leak here is not a trade.
+      #
+      # That last guarantee is the GATEWAY's, not this service's: the credential
+      # is refused an order because the gateway refuses it. Pointed at the
+      # broker's own server the same page could send one, so this address is its
+      # own variable and does not follow the harness off the gateway.
+      ORDERS_SHOWN: ${ORDERS_SHOWN}
+      HISTORY_DAYS: ${HISTORY_DAYS}
+    ports:
+      - "${APP_NEAR_PORT}:8080"
+    # The week runs unattended: a machine that reboots at three in the morning
+    # must come back with the agent running, not with it waiting to be started.
+    restart: unless-stopped
+    volumes:
+      # Только на чтение: страница показывает пределы и не умеет их менять. Тот
+      # же файл, что читают конверт и лестница - один источник на всех, иначе
+      # показанное и действующее разойдутся молча.
+      - ./policy:/policy:ro
     depends_on:
       migrate:
         condition: service_completed_successfully

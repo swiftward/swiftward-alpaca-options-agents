@@ -67,7 +67,7 @@ parameters:
 
 sessions:
   - name: open-check
-    cause: "рынок открылся полчаса назад, смотрим, с чем работаем"
+    cause: "the market opened half an hour ago: see what we are working with"
     at: "10:00"
     within: 2h
     days: [mon, tue, wed, thu, fri]
@@ -85,7 +85,7 @@ sessions:
   # двадцать минут означало, что шесть-семь версий списка сессия не увидит вовсе,
   # а увиденную застанет уже протухшей.
   - name: entry
-    cause: "проба входа: смотрим, проходит ли конструкция и что отвечает брокер"
+    cause: "trying an entry: see whether a structure clears and what the broker answers"
     every: 10m
     between: ["09:45", "15:15"]
     days: [mon, tue, wed, thu, fri]
@@ -311,7 +311,7 @@ sessions:
         не отчитывайся - он стоит дороже, чем сообщает.
 
   - name: entry-call
-    cause: "проба другой стороны: продажа call-спреда выше денег"
+    cause: "trying the other side: selling a call spread above the money"
     every: 10m
     between: ["09:50", "15:15"]
     days: [mon, tue, wed, thu, fri]
@@ -350,7 +350,7 @@ sessions:
         не отчитывайся - он стоит дороже, чем сообщает.
 
   - name: take-profit
-    cause: "проба закрытия: путь закрытия позиции мы ещё не проходили живьём"
+    cause: "trying a close: we have never walked the closing path on a live order"
     every: 15m
     between: ["09:50", "15:40"]
     days: [mon, tue, wed, thu, fri]
@@ -371,7 +371,7 @@ sessions:
       Заявку дальше не веди: её доводит харнесс.
 
   - name: probe-close
-    cause: "проба закрытия: путь «открыл - закрыл» нужно пройти сегодня, а не ждать истечения"
+    cause: "trying a close: open-then-close has to be walked today rather than waited out to expiry"
     at: "12:20"
     within: 40m
     days: [mon, tue, wed, thu, fri]
@@ -392,7 +392,7 @@ sessions:
         по какой цене открывал, какой лимит поставил, капитал и собранный кредит.
 
   - name: probe-expiry
-    cause: "проба истечения: увидеть истечение сегодня, а не ждать завтрашнего утра"
+    cause: "trying an expiry: see one happen today rather than wait for tomorrow morning"
     at: "12:50"
     within: 25m
     days: [mon, tue, wed, thu, fri]
@@ -410,7 +410,7 @@ sessions:
       - Скажи одной строкой: что открыл, какой кредит, капитал, собранный кредит.
 
   - name: probe-condor
-    cause: "проба четырёхногой конструкции: движок crush собирается торговать именно её"
+    cause: "trying a four-legged structure: the crush playbook intends to trade exactly this"
     at: "13:05"
     within: 25m
     days: [mon, tue, wed, thu, fri]
@@ -428,7 +428,7 @@ sessions:
         здесь тоже результат - тогда назови его дословно и не повторяй заявку.
 
   - name: probe-tools
-    cause: "проба инструментов Alpaca, которыми мы ещё не пользовались"
+    cause: "trying the Alpaca tools we have not used yet"
     at: "13:20"
     within: 30m
     days: [mon, tue, wed, thu, fri]
@@ -442,7 +442,7 @@ sessions:
       Если инструмента нет в списке - так и скажи, не выдумывай.
 
   - name: probe-refusal
-    cause: "проба отказа: как выглядит отказ брокера и умеем ли мы его не повторять"
+    cause: "trying a refusal: what a broker refusal looks like, and whether we can avoid repeating it"
     at: "12:45"
     within: 30m
     days: [mon, tue, wed, thu, fri]
@@ -456,7 +456,7 @@ sessions:
       ответил брокер, и закончи. Смысл пробы - увидеть ответ, а не войти.
 
   - name: convexity
-    cause: "слой выпуклости: дешёвая ставка на сильное движение, ограниченная и известная"
+    cause: "the convexity layer: a cheap bet on a large move, bounded and known"
     every: 2h
     between: ["09:50", "15:00"]
     days: [mon, tue, wed, thu, fri]
@@ -491,7 +491,7 @@ sessions:
       - Одной строкой: что взял, за сколько, каков максимальный убыток, капитал.
 
   - name: probe-assignment
-    cause: "проверка исполнения: что делает счёт, когда проданная нога уходит в деньги"
+    cause: "checking assignment: what the account does when a sold leg goes into the money"
     at: "14:40"
     within: 20m
     days: [mon, tue, wed, thu, fri]
@@ -510,7 +510,7 @@ sessions:
       - Одной строкой: что взял, за сколько, какая цена SPY сейчас, какой страйк.
 
   - name: probe-partial
-    cause: "проверка частичного исполнения: заявка крупнее, чем стоит в стакане"
+    cause: "checking a partial fill: an order larger than what stands in the book"
     at: "14:50"
     within: 20m
     days: [mon, tue, wed, thu, fri]
@@ -530,7 +530,7 @@ sessions:
         сколько контрактов исполнилось, по какой цене, что стало с остатком.
 
   - name: news-watch
-    cause: "проверка новостей по нашим бумагам"
+    cause: "checking the news on the names we hold"
     every: 10m
     between: ["09:35", "15:45"]
     days: [mon, tue, wed, thu, fri]
@@ -556,7 +556,7 @@ sessions:
       Заявок не отправляй: твоя работа - заметить, а не торговать.
 
   - name: defend
-    cause: "проверка правил защиты"
+    cause: "checking the defence rules"
     every: 15m
     between: ["09:40", "15:55"]
     days: [mon, tue, wed, thu, fri]
@@ -607,7 +607,7 @@ sessions:
   # Окно стоит на пятницу, потому что дня в объявлении нет; сама дата проверяется
   # ПЕРВОЙ строкой задачи - иначе оно выстрелило бы каждую пятницу недели.
   - name: flatten-before-the-deadline
-    cause: "результат считают в 11:00, а не по закрытию"
+    cause: "the result is counted at 11:00, not at the close"
     at: "10:15"
     within: 30m
     days: [fri]
@@ -628,7 +628,7 @@ sessions:
       Каждое решение назови одной строкой: что закрыл, что оставил и почему.
 
   - name: flatten
-    cause: "закрыть всё перед концом торгового дня"
+    cause: "close everything before the trading day ends"
     at: "15:50"
     within: 20m
     days: [mon, tue, wed, thu, fri]

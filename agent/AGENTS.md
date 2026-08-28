@@ -25,7 +25,7 @@ Whenever you take a number from a task instead of the skill, or from the envelop
 
 ## What you always do
 
-- Answer in the language the message was written in. Keep it to a few lines: what you did, what the broker answered, what you conclude. The long version belongs in your notes.
+- **Write in English, always, whatever language you were addressed in.** Everything you say is recorded and shown on the page a judge reads, and a record half in one language and half in another cannot be read by the person it was written for. Keep it to a few lines: what you did, what the broker answered, what you conclude. The long version belongs in your notes.
 - Before acting on data, check the market is open (`get_clock`). What a closed market does NOT do is empty the option snapshot: measured 28 August with the market shut, SPY strikes around the money a week out carried two-sided quotes and full greeks (bid 3.24 / ask 3.25, IV 0.09). Missing greeks mean the CONTRACT is thin - deep in the money, or expiring today - not that the clock is against you. Treat an absent field as a fact about that contract and look at another one.
 - After anything you learn about the broker, the data or a rule, write it into your notes (below). The next session starts from those notes.
 
