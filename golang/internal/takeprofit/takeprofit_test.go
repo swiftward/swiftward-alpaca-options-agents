@@ -59,11 +59,47 @@ func theQQQSpread() []marketdata.Position {
 }
 
 func watching(b *brokerDouble, at float64) *Watch {
+	newYork, _ := time.LoadLocation("America/New_York")
 	return &Watch{
 		Broker: b, At: at, Every: time.Second,
-		Now: func() time.Time { return time.Date(2026, 8, 28, 15, 0, 0, 0, time.UTC) },
-		Log: zap.NewNop(), sent: map[string]time.Time{},
+		// Полдень 28 августа в Нью-Йорке: день экспирации спреда QQQ ещё идёт.
+		Now:   func() time.Time { return time.Date(2026, 8, 28, 16, 0, 0, 0, time.UTC) },
+		Where: newYork,
+		Log:   zap.NewNop(), sent: map[string]time.Time{},
 	}
+}
+
+// Истёкшую конструкцию закрыть нельзя: она ждёт расчёта. Без этой проверки сторож
+// 29 августа отправил ПЯТЬ заявок на спред QQQ, истёкший накануне, по одной
+// каждые десять минут, и лестница отменяла каждую по терпению.
+//
+// Условие про кредит от этого не спасало, а подгоняло: у истёкшей конструкции
+// выкуп идёт к нулю, то есть она выглядит созревшей идеально.
+func TestAnExpiredStructureIsNotClosed(t *testing.T) {
+	newYork, err := time.LoadLocation("America/New_York")
+	require.NoError(t, err)
+
+	b := &brokerDouble{held: theQQQSpread(), quotes: map[string]marketdata.Quote{
+		"QQQ260828C00725000": quote(0.01, 0.02),
+		"QQQ260828C00726000": quote(0.01, 0.02),
+	}}
+	w := watching(b, 0.5)
+	w.Where = newYork
+	// Следующий день на бирже.
+	w.Now = func() time.Time { return time.Date(2026, 8, 29, 16, 0, 0, 0, time.UTC) }
+
+	w.step(context.Background())
+	assert.Empty(t, b.sent, "истёкшее ждёт расчёта, а не заявки")
+}
+
+// А в САМ день экспирации закрывать можно до самого звонка.
+func TestOnTheDayOfExpiryItStillCloses(t *testing.T) {
+	b := &brokerDouble{held: theQQQSpread(), quotes: map[string]marketdata.Quote{
+		"QQQ260828C00725000": quote(0.09, 0.10),
+		"QQQ260828C00726000": quote(0.02, 0.03),
+	}}
+	watching(b, 0.5).step(context.Background())
+	assert.Len(t, b.sent, 1)
 }
 
 func TestItReadsTheStructureOutOfWhatIsHeld(t *testing.T) {

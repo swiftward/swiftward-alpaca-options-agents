@@ -52,6 +52,17 @@ func (w *Watch) consider(ctx context.Context, s Structure, walking map[string]bo
 		// here would close the convexity layer at the wrong moment.
 		return
 	}
+	if w.expired(s) {
+		// Истёкшее закрыть нельзя: оно ждёт расчёта, и заявка по нему не
+		// исполнится никогда. Без этой проверки сторож бился в одну и ту же
+		// конструкцию каждые десять минут - 29 августа он отправил ПЯТЬ заявок на
+		// спред QQQ, истёкший накануне, и лестница отменяла каждую по терпению.
+		//
+		// Условие про кредит его не останавливало, а наоборот подгоняло: у
+		// истёкшей конструкции выкуп стремится к нулю, то есть она выглядит
+		// идеально созревшей для закрытия.
+		return
+	}
 	name := s.key()
 	if at, seen := w.sent[name]; seen && w.Now().Sub(at) < standing {
 		return
@@ -109,6 +120,26 @@ func (w *Watch) consider(ctx context.Context, s Structure, walking map[string]bo
 		return
 	}
 	w.sent[name] = w.Now()
+}
+
+// expired says whether the day of this structure's expiration is already behind
+// us on the exchange's calendar. The day itself is not expired: a position can be
+// closed right up to the bell.
+func (w *Watch) expired(s Structure) bool {
+	where := w.Where
+	if where == nil {
+		where = time.UTC
+	}
+	day, err := time.Parse(time.DateOnly, s.Expiration)
+	if err != nil {
+		// Дату не разобрали - не трогаем: закрыть то, чего не понимаешь, хуже,
+		// чем не закрыть.
+		return true
+	}
+	here := w.Now().In(where)
+	today := time.Date(here.Year(), here.Month(), here.Day(), 0, 0, 0, 0, time.UTC)
+
+	return day.Before(today)
 }
 
 func (s Structure) key() string {

@@ -55,7 +55,11 @@ type Watch struct {
 	// Ordered remembers what has already been sent, so a structure is not closed
 	// twice while the first order is still walking.
 	Now func() time.Time
-	Log *zap.Logger
+	// Where is the exchange's calendar. A structure is closeable only while its
+	// expiration has not passed, and "has it passed" is a question about New York,
+	// not about the machine.
+	Where *time.Location
+	Log   *zap.Logger
 
 	sent map[string]time.Time
 }

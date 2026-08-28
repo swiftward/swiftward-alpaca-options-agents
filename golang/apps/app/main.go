@@ -544,9 +544,13 @@ func run(log *zap.Logger) error {
 		}
 		closer := marketdata.NewBrokerWithToken(cfg.BrokerMCPURL, cfg.BrokerMCPToken).
 			ActingFor(cfg.UserHeader, cfg.UserToken)
+		exchange, err := time.LoadLocation("America/New_York")
+		if err != nil {
+			return fmt.Errorf("load the exchange calendar: %w", err)
+		}
 		watch := &takeprofit.Watch{
 			Broker: closer, At: cfg.TakeProfitAt, Every: cfg.TakeProfitEvery,
-			Now: time.Now, Log: log.Named("takeprofit"),
+			Now: time.Now, Where: exchange, Log: log.Named("takeprofit"),
 		}
 		group.Go(func() error { return watch.Run(ctx) })
 	}
