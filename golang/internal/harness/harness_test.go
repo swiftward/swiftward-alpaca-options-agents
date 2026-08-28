@@ -1932,3 +1932,80 @@ func TestEmptyLinesAreNotWrittenDown(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, state.Said, 1, "one line of two is written: the empty one does not count")
 }
+
+// The clock and the market are asked at different rates, because they cost
+// different things: the schedule lives in memory, a price costs one of the two
+// hundred requests a minute the whole stand shares.
+//
+// The tick here is every call; PriceEvery is thirty seconds. So a market read
+// belongs to the first call and to every call thirty seconds after the last
+// read, and not to the four calls in between.
+func TestThePriceIsReadOnItsOwnCadenceNotOnEveryTick(t *testing.T) {
+	start := time.Date(2026, 8, 28, 15, 0, 0, 0, time.UTC)
+	clock := start
+
+	standing := &wakeupsDouble{
+		standing: []wakeup.Wakeup{{
+			ID: "w1", Kind: wakeup.KindPrice, Symbol: "SPY", Direction: wakeup.Below, Level: 1,
+			Cause: "уровень, до которого рынок не дойдёт",
+		}},
+		watching: []string{"SPY"},
+	}
+	prices := &pricesDouble{last: map[string]float64{"SPY": 760}}
+
+	h := &Harness{
+		Conversation: newConversationSpy(),
+		Wakeups:      standing,
+		Prices:       prices,
+		PriceEvery:   30 * time.Second,
+		CallTimeout:  2 * time.Second,
+		Now:          func() time.Time { return clock },
+		Log:          zaptest.NewLogger(t),
+	}
+
+	// Семь тактов по десять секунд: 0, 10, 20, 30, 40, 50, 60.
+	for i := 0; i < 7; i++ {
+		h.fireWakeups(t.Context())
+		clock = clock.Add(10 * time.Second)
+	}
+
+	assert.Equal(t, 3, prices.timesAsked(),
+		"читать цену надо на нулевой, тридцатой и шестидесятой секунде, а не семь раз")
+}
+
+// A tick that skips the market still fires a wake-up waiting for a TIME. The
+// price cadence must not slow the clock down: a session that asked to be woken
+// at a moment is woken at that moment, whatever the market is being asked.
+func TestATimeWakeupFiresOnATickThatReadsNoPrice(t *testing.T) {
+	start := time.Date(2026, 8, 28, 15, 0, 0, 0, time.UTC)
+	clock := start
+
+	standing := &wakeupsDouble{
+		standing: []wakeup.Wakeup{
+			{ID: "w1", Kind: wakeup.KindPrice, Symbol: "SPY", Direction: wakeup.Below, Level: 1, Cause: "не сработает"},
+			{ID: "w2", Kind: wakeup.KindAt, At: start.Add(10 * time.Second), Cause: "разбуди меня через десять секунд"},
+		},
+		watching: []string{"SPY"},
+	}
+	prices := &pricesDouble{last: map[string]float64{"SPY": 760}}
+	conversation := newConversationSpy()
+
+	h := &Harness{
+		Conversation: conversation,
+		Wakeups:      standing,
+		Prices:       prices,
+		PriceEvery:   time.Hour,
+		CallTimeout:  2 * time.Second,
+		Now:          func() time.Time { return clock },
+		Log:          zaptest.NewLogger(t),
+	}
+
+	h.fireWakeups(t.Context())
+	clock = clock.Add(10 * time.Second)
+	h.fireWakeups(t.Context())
+
+	turns, _, _ := conversation.seen()
+	assert.Len(t, turns, 1, "пробуждение по времени обязано сработать на такте, который рынок не спрашивал")
+	assert.Contains(t, turns[0], "через десять секунд")
+	assert.Equal(t, 1, prices.timesAsked(), "рынок спрашивается один раз за час, а не на каждом такте")
+}

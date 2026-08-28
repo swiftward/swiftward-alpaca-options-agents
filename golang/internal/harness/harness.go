@@ -129,7 +129,20 @@ type Harness struct {
 	// disk. Zero means clockTick, which is what every deployment uses; a test sets
 	// it rather than standing there for a minute.
 	TickEvery time.Duration
-	Log       *zap.Logger
+	// PriceEvery is how often the prices a wake-up watches are read. Zero means
+	// every tick, which is what this ran on before the two were separated.
+	//
+	// They were separated because they cost different things and were tied
+	// together for no reason but that one loop did both. Asking the schedule
+	// costs nothing - it is a map in memory. Asking the market costs a request
+	// out of two hundred a minute, shared with the screener, the ladder and the
+	// agent itself; measured on 27 August at a budget of 180, 133 of 187 calls
+	// came back refused and the defence twice reported the gateway down.
+	//
+	// So accuracy of the clock is now free and accuracy of the price is now
+	// priced, and an operator can buy the first without paying for the second.
+	PriceEvery time.Duration
+	Log        *zap.Logger
 
 	mu          sync.Mutex
 	lastSaid    time.Time
@@ -171,6 +184,9 @@ type Harness struct {
 	// asks the watcher rather than the harness.
 	declared *declaration.Declaration
 	lastRun  map[string]time.Time
+	// lastPricePoll is when prices were last read. Touched only by the clock
+	// goroutine, so it needs no lock - and taking one here would say the opposite.
+	lastPricePoll time.Time
 	// refusedInterrupts counts how many times in a row the agent has refused to
 	// give up an overrunning turn. It resets the moment one is given up.
 	refusedInterrupts int
@@ -438,7 +454,10 @@ func (h *Harness) fireWakeups(ctx context.Context) {
 	}
 
 	var prices map[string]float64
-	if watching := h.Wakeups.Watching(); len(watching) > 0 && h.Prices != nil {
+	// A tick that skips the read still fires the wake-ups that wait for a TIME:
+	// an empty price map is not a failure, it is simply a tick that asked the
+	// market nothing. A wake-up waiting for a price waits one more tick.
+	if watching := h.Wakeups.Watching(); len(watching) > 0 && h.Prices != nil && h.priceDue() {
 		read, done := h.boundToAgent(ctx)
 		last, err := h.Prices.LastTrades(read, watching)
 		done()
@@ -447,6 +466,14 @@ func (h *Harness) fireWakeups(ctx context.Context) {
 				zap.Strings("symbols", watching), zap.Error(err))
 		}
 		prices = last
+
+		// The cadence goes into the line that reports the read, so that a day
+		// later the question "was the finer tick worth it" is answered by the
+		// record instead of by memory.
+		h.Log.Debug("read the prices a wake-up watches",
+			zap.Strings("symbols", watching),
+			zap.Duration("price_every", h.priceCadence()),
+			zap.Int("read", len(last)))
 	}
 
 	for _, due := range h.Wakeups.Due(h.Now(), prices) {
@@ -556,6 +583,33 @@ func (h *Harness) inForce() *declaration.Declaration {
 	}
 
 	return h.Declaration
+}
+
+// priceDue says whether this tick should read prices, and remembers that it
+// did. Called only from the clock goroutine, which is the only place a tick
+// happens; nothing else may call it, or the cadence stops meaning anything.
+func (h *Harness) priceDue() bool {
+	every := h.priceCadence()
+	if every <= 0 {
+		return true
+	}
+
+	now := h.Now()
+	// The first tick reads: a harness that has just started knows no price at
+	// all, and waiting out a cadence before the first read would leave a standing
+	// price wake-up blind for exactly that long after every restart.
+	if !h.lastPricePoll.IsZero() && now.Sub(h.lastPricePoll) < every {
+		return false
+	}
+	h.lastPricePoll = now
+
+	return true
+}
+
+// priceCadence is PriceEvery, or every tick when it was never set - which is the
+// behaviour every deployment had before the two were told apart.
+func (h *Harness) priceCadence() time.Duration {
+	return h.PriceEvery
 }
 
 func (h *Harness) fireDue(ctx context.Context) {

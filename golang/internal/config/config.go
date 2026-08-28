@@ -166,6 +166,28 @@ type Config struct {
 	// conversation. The harness wakes nobody until it returns, and a fresh thread
 	// is a cheap fallback, so this is far shorter than AgentCallTimeout.
 	ThreadResumeLimit time.Duration
+	// TickEvery is how often the harness asks its schedule whether anything is
+	// due. Zero leaves the harness on its own default of a minute.
+	//
+	// It is separated from PriceEvery because the two cost different things. This
+	// one costs nothing but a wakeup of one goroutine: the schedule lives in
+	// memory and nothing is asked of anybody. So a finer tick here buys accuracy
+	// for free, and the only reason it was ever a minute is that the declaration
+	// speaks in minutes.
+	TickEvery time.Duration
+	// PriceEvery is how often the prices a wake-up watches are read. Zero means
+	// every tick, which is what this program did before the two were separated.
+	//
+	// This one is the expensive half: one request per read, and the ceiling is
+	// 200 a minute per account - shared with the screener, the ladder and the
+	// agent's own calls. A ten-second read is six a minute, three percent of it;
+	// a one-second read is thirty percent, which is a third of the budget taken
+	// from the defence to learn a price nobody asked for.
+	//
+	// Time wake-ups are NOT held back by this: skipping a read only means the
+	// price map is empty this tick, and a wake-up waiting for a time does not
+	// look at prices at all.
+	PriceEvery time.Duration
 	// TurnLimit bounds how long one turn may run before the harness interrupts it.
 	// Empty means a turn runs until the agent ends it.
 	TurnLimit time.Duration
@@ -313,6 +335,16 @@ func Load() (Config, error) {
 		}
 	}
 
+	tickEvery, err := parseInterval(k.String("tick_every"), "TICK_EVERY")
+	if err != nil {
+		return Config{}, err
+	}
+
+	priceEvery, err := parseInterval(k.String("price_every"), "PRICE_EVERY")
+	if err != nil {
+		return Config{}, err
+	}
+
 	driver, err := parseDriver(k.String("agent_driver"), roles,
 		k.String("mailbox_addr"), k.String("mailbox_token"))
 	if err != nil {
@@ -359,6 +391,8 @@ func Load() (Config, error) {
 		UserToken:             k.String("user_token"),
 		UserHeader:            k.String("user_header_name"),
 		BrokerMCPToken:        k.String("broker_mcp_token"),
+		TickEvery:             tickEvery,
+		PriceEvery:            priceEvery,
 		AgentCallTimeout:      callTimeout,
 		ScreenerUnderlyings:   screened,
 		ScreenerEvery:         screenEvery,
@@ -686,3 +720,25 @@ func parseTimeout(raw string, roles []Role) (time.Duration, error) {
 }
 
 func (c Config) Has(role Role) bool { return hasRole(c.Roles, role) }
+
+// parseInterval reads an optional interval. Empty means "leave it alone", which
+// is how both intervals stay at today's behaviour until somebody sets them.
+//
+// A negative one is refused rather than clamped: an operator who wrote -10s
+// meant something, and quietly running at a different rate than the one written
+// is how a measurement ends up explaining the wrong thing.
+func parseInterval(raw, name string) (time.Duration, error) {
+	if strings.TrimSpace(raw) == "" {
+		return 0, nil
+	}
+
+	every, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s %q is not a duration like 10s: %w", name, raw, err)
+	}
+	if every < 0 {
+		return 0, fmt.Errorf("%s %q is negative", name, raw)
+	}
+
+	return every, nil
+}
