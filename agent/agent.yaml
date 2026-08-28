@@ -38,7 +38,7 @@ parameters:
   # кредит к риску 40,9% против 14,3% под ней. Больше кредита там и правда есть,
   # и пропорционально больше проигрышей - на истории 0,45 хуже везде. Замер
   # одного среза уступил замеру двух с половиной лет.
-  short_leg_delta: "не больше 0,30 по модулю"
+  short_leg_delta: "no more than 0.30 in absolute value"
   # ПОСЧИТАНО тем же прогоном, и это число решает больше, чем потолок дельты.
   # Ожидание монотонно растёт с порогом при любом потолке, а ЗНАК меняется между
   # 0 и +1: при -1,0 ожидание -0,72 доллара на сделку, при +2 уже +2,63, при +3
@@ -55,11 +55,11 @@ parameters:
   # равную лучшему кандидату, а такая планка непроходима: ноги перечитываются
   # перед заявкой, список к этому моменту постарел, и лучший падает ниже себя.
   # Порог применяется к СВЕЖИМ котировкам, выбор - внутри допустимого.
-  min_edge_points: "не ниже +3 по свежим котировкам; внутри допустимого брать наибольшее"
+  min_edge_points: "at least +3 measured on FRESH quotes; among those that clear it, take the largest"
   # ВРЕМЕННО: не мерялось ни разу. Занятая волатильность бывает только в день
   # истечения, а бэктест 27 августа показал, что нулевая экспирация мерой
   # преимущества и так не проходит - значит и повода мерить пока не было.
-  min_edge_points_borrowed: "строго больше 0: занятая волатильность завышает преимущество"
+  min_edge_points_borrowed: "strictly above 0: borrowed volatility overstates the edge"
   # Предохранитель дня. Числа своего у этой декларации не было, и она работала на
   # 2% из скила - это оно и есть, перенесённое туда, где его видно.
   # ВРЕМЕННО: перенесено из скила, где стояло без обоснования. Считается по
@@ -72,34 +72,34 @@ parameters:
   # Это уже случилось однажды, и написал это в декларацию не человек, а агент.
   # ВРЕМЕННО: назначено. Считается тем же способом, что и доля ставки на событие -
   # по распределению исходов конструкции на истории. Слой ещё не мерялся.
-  convexity_worst_case_share: "одна конструкция - не больше 2% капитала по худшему исходу"
+  convexity_worst_case_share: "one structure: no more than 2% of equity at its worst case"
   # ВРЕМЕННО: назначено.
-  convexity_layer_share: "весь слой вместе с уже открытым - не больше 3% капитала"
+  convexity_layer_share: "the whole layer, counting what is already open: no more than 3% of equity"
   # ВРЕМЕННО: назначено.
-  convexity_daily_debit: "не больше 0,5% капитала за день"
+  convexity_daily_debit: "no more than 0.5% of equity per day"
   # Делится на ШИРИНУ, а не на кредит: кредита тут около нуля, и деление на него
   # запретило бы всё подряд.
   # ВРЕМЕННО: назначено. Живой замер книги 27 августа дал медиану 0,07 доллара на
   # спред из двух ног; для трёхногой конструкции такого замера нет.
-  convexity_roundtrip_share: "не дороже десятой части ширины конструкции"
+  convexity_roundtrip_share: "no dearer than a tenth of the structure's width"
   # ВРЕМЕННО: назначено.
-  convexity_take: "втрое от уплаченного и выше - закрывать"
+  convexity_take: "three times what was paid or better: close it"
   # Последний день, чей результат считают. Не «конец недели»: правило про пятницу
   # 27 августа закрыло конструкцию через час после открытия и вдобавок запрещало
   # слою открываться в любой четверг вовсе - все разрешённые экспирации пятницу
   # переживают.
   # ИЗ ПРАВИЛ: приём работ закрывается 4 сентября в 15:00 UTC, результат считают на
   # этот момент, а сделанное после не считают. Мерить тут нечего - это дата.
-  convexity_horizon: "4 сентября 2026: то, что истекает позже, слою не годится"
+  convexity_horizon: "4 September 2026: anything expiring after it does not belong to this layer"
 
   # Схлопывание на отчёте. Размер мал нарочно: правый хвост тут закрыт крыльями,
   # то есть сделка умеет не проиграть, а не выиграть гонку.
   # ВРЕМЕННО: назначено.
-  crush_worst_case_share: "не больше 3% капитала"
+  crush_worst_case_share: "no more than 3% of equity"
   # ВРЕМЕННО: назначено из общих соображений. Считается на прошлых отчётах -
   # подразумеваемое движение против реализованного, и при каком отношении продажа
   # окупалась. Расчёт не сделан.
-  crush_implied_over_realized: "продавать при 1,3 и выше; при 0,8 и ниже покупать движение вместо продажи; между - не брать ничего"
+  crush_implied_over_realized: "sell at 1.3 or above; at 0.8 or below buy the move instead of selling; in between take nothing"
 
   # Ставка на событие - единственная с незакрытым правым хвостом.
   # Пять процентов - значение по умолчанию, и оно НЕ есть решение о размере:
@@ -109,201 +109,217 @@ parameters:
   # против двадцати на прожитой истории: $90 423 против $61 083, худшая просадка
   # $86 258 против $53 594. Двадцать - ставка на то, что 25 наблюдений описывают
   # хвост; они его не описывают.
-  event_bet_share: "5% капитала; 20% - только по прямому указанию человека, и оно стоит 29 тысяч по истории"
+  event_bet_share: "5% of equity; 20% only on a person's explicit word, and history says that choice costs 29 thousand"
   # ПОСЧИТАНО тем же прогоном: выход в 9:35 даёт среднее -7,4%, выход в 10:00
   # даёт +2,0%. Спешка стоит девять процентных пунктов, поэтому «закрывай сразу»
   # заменено на «не раньше 10:00».
-  event_exit_by: "не раньше 10:00 и не позже 10:30 по Нью-Йорку"
+  event_exit_by: "not before 10:00 and not after 10:30 New York time"
 
 sessions:
   - name: open-check
-    cause: "рынок открылся полчаса назад, смотрим, с чем работаем"
+    cause: "the market opened half an hour ago: see what we are working with"
     at: "10:00"
     within: 2h
     days: [mon, tue, wed, thu, fri]
     task: |
-      Проверь часы рынка. Если он закрыт - скажи это и закончи.
-      Посмотри счёт и открытые позиции: часть из них открыта вчера и истекает сегодня.
-      Назови деньги, покупательную способность и по каждой позиции - когда она истекает.
-      Посмотри ленту новостей по SPY, QQQ, IWM.
-      Одним сообщением: что открыто, что изменилось за ночь, на что смотреть сегодня.
-      Заявок в этой сессии не отправляй.
+      Check the market clock. If it is shut, say so and finish.
+      Read the account and the open positions: some were opened yesterday and
+      expire today. Name the money, the buying power, and for each position when
+      it expires.
+      Read the news for SPY, QQQ, IWM.
+      In one message: what is open, what changed overnight, what to watch today.
+      Send no orders in this session.
 
   - name: entry-midday
-    cause: "дневное окно входа: позиция живёт полсессии"
+    cause: "midday entry window: a position taken here lives half a session"
     at: "12:30"
     within: 40m
     days: [mon, tue, wed, thu, fri]
     task: |
-      **Это окно работает КАЖДЫЙ торговый день. Исключение ровно одно: 4 сентября
-      2026.** Спроси часы и сверь дату:
-      - сегодня НЕ 4 сентября 2026 - работай дальше по этому окну, как обычно;
-      - сегодня 4 сентября 2026 - ничего не открывай, скажи это одной строкой и
-        закончи: в 11:00 по Нью-Йорку закрывается приём работ, результат считают
-        на этот момент, а сделанное после не считают вовсе.
-      Другого прочтения тут нет: несовпадение даты - НЕ повод закончить.
-      Дневное окно входа. Выполни premium-harvest.
-      Правило целиком лежит в скиле и здесь не повторяется. Свои пределы - сколько
-      можно потерять на позиции и на портфеле, какие бумаги и какие экспирации -
-      спроси конвертом (read_envelope). В этом тексте их нет и не будет.
+      **This window runs EVERY trading day. There is exactly one exception:
+      4 September 2026.** Ask the clock and check the date:
+      - today is NOT 4 September 2026 - carry on with this window as usual;
+      - today IS 4 September 2026 - open nothing, say so in one line and finish:
+        submissions close at 11:00 New York time, the result is counted at that
+        moment, and anything done after it is not counted at all.
+      There is no other reading: a date that does not match is NOT a reason to
+      finish.
+      The midday entry window. Run premium-harvest.
+      The rule lives in the skill in full and is not repeated here. Your limits -
+      what one position and the whole book may lose, which underlyings, which
+      expirations - come from the envelope (read_envelope). They are not in this
+      text and they will not be.
 
   - name: entry-morning
-    cause: "утреннее окно входа, берётся только когда премия дорога"
+    cause: "morning entry window, taken only when premium is dear"
     at: "10:20"
     within: 45m
     days: [mon, tue, wed, thu, fri]
     task: |
-      **Это окно работает КАЖДЫЙ торговый день. Исключение ровно одно: 4 сентября
-      2026.** Спроси часы и сверь дату:
-      - сегодня НЕ 4 сентября 2026 - работай дальше по этому окну, как обычно;
-      - сегодня 4 сентября 2026 - ничего не открывай, скажи это одной строкой и
-        закончи: в 11:00 по Нью-Йорку закрывается приём работ, результат считают
-        на этот момент, а сделанное после не считают вовсе.
-      Другого прочтения тут нет: несовпадение даты - НЕ повод закончить.
-      Утренний вход берётся не всегда: впереди целый день движения, поэтому премия
-      должна быть дорогой по той мерке, которую видно прямо в цепочке.
-      Выполни premium-harvest с двумя ужесточениями, и оба - в нашу пользу:
-      заходи только в ту бумагу, где отношение кредита к риску лучшей конструкции
-      не хуже 13%, и не больше чем в одну бумагу за это окно.
-      Если ни одна не прошла - скажи одной строкой, какое отношение у каждой, и закончи.
+      **This window runs EVERY trading day. There is exactly one exception:
+      4 September 2026.** Ask the clock and check the date:
+      - today is NOT 4 September 2026 - carry on with this window as usual;
+      - today IS 4 September 2026 - open nothing, say so in one line and finish:
+        submissions close at 11:00 New York time, the result is counted at that
+        moment, and anything done after it is not counted at all.
+      There is no other reading: a date that does not match is NOT a reason to
+      finish.
+      A morning entry is not taken every day: a whole day of movement lies ahead,
+      so the premium has to be dear by a measure visible in the chain itself.
+      Run premium-harvest with two tightenings, both in our favour: enter only an
+      underlying whose best structure pays a credit-to-risk of at least 13%, and
+      no more than one underlying in this window.
+      If none clears it, say in one line what each of them paid and finish.
 
   - name: entry
-    cause: "окно входа во второй половине сессии"
+    cause: "the main entry window of the day"
     at: "14:20"
     within: 45m
     days: [mon, tue, wed, thu, fri]
     task: |
-      **Это окно работает КАЖДЫЙ торговый день. Исключение ровно одно: 4 сентября
-      2026.** Спроси часы и сверь дату:
-      - сегодня НЕ 4 сентября 2026 - работай дальше по этому окну, как обычно;
-      - сегодня 4 сентября 2026 - ничего не открывай, скажи это одной строкой и
-        закончи: в 11:00 по Нью-Йорку закрывается приём работ, результат считают
-        на этот момент, а сделанное после не считают вовсе.
-      Другого прочтения тут нет: несовпадение даты - НЕ повод закончить.
-      Главное окно входа дня. Выполни premium-harvest.
+      **This window runs EVERY trading day. There is exactly one exception:
+      4 September 2026.** Ask the clock and check the date:
+      - today is NOT 4 September 2026 - carry on with this window as usual;
+      - today IS 4 September 2026 - open nothing, say so in one line and finish:
+        submissions close at 11:00 New York time, the result is counted at that
+        moment, and anything done after it is not counted at all.
+      There is no other reading: a date that does not match is NOT a reason to
+      finish.
+      The main entry window of the day. Run premium-harvest.
 
   - name: convexity
-    cause: "слой выпуклости: дешёвая ставка на сильное движение, ограниченная и известная"
+    cause: "convexity layer: a cheap bet on a large move, bounded and known"
     every: 2h
     between: ["09:50", "15:00"]
     days: [mon, tue, wed, thu, fri]
     task: |
-      **Этот слой работает КАЖДЫЙ торговый день. Исключение ровно одно:
-      4 сентября 2026.** Спроси часы и сверь дату:
-      - сегодня НЕ 4 сентября 2026 - работай дальше, как обычно, целиком;
-      - сегодня 4 сентября 2026 - выполни в скиле ТОЛЬКО раздел про уже открытое,
-        а нового не бери. В 11:00 закрывается приём работ, но это же и утро, ради
-        которого слой покупался: выходит число по занятости, и если конструкция
-        дошла до своей меры, её надо продать, а не оставить до общего закрытия.
-      Другого прочтения тут нет: несовпадение даты - НЕ повод закончить.
-      Выполни convexity. Правило целиком лежит в скиле и здесь не повторяется.
-      Свои пределы спроси конвертом (read_envelope): в этом тексте их нет.
-      Держи в голове порядок: сперва разберись с тем, что слой уже держит, и только
-      потом думай о новом. Иначе выпуклость покупается и не продаётся никогда.
+      **This layer runs EVERY trading day. There is exactly one exception:
+      4 September 2026.** Ask the clock and check the date:
+      - today is NOT 4 September 2026 - carry on as usual, the whole skill;
+      - today IS 4 September 2026 - run ONLY the section about what is already
+        open and take nothing new. Submissions close at 11:00, but that same
+        morning is what this layer was bought for: the employment number lands,
+        and a structure that has reached its measure must be sold rather than
+        left for the general close.
+      There is no other reading: a date that does not match is NOT a reason to
+      finish.
+      Run convexity. The rule lives in the skill in full and is not repeated here.
+      Your limits come from the envelope (read_envelope): they are not in this text.
+      Keep the order in mind: deal with what the layer already holds FIRST, and
+      only then think about anything new. Otherwise convexity gets bought and
+      never sold.
 
   - name: earnings-crush
-    cause: "отчёт AVGO вечером: продаём то, что вздула неизвестность"
+    cause: "AVGO reports tonight: sell what the unknown has inflated"
     at: "15:20"
     within: 30m
     days: [wed]
     task: |
-      **Сначала проверь дату.** Эта сессия написана под отчёт AVGO 2 сентября 2026.
-      Спроси часы (get_clock). Сегодня не 2 сентября - скажи одной строкой и
-      закончи, ничего не делая: день недели попал, дата нет.
-      Дальше выполни earnings-crush по бумаге AVGO.
-      Отчёт выходит после закрытия, поэтому экспирацию бери СЛЕДУЮЩУЮ за ним - та,
-      что истекает сегодня, умрёт до реакции и события не несёт вовсе.
-      Замер решает сторону, а не мнение: посчитай подразумеваемое движение и медиану
-      того, что бумага делала на прошлых отчётах, и скажи оба числа вслух.
+      **Check the date first.** This session is written for the AVGO report of
+      2 September 2026. Ask the clock (get_clock). If today is not 2 September,
+      say so in one line and finish without doing anything: the weekday matched,
+      the date did not.
+      Then run earnings-crush on AVGO.
+      The report comes after the close, so take the expiration that comes AFTER
+      it - the one expiring today dies before the reaction and carries none of
+      the event.
+      The MEASUREMENT decides the side, not an opinion: work out the implied move
+      and the median of what this name has actually done on past reports, and say
+      both numbers out loud.
 
   - name: earnings-crush-exit
-    cause: "отчёт вышел вчера вечером: схлопывание случилось на открытии, дальше только снос"
+    cause: "the report landed last night: the crush happened at the open, what follows is drift"
     at: "09:35"
     within: 30m
     days: [thu]
     task: |
-      **Сначала проверь дату.** Эта сессия написана под утро 3 сентября 2026 -
-      наутро после отчёта AVGO. Спроси часы. Сегодня не 3 сентября - скажи одной
-      строкой и закончи. Позиции слоя отчётов нет - тоже скажи и закончи.
-      **Закрой то, что этот слой держит, чем бы оно ни было.** Замер накануне мог
-      отправить в любую из двух сторон: обычно это проданный железный кондор, но
-      при перевёрнутом отношении это купленный бэкспред. Обе выходят этим утром.
-      Кондор - одной встречной mleg-заявкой, всеми четырьмя ногами.
-      Бэкспред слоя отчётов не путай со слоем выпуклости: тот живёт днями, этот
-      куплен под один отчёт, отчёт уже был, и волатильность под ним падает весь
-      день.
-      Схлопывание происходит на открытии; всё, что после - снос, а держать снос эта
-      конструкция не нанималась. Последнего цента распада не жди.
-      Цена прошла проданный страйк - закрывай всё равно и скажи, сколько это стоило:
-      конструкция сделала свою работу тем, что ограничила убыток, а держать её ради
-      возврата значит начать другую сделку, которой никто не решал.
-      Проверь у брокера, что позиции больше нет, и назови цену, которую получил.
+      **Check the date first.** This session is written for the morning of
+      3 September 2026 - the morning after the AVGO report. Ask the clock. If
+      today is not 3 September, say so in one line and finish. If the earnings
+      layer holds no position, say that and finish too.
+      **Close what this layer holds, whatever it turned out to be.** Yesterday's
+      measurement could have sent it either way: usually a sold iron condor, but
+      on an inverted ratio a bought backspread. Both come out this morning.
+      The condor goes as one opposing mleg order, all four legs at once.
+      Do not confuse the earnings backspread with the convexity layer: that one
+      lives for days, this one was bought for a single report, the report has
+      happened, and the volatility it was bought on falls all day.
+      The crush happens at the open; everything after is drift, and this structure
+      was not hired to hold drift. Do not wait for the last cent of decay.
+      If price went through the short strike, close anyway and say what it cost:
+      the structure did its job by bounding the loss, and holding it for a
+      recovery is a different trade nobody decided to make.
+      Confirm with the broker that the position is gone, and name the price you
+      actually got.
 
   - name: event-convexity-enter
-    cause: "число по занятости выходит утром: покупаем гэп с вечера"
+    cause: "the employment number lands in the morning: buy the gap tonight"
     at: "15:30"
     within: 25m
     days: [thu]
     task: |
-      **Сначала проверь дату.** Эта сессия написана под отчёт по занятости
-      4 сентября 2026, а вход берётся накануне вечером - 3 сентября.
-      Спроси часы. Сегодня не 3 сентября - скажи одной строкой и закончи.
-      Дальше выполни event-convexity по SPY, экспирация 4 сентября.
-      Это самая крупная ставка недели и единственная, у которой правый хвост не
-      закрыт. Она чаще сгорает, чем платит, и это выбранная форма, а не изъян.
-      Размер сверх умолчания бери только по прямому слову человека.
+      **Check the date first.** This session is written for the employment report
+      of 4 September 2026, and the entry is taken the evening before - on
+      3 September. Ask the clock. If today is not 3 September, say so in one line
+      and finish.
+      Then run event-convexity on SPY, expiring 4 September.
+      This is the largest bet of the week and the only one whose right tail is
+      uncapped. It burns more often than it pays, and that is the chosen shape,
+      not a defect.
+      Take a size above the default only on a person's explicit word.
 
   - name: event-convexity-exit
-    cause: "число вышло: продаём гэп в первый час"
+    cause: "the number is out: sell the gap in the first hour"
     at: "09:35"
     within: 55m
     days: [fri]
     task: |
-      **Сначала проверь дату.** Эта сессия написана под утро 4 сентября 2026.
-      Спроси часы. Сегодня не 4 сентября - скажи одной строкой и закончи.
-      Если позиции слоя событий нет - тоже скажи и закончи.
-      Дальше выход по правилу из event-convexity, и он не обсуждается:
-      гэпа не хватает до безубытка - закрывай сразу, не жди возврата; гэп есть -
-      продавай частями по мере движения. Всё закрыто к назначенному часу.
-      Стакан в первые минуты широкий: назови цену, которую получил, а не ту,
-      которую хотел, и проверь у брокера, что позиции больше нет.
+      **Check the date first.** This session is written for the morning of
+      4 September 2026. Ask the clock. If today is not 4 September, say so in one
+      line and finish. If the event layer holds no position, say that and finish.
+      Then take the exit exactly as event-convexity states it, and it is not open
+      to argument: if the gap falls short of break-even, close - but not in the
+      first minutes, the skill says when and why; if the gap is there, sell in
+      pieces as it moves. Everything is closed by the appointed hour.
+      The book is wide in the first minutes: name the price you GOT, not the one
+      you wanted, and confirm with the broker that the position is gone.
 
   - name: deadline-flatten
-    cause: "приём работ закрывается в 11:00 по Нью-Йорку: к этому часу счёт должен быть плоским"
+    cause: "submissions close at 11:00 New York time: by that hour the account must be flat"
     at: "10:35"
     within: 20m
     days: [fri]
     task: |
-      **Сначала проверь дату.** Эта сессия написана под 4 сентября 2026 - день,
-      когда закрывается приём работ. Спроси часы. Сегодня не 4 сентября - скажи
-      одной строкой и закончи, ничего не закрывая.
-      Дальше. Результат считают по стоимости счёта на 11:00, нереализованное
-      ВКЛЮЧАЯ, а сделанное после не считают вовсе.
+      **Check the date first.** This session is written for 4 September 2026 - the
+      day submissions close. Ask the clock. If today is not 4 September, say so in
+      one line and finish, closing nothing.
+      Then: the result is counted from the account's VALUE at 11:00, unrealised
+      INCLUDED, and anything done after that is not counted at all.
 
-      **Отмени все работающие заявки - это первое и делается без раздумий.**
-      Заявка, исполнившаяся за минуту до отсечки, меняет результат случайным
-      образом, и никто этого не решал.
+      **Cancel every working order - that comes first and needs no thought.**
+      An order that fills a minute before the cut changes the result at random,
+      and nobody decided that.
 
-      **Дальше закрывать НЕ всё подряд.** Замерено 27 августа на живой паре
-      QQQ 705/706 put, 50 наборов: брокер метил её в −300, а закрыть её прямо
-      сейчас стоило −500. То есть закрытие переводит оценку в деньги и платит за
-      это проход - двести долларов на одной паре. «Чистый счёт» покупается из тех
-      же денег, по которым нас оценивают.
+      **After that, do NOT close everything.** Measured on 27 August on a live
+      pair, QQQ 705/706 put, 50 sets: the broker marked it at -300, and closing it
+      right then cost -500. Closing turns a mark into cash and pays the crossing
+      for the privilege - two hundred dollars on one pair. A "clean account" is
+      bought with the very money we are judged on.
 
-      Поэтому по КАЖДОЙ позиции сравни два числа и назови оба: во сколько её метит
-      брокер и что за неё дадут по худшей стороне стакана прямо сейчас.
-      - Дают не хуже, чем метит, - закрывай: это бесплатно.
-      - Дают заметно хуже - оставляй и скажи, на сколько хуже. Оценка на 11:00
-        возьмёт метку, и метка нам выгоднее.
-      Ни одного решения без пары чисел рядом с ним.
+      So for EACH position compare two numbers and name both: what the broker
+      marks it at, and what the worst side of the book would give for it now.
+      - They give no worse than the mark: close it, that is free.
+      - They give noticeably worse: leave it and say by how much. The 11:00 count
+        takes the mark, and the mark is the better of the two for us.
+      Not one decision without its pair of numbers beside it.
 
-      Закончи так: сколько закрыл и почему, сколько оставил и на сколько метка была
-      выгоднее прохода, деньги и результат. И подтверди У БРОКЕРА, что работающих
-      заявок не осталось ни одной - не «отправил отмену», а «брокер показывает
-      ноль».
+      Finish like this: how much you closed and why, how much you left and by how
+      much the mark beat the crossing, the money and the result. And confirm WITH
+      THE BROKER that no working order is left - not "I sent the cancels" but "the
+      broker shows zero".
 
   - name: news-watch
-    cause: "проверка новостей по нашим бумагам"
+    cause: "news check on the underlyings we hold"
     every: 30m
     between: ["09:35", "15:45"]
     days: [mon, tue, wed, thu, fri]
@@ -311,90 +327,99 @@ sessions:
     # нужна: работа сводится к чтению ленты и одному суждению.
     model: gpt-5.6-luna
     task: |
-      Прочитай новости по SPY, QQQ, IWM и по бумагам, в которых у нас открыты позиции.
-      Если ничего важного - ответь одной строкой «ничего нового» и закончи.
-      Будить торговую сессию дорого, а забыть, кого ты будил час назад, легко:
-      каждый твой запуск начинается с чистой памяти. Поэтому решает не новость, а
-      цена - её видно всегда и она не зависит от того, что ты помнишь.
-      Буди, только когда верны оба: есть открытая позиция по этой бумаге, И цена
-      подошла к её проданному страйку ближе чем на треть того расстояния, которое
-      было при открытии. Расстояние при открытии считай от цены входа из записи
-      (read_state) или из заявки на открытие.
-      Мнение чиновника, прогноз, приток или отток средств, объявленные тарифы -
-      сами по себе не повод: рынок читает их без нас, они уже в цене, и если цена
-      от нашего страйка не сдвинулась, будить некого.
-      Если оба верны - поставь пробуждение через пять минут (wake_me_at) с причиной
-      вида «проверь открытые позиции против этой новости: <новость>. Ничего нового не
-      открывай», и скажи в чат, что именно нашёл.
-      Заявок не отправляй: твоя работа - заметить, а не торговать.
+      Read the news for SPY, QQQ, IWM and for the underlyings we hold.
+      If nothing matters, answer in one line - "nothing new" - and finish.
+      Waking a trading session is expensive, and forgetting whom you woke an hour
+      ago is easy: every run of yours starts with a clean memory. So what decides
+      is not the news but the PRICE - price is always visible and does not depend
+      on what you remember.
+      Wake one only when both hold: there is an open position in that underlying,
+      AND price has come within a third of the distance its short strike had when
+      the position was opened. Take that opening distance from the entry price in
+      the record (read_state) or from the opening order.
+      An official's opinion, a forecast, fund flows, announced tariffs - none is a
+      reason on its own: the market reads them without us, they are already in the
+      price, and if price has not moved toward our strike there is nobody to wake.
+      If both hold, set a wake-up five minutes out (wake_me_at) with a reason like
+      "check the open positions against this news: <news>. Open nothing new", and
+      say in the room what exactly you found.
+      Send no orders: your job is to notice, not to trade.
 
   - name: defend
-    cause: "проверка правил защиты"
+    cause: "the defence rules"
     every: 30m
     between: ["09:40", "15:55"]
     days: [mon, tue, wed, thu, fri]
     task: |
-      Если открытых позиций нет - скажи это одной строкой и закончи.
-      **Сначала сосчитай ноги, и только потом думай о цене.** Твоё - и только
-      оно - это РОВНО ДВЕ ноги: одна проданная и одна купленная, одного типа и
-      одной экспирации. Это вертикаль.
+      If nothing is open, say so in one line and finish.
+      **Count the legs first, and only then think about price.** Yours - and only
+      yours - is EXACTLY TWO legs: one sold and one bought, same type, same
+      expiration. That is a vertical.
 
-      Всё прочее не твоё, и решается это счётом, а не узнаванием формы:
-      - ног больше двух - не твоё, чем бы оно ни было;
-      - купленных больше, чем проданных, - не твоё тем более.
+      Everything else is not yours, and that is settled by COUNTING, not by
+      recognising a shape:
+      - more than two legs: not yours, whatever it is;
+      - more bought than sold: not yours all the more.
 
-      Считать, а не узнавать, приходится потому, что узнавание уже стоило денег.
-      26 августа на соседнем счёте защита закрыла NVDA 222,5C/227,5C - один продан,
-      два куплено - потому что цена стояла между страйками. Для вертикали это верно:
-      там убыток растёт. Здесь между страйками лежит самая глубокая точка выплаты, а
-      куплена конструкция ради движения ЗА дальнюю ногу. Закрыто по 0,61 дебета за
-      набор, 14 наборов, минус $1 694 - ровно в тот день, ради которого покупалась.
+      Counting rather than recognising is necessary because recognising has
+      already cost money. On 26 August, on the neighbouring account, defence
+      closed NVDA 222.5C/227.5C - one sold, two bought - because price stood
+      between the strikes. For a vertical that is right: the loss grows there.
+      Here the deepest point of the payoff lies between the strikes, and the
+      structure was bought for a move BEYOND the far leg. Closed at 0.61 debit a
+      set, 14 sets, minus $1,694 - on exactly the day it was bought for.
 
-      Слой выпуклости - backspread, одна проданная нога против ДВУХ купленных - не
-      трогай вовсе. Железный кондор слоя отчётов -
-      четыре ноги - тоже не вертикаль, даже если его тянет прочесть как две.
-      И не думай о нём как о страховке: кондор это ПРОДАННАЯ премия, он
-      зарабатывает, когда движения нет, и теряет максимум ровно в сильный день.
-      Не трогаешь ты его по другой причине - у него своё правило выхода, наутро
-      после отчёта, и ранний выкуп платит проход по четырём ногам, собирая часть.
-      Убыток по нему растёт - это не работающая страховка, а обычный убыток внутри
-      известной ширины; так и скажи, и всё равно пройди мимо. Он куплен ради дня сильного
-      движения, то есть ради того самого дня, когда защита срабатывает чаще всего;
-      закрыть его тогда - значит выбросить страховку ровно в момент, когда она
-      начала работать. Не вертикаль - скажи это одной строкой и пройди мимо.
-      **Закрывай, только когда цена прошла КУПЛЕННЫЙ страйк, а не проданный.**
-      Замерено: research/exit_rules.py, 638 сделок за два с половиной года.
-      Закрытие по касанию проданного даёт -0,33 доллара на сделку, закрытие по
-      купленному +0,86, удержание до истечения +2,63. Разница между первым и
-      вторым - доллар девятнадцать со сделки, и стоит она почти ничего: худшая
-      серия глубже на четыре процента, худшая сделка та же.
+      The convexity layer - a backspread, one sold leg against TWO bought - is not
+      yours at all. It was bought for the day the market moves hard, which is the
+      very day defence fires most often; closing it then throws away the cover at
+      the moment it starts working.
 
-      Причина в двух числах. Когда цена задевает проданный страйк, спред стоит
-      около 0,62 ширины - закрытие фиксирует две трети максимального убытка. А
-      37% таких случаев доживают ВНЕ денег: за два с половиной года это правило
-      превратило 103 выигрыша в убытки. Вдобавок 38,5% срабатываний приходятся на
-      первый бар дня, то есть цена ушла разрывом за ночь, и предотвращать нечего.
+      The earnings iron condor - four legs - is not a vertical either, however
+      much it reads like two. And do not think of it as cover: a condor is SOLD
+      premium, it earns when nothing moves and loses its maximum on exactly the
+      violent day. You leave it alone for a different reason - it has its own exit,
+      the morning after the report, and buying it back early pays the crossing on
+      four legs to collect a part. If its loss is growing, that is not cover
+      working, it is an ordinary loss inside a known width; say so and walk past
+      anyway.
 
-      Пройден купленный страйк - конструкция потеряна целиком, и закрытие
-      освобождает покупательную способность, а не спасает деньги. Так и скажи.
-      Больше ничего не закрывай: спред живёт распадом времени, и закрытая раньше
-      срока позиция платит спред дважды, а собирает половину. Позиция с завтрашней
-      экспирацией ночует - это нормально, риск у неё ограничен шириной конструкции.
-      Иначе назови текущий результат по каждой позиции и ничего не трогай.
+      Not a vertical - say that in one line and walk past.
+      **Close only when price has passed the BOUGHT strike, not the sold one.**
+      Measured: research/exit_rules.py, 638 trades over two and a half years.
+      Closing on a touch of the sold strike returns -$0.33 a trade; closing on the
+      bought strike +$0.86; holding to expiry +$2.63. The difference between the
+      first two is $1.19 a trade, and it costs almost nothing: the worst run is
+      four percent deeper, the worst single trade is the same.
+
+      Two numbers explain why. When price touches the sold strike the spread is
+      worth about 0.62 of its width - closing there locks in two thirds of the
+      maximum loss. And 37% of those cases finish OUT of the money: over two and a
+      half years this rule turned 103 winners into losses. On top of that, 38.5%
+      of the triggers land on the first bar of a day, meaning price gapped through
+      overnight and there is nothing left to prevent.
+
+      Past the bought strike the structure is lost in full, and closing frees
+      buying power rather than saving money. Say it that way.
+      Close nothing else: a spread lives on decay, and a position closed early
+      pays the crossing twice and collects half. A position expiring tomorrow
+      sleeps overnight - that is fine, its risk is bounded by the width.
+      Otherwise name the current result of each position and touch nothing.
 
   - name: flatten
-    cause: "закрыть всё перед концом торгового дня"
+    cause: "close what must not be held overnight"
     at: "15:50"
     within: 20m
     days: [mon, tue, wed, thu, fri]
     task: |
-      Закрой позиции по опционам, истекающим СЕГОДНЯ, у которых проданный страйк
-      ближе 50 центов к цене базового актива: именно они рискуют исполнением.
-      Остальным сегодняшним дай истечь - выкуп центового спреда стоит дороже, чем он спасает.
-      Позиции с более поздней экспирацией не трогай: они открыты вчера или сегодня и
-      живут дальше, их риск ограничен шириной конструкции.
-      Если позиция не закрылась лимитной заявкой за пять минут, закрывай по рынку:
-      исполнение проданного put это 100 акций на каждый контракт до следующего дня,
-      а проданного call - те же 100 акций в короткую, что не лучше.
-      Назови результат дня и подтверди по брокеру, что осталось только то, чему дали истечь,
-      и позиции с более поздней экспирацией.
+      Close the options expiring TODAY whose short strike sits within fifty cents
+      of the underlying's price: those are the ones at risk of assignment.
+      Let the rest of today's expire - buying back a one-cent spread costs more
+      than it saves.
+      Leave later expirations alone: they were opened yesterday or today and live
+      on, and their risk is bounded by the width of the structure.
+      If a position does not close on a limit order within five minutes, close it
+      at the market: an assigned short put is 100 shares per contract held
+      overnight, and an assigned short call is the same 100 shares short, which is
+      no better.
+      Name the day's result and confirm with the broker that what remains is only
+      what was left to expire and the later expirations.

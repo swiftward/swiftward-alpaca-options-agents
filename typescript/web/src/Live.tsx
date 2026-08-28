@@ -8,7 +8,7 @@ import {
   LoaderCircle,
   Minus,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 
 import type { Everything, Limits, Money, Said, State, Sweep, ToolCall, Turn } from './api'
@@ -268,6 +268,17 @@ function Positions({ money }: { money: Money }) {
 }
 
 function Turns({ state }: { state: State }) {
+  const box = useRef<HTMLDivElement>(null)
+  // Держится ли читатель у нижнего края. От этого зависит, доматывать ли ленту
+  // при обновлении: того, кто ушёл вверх читать историю, дёргать нельзя, а тому,
+  // кто смотрит свежее, доматывать наоборот нужно.
+  const atBottom = useRef(true)
+
+  useEffect(() => {
+    const node = box.current
+    if (node && atBottom.current) node.scrollTop = node.scrollHeight
+  }, [state.turns.length, state.said.length])
+
   if (state.turns.length === 0) return <Empty says="no runs yet: nothing has woken it" />
 
   const saidByTurn = new Map<string, Said[]>()
@@ -280,18 +291,31 @@ function Turns({ state }: { state: State }) {
     callsByTurn.set(call.turn_ref, [...(callsByTurn.get(call.turn_ref) ?? []), call])
   }
 
+  // Читается как переписка: старое сверху, свежее внизу. Запись приходит свежим
+  // вперёд, поэтому здесь разворачивается.
+  const inOrder = [...state.turns].reverse()
+
   return (
-    <ol className="m-0 flex list-none flex-col gap-3 p-0">
-      {state.turns.map((turn) => (
-        <li key={turn.ref}>
-          <TurnCard
-            turn={turn}
-            said={saidByTurn.get(turn.ref) ?? []}
-            calls={callsByTurn.get(turn.ref) ?? []}
-          />
-        </li>
-      ))}
-    </ol>
+    <div
+      ref={box}
+      onScroll={(event) => {
+        const node = event.currentTarget
+        atBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80
+      }}
+      className="max-h-[70vh] overflow-y-auto rounded-xl border border-line bg-surface p-3"
+    >
+      <ol className="m-0 flex list-none flex-col gap-2.5 p-0">
+        {inOrder.map((turn) => (
+          <li key={turn.ref}>
+            <TurnCard
+              turn={turn}
+              said={saidByTurn.get(turn.ref) ?? []}
+              calls={callsByTurn.get(turn.ref) ?? []}
+            />
+          </li>
+        ))}
+      </ol>
+    </div>
   )
 }
 
@@ -305,8 +329,8 @@ function TurnCard({ turn, said, calls }: { turn: Turn; said: Said[]; calls: Tool
   const refused = calls.filter((call) => call.status !== 'completed').length
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-muted">
+    <div className="rounded-lg border border-line bg-surface-raised px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[11px] text-muted">
         <span>{clock(turn.started_at)}</span>
         <span className="font-medium text-primary">{turn.woken_by}</span>
         <Chip tone={turn.failure ? 'loss' : turn.finished_at ? undefined : 'gain'}>
@@ -334,7 +358,7 @@ function TurnCard({ turn, said, calls }: { turn: Turn; said: Said[]; calls: Tool
           {line.text}
         </p>
       ))}
-    </Card>
+    </div>
   )
 }
 
