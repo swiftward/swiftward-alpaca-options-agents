@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -237,6 +238,14 @@ func (t Tools) Handler() http.Handler {
 			if in.UnderlyingPrice == "" {
 				return nil, recordIntentOutput{}, fmt.Errorf(
 					"underlying_price is required: state what the underlying costs now, as you just read it, or the windows that watch this position have nothing to measure against")
+			}
+			// Refused HERE rather than by the column it lands in. The record stores
+			// a number, so "MU p=939.15" fails at the database with a message about
+			// a type, and the session is left guessing which of its fields was
+			// wrong. Measured 28 August: five intents lost at once to exactly that.
+			if _, err := strconv.ParseFloat(strings.TrimSpace(in.UnderlyingPrice), 64); err != nil {
+				return nil, recordIntentOutput{}, fmt.Errorf(
+					"underlying_price must be a bare number like 939.15, not %q: no ticker, no currency sign, no words", in.UnderlyingPrice)
 			}
 			at := now()
 			turn, session := t.running()

@@ -463,6 +463,28 @@ func TestTheSameStructureIsNotRecordedTwiceInOneTurn(t *testing.T) {
 	assert.Contains(t, refusal, "underlying_price is required",
 		"the session is told which field is missing and why")
 
+	// A price the record cannot store as a number is refused HERE, with the
+	// field named, rather than by the column it would land in - a database
+	// complaining about a type leaves the session guessing which field was wrong.
+	worded := map[string]any{
+		"thesis":           "премия дорога, движения нет",
+		"structure":        "1× MU put credit spread 2026-08-28: sell 925 / buy 920",
+		"max_loss":         "$430",
+		"underlying_price": "MU p=939.15",
+	}
+
+	notANumber, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "record_intent", Arguments: worded})
+	require.NoError(t, err)
+	assert.True(t, notANumber.IsError, "a price carrying a ticker or a currency sign must be refused")
+
+	said := ""
+	for _, part := range notANumber.Content {
+		if text, ok := part.(*mcp.TextContent); ok {
+			said += text.Text
+		}
+	}
+	assert.Contains(t, said, "must be a bare number", "the session is told the shape it must send")
+
 	stored, err := state.Read(context.Background())
 	require.NoError(t, err)
 	assert.Len(t, stored.Intents, 1)

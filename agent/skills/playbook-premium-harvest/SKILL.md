@@ -116,6 +116,17 @@ Record the intent (`record_intent`) before sending anything: the thesis, the str
 
 ## Sending it
 
+**Round every limit price to two decimals.** The broker refuses more, and the
+refusal costs the whole order: on 28 August three of five orders came back
+`limit price must be limited to 2 decimal places` because the midpoint of two
+quotes was -0.405 and -0.295. Take the midpoint, then round it - to your own
+advantage if you like, but to two places.
+
+**Write the underlying's price as a bare number.** `939.15`, never `MU p=939.15`
+and never `$939.15`. It is stored as a number, and anything else refuses the
+whole intent - measured the same day, five intents lost to it at once.
+
+
 One order, all legs together, limit at the middle. Put the worst price you will accept into `client_order_id` as `worst=-0.11` - negative because a credit is negative - then a semicolon and something unrepeatable, because the broker refuses a name it has seen (`client_order_id must be unique`). For example `worst=-0.11;QQQ703-702-1226`.
 
 The harness walks the price toward the book from there, waits at each price long enough to be taken, never asks for worse than your number, and cancels what the book will not take. Do not watch the order afterwards.
