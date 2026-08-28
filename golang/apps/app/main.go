@@ -522,37 +522,42 @@ func run(log *zap.Logger) error {
 	// арифметика по часам. Ход агента стоит полторы минуты, защита ходит раз в
 	// тридцать, и 28 августа спред QQQ отдал три четверти кредита незамеченным.
 	if cfg.Has(config.RoleHarness) && cfg.TakeProfitAt > 0 {
-		if broker == nil {
-			return errors.New("TAKE_PROFIT_AT is set but there is no broker to watch the book with")
+		// Без адреса шлюза сторож поднялся бы, написал "watching for structures
+		// worth closing" и не закрыл бы НИЧЕГО - каждый выкуп падал бы в лог и
+		// только. Мёртвый сторож, который выглядит живым, хуже выключенного.
+		//
+		// Но и падать здесь нельзя. В этом же процессе живут замеры капитала,
+		// скринер и история волатильности: отказ стартовать унёс бы кривую,
+		// которую видит судья, ради слоя, который без шлюза всё равно не
+		// торгует. Отказывает СТОРОЖ, а не процесс.
+		switch {
+		case broker == nil:
+			log.Error("the profit watch is off: there is no broker to watch the book with")
+
+		case cfg.BrokerMCPURL == "":
+			log.Error("the profit watch is off: TAKE_PROFIT_AT is set but BROKER_MCP_URL is empty",
+				zap.String("why", "the watch sends orders and they go through the gateway; "+
+					"without its address it would run and close nothing"))
+
+		default:
+			// Этот сторож ОТПРАВЛЯЕТ ЗАЯВКИ, поэтому идёт через шлюз, даже когда
+			// остальные обращения харнесса направлены к брокеру напрямую. `broker`
+			// выше следует HARNESS_BROKER_MCP_URL, и тот существует ради ЧТЕНИЙ:
+			// чтение не несёт заявки и ничего не теряет, минуя шлюз. Закрытие -
+			// несёт. Отправленное мимо, оно отсутствовало бы в записи: входы видны,
+			// выходы нет, а именно на выходах этот приём и зарабатывает.
+			closer := marketdata.NewBrokerWithToken(cfg.BrokerMCPURL, cfg.BrokerMCPToken).
+				ActingFor(cfg.UserHeader, cfg.UserToken)
+			exchange, err := time.LoadLocation("America/New_York")
+			if err != nil {
+				return fmt.Errorf("load the exchange calendar: %w", err)
+			}
+			watch := &takeprofit.Watch{
+				Broker: closer, At: cfg.TakeProfitAt, Every: cfg.TakeProfitEvery,
+				Now: time.Now, Where: exchange, Log: log.Named("takeprofit"),
+			}
+			group.Go(func() error { return watch.Run(ctx) })
 		}
-		// This watch SENDS ORDERS, so it goes to the gateway even though every
-		// other harness call may be pointed straight at the broker. `broker`
-		// above follows HARNESS_BROKER_MCP_URL, which exists for reads: a read
-		// carries no order and loses nothing by skipping the gateway. A close
-		// does. Sent around the gateway it would be absent from the record - the
-		// entries visible and the exits not, which is exactly where this
-		// strategy makes its money - and no rule could refuse it.
-		// И отказываемся стартовать, если адреса шлюза нет. Без него сторож
-		// поднялся бы, написал в журнал "watching for structures worth closing" и
-		// не закрыл бы НИЧЕГО - каждый выкуп падал бы в лог и только. Это тот же
-		// тихий отказ, от которого выше защищает нулевая доля, и он опаснее:
-		// доля видна в настройках, а мёртвый сторож выглядит живым.
-		if cfg.BrokerMCPURL == "" {
-			return errors.New("TAKE_PROFIT_AT is set but BROKER_MCP_URL is empty: " +
-				"the watch sends orders and they go through the gateway, so without its " +
-				"address it would run and close nothing")
-		}
-		closer := marketdata.NewBrokerWithToken(cfg.BrokerMCPURL, cfg.BrokerMCPToken).
-			ActingFor(cfg.UserHeader, cfg.UserToken)
-		exchange, err := time.LoadLocation("America/New_York")
-		if err != nil {
-			return fmt.Errorf("load the exchange calendar: %w", err)
-		}
-		watch := &takeprofit.Watch{
-			Broker: closer, At: cfg.TakeProfitAt, Every: cfg.TakeProfitEvery,
-			Now: time.Now, Where: exchange, Log: log.Named("takeprofit"),
-		}
-		group.Go(func() error { return watch.Run(ctx) })
 	}
 
 	if cfg.Has(config.RoleHarness) && cfg.AccountEvery > 0 {
