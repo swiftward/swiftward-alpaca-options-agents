@@ -154,6 +154,32 @@ make prod-up
 `latest` и под меткой коммита. Стенд, стоящий на метке коммита, отвечает на вопрос «что
 именно сейчас работает», а откат сводится к смене одной строки.
 
+## Если браузер ругается на сертификат
+
+Traefik запрашивает сертификат ОДИН раз при старте и, получив отказ, повторяет не
+скоро. Значит порядок важен: сначала запись в DNS, потом подъём. Настроили домен
+после - перезапустите прокси, иначе он будет отдавать свой самоподписанный
+`TRAEFIK DEFAULT CERT`, и сайт при этом работает, только браузер ему не верит.
+
+```
+docker compose --env-file .env -f compose.prod.yaml restart traefik
+```
+
+Проверять по логу, а не по виду страницы:
+
+```
+docker compose -f compose.prod.yaml logs traefik | grep -viE 'GET |POST ' | grep -iE 'certificate|obtain|error'
+```
+
+Отказ выглядит так и называет причину прямо: `NXDOMAIN looking up A for
+<домен> - check that a DNS record exists`. Успех - две строки подряд:
+`Validations succeeded; requesting certificates` и `Server responded with a
+certificate`.
+
+Чем это НЕ является: пустым `ACME_EMAIL` внутри контейнера. Почта уходит в
+строку запуска, а не в окружение, поэтому `echo $ACME_EMAIL` там пуст всегда -
+искать надо в `docker inspect`, среди `Config.Cmd`.
+
 ## Где смотреть, что агент делал
 
 Две записи, и они дополняют друг друга, а не дублируют.
