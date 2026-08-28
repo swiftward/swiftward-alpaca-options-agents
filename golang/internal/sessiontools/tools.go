@@ -32,6 +32,10 @@ type recordIntentInput struct {
 	Thesis    string `json:"thesis" jsonschema:"why this trade, in one sentence"`
 	Structure string `json:"structure" jsonschema:"the option structure about to be opened"`
 	MaxLoss   string `json:"max_loss" jsonschema:"the largest loss this structure can produce"`
+	// Required, and it is the price the SESSION read, not one the record can
+	// reconstruct later: the defence windows measure how far the underlying has
+	// travelled since the intent, and only the starting point is unrecoverable.
+	UnderlyingPrice string `json:"underlying_price" jsonschema:"what the underlying costs right now, as the session just read it"`
 }
 
 type recordIntentOutput struct {
@@ -196,6 +200,14 @@ func (t Tools) Handler() http.Handler {
 			if in.Thesis == "" || in.Structure == "" || in.MaxLoss == "" {
 				return nil, recordIntentOutput{}, fmt.Errorf("thesis, structure and max_loss are all required")
 			}
+			// Refused rather than defaulted. A window that wakes when price has
+			// come a third of the way to the strike cannot compute that from an
+			// empty cell, and an intent recorded without it silently disables the
+			// defence it was supposed to arm.
+			if in.UnderlyingPrice == "" {
+				return nil, recordIntentOutput{}, fmt.Errorf(
+					"underlying_price is required: state what the underlying costs now, as you just read it, or the windows that watch this position have nothing to measure against")
+			}
 			at := now()
 			turn, session := t.running()
 
@@ -239,6 +251,8 @@ func (t Tools) Handler() http.Handler {
 				Thesis:    in.Thesis,
 				Structure: in.Structure,
 				MaxLoss:   in.MaxLoss,
+
+				UnderlyingPrice: in.UnderlyingPrice,
 			}); err != nil {
 				return nil, recordIntentOutput{}, err
 			}

@@ -112,7 +112,7 @@ How often you may open is also governed by a rule you cannot see the inside of. 
 
 Ask `read_volatility_history` for this underlying and put the rank you get into the thesis. Fewer than fifty readings: say the history is not there yet. The rank forbids nothing today - we are collecting it so that in a week we can ask, on our own trades, whether entries at a high rank end differently from entries at a low one.
 
-Record the intent (`record_intent`) before sending anything: the thesis, the structure, the largest loss it can produce. Name in it the limit you sized against and the `ruleset_version` you read it from.
+Record the intent (`record_intent`) before sending anything: the thesis, the structure, the largest loss it can produce, and the underlying's price as you just read it. Name in it the limit you sized against and the `ruleset_version` you read it from. The price is refused if empty: the windows that watch this position measure how far the underlying has travelled since, and only the starting point cannot be recovered afterwards.
 
 ## Sending it
 

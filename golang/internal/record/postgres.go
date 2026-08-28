@@ -31,11 +31,12 @@ func NewPostgres(pool *pgxpool.Pool, shows int) (*Postgres, error) {
 
 func (p *Postgres) AppendIntent(ctx context.Context, intent Intent) error {
 	_, err := p.pool.Exec(ctx,
-		`INSERT INTO intents (recorded_at, turn_ref, session, thesis, structure, max_loss)
-		 VALUES (@at, @turn, @session, @thesis, @structure, @max_loss)`,
+		`INSERT INTO intents (recorded_at, turn_ref, session, thesis, structure, max_loss, underlying_price)
+		 VALUES (@at, @turn, @session, @thesis, @structure, @max_loss, @underlying_price)`,
 		pgx.NamedArgs{
 			"at": intent.At, "turn": nullable(intent.TurnRef), "session": intent.Session,
 			"thesis": intent.Thesis, "structure": intent.Structure, "max_loss": intent.MaxLoss,
+			"underlying_price": intent.UnderlyingPrice,
 		})
 	if err != nil {
 		return fmt.Errorf("record the intent: %w", err)
@@ -285,7 +286,7 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 	}
 
 	intents, err := p.pool.Query(ctx,
-		`SELECT recorded_at, turn_ref, session, thesis, structure, max_loss
+		`SELECT recorded_at, turn_ref, session, thesis, structure, max_loss, underlying_price
 		   FROM intents ORDER BY recorded_at DESC LIMIT @shows`,
 		pgx.NamedArgs{"shows": p.shows})
 	if err != nil {
@@ -296,12 +297,18 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 	for intents.Next() {
 		var intent Intent
 		var turn *string
+		var price *string
 		if err := intents.Scan(&intent.At, &turn, &intent.Session, &intent.Thesis,
-			&intent.Structure, &intent.MaxLoss); err != nil {
+			&intent.Structure, &intent.MaxLoss, &price); err != nil {
 			return State{}, fmt.Errorf("read an intent: %w", err)
 		}
 		if turn != nil {
 			intent.TurnRef = *turn
+		}
+		// Rows written before the column existed have no price, and the window
+		// that needs one is told by its absence rather than by a zero.
+		if price != nil {
+			intent.UnderlyingPrice = *price
 		}
 		state.Intents = append(state.Intents, intent)
 	}

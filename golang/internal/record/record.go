@@ -26,6 +26,10 @@ type Intent struct {
 	Thesis    string `json:"thesis"`
 	Structure string `json:"structure"`
 	MaxLoss   string `json:"max_loss"`
+	// UnderlyingPrice is what the underlying cost when the intent was stated.
+	// The defence windows measure how far price has travelled since, and there is
+	// nowhere else to read where it started.
+	UnderlyingPrice string `json:"underlying_price"`
 }
 
 // Turn is one run of the agent: when it ran, who woke it and why.

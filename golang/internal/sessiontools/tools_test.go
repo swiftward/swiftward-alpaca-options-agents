@@ -66,9 +66,10 @@ func TestRecordIntentReachesTheState(t *testing.T) {
 	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
 		Name: "record_intent",
 		Arguments: map[string]any{
-			"thesis":    "premium is rich into the close",
-			"structure": "put spread on SPY expiring today",
-			"max_loss":  "1% of capital",
+			"thesis":           "premium is rich into the close",
+			"structure":        "put spread on SPY expiring today",
+			"max_loss":         "1% of capital",
+			"underlying_price": "612.40",
 		},
 	})
 	require.NoError(t, err)
@@ -391,9 +392,10 @@ func TestAnIntentIsFiledUnderTheTurnThatProducedIt(t *testing.T) {
 	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
 		Name: "record_intent",
 		Arguments: map[string]any{
-			"thesis":    "premium is rich into the close",
-			"structure": "SPY put spread 759/758 expiring today",
-			"max_loss":  "0.5% of capital",
+			"thesis":           "premium is rich into the close",
+			"structure":        "SPY put spread 759/758 expiring today",
+			"max_loss":         "0.5% of capital",
+			"underlying_price": "612.40",
 		},
 	})
 	require.NoError(t, err)
@@ -423,9 +425,10 @@ func TestTheSameStructureIsNotRecordedTwiceInOneTurn(t *testing.T) {
 	t.Cleanup(func() { _ = session.Close() })
 
 	intent := map[string]any{
-		"thesis":    "премия дорога, движения нет",
-		"structure": "1× QQQ call credit spread 2026-08-26: sell 718 / buy 719",
-		"max_loss":  "$82",
+		"thesis":           "премия дорога, движения нет",
+		"structure":        "1× QQQ call credit spread 2026-08-26: sell 718 / buy 719",
+		"max_loss":         "$82",
+		"underlying_price": "612.40",
 	}
 
 	first, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "record_intent", Arguments: intent})
@@ -435,6 +438,30 @@ func TestTheSameStructureIsNotRecordedTwiceInOneTurn(t *testing.T) {
 	again, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "record_intent", Arguments: intent})
 	require.NoError(t, err)
 	assert.True(t, again.IsError, "the second statement of the same structure must be refused")
+
+	// The price the session read is the one thing the record cannot reconstruct
+	// afterwards, so an empty one is refused rather than stored. Measured on
+	// 28 August: an intent written without it left the window that watches the
+	// position unable to compute any distance, and it set no wake-up.
+	blank := map[string]any{
+		"thesis":           "премия дорога, движения нет",
+		"structure":        "1× SPY put credit spread 2026-08-28: sell 760 / buy 750",
+		"max_loss":         "$120",
+		"underlying_price": "",
+	}
+
+	priceless, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "record_intent", Arguments: blank})
+	require.NoError(t, err)
+	assert.True(t, priceless.IsError, "an intent with no underlying price must be refused")
+
+	refusal := ""
+	for _, part := range priceless.Content {
+		if text, ok := part.(*mcp.TextContent); ok {
+			refusal += text.Text
+		}
+	}
+	assert.Contains(t, refusal, "underlying_price is required",
+		"the session is told which field is missing and why")
 
 	stored, err := state.Read(context.Background())
 	require.NoError(t, err)
@@ -461,6 +488,7 @@ func TestADifferentStructureInTheSameTurnIsRecorded(t *testing.T) {
 			Name: "record_intent",
 			Arguments: map[string]any{
 				"thesis": "премия дорога", "structure": structure, "max_loss": "$90",
+				"underlying_price": "612.40",
 			},
 		})
 		require.NoError(t, err)
@@ -509,6 +537,7 @@ func statingAnIntent(t *testing.T, session *mcp.ClientSession) *mcp.CallToolResu
 		Name: "record_intent",
 		Arguments: map[string]any{
 			"thesis": "sell the far strike", "structure": "QQQ 701/700 put", "max_loss": "80",
+			"underlying_price": "612.40",
 		},
 	})
 	require.NoError(t, err)
