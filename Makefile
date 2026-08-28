@@ -14,8 +14,11 @@ up: ## Start the local stack from this checkout
 down: ## Stop the stack, keeping the volumes
 	docker compose --env-file .env down
 
-prod-up: ## Start the stack from the published images
-	docker compose --env-file .env -f compose.prod.yaml up -d
+prod-up: ## Start the stack from the published images, agent included
+	# --profile session нужен: у агента стоит profiles: [session], чтобы голый
+	# `up` не запускал торговлю случайно. Защита верная, но звать его надо явно -
+	# без этого поднимается всё, КРОМЕ главного, и выглядит это как успех.
+	docker compose --env-file .env -f compose.prod.yaml --profile session up -d
 
 build: ## Build everything
 	$(MAKE) -C golang build

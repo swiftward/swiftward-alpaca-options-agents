@@ -70,8 +70,11 @@ jobs:
             # файле дали бы стенд, работающий не на том, что показывает лог.
             sed -i '/^IMAGE_TAG=/d' .env
             echo "IMAGE_TAG=${{ inputs.tag }}" >> .env
-            docker compose --env-file .env -f compose.prod.yaml pull
-            docker compose --env-file .env -f compose.prod.yaml up -d
+            # --profile session: у агента стоит profiles: [session], чтобы голый
+            # `up` не запускал торговлю случайно. Без этого выкатка поднимает всё,
+            # КРОМЕ главного, и рапортует успехом.
+            docker compose --env-file .env -f compose.prod.yaml --profile session pull
+            docker compose --env-file .env -f compose.prod.yaml --profile session up -d
           REMOTE
 
       # Выкатка без проверки бессмысленна: «контейнер запущен» не значит
@@ -84,13 +87,13 @@ jobs:
             cd /opt/alpaca-stand
             for i in $(seq 1 24); do
               sleep 5
-              broken=$(docker compose -f compose.prod.yaml ps --format '{{.Service}} {{.State}}' \
+              broken=$(docker compose -f compose.prod.yaml --profile session ps --format '{{.Service}} {{.State}}' \
                        | awk '$2 == "restarting" {print $1}' | tr '\n' ' ')
               [ -z "$broken" ] && break
             done
 
             echo "=== состояние служб ==="
-            docker compose -f compose.prod.yaml ps --format '{{.Service}}\t{{.State}}\t{{.Status}}'
+            docker compose -f compose.prod.yaml --profile session ps --format '{{.Service}}\t{{.State}}\t{{.Status}}'
 
             if [ -n "$broken" ]; then
               echo "::error::перезапускаются по кругу: $broken"
@@ -98,7 +101,7 @@ jobs:
               exit 1
             fi
 
-            if docker compose -f compose.prod.yaml ps --services | grep -q '^agent$'; then
+            if docker compose -f compose.prod.yaml --profile session ps --services | grep -q '^agent$'; then
               if docker compose -f compose.prod.yaml logs --since 5m agent 2>&1 | grep -q '"msg":"started"'; then
                 echo "агент поднялся: дошёл до started"
               else
