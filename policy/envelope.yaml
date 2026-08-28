@@ -38,17 +38,6 @@ agents:
           value: 80
           unit: percent_of_equity
 
-        # Всё, что поставлено на одну сторону рынка, считается вместе. Проданные
-        # путы - одна ставка, проданные коллы - другая: каждая платит, пока цена
-        # остаётся на своей стороне, и одно движение забирает их разом. 28 августа
-        # четыре путовых спреда, каждый внутри своего лимита, потеряли вместе
-        # 19 193 на обычном движении вниз, потому что их сумму никто не смотрел.
-        - rule: max-loss-on-one-side
-          disclosure: boundary
-          subject: same_direction_max_loss
-          kind: maximum
-          value: 25
-          unit: percent_of_equity
 
         - rule: permitted-underlyings
           disclosure: boundary
@@ -108,17 +97,6 @@ agents:
           value: 80
           unit: percent_of_equity
 
-        # Всё, что поставлено на одну сторону рынка, считается вместе. Проданные
-        # путы - одна ставка, проданные коллы - другая: каждая платит, пока цена
-        # остаётся на своей стороне, и одно движение забирает их разом. 28 августа
-        # четыре путовых спреда, каждый внутри своего лимита, потеряли вместе
-        # 19 193 на обычном движении вниз, потому что их сумму никто не смотрел.
-        - rule: max-loss-on-one-side
-          disclosure: boundary
-          subject: same_direction_max_loss
-          kind: maximum
-          value: 25
-          unit: percent_of_equity
 
         - rule: permitted-underlyings
           disclosure: boundary
