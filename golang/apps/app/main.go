@@ -525,8 +525,17 @@ func run(log *zap.Logger) error {
 		if broker == nil {
 			return errors.New("TAKE_PROFIT_AT is set but there is no broker to watch the book with")
 		}
+		// This watch SENDS ORDERS, so it goes to the gateway even though every
+		// other harness call may be pointed straight at the broker. `broker`
+		// above follows HARNESS_BROKER_MCP_URL, which exists for reads: a read
+		// carries no order and loses nothing by skipping the gateway. A close
+		// does. Sent around the gateway it would be absent from the record - the
+		// entries visible and the exits not, which is exactly where this
+		// strategy makes its money - and no rule could refuse it.
+		closer := marketdata.NewBrokerWithToken(cfg.BrokerMCPURL, cfg.BrokerMCPToken).
+			ActingFor(cfg.UserHeader, cfg.UserToken)
 		watch := &takeprofit.Watch{
-			Broker: broker, At: cfg.TakeProfitAt, Every: cfg.TakeProfitEvery,
+			Broker: closer, At: cfg.TakeProfitAt, Every: cfg.TakeProfitEvery,
 			Now: time.Now, Log: log.Named("takeprofit"),
 		}
 		group.Go(func() error { return watch.Run(ctx) })
