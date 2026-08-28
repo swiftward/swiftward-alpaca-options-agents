@@ -1,7 +1,7 @@
 ---
 name: playbook-convexity
 description: Buy a backspread for near nothing, so the day the market moves hard is not a day this account only loses. Manage what the layer already holds before buying more. Use for the convexity layer.
-requires: [convexity_worst_case_share, convexity_layer_share, convexity_daily_debit, convexity_roundtrip_share, convexity_take, convexity_horizon]
+requires: [convexity_short_leg_distance, convexity_valley_distance, convexity_worst_case_share, convexity_layer_share, convexity_daily_debit, convexity_roundtrip_share, convexity_take, convexity_horizon]
 ---
 
 # Convexity layer
@@ -48,6 +48,30 @@ same expiration further out. One mleg order for all three legs.
 - **Expiration.** Two to five trading days, so the move has time.
 - The sold leg must be covered by the bought ones in count: sell one, buy two.
   Anything else is naked risk.
+
+## Where the legs go - measured, not judged by eye
+
+This is the part that decides whether the structure is worth opening at all, and
+it is not a matter of taste.
+
+First work out **sigma**: the move this underlying is expected to make by the
+expiration you chose. Read the volatility (`read_volatility_history`), multiply by
+the square root of trading days remaining over 252, multiply by the price. Say the
+number out loud - every rule below is in it.
+
+- **The sold leg no closer than `convexity_short_leg_distance`.**
+- **The bought strike - the valley - no closer than `convexity_valley_distance`.**
+
+The valley is where the worst case sits: at the bought strike, at expiration. Put
+it where the market arrives on an ordinary move and it eats everything the
+structure earns the rest of the time. Measured over 466 windows: every placement
+with the valley inside two sigma has a NEGATIVE expectation, and on 28 August a
+structure sold at 0.57 sigma with the valley at 1.25 lost money by construction
+before the market did anything.
+
+**If the chain offers no strikes that satisfy both, open nothing and say why.** A
+backspread placed closer than this is not a cheap bet on a large move; it is a
+bet that the market moves a lot or not at all, and pays for the space between.
 
 ## Size - by the WORST CASE, never by the entry price
 

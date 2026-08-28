@@ -73,8 +73,32 @@ parameters:
   # ВРЕМЕННО: назначено. Считается тем же способом, что и доля ставки на событие -
   # по распределению исходов конструкции на истории. Слой ещё не мерялся.
   convexity_worst_case_share: "one structure: no more than 2% of equity at its worst case"
-  # ВРЕМЕННО: назначено.
-  convexity_layer_share: "the whole layer, counting what is already open: no more than 3% of equity"
+  # ГДЕ СТОЯТ НОГИ. До 28 августа манифест не говорил об этом ничего: приём велел
+  # «продай одну ближе, купи две дальше» и молчал о расстоянии, а размер и выход
+  # были расписаны подробно. Агент выбирал на глаз и выбирал плохо.
+  #
+  # ПОСЧИТАНО: research/sweep_backspread.py, 28 августа 2026. Перебор расстановок
+  # по 466 окнам SPY в режиме волатильности, похожем на нынешний (10,5% годовых),
+  # цены структур по Блэку-Шоулзу на ней же. ЛЮБАЯ расстановка с долиной ближе 2σ
+  # имеет отрицательное ожидание. 28 августа агент продал на 0,57σ с долиной на
+  # 1,25σ и получил −68 долларов на сделку; лучшие расстановки - продажа на
+  # 1,5-2,0σ с долиной на 2,5-3,0σ - дают +10…+14.
+  #
+  # Дело не в удаче: долина, поставленная там, куда рынок доходит обычным
+  # движением, съедает всё, что структура зарабатывает в остальное время. Заодно
+  # меняется характер слоя - в минусе 2,8% случаев вместо 22%, и из верхнего
+  # процента исходов приходит 2,2% ожидания вместо 68%. Правильно поставленный
+  # бэкспред перестаёт быть лотереей.
+  convexity_short_leg_distance: "the sold leg no closer than 1.5 sigma of the move expected by expiry, where sigma is the underlying's volatility (read_volatility_history) times the square root of trading days remaining over 252, times the price"
+  # ПОСЧИТАНО: тот же перебор и тот же день. Долина - купленный страйк, там стоит
+  # худший исход.
+  convexity_valley_distance: "the bought strike - the valley, where the worst case sits - no closer than 2.5 of that same sigma"
+  # ПОСЧИТАНО: research/sweep_backspread.py, 28 августа 2026. Было 3%, то есть слой
+  # мог держать полторы структуры разом. При измеренном ожидании +14 долларов на
+  # сделку и худшем случае −1825 второй одновременной ставке платить нечем: она
+  # удваивает хвост, не удваивая ожидания. Сравнявшись с потолком одной структуры,
+  # доля слоя означает ровно одну открытую конструкцию за раз.
+  convexity_layer_share: "the whole layer, counting what is already open: no more than 2% of equity"
   # ВРЕМЕННО: назначено.
   convexity_daily_debit: "no more than 0.5% of equity per day"
   # Делится на ШИРИНУ, а не на кредит: кредита тут около нуля, и деление на него
@@ -189,7 +213,12 @@ sessions:
 
   - name: convexity
     cause: "convexity layer: a cheap bet on a large move, bounded and known"
-    every: 2h
+    # Было 2h. Ожидание слоя измерено и мало (+14 долларов на сделку при нынешней
+    # волатильности), а ход здесь самый дорогой из всех - в среднем 94 секунды
+    # против 31 у защиты. Чаще заглядывать незачем: взять прибыль по
+    # convexity_take успевает и этот шаг, а новых входов при доле слоя в 2% всё
+    # равно один за раз.
+    every: 4h
     between: ["09:50", "15:00"]
     days: [mon, tue, wed, thu, fri]
     task: |
@@ -210,7 +239,11 @@ sessions:
       never sold.
 
   - name: earnings-crush
-    cause: "AVGO reports tonight: sell what the unknown has inflated"
+    # Причина называет УСЛОВИЕ, а не факт. Раньше стояло «AVGO reports tonight»,
+    # и в любую другую среду это была неправда - в записи и на странице, которую
+    # читает судья. Сама дата верна: 28 августа шесть источников новостей сошлись
+    # на 2 сентября, и проверка даты стоит в задаче ниже.
+    cause: "the earnings window: if a report lands after the close tonight, sell what the unknown has inflated"
     at: "15:20"
     within: 30m
     days: [wed]
