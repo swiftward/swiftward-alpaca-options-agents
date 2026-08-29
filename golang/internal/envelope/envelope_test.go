@@ -191,9 +191,13 @@ func TestTheShippedRulesetCarriesWhatTheTasksGaveUp(t *testing.T) {
 	//
 	// The build was red through all three - this test is the tripwire, and a
 	// tripwire is only worth having if somebody walks back and resets it.
+	//
+	// Eight to ten on 29 August, on Kostya's instruction to take more risk, and
+	// the smaller half of that change. The number that was actually holding the
+	// book down was the one on a SIDE of the market, below.
 	for identity, expected := range map[string]float64{
-		"alpaca-agent-1":      8,
-		"alpaca-agent-2": 8,
+		"alpaca-agent-1": 10,
+		"alpaca-agent-2": 10,
 	} {
 		out, err := set.For(identity, "place_option_order")
 		require.NoError(t, err, identity)
@@ -205,6 +209,14 @@ func TestTheShippedRulesetCarriesWhatTheTasksGaveUp(t *testing.T) {
 		}
 
 		assert.Equal(t, expected, by["max-loss-per-position"].Value, identity)
+		// Twenty-five to thirty-five on 29 August. Pinned here from that day
+		// because it is the binding number, not the one above it: two sides at 25
+		// meant the book could never hold more than half the account however small
+		// each position was, so the portfolio ceiling below stood unused and
+		// raising the position limit alone would only have made fewer, larger
+		// bets out of the same total. At 35 the two sides reach 70 and the
+		// ceiling starts to bind. It costs about 1.4 times both tails.
+		assert.Equal(t, 35, by["max-loss-on-one-side"].Value, identity)
 		// Raised to 80 on 26 August. A hundred is the wall and it is the broker's,
 		// not ours: the sum of maximum losses IS the collateral the broker holds,
 		// so at a hundred the options buying power is zero and nothing is left to

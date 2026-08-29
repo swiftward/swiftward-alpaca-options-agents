@@ -12,7 +12,7 @@ timezone: America/New_York
 # often. Which of the two is better is not settled by argument - it is settled by
 # two accounts on the same day.
 #
-# Everything else matches experiment.yaml on purpose: size from the loss, the
+# Everything else matches alpaca-agent-1.yaml on purpose: size from the loss, the
 # portfolio limit as a sum of maximum losses, the execution ladder, an intent
 # recorded before the order. EXACTLY ONE thing may differ, or there is nothing to
 # compare.

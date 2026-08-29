@@ -392,7 +392,7 @@ services:
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
       # The model through the policy gateway, under this agent's own name.
       MODEL_GATEWAY_URL: ${MODEL_GATEWAY_URL}
-      DECLARATION: ${DECLARATION:-/mnt/agent/agent.yaml}
+      DECLARATION: ${DECLARATION:-/mnt/agent/alpaca-agent-1.yaml}
       GATEWAY_TOKEN: ${GATEWAY_TOKEN}
       # The ladder reads the SAME ruleset the envelope serves, so what one
       # position may lose stops being advice at the last point our code holds an
@@ -439,7 +439,7 @@ services:
       - ./agent/skills:/mnt/skills:ro
       # The declaration comes from the checkout rather than the image, for the same
       # reason as the skills, and this is exactly the trap we have already fallen
-      # into: an edit in `agent.yaml` passes the tests while the deployment runs the
+      # into: an edit in `alpaca-agent-tikhon.yaml` passes the tests while the deployment runs the
       # baked version and says nothing about it. It showed only in the `sessions:`
       # line in the log, and then only if you knew where to look. A DIRECTORY is
       # mounted here because the two agents take different files from it. In
@@ -474,7 +474,7 @@ services:
       USER_TOKEN: ${USER_TOKEN:-}
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
       MODEL_GATEWAY_URL: ${MODEL_NEAR_GATEWAY_URL}
-      DECLARATION: ${DECLARATION_NEAR:-/mnt/agent/experiment-near.yaml}
+      DECLARATION: ${DECLARATION_NEAR:-/mnt/agent/alpaca-agent-2.yaml}
       GATEWAY_TOKEN: ${GATEWAY_NEAR_TOKEN}
       ENVELOPE_PATH: /policy/envelope.yaml
       ENVELOPE_IDENTITY: alpaca-agent-2
@@ -509,7 +509,7 @@ services:
       - ./agent/skills:/mnt/skills:ro
       # The declaration comes from the checkout rather than the image, for the same
       # reason as the skills, and this is exactly the trap we have already fallen
-      # into: an edit in `agent.yaml` passes the tests while the deployment runs the
+      # into: an edit in `alpaca-agent-tikhon.yaml` passes the tests while the deployment runs the
       # baked version and says nothing about it. It showed only in the `sessions:`
       # line in the log, and then only if you knew where to look. A DIRECTORY is
       # mounted here because the two agents take different files from it. In

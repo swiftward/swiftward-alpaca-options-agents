@@ -1,6 +1,6 @@
 # Where the numbers come from
 
-The agent trades on numbers. Every one of them is stated in `agent/agent.yaml`,
+The agent trades on numbers. Every one of them is stated in the declarations under `agent/`,
 and every one carries a marker saying where it came from: **measured**, **from the
 rules**, or **assigned**. A test refuses to build if a number carries none.
 

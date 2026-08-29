@@ -4,7 +4,7 @@ An autonomous agent trades defined-risk option structures on an Alpaca paper acc
 
 ## The AI logic
 
-The agent is a model session with tools, not a script with a model in it. Its schedule is a declaration, `agent/agent.yaml`:
+The agent is a model session with tools, not a script with a model in it. Its schedule is a declaration, one file per agent in `agent/`:
 
 ```yaml
   - name: entry
@@ -37,7 +37,7 @@ The volatility history is ours: the broker answers what an option costs now, and
 ## Risk gates
 
 - **Defined risk only.** Every position is a spread whose largest possible loss is known before it is opened. No naked short options.
-- **Size comes from the envelope, not from the prompt.** The agent asks what one position may lose (`position_max_loss`, 8% of equity today), what everything staked on one side of the market may lose together (`same_direction_max_loss`, 25%), and what the whole book may lose (`portfolio_max_loss`, 80%). It sizes to nine tenths of the position ceiling, because the ceiling is a share of equity and equity moves while the order rests in the book.
+- **Size comes from the envelope, not from the prompt.** The agent asks what one position may lose (`position_max_loss`, 10% of equity today), what everything staked on one side of the market may lose together (`same_direction_max_loss`, 35%), and what the whole book may lose (`portfolio_max_loss`, 80%). It sizes to nine tenths of the position ceiling, because the ceiling is a share of equity and equity moves while the order rests in the book.
 - **Intent before order.** The agent calls `record_intent` with the thesis, the structure and the maximum loss before it orders, and the record carries both, so what was declared can be checked against what was done. It is a rule the agent follows and the record exposes, not a lock on the broker: the order goes to a different server, and an order that skipped the intent would show as a fill with nothing behind it.
 - **Defence on a clock.** Every thirty minutes the agent looks at what it holds and closes a vertical whose BOUGHT strike the price has passed - not the sold one. Measured over 638 trades and two and a half years: closing on a touch of the sold strike returns -$0.33 a trade, closing on the bought strike +$0.86, because at the sold strike the spread is already worth about 0.62 of its width and 37% of those cases finish out of the money anyway. It counts the legs before it decides: a structure with more legs, or more bought than sold, is not a vertical and is left alone.
 - **Winners are bought back by a watch, not by a turn.** Every thirty seconds a process checks each open structure against the book and closes it once the buy-back costs no more than 0.35 of the credit it was opened for. An agent's turn costs a minute and a half and defence comes round every thirty minutes; a number crossing a line is arithmetic on a clock. Measured on the minute-by-minute path of 553 trades over 646 days: holding to expiry returns $2,287 with 26% losing trades, closing at 0.35 returns $6,292 with 9%.

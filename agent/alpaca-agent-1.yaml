@@ -1,6 +1,6 @@
 # The trial declaration: the development account runs on it until the kickoff.
 #
-# It differs from the submitted one (agent.yaml) in having more windows and more
+# It differs from the submitted one (alpaca-agent-tikhon.yaml) in having more windows and more
 # often: an entry is tried every half hour instead of three windows, defence goes
 # round twice as often, and beside them stand probe windows the submitted one does
 # not have at all.
