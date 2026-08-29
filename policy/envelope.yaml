@@ -21,7 +21,7 @@ ruleset_version: "2026-08-26.7"
 
 agents:
   # The first account. Small positions, the whole list of underlyings.
-  options-alpha:
+  alpaca-agent-1:
     tools:
       place_option_order:
         - rule: max-loss-per-position
@@ -92,7 +92,7 @@ agents:
 
   # The second account. Same engine, sold closer to the money, so positions are
   # larger and the list of underlyings is its own.
-  options-alpha-near:
+  alpaca-agent-2:
     tools:
       place_option_order:
         - rule: max-loss-per-position

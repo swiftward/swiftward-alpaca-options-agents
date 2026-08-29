@@ -35,6 +35,12 @@ test-db: ## Run the record's tests against a real Postgres
 test-broker: ## Run the tests against the broker's server on the development account
 	docker compose --env-file .env run --rm tests go test -tags broker -count=1 ./internal/marketdata/...
 
+check: ## Every gate a push must pass: style, language, tests, the race detector, both builds
+	$(MAKE) lint
+	$(MAKE) test
+	$(MAKE) -C golang test-race
+	$(MAKE) build
+
 lint: ## Check the style
 	$(MAKE) -C golang lint
 	$(MAKE) english

@@ -66,7 +66,7 @@ services:
       # story about the system rather than the system. It reads and only reads: the
       # page cannot edit the envelope.
       ENVELOPE_PATH: /policy/envelope.yaml
-      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY:-options-alpha}
+      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY:-alpaca-agent-1}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       RECORD_SHOWS: ${RECORD_SHOWS}
       # The read side asks the broker what the account is worth. It only reads:

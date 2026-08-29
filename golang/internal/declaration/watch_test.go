@@ -11,7 +11,7 @@ import (
 
 const oneSession = `
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: America/New_York
 sessions:
   - name: entry

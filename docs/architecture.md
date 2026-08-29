@@ -1,6 +1,21 @@
 # Architecture
 
-Seven services, two networks, one binary with four roles. The shape exists to make one property true: **the agent reaches nothing except the services beside it and the hosts the proxy allows.**
+Two networks, one binary with four roles, and one chain repeated per account. The shape exists to make one property true: **the agent reaches nothing except the services beside it and the hosts the proxy allows.**
+
+## One agent is one chain
+
+Every link belongs to exactly one account and carries that account's name:
+
+```
+alpaca-agent-1  ->  gateway endpoint alpaca-agent-1  ->  alpaca-mcp-agent-1  ->  account 1
+alpaca-agent-2  ->  gateway endpoint alpaca-agent-2  ->  alpaca-mcp-agent-2  ->  account 2
+```
+
+One harness, one endpoint at the gateway, one Alpaca MCP server, one account, one database, one page, one credential, one envelope identity. Adding an account means adding a chain rather than a setting.
+
+Two things stand outside the chain and are shared on purpose: the Postgres server, which gives each agent a database of its own, and the `envelope` service, which holds no credential and answers each caller only what that caller's identity is granted.
+
+The reason is not symmetry. Alpaca's server reads its keys from its own environment, so a process serves exactly one account and no request can name another; the gateway applies limits to whoever asked, so two agents behind one credential would be one agent to the rules; and a shared database would let one agent's restart close the other's open turns. The name is the same at every link so that a row in the record, a refusal at the gateway and a container in `docker ps` can be read as the same agent without a table.
 
 Every call it makes to the broker goes through the policy gateway, at `BROKER_MCP_URL`, carrying the agent's own credential. The gateway is what decides whether a tool may be called at all, and by which agent. An order the gateway refuses never reaches Alpaca, and the refusal says which rule refused it.
 
@@ -18,9 +33,9 @@ Its limits come from outside it too. The session asks `read_envelope` before it 
 
 | Service | What it is | Where it can go |
 |---|---|---|
-| `agent` | our binary holding the clock, the volatility history and the session's tools, and the agent it starts | the broker's server, the envelope, Postgres, and the egress proxy |
+| `alpaca-agent-1`, `alpaca-agent-2` | our binary holding the clock, the volatility history and the session's tools, and the agent it starts | the broker's server, the envelope, Postgres, and the egress proxy |
 | `envelope` | the same binary answering what one caller may do on one tool, from `policy/envelope.yaml` | nowhere: it reads a file |
-| `page` | the same binary serving the read side and the built page | Postgres, and the broker for the money it shows |
+| `page-agent-1`, `page-agent-2` | the same binary serving the read side and the built page | Postgres, and the broker for the money it shows |
 | `migrate` | applies `postgres/migrations` in name order, then exits | Postgres |
 | `alpaca-mcp-agent-1`, `alpaca-mcp-agent-2` | Alpaca's own MCP server (`alpaca-mcp-server`, pinned release), one process per account because it reads its keys from its own environment | Alpaca |
 | `egress` | forward proxy with a host allowlist, kept for reference; outbound traffic now goes through the policy gateway | the hosts it allows |
@@ -38,7 +53,7 @@ The file it reads is mounted from the checkout rather than baked into the image,
 
 The agent sits on `internal` alone. Everything it can do is therefore enumerable: call the services beside it, or ask the proxy, which answers only for the hosts in its allowlist and logs every refusal. Widening that list is a change to this repository, not a decision the session can make.
 
-`alpaca-mcp` also sits on `outbound`, because it talks to Alpaca. So does `page`: a browser has to reach it, and a port cannot be published on `internal`.
+Each `alpaca-mcp-agent-*` also sits on `outbound`, because it talks to Alpaca. So does each page: a browser has to reach it, and a port cannot be published on `internal`.
 
 ## The four roles
 
@@ -53,13 +68,11 @@ The agent sits on `internal` alone. Everything it can do is therefore enumerable
   `post_to_chat` exists only when a chat is configured. An agent that can see a tool assumes it works, so an unconfigured channel offers no tool rather than one that fails. `read_candidates` follows the same rule: it appears only where a screener is running.
 - **`envelope`** answers what one caller may do on one tool, from a file an operator edits. It is described above; it is a role rather than a separate program because the stand-in and the thing it stands in for must answer identically.
 
-## Two accounts, two records
+## What differs between the two chains
 
-The stack runs the same binary twice, against two accounts, under two sets of limits: one selling far from the price and one selling half as far. Only the declaration and the token differ - no code is branched, which is the point of putting the strategy in a declaration rather than in an interface.
+The same binary runs twice, under two sets of limits: `alpaca-agent-1` sells far from the price, `alpaca-agent-2` sells half as far. Only the declaration and the credentials differ - no code is branched, which is the point of putting the strategy in a declaration rather than in an interface.
 
 The declaration says three things: when each session wakes and what it is asked to do, which skills the agent is given, and the numbers those skills are run with. It is re-read while the process runs, so tightening a window or adding a session is one edit rather than a restart in the middle of a trading day. The same tick also brings the skills the session reads level with what the source holds, so editing the text of a technique reaches a session already at work. A file that is half-saved or does not check out is refused and said so in the log; the schedule already in force keeps working.
-
-Each has its own database. A shared one would let one agent's restart close the other's open turns - the query that closes what a dead process left behind cannot tell them apart - and would let either skip a session because the other had already run one by that name. Separate databases make that impossible by construction rather than by care.
 
 ## The record
 

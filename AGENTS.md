@@ -8,6 +8,12 @@ This is a hard rule with no exceptions and no "we will clean it up later": the r
 
 The single thing that keeps its original wording is a quotation: a source quoted word for word stays as the source wrote it, because a translated quotation is no longer a quotation.
 
+## Before you push
+
+Run `make check`. It is the whole gate in one command: the style check, the language check above, the tests, the race detector, and both builds. Push only on a green one.
+
+Do not lean on anything that runs after the push. The language check in particular is the one no other gate can stand in for - `go vet` and the tests pass happily on a comment in another language, and a line that reaches the history is published, not queued.
+
 ## Clients
 
 No client of ours is named in this repository, and nothing is copied here out of a client's repository or folder - code, styles, documents, data. This repository is published whole, and what is committed stays in the history after it is deleted. Write our own.

@@ -298,7 +298,7 @@ func TestTheClockWakesASessionWithoutAnybody(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "agent.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 version: v1
 timezone: UTC
 sessions:
@@ -338,7 +338,7 @@ func TestADueSessionWaitsForTheRunningTurn(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "agent.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: UTC
 sessions:
   - name: defend
@@ -695,7 +695,7 @@ func TestATurnIsRecordedAndClosedWithoutAChat(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "agent.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 version: v1
 timezone: UTC
 sessions:
@@ -815,7 +815,7 @@ func TestARestartInsideTheWindowDoesNotRunTheSessionTwice(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "agent.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: UTC
 sessions:
   - name: entry
@@ -859,7 +859,7 @@ func TestAWindowWithNothingRecordedStillRuns(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "agent.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: UTC
 sessions:
   - name: entry
@@ -893,7 +893,7 @@ func TestOnlyDeclaredSessionsCountAsHavingRun(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "agent.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: UTC
 sessions:
   - name: entry
@@ -1451,7 +1451,7 @@ func TestANameTheRecordAlreadySawDoesNotRunASecondTimeToday(t *testing.T) {
 
 	before, err := declaration.Load(write(t, `
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: UTC
 sessions:
   - name: flatten
@@ -1464,7 +1464,7 @@ sessions:
 
 	after, err := declaration.Load(write(t, `
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: UTC
 sessions:
   - name: flatten
@@ -1526,7 +1526,7 @@ func TestARereadDoesNotForgetWhatThisProcessAlreadyWoke(t *testing.T) {
 	now := time.Date(2026, 8, 25, 14, 40, 0, 0, time.UTC)
 	body := `
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: UTC
 sessions:
   - name: entry
@@ -1565,7 +1565,7 @@ sessions:
 func TestARereadThatFailsLeavesTheClockAlone(t *testing.T) {
 	declared, err := declaration.Load(write(t, `
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: UTC
 sessions:
   - name: entry
@@ -1613,7 +1613,7 @@ func write(t *testing.T, body string) string {
 func TestARunningHarnessPicksUpAChangeWithoutARestart(t *testing.T) {
 	body := `
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: UTC
 sessions:
   - name: entry
@@ -1673,7 +1673,7 @@ sessions:
 func TestEveryCauseCarriesTheNumbersTheAgentRunsOn(t *testing.T) {
 	declared, err := declaration.Load(write(t, `
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: UTC
 parameters:
   short_leg_delta: "0.15 in absolute value"
@@ -1730,7 +1730,7 @@ sessions:
 func TestTheRecordedCauseIsWhatWokeTheSessionNotTheNumbers(t *testing.T) {
 	declared, err := declaration.Load(write(t, `
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: UTC
 parameters:
   short_leg_delta: "0.15 in absolute value"

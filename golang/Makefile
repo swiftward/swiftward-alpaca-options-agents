@@ -1,4 +1,4 @@
-.PHONY: build test test-db test-broker lint fmt
+.PHONY: build test test-race test-db test-broker lint fmt
 
 APPS := app
 
@@ -16,6 +16,12 @@ test:
 	go test -count=1 ./...
 	go vet -tags db ./...
 	go vet -tags broker ./...
+
+# The failures this project has met are between goroutines: the clock and the
+# room both starting a turn, a watcher reading what a test writes. A suite that
+# only runs single-threaded says nothing about either.
+test-race:
+	go test -race -count=1 ./...
 
 # Run from the root `make test-db`, beside a Postgres. Without DATABASE_URL the
 # test fails rather than skips: a tier that quietly goes green checks nothing.

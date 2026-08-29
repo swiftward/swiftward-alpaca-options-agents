@@ -22,7 +22,7 @@ import (
 const ruleset = `
 ruleset_version: "test-1"
 agents:
-  options-alpha:
+  alpaca-agent-1:
     tools:
       place_option_order:
         - rule: max-loss-per-position
@@ -44,7 +44,7 @@ func TestThePageShowsTheSameLimitsTheAgentIsGiven(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(ruleset), 0o600))
 
 	handler := serving(t, Read{
-		Record: record.NewMemory(), EnvelopePath: path, EnvelopeIdentity: "options-alpha",
+		Record: record.NewMemory(), EnvelopePath: path, EnvelopeIdentity: "alpaca-agent-1",
 	})
 
 	answer := httptest.NewRecorder()
@@ -57,7 +57,7 @@ func TestThePageShowsTheSameLimitsTheAgentIsGiven(t *testing.T) {
 	// The same thing, taken straight from the envelope - letter for letter.
 	set, err := envelope.Load(path)
 	require.NoError(t, err)
-	given, err := set.For("options-alpha", "place_option_order")
+	given, err := set.For("alpaca-agent-1", "place_option_order")
 	require.NoError(t, err)
 
 	assert.Equal(t, given, shown, "the page and the agent must see the same thing")

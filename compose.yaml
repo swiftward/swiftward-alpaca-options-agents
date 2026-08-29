@@ -284,7 +284,7 @@ services:
       # story about the system rather than the system. It reads and only reads: the
       # page cannot edit the envelope.
       ENVELOPE_PATH: /policy/envelope.yaml
-      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY:-options-alpha}
+      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY:-alpaca-agent-1}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       RECORD_SHOWS: ${RECORD_SHOWS}
       # The read side asks the broker what the account is worth. It only reads:
@@ -335,7 +335,7 @@ services:
       # story about the system rather than the system. It reads and only reads: the
       # page cannot edit the envelope.
       ENVELOPE_PATH: /policy/envelope.yaml
-      ENVELOPE_IDENTITY: ${ENVELOPE_NEAR_IDENTITY:-options-alpha-near}
+      ENVELOPE_IDENTITY: ${ENVELOPE_NEAR_IDENTITY:-alpaca-agent-2}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
       RECORD_SHOWS: ${RECORD_SHOWS}
       ORDERS_SHOWN: ${ORDERS_SHOWN}
@@ -390,7 +390,7 @@ services:
       # order. The session still discovers its limits by asking; this is the
       # backstop under it.
       ENVELOPE_PATH: /policy/envelope.yaml
-      ENVELOPE_IDENTITY: options-alpha
+      ENVELOPE_IDENTITY: alpaca-agent-1
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}
@@ -468,7 +468,7 @@ services:
       DECLARATION: ${DECLARATION_NEAR:-/mnt/agent/experiment-near.yaml}
       GATEWAY_TOKEN: ${GATEWAY_NEAR_TOKEN}
       ENVELOPE_PATH: /policy/envelope.yaml
-      ENVELOPE_IDENTITY: options-alpha-near
+      ENVELOPE_IDENTITY: alpaca-agent-2
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_NEAR_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       TELEGRAM_TOPIC_ID: ${TELEGRAM_NEAR_TOPIC_ID}

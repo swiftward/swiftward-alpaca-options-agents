@@ -135,7 +135,7 @@ whoever asked, and two agents sharing a key would be one agent to the rules.
 
 ```
 T=$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 32)
-printf 'GATEWAY_TOKEN=%s\nENVELOPE_CALLERS=%s=options-alpha\n' "$T" "$T" >> .env
+printf 'GATEWAY_TOKEN=%s\nENVELOPE_CALLERS=%s=alpaca-agent-1\n' "$T" "$T" >> .env
 ```
 
 Be careful writing into `.env` over ssh: `\$T` inside a heredoc lands in the file

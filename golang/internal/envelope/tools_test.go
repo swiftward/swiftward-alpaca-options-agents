@@ -17,7 +17,7 @@ import (
 const twoCallers = `
 ruleset_version: "test.7"
 agents:
-  options-alpha:
+  alpaca-agent-1:
     tools:
       place_option_order:
         - rule: max-loss-per-position
@@ -26,7 +26,7 @@ agents:
           kind: maximum
           value: 0.5
           unit: percent_of_equity
-  options-alpha-near:
+  alpaca-agent-2:
     tools:
       place_option_order:
         - rule: max-loss-per-position
@@ -56,7 +56,7 @@ func ask(t *testing.T, path, token string) *mcp.ClientSession {
 
 	server := httptest.NewServer(Tools{
 		Path:    path,
-		Callers: map[string]string{"alpha-token": "options-alpha", "near-token": "options-alpha-near"},
+		Callers: map[string]string{"alpha-token": "alpaca-agent-1", "near-token": "alpaca-agent-2"},
 	}.Handler())
 	t.Cleanup(server.Close)
 
@@ -121,14 +121,14 @@ func TestTheTokenDecidesWhichLimitsApply(t *testing.T) {
 	path := ruleset(t)
 
 	alpha := envelopeOf(t, ask(t, path, "alpha-token"), "place_option_order")
-	assert.Equal(t, "options-alpha", alpha.Identity)
+	assert.Equal(t, "alpaca-agent-1", alpha.Identity)
 	assert.Equal(t, "test.7", alpha.RulesetVersion)
 	assert.True(t, alpha.Governed)
 	require.Len(t, alpha.Constraints, 1)
 	assert.Equal(t, 0.5, alpha.Constraints[0].Value)
 
 	near := envelopeOf(t, ask(t, path, "near-token"), "place_option_order")
-	assert.Equal(t, "options-alpha-near", near.Identity)
+	assert.Equal(t, "alpaca-agent-2", near.Identity)
 	assert.Equal(t, 2.5, near.Constraints[0].Value)
 }
 
@@ -155,7 +155,7 @@ func TestAnEditIsSeenWithoutRestarting(t *testing.T) {
 	lowered := []byte(`
 ruleset_version: "test.8"
 agents:
-  options-alpha:
+  alpaca-agent-1:
     tools:
       place_option_order:
         - rule: max-loss-per-position

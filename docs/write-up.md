@@ -29,6 +29,7 @@ The session carries tools the broker's server does not have:
 | `read_schedule` | when it will be woken and why, read from the declaration rather than guessed |
 | `read_volatility_history` | where today's implied volatility sits in its own recorded history, ranked 0 to 100 |
 | `read_candidates` | what the screener's last pass found, with the edge it measured on each structure |
+| `score_placements` | where to put the legs of a structure whose worst case sits in the middle: every placement the limits allow, priced at the sides of the book and replayed against that underlying's own history in weather like today's |
 | `wake_me_at`, `wake_me_on_price`, `list_wakeups`, `cancel_wakeup` | its own standing requests |
 
 The volatility history is ours: the broker answers what an option costs now, and two of the three entry rules compare today with its own past. A recorder reads the option closest to the money on every watched underlying every few minutes and writes it to `volatility_samples`.

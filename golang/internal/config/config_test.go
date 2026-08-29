@@ -115,7 +115,7 @@ func TestEveryDeclaredSettingIsRead(t *testing.T) {
 	t.Setenv("VOLATILITY_EVERY", "5m")
 	t.Setenv("ENVELOPE_ADDR", ":8090")
 	t.Setenv("ENVELOPE_PATH", "/agent/envelope.yaml")
-	t.Setenv("ENVELOPE_CALLERS", "alpha-token=options-alpha, near-token=options-alpha-near")
+	t.Setenv("ENVELOPE_CALLERS", "alpha-token=alpaca-agent-1, near-token=alpaca-agent-2")
 
 	cfg, err := Load()
 	require.NoError(t, err)
@@ -141,15 +141,15 @@ func TestEveryDeclaredSettingIsRead(t *testing.T) {
 	assert.Equal(t, ":8090", cfg.EnvelopeAddr)
 	assert.Equal(t, "/agent/envelope.yaml", cfg.EnvelopePath)
 	assert.Equal(t, map[string]string{
-		"alpha-token": "options-alpha",
-		"near-token":  "options-alpha-near",
+		"alpha-token": "alpaca-agent-1",
+		"near-token":  "alpaca-agent-2",
 	}, cfg.EnvelopeCallers)
 }
 
 // Two agents under one token are one agent as far as the rules are concerned,
 // and neither of them would ever notice.
 func TestOneTokenCannotBelongToTwoCallers(t *testing.T) {
-	_, err := parseCallers("shared=options-alpha,shared=options-alpha-near", nil)
+	_, err := parseCallers("shared=alpaca-agent-1,shared=alpaca-agent-2", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "one token is given to both")
 }

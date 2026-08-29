@@ -27,7 +27,7 @@ func TestTheShippedRulesetGivesTheShareTheLadderEnforces(t *testing.T) {
 	require.NoError(t, err)
 
 	shares := map[string]float64{}
-	for _, identity := range []string{"options-alpha", "options-alpha-near"} {
+	for _, identity := range []string{"alpaca-agent-1", "alpaca-agent-2"} {
 		out, err := set.For(identity, "place_option_order")
 		require.NoError(t, err, identity)
 
@@ -44,7 +44,7 @@ func TestTheShippedRulesetGivesTheShareTheLadderEnforces(t *testing.T) {
 		shares[identity] = share
 	}
 
-	assert.InDelta(t, shares["options-alpha"], shares["options-alpha-near"], 1e-9,
+	assert.InDelta(t, shares["alpaca-agent-1"], shares["alpaca-agent-2"], 1e-9,
 		"the two agents run the same limit; one drifting from the other is a slip, not a choice")
 }
 
@@ -58,7 +58,7 @@ func TestTheOneSideCeilingSitsBetweenThePositionAndTheBook(t *testing.T) {
 	set, err := Load(filepath.Join("..", "..", "..", "policy", "envelope.yaml"))
 	require.NoError(t, err)
 
-	for _, identity := range []string{"options-alpha", "options-alpha-near"} {
+	for _, identity := range []string{"alpaca-agent-1", "alpaca-agent-2"} {
 		out, err := set.For(identity, "place_option_order")
 		require.NoError(t, err, identity)
 

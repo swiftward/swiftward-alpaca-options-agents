@@ -22,7 +22,7 @@ func write(t *testing.T, body string) string {
 
 const good = `
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 version: v1
 timezone: America/New_York
 sessions:
@@ -43,7 +43,7 @@ func TestLoadReadsSessions(t *testing.T) {
 	d, err := Load(write(t, good))
 	require.NoError(t, err)
 
-	assert.Equal(t, "options-alpha", d.Name)
+	assert.Equal(t, "alpaca-agent-1", d.Name)
 	require.Len(t, d.Sessions, 2)
 	assert.Equal(t, "entry", d.Sessions[0].Name)
 	assert.Contains(t, d.Sessions[0].Prompt(), "the entry window")
@@ -168,7 +168,7 @@ func TestTheScheduleReadsAsSentences(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "agent.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(`
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: America/New_York
 sessions:
   - name: entry
@@ -204,7 +204,7 @@ sessions:
 func TestTheNumbersAreReadAndWrittenAsABlock(t *testing.T) {
 	d, err := Load(write(t, `
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: America/New_York
 skills:
   - playbook-premium-harvest
@@ -282,7 +282,7 @@ func TestLoadRefusesParametersThatCannotBeRead(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			_, err := Load(write(t, `
 kind: trading-agent
-name: options-alpha
+name: alpaca-agent-1
 timezone: UTC
 `+tc.body+`sessions:
   - name: entry

@@ -20,7 +20,7 @@ func write(t *testing.T, body string) string {
 const oneRule = `
 ruleset_version: "test.1"
 agents:
-  options-alpha:
+  alpaca-agent-1:
     tools:
       place_option_order:
 `
@@ -81,7 +81,7 @@ func TestSubjectAndUnitComeFromClosedLists(t *testing.T) {
 func TestAnEnvelopeWithoutItsVersionIsRefused(t *testing.T) {
 	_, err := Load(write(t, `
 agents:
-  options-alpha:
+  alpaca-agent-1:
     tools: {}
 `))
 	require.Error(t, err)
@@ -112,12 +112,12 @@ func TestAToolUnderNoRuleAnswersGovernedFalse(t *testing.T) {
 `))
 	require.NoError(t, err)
 
-	out, err := set.For("options-alpha", "get_clock")
+	out, err := set.For("alpaca-agent-1", "get_clock")
 	require.NoError(t, err)
 	assert.False(t, out.Governed)
 	assert.Empty(t, out.Constraints)
 	assert.Equal(t, "test.1", out.RulesetVersion)
-	assert.Equal(t, "options-alpha", out.Identity)
+	assert.Equal(t, "alpaca-agent-1", out.Identity)
 
 	written, err := json.Marshal(out)
 	require.NoError(t, err)
@@ -148,9 +148,9 @@ func TestTheSameRulesetAnswersTheSameBytes(t *testing.T) {
 	second, err := Load(path)
 	require.NoError(t, err)
 
-	one, err := first.For("options-alpha", "place_option_order")
+	one, err := first.For("alpaca-agent-1", "place_option_order")
 	require.NoError(t, err)
-	two, err := second.For("options-alpha", "place_option_order")
+	two, err := second.For("alpaca-agent-1", "place_option_order")
 	require.NoError(t, err)
 
 	a, err := json.Marshal(one)
@@ -192,8 +192,8 @@ func TestTheShippedRulesetCarriesWhatTheTasksGaveUp(t *testing.T) {
 	// The build was red through all three - this test is the tripwire, and a
 	// tripwire is only worth having if somebody walks back and resets it.
 	for identity, expected := range map[string]float64{
-		"options-alpha":      8,
-		"options-alpha-near": 8,
+		"alpaca-agent-1":      8,
+		"alpaca-agent-2": 8,
 	} {
 		out, err := set.For(identity, "place_option_order")
 		require.NoError(t, err, identity)
@@ -243,15 +243,15 @@ func TestTheClientsNamespaceDoesNotHideTheLimits(t *testing.T) {
 	ruleset := Ruleset{
 		Version: "test",
 		Agents: map[string]Agent{
-			"options-alpha": {Tools: map[string][]Constraint{
+			"alpaca-agent-1": {Tools: map[string][]Constraint{
 				"place_option_order": {{Rule: "max-loss-per-position"}},
 			}},
 		},
 	}
 
-	bare, err := ruleset.For("options-alpha", "place_option_order")
+	bare, err := ruleset.For("alpaca-agent-1", "place_option_order")
 	require.NoError(t, err)
-	prefixed, err := ruleset.For("options-alpha", "mcp__broker__place_option_order")
+	prefixed, err := ruleset.For("alpaca-agent-1", "mcp__broker__place_option_order")
 	require.NoError(t, err)
 
 	assert.True(t, bare.Governed)
@@ -264,10 +264,10 @@ func TestTheClientsNamespaceDoesNotHideTheLimits(t *testing.T) {
 func TestAnUnknownToolStaysUngoverned(t *testing.T) {
 	ruleset := Ruleset{
 		Version: "test",
-		Agents:  map[string]Agent{"options-alpha": {Tools: map[string][]Constraint{}}},
+		Agents:  map[string]Agent{"alpaca-agent-1": {Tools: map[string][]Constraint{}}},
 	}
 
-	got, err := ruleset.For("options-alpha", "mcp__broker__cancel_order")
+	got, err := ruleset.For("alpaca-agent-1", "mcp__broker__cancel_order")
 	require.NoError(t, err)
 	assert.False(t, got.Governed)
 	assert.Empty(t, got.Constraints)

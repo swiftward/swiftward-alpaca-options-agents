@@ -16,7 +16,7 @@ The agent trades defined-risk options structures on Alpaca. Every broker call pa
 
 | Path | What is in it |
 |---|---|
-| `golang/apps/app` | one binary, three roles: `harness` holds the clock, `api` serves the read side and the built page, `mcp` carries the session's own tools |
+| `golang/apps/app` | one binary, four roles: `harness` holds the clock, `api` serves the read side and the built page, `mcp` carries the session's own tools, `envelope` answers what a caller may do |
 | `golang/internal` | the packages behind it |
 | `typescript/web` | the demo page: what the agent did, what it meant to do, where it was stopped |
 | `docker` | one Dockerfile per service, including the egress proxy and its allowlist |
