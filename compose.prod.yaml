@@ -4,6 +4,14 @@ name: swiftward-alpaca-options-agents-prod
 # images at ${IMAGE_TAG} instead of building. Rationale for each service lives once,
 # in compose.yaml - the two files must not carry two copies of it that drift apart.
 
+# The names here are GENERIC on purpose, and the local compose beside it is not.
+# That file runs several agents on one machine, so each of its host names carries
+# whose it is - AGENT_1_, AGENT_2_, AGENT_TIKHON_. This one runs ONE agent, so a
+# prefix here would name something that cannot vary, and it would make a rename in
+# the local file into thirteen edits on somebody else's stand.
+#
+# Renaming them here on 29 August would have done exactly that, and it was caught
+# before anyone deployed.
 services:
   postgres:
     image: postgres:18.4-alpine
@@ -47,8 +55,8 @@ services:
     # broker.
     dns: [1.1.1.1, 8.8.8.8]
     environment:
-      ALPACA_API_KEY: ${AGENT_1_ALPACA_KEY_ID}
-      ALPACA_SECRET_KEY: ${AGENT_1_ALPACA_SECRET_KEY}
+      ALPACA_API_KEY: ${ALPACA_API_KEY_ID}
+      ALPACA_SECRET_KEY: ${ALPACA_API_SECRET_KEY}
       ALPACA_PAPER_TRADE: ${ALPACA_PAPER}
       ALPACA_TOOLSETS: ${ALPACA_TOOLSETS}
 
@@ -66,13 +74,13 @@ services:
       # story about the system rather than the system. It reads and only reads: the
       # page cannot edit the envelope.
       ENVELOPE_PATH: /policy/envelope.yaml
-      ENVELOPE_IDENTITY: ${AGENT_1_ENVELOPE_IDENTITY:-alpaca-agent-1}
+      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY:-alpaca-agent-1}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       RECORD_SHOWS: ${RECORD_SHOWS}
       # The read side asks the broker what the account is worth. It only reads:
       # the money questions have no order in them.
-      BROKER_MCP_URL: ${AGENT_1_PAGE_MCP_URL}
-      BROKER_MCP_TOKEN: ${AGENT_1_PAGE_MCP_TOKEN}
+      BROKER_MCP_URL: ${PAGE_MCP_URL}
+      BROKER_MCP_TOKEN: ${PAGE_MCP_TOKEN}
       ORDERS_SHOWN: ${ORDERS_SHOWN}
       HISTORY_DAYS: ${HISTORY_DAYS}
     # The page has no port of its own facing outwards: only the proxy faces out,
@@ -123,7 +131,7 @@ services:
       SESSION_MCP_URL: http://127.0.0.1:8081
       # Set only while the gateway is not yet in front of the broker, and only on
       # a development account.
-      BROKER_MCP_URL: ${AGENT_1_BROKER_MCP_URL}
+      BROKER_MCP_URL: ${BROKER_MCP_URL}
       # Where the harness's READS go - prices, the clock, the account, chains. An
       # empty value means "the same place the orders go". They can be separated
       # because the line above also lands in the session's own configuration as
@@ -153,23 +161,23 @@ services:
       EXECUTION_EVERY: ${EXECUTION_EVERY}
       EXECUTION_STEP: ${EXECUTION_STEP}
       EXECUTION_PATIENCE: ${EXECUTION_PATIENCE}
-      DECLARATION: ${AGENT_1_DECLARATION:-/agent/alpaca-agent-tikhon.yaml}
-      TELEGRAM_BOT_TOKEN: ${AGENT_1_TELEGRAM_BOT_TOKEN}
+      DECLARATION: ${DECLARATION:-/agent/alpaca-agent-tikhon.yaml}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
-      TELEGRAM_TOPIC_ID: ${AGENT_1_TELEGRAM_TOPIC_ID}
+      TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}
       TELEGRAM_ALLOW_USER_IDS: ${TELEGRAM_ALLOW_USER_IDS}
       GATEWAY_URL: ${GATEWAY_URL:-http://envelope:8090/mcp}
-      GATEWAY_TOKEN: ${AGENT_1_GATEWAY_TOKEN}
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
       # Where the playbooks come from. In a deployment, from the image: there is no
       # checkout here, and an edit to a playbook's text arrives as a new image, like
       # everything else.
       SKILLS_DIR: /agent/skills
       # Who this process presents itself as to the envelope: the ladder reads the
       # same position limit the session is told to size by.
-      ENVELOPE_IDENTITY: ${AGENT_1_ENVELOPE_IDENTITY}
+      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY}
       # The key to the broker when the route to it runs through the gateway.
-      BROKER_MCP_TOKEN: ${AGENT_1_BROKER_MCP_TOKEN}
-      MODEL_GATEWAY_URL: ${AGENT_1_MODEL_GATEWAY_URL}
+      BROKER_MCP_TOKEN: ${BROKER_MCP_TOKEN}
+      MODEL_GATEWAY_URL: ${MODEL_GATEWAY_URL}
       # What the screener looks through and what it considers fit to show. The
       # analysis is docs/screener.md; an empty list of underlyings switches off both
       # the pass and the session's candidates tool, silently.
@@ -184,8 +192,8 @@ services:
       # than refusing to run.
       SCREENER_KEEP: ${SCREENER_KEEP}
       THREAD_RESUME_LIMIT: ${THREAD_RESUME_LIMIT}
-      HTTP_PROXY: ${AGENT_1_OUTBOUND_PROXY:-http://egress:8888}
-      HTTPS_PROXY: ${AGENT_1_OUTBOUND_PROXY:-http://egress:8888}
+      HTTP_PROXY: ${OUTBOUND_PROXY:-http://egress:8888}
+      HTTPS_PROXY: ${OUTBOUND_PROXY:-http://egress:8888}
       NO_PROXY: alpaca-mcp,envelope,postgres,egress,localhost,127.0.0.1
       CODEX_HOME: /home/agent/.codex
     volumes:
