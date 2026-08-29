@@ -430,6 +430,58 @@ services:
         condition: service_completed_successfully
     profiles: [tikhon]
 
+  # The demo stand's page. This is the account that trades from Monday's kickoff,
+  # so its figure is the one the submission is judged on - the account beside it
+  # is a teammate's local testing.
+  page-agent-stand:
+    image: swiftward-alpaca-options-agents/page:local
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      target: page
+    networks: [internal, outbound]
+    # Its own resolvers: the page goes to the gateway for the money, and it would
+    # show a name-resolution failure as the broker being unavailable.
+    dns: [1.1.1.1, 8.8.8.8]
+    environment:
+      ROLES: api
+      ADDR: ":8080"
+      WEB_DIR: /srv/web
+      # The page serves the limits from the SAME file, through the same call that
+      # answers the agent. Otherwise it would show a retelling, and one day the
+      # retelling differs from what is actually traded, and a judge is shown a
+      # story about the system rather than the system. It reads and only reads: the
+      # page cannot edit the envelope.
+      ENVELOPE_PATH: /policy/envelope.yaml
+      ENVELOPE_IDENTITY: alpaca-agent-stand
+      # Its own read-only credential, and its own gateway endpoint. Until 29
+      # August this page had NEITHER: it answered 501 "no broker is configured"
+      # where the account panel should be, because no read-only role for this
+      # account had ever been created at the gateway. The first page had one, the
+      # teammate's had one, this one was missed.
+      BROKER_MCP_URL: ${AGENT_STAND_PAGE_MCP_URL}
+      BROKER_MCP_TOKEN: ${AGENT_STAND_PAGE_MCP_TOKEN}
+      USER_TOKEN: ${USER_TOKEN:-}
+      USER_HEADER_NAME: ${USER_HEADER_NAME:-}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      RECORD_SHOWS: ${RECORD_SHOWS}
+      ORDERS_SHOWN: ${ORDERS_SHOWN}
+      HISTORY_DAYS: ${HISTORY_DAYS}
+    ports:
+      - "${AGENT_STAND_PAGE_PORT:-8804}:8080"
+    # The week runs unattended: a machine that reboots at three in the morning
+    # must come back with the agent running, not with it waiting to be started.
+    restart: unless-stopped
+    volumes:
+      # Read-only: the page shows the limits and cannot change them. The same file
+      # the envelope and the ladder read - one source for everyone, or what is
+      # shown and what is in force diverge in silence.
+      - ./policy:/policy:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    profiles: [tikhon]
+
   alpaca-agent-1:
     <<: *agent-service
     environment:

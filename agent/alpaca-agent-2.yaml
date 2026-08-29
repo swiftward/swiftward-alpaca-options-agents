@@ -118,93 +118,97 @@ sessions:
   # that Friday cannot reach the first number at all, and has four hours to hurt
   # the second one. The rules and both dates are in `docs/rules.md` of the team's
   # own repository.
-  - name: entry
-    cause: "an entry closer to the money: a sold leg at a delta near 0.30"
-    every: 10m
-    between: ["09:50", "15:30"]
+  # THE EXPERIMENT THIS ACCOUNT CARRIES: WHEN to enter, and what to ask at each
+  # hour. Taken from the declaration that is ahead on the money, unchanged.
+  #
+  # The first account tries every ten minutes from 09:45 to 15:15 with ONE bar all
+  # day. These three windows are the other idea, and it is not "enter less often":
+  # **how much of the day is left decides how much the structure must pay.** At
+  # 10:20 a whole day of movement lies ahead, so the premium has to be dear - a
+  # credit of at least 13% of the risk, and one underlying at most. At 12:30 the
+  # position lives half a session and the ordinary rule applies. 14:20 is the main
+  # window.
+  #
+  # Measured 29 August: that declaration sent 40 orders and made 4,082 dollars
+  # against this engine's 173 and 2,700. Everything else here matches the first
+  # account deliberately - the same playbook, the same leg distance, the same
+  # thresholds, the same limits - so the week says something about the hours
+  # rather than about six differences at once.
+  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
+  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
+  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
+  # that Friday cannot reach the first number at all, and has four hours to hurt
+  # the second one. The rules and both dates are in `docs/rules.md` of the team's
+  # own repository.
+  - name: entry-morning
+    cause: "morning entry window, taken only when premium is dear"
+    at: "10:20"
+    within: 45m
     days: [mon, tue, wed, thu]
     task: |
-      Carry out premium-harvest, but closer to the money than on the neighbouring
-      account. The differences below are the whole point of this account and must
-      be held strictly. Anything not mentioned here is taken from the skill
-      unchanged.
+      **This window runs EVERY trading day. There is exactly one exception:
+      4 September 2026.** Ask the clock and check the date:
+      - today is NOT 4 September 2026 - carry on with this window as usual;
+      - today IS 4 September 2026 - open nothing, say so in one line and finish:
+        submissions close at 11:00 New York time, the result is counted at that
+        moment, and anything done after it is not counted at all.
+      There is no other reading: a date that does not match is NOT a reason to
+      finish.
+      A morning entry is not taken every day: a whole day of movement lies ahead,
+      so the premium has to be dear by a measure visible in the chain itself.
+      Run premium-harvest with two tightenings, both in our favour: enter only an
+      underlying whose best structure pays a credit-to-risk of at least 13%, and
+      no more than one underlying in this window.
+      If none clears it, say in one line what each of them paid and finish.
 
-      **Where this task and the skill disagree, the TASK wins.** The skill
-      describes the technique in general and is written for every account at once;
-      its numbers are an example, not a law. If something here says otherwise about
-      delta, side, threshold or the cost of crossing - do as it says here, and say
-      in one line what diverged. Silently taking the skill's number instead of the
-      task's cancels the experiment this account exists for.
+  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
+  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
+  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
+  # that Friday cannot reach the first number at all, and has four hours to hurt
+  # the second one. The rules and both dates are in `docs/rules.md` of the team's
+  # own repository.
+  - name: entry-midday
+    cause: "midday entry window: a position taken here lives half a session"
+    at: "12:30"
+    within: 40m
+    days: [mon, tue, wed, thu]
+    task: |
+      **This window runs EVERY trading day. There is exactly one exception:
+      4 September 2026.** Ask the clock and check the date:
+      - today is NOT 4 September 2026 - carry on with this window as usual;
+      - today IS 4 September 2026 - open nothing, say so in one line and finish:
+        submissions close at 11:00 New York time, the result is counted at that
+        moment, and anything done after it is not counted at all.
+      There is no other reading: a date that does not match is NOT a reason to
+      finish.
+      The midday entry window. Run premium-harvest.
+      The rule lives in the skill in full and is not repeated here. Your limits -
+      what one position and the whole book may lose, which underlyings, which
+      expirations - come from the envelope (read_envelope). They are not in this
+      text and they will not be.
 
-      - The sold leg: the one whose delta is nearest 0.30 in absolute value. Not
-        0.15. The bought leg is the neighbouring strike, one dollar wide (or one
-        step of strikes).
-      - Either side: a put spread below price or a call spread above. Look at what
-        we already hold a lot of, and do not take a third position on one side of
-        one underlying. A second side on an underlying that already holds one is
-        the best exchange of risk for credit in this book: the broker holds
-        collateral on the worse of the two sides rather than on their sum, because
-        price cannot go both up and down. The credit is collected on both.
-      - There is no separate threshold on credit to risk: it sits entirely inside
-        `edge_points`, because the break-even probability IS risk/(credit+risk). A
-        threshold beside the measure is a second place holding the same knowledge.
-        Select by edge.
-      - **The edge must be above zero.** The best in the list is not the same as
-        acceptable: the list is ranked, and the first row stands first even when
-        the whole list is negative. Then the right move is not to enter.
-      - **Compute size from the WORST price you will declare, not from the
-        midpoint.** The credit at the worst price is smaller, so a set's loss is
-        larger, and a position that fitted the limit at the midpoint falls out of
-        it; the ladder judges an order by the declared worst price and will cancel
-        such a one. A set's loss is (width less the WORST credit) × 100.
-      - **Compute size from the envelope's `position_max_loss`, not from buying
-        power.** A broker's refusal for want of buying power means the arithmetic
-        is off by an order of magnitude; size must not be recomputed against
-        what buying power is left. Stop and say what you worked out and what is
-        allowed.
-      - **Do not look for underlyings yourself: ask read_candidates.** The screener
-        has priced the whole permitted list for you - hundreds of underlyings, both
-        sides, every five minutes. Searching by hand gets through six in a turn,
-        and those six are whichever came up in order, not the best. If the list is
-        empty or the tool is unavailable, say so in one line and end the turn.
-      - **Structures expiring today are permitted, but their measure is weaker.**
-        The broker gives neither delta nor volatility that day, so volatility is
-        borrowed from the nearest other expiry; `edge_from` says "borrowed from
-        another expiration". A borrowed number OVERSTATES the edge, so there
-        require an edge strictly above zero. And do not take a strike nearer than a
-        quarter of a percent from price.
-        And a second thing, about our own clock: **do not open a same-day structure
-        when less than forty-five minutes remain to the close.** Defence wakes every
-        fifteen minutes and the ladder leads an order for up to eight - a position
-        opened later cannot be defended EVEN ONCE, and that is not about the size
-        of the risk but about the machinery not reaching it. Work the time out
-        yourself from the broker's clock.
-      - **Do not sell premium on an underlying that reports before the structure
-        expires.** Before a report the premium is high and the selection measure
-        shows it as edge, but ahead of an event delta understates the tail. Selling
-        premium into an event is a fat left tail; on an event we bet by buying
-        convexity. The rule fires on a CONFIRMED date before expiry, not on a
-        silent feed: silence is not evidence, and a tail needs an appointed event.
-      - Remember what makes this account different: you need a delta near 0.30, and
-        the screener returns everything up to 0.35. From the list take the ones
-        NEARER the money - the neighbouring account takes the far ones, and that is
-        the whole experiment.
-      - No more than three new positions per window.
-      - Name the sold leg's delta in the intent's thesis.
-      - In one line: what you took, at what delta, for how much, what the maximum
-        loss is, and how much is at risk in total.
+  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
+  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
+  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
+  # that Friday cannot reach the first number at all, and has four hours to hurt
+  # the second one. The rules and both dates are in `docs/rules.md` of the team's
+  # own repository.
+  - name: entry
+    cause: "the main entry window of the day"
+    at: "14:20"
+    within: 45m
+    days: [mon, tue, wed, thu]
+    task: |
+      **This window runs EVERY trading day. There is exactly one exception:
+      4 September 2026.** Ask the clock and check the date:
+      - today is NOT 4 September 2026 - carry on with this window as usual;
+      - today IS 4 September 2026 - open nothing, say so in one line and finish:
+        submissions close at 11:00 New York time, the result is counted at that
+        moment, and anything done after it is not counted at all.
+      There is no other reading: a date that does not match is NOT a reason to
+      finish.
+      The main entry window of the day. Run premium-harvest.
 
-  # Closing at a share of the credit belongs to the WATCH, not to an agent's turn.
-  # It looks every thirty seconds and buys back at 0.35 of the credit; an agent's
-  # window came round every fifteen minutes and settled for 0.50 - the same work
-  # done worse, and it took a turn from the defence.
-  # With no take_profit_at declared, nothing closes a winner at all: there is nobody else.
-
-  # Taken from the declaration that already runs it, unchanged. Both windows fall
-  # inside the days that are scored - Wednesday evening in, Thursday morning out -
-  # and each checks the date itself before doing anything, so on any other
-  # Wednesday it says one line and finishes. One technique running on one account
-  # of three was a loss, not caution.
   - name: earnings-crush
     # The cause names a CONDITION, not a fact. It used to read "AVGO reports
     # tonight", and on any other Wednesday that was untrue - in the record and on
