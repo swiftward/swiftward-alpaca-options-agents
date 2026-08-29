@@ -89,6 +89,13 @@ Give the first to something that waits for a process to exit, the second to
 something that reads lines. Swapping them is how an event ends up printed where
 nobody is reading, and it is then simply lost.
 
+And read the exit table again before wiring the first shape to a harness that
+wakes on it: `3` is an exit too. A harness that treats "the command finished" as
+"something happened" wakes every hold, finds nothing, arms the poller again, and
+wakes again - a carousel of turns in which nothing occurs but spend. Measured on
+29 August: a session did exactly this until a human looked at the screen. The fix
+is below.
+
 ## Attaching Claude Code
 
 The whole installation as one prompt to paste into a session: **`INSTALL.md`**
@@ -129,6 +136,41 @@ and reports back with `reply.sh`:
 reply.sh say  "$TURN" "sold the 640/635 put, credit 0.31, risk $469"
 reply.sh done "$TURN"
 ```
+
+## Attaching a harness that wakes when a command finishes
+
+Some harnesses have no monitor and no stream: what wakes them is a background
+task ENDING. Antigravity CLI is one, measured on 29 August - a live `tail -f`
+never woke it, while a command that exited woke it within seconds and without a
+word from the person.
+
+That is the first shape's own case, with one thing to get right: `poll-once.sh`
+also exits when the hold passes with nothing to say, and to such a harness that
+exit looks exactly like an event. Left alone it becomes a carousel: wake, find
+nothing, arm again, wake again, ninety seconds at a time, forever.
+
+So give that harness a wrapper that ends only when there is something to hand
+over:
+
+```sh
+#!/bin/sh
+# Wait until a turn exists, then exit with it. Nothing else ends this.
+while :; do
+	out=$(poll-once.sh 90); code=$?
+	case $code in
+		0) printf '%s\n' "$out"; exit 0 ;;   # a turn: hand it over and end
+		3) ;;                                # nothing yet: go round again
+		*) echo "poller gave up, $code" >&2; exit "$code" ;;
+	esac
+done
+```
+
+Then the instruction to the session is one word - run that script in the
+background - and the wake means what the harness thinks it means.
+
+The same wrapper is worth writing even for a harness that reads lines, because
+it puts the address inside the file: the session runs one word, constructs
+nothing, and the token stays out of both its context and the process list.
 
 ## What this is for
 
