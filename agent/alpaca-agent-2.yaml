@@ -37,9 +37,19 @@ skills:
 # session's own, or a person in the chat - so they need not be repeated in a
 # window's text; a window that needs a different number need only say so itself.
 parameters:
-  # The whole point of this account: sell CLOSER to the money than its neighbour.
-  # The screener returns everything up to 0.35; take what is nearer.
-  short_leg_delta: "around 0.30 in absolute value, not 0.15"
+  # This account sold CLOSER to the money than its neighbour from 27 to 29 August,
+  # and that was the whole experiment: the near leg is paid several times more and
+  # is reached far more often, and which wins is a question two accounts answer on
+  # the same prices rather than an argument.
+  #
+  # It answered. Over four days on live prices the far account stood at 102,700
+  # and this one at 98,273 - the near leg lost 1,727 while the far one made 2,700.
+  # So this account now runs the neighbour's setting, and the reason is not the
+  # size of the gap but which days are left: Monday to Thursday are the only days
+  # that count, and running a setting our own record shows losing, through the
+  # only four days that are scored, is a bet against our own evidence. The
+  # experiment gave what it was opened for and has nothing further to give.
+  short_leg_delta: "no more than 0.30 in absolute value; within that, edge_points decides"
   # The second account stands FURTHER along the curve than the first, and that is
   # its role in the three. Over 646 trading days: at 0 the expectation is near
   # zero - the sign changes between 0 and +1 - at +2 it is plus 2.63, at +3 plus
@@ -47,8 +57,10 @@ parameters:
   # on the point where the sign changes. We take +3: the most per trade, the
   # fewest trades, and deliberately a different angle from the neighbour's +2.
   min_edge_points: "at least +3 on fresh quotes; within what qualifies, take the highest"
-  min_edge_points_borrowed: "strictly above 0"
-  daily_fuse_percent: "2"
+  min_edge_points_borrowed: "strictly above 0: borrowed volatility overstates the edge"
+  # Three, as on the neighbour. The two accounts now run one setting, so a number
+  # that differs between them is a difference nobody chose.
+  daily_fuse_percent: "3"
 
 sessions:
   - name: open-check
