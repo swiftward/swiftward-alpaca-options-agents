@@ -10,6 +10,12 @@ name: swiftward-alpaca-options-agents
 
 x-broker-service: &broker-service
   restart: unless-stopped
+  # One image per KIND, named here rather than derived from the service. Compose
+  # names a built image after the service, so four services building this same
+  # file produced four images, and `up --build` on one of them left the others on
+  # whatever they were built from. On 29 August that ran the two agents on builds
+  # six hours apart.
+  image: swiftward-alpaca-options-agents/alpaca-mcp:local
   build:
     context: .
     dockerfile: docker/alpaca-mcp.Dockerfile
@@ -27,6 +33,7 @@ x-broker-environment: &broker-environment
   ALPACA_TOOLSETS: ${ALPACA_TOOLSETS}
 
 x-agent-service: &agent-service
+  image: swiftward-alpaca-options-agents/agent:local
   build:
     context: .
     dockerfile: docker/app.Dockerfile
@@ -266,6 +273,7 @@ services:
   # nothing else - no credential, no broker, no decision - so it is the one
   # service that may sit where a browser can reach it.
   page-agent-1:
+    image: swiftward-alpaca-options-agents/page:local
     build:
       context: .
       dockerfile: docker/app.Dockerfile
@@ -317,6 +325,7 @@ services:
   # account, so its broker address is empty. The record - turns, calls, intents,
   # words - is fully visible.
   page-agent-2:
+    image: swiftward-alpaca-options-agents/page:local
     build:
       context: .
       dockerfile: docker/app.Dockerfile
