@@ -4,7 +4,7 @@
 # session that reads it decides. That line is what makes the agent autonomous
 # rather than driven.
 kind: trading-agent
-name: alpaca-agent-1
+name: alpaca-agent-tikhon
 version: v1
 timezone: America/New_York
 

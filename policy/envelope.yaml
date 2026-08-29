@@ -17,18 +17,21 @@
 # it, and a session that read one version and was refused by another can say so
 # instead of guessing it misread its own limits.
 
-ruleset_version: "2026-08-26.7"
+ruleset_version: "2026-08-29.1"
 
 agents:
   # The first account. Small positions, the whole list of underlyings.
   alpaca-agent-1:
     tools:
       place_option_order:
+        # Raised from 8 on 29 August. Four days decide the competition and the
+        # account is reset to 100,000 on Monday, so the size that matters is the
+        # one that can be repeated four times, not the one that survives a year.
         - rule: max-loss-per-position
           disclosure: boundary
           subject: position_max_loss
           kind: maximum
-          value: 8.0
+          value: 10.0
           unit: percent_of_equity
 
         - rule: max-loss-across-portfolio
@@ -43,11 +46,24 @@ agents:
         # side, and a single move takes them all at once. On 28 August four put
         # spreads, each inside its own limit, lost 19,193 together on an ordinary
         # move down, because nobody was looking at their sum.
+        #
+        # Raised from 25 to 35 on 29 August, deliberately and with its cost
+        # stated. THIS number, not the position limit, is what bounded us: two
+        # sides at 25 each meant the book could never hold more than half the
+        # account however small each position was, so raising the position limit
+        # alone would only have made fewer, larger bets out of the same total.
+        # At 35 the two sides reach 70, and the portfolio ceiling above starts to
+        # bind instead of standing unused.
+        #
+        # What it costs: about 1.4 times the risk deployed, and therefore 1.4
+        # times BOTH tails. Account 1 swung 24% intraday on 28 August under the
+        # old number; the same day under this one would have swung about a third
+        # of the account.
         - rule: max-loss-on-one-side
           disclosure: boundary
           subject: same_direction_max_loss
           kind: maximum
-          value: 25
+          value: 35
           unit: percent_of_equity
 
 
@@ -95,11 +111,14 @@ agents:
   alpaca-agent-2:
     tools:
       place_option_order:
+        # Raised from 8 on 29 August. Four days decide the competition and the
+        # account is reset to 100,000 on Monday, so the size that matters is the
+        # one that can be repeated four times, not the one that survives a year.
         - rule: max-loss-per-position
           disclosure: boundary
           subject: position_max_loss
           kind: maximum
-          value: 8.0
+          value: 10.0
           unit: percent_of_equity
 
         - rule: max-loss-across-portfolio
@@ -114,11 +133,24 @@ agents:
         # side, and a single move takes them all at once. On 28 August four put
         # spreads, each inside its own limit, lost 19,193 together on an ordinary
         # move down, because nobody was looking at their sum.
+        #
+        # Raised from 25 to 35 on 29 August, deliberately and with its cost
+        # stated. THIS number, not the position limit, is what bounded us: two
+        # sides at 25 each meant the book could never hold more than half the
+        # account however small each position was, so raising the position limit
+        # alone would only have made fewer, larger bets out of the same total.
+        # At 35 the two sides reach 70, and the portfolio ceiling above starts to
+        # bind instead of standing unused.
+        #
+        # What it costs: about 1.4 times the risk deployed, and therefore 1.4
+        # times BOTH tails. Account 1 swung 24% intraday on 28 August under the
+        # old number; the same day under this one would have swung about a third
+        # of the account.
         - rule: max-loss-on-one-side
           disclosure: boundary
           subject: same_direction_max_loss
           kind: maximum
-          value: 25
+          value: 35
           unit: percent_of_equity
 
 
