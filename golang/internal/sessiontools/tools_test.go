@@ -593,6 +593,61 @@ func TestAnIntentIsAcceptedWhenTheLimitsWereReadInThisTurn(t *testing.T) {
 	assert.False(t, out.IsError, "the limits were read in this turn, so the intent stands")
 }
 
+// A price the COLUMN cannot hold is refused here, where the session is told
+// which field was wrong.
+//
+// The column is NUMERIC(14,6). `1e100` parses as a float perfectly well and is
+// then refused by the database, which loses the intent - the same way an empty
+// string did until 29 August, and for the same reason: a number that passes the
+// parser is not automatically a number that can be stored.
+func TestAPriceTheColumnCannotHoldIsRefused(t *testing.T) {
+	// The column holds eight digits before the point, so 99999999 fits and
+	// 100000000 does not - the bound is exactly there.
+	for _, price := range []string{"1e100", "-1e100", "100000000", "NaN", "Inf"} {
+		t.Run(price, func(t *testing.T) {
+			session := connect(t, record.NewMemory(), time.Now)
+
+			out, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+				Name: "record_intent",
+				Arguments: map[string]any{
+					"thesis": "sell the far strike", "structure": "QQQ 701/700 put",
+					"max_loss": "80", "underlying_price": price,
+				},
+			})
+			require.NoError(t, err)
+			assert.True(t, out.IsError, "the session is told, rather than the database losing the row")
+		})
+	}
+}
+
+// And an ordinary price still passes: the bound is on what cannot be stored, not
+// on what is unusual.
+func TestAnOrdinaryPriceStillPasses(t *testing.T) {
+	state := record.NewMemory()
+	session := connect(t, state, time.Now)
+
+	out, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "record_intent",
+		Arguments: map[string]any{
+			"thesis": "sell the far strike", "structure": "QQQ 701/700 put",
+			"max_loss": "80", "underlying_price": "612.40",
+		},
+	})
+	require.NoError(t, err)
+	assert.False(t, out.IsError)
+
+	// And the largest the column can hold passes too.
+	out, err = session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "record_intent",
+		Arguments: map[string]any{
+			"thesis": "the far edge of what fits", "structure": "IDX 99999998/99999997 put",
+			"max_loss": "80", "underlying_price": "99999999",
+		},
+	})
+	require.NoError(t, err)
+	assert.False(t, out.IsError)
+}
+
 // An intent says whether it was checked, and the two cases are told apart in the
 // record.
 //

@@ -10,6 +10,7 @@ package sessiontools
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -258,9 +259,20 @@ func (t Tools) Handler() http.Handler {
 			// a number, so "MU p=939.15" fails at the database with a message about
 			// a type, and the session is left guessing which of its fields was
 			// wrong. Measured 28 August: five intents lost at once to exactly that.
-			if _, err := strconv.ParseFloat(strings.TrimSpace(in.UnderlyingPrice), 64); err != nil {
+			price, err := strconv.ParseFloat(strings.TrimSpace(in.UnderlyingPrice), 64)
+			if err != nil {
 				return nil, recordIntentOutput{}, fmt.Errorf(
 					"underlying_price must be a bare number like 939.15, not %q: no ticker, no currency sign, no words", in.UnderlyingPrice)
+			}
+			// And a number the COLUMN can hold. It is NUMERIC(14,6): eight digits
+			// before the point, six after. `1e100` parses as a float and is
+			// refused by the database, which loses the intent the same way an
+			// empty string did - the check that is here precisely so that a
+			// session is told which field was wrong instead of meeting a message
+			// about a type.
+			if math.IsNaN(price) || math.IsInf(price, 0) || math.Abs(price) >= 1e8 {
+				return nil, recordIntentOutput{}, fmt.Errorf(
+					"underlying_price is %q: state what the underlying costs, as a number below 100000000", in.UnderlyingPrice)
 			}
 			at := now()
 			turn, session := t.running()

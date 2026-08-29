@@ -26,6 +26,7 @@ package takeprofit
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -98,6 +99,14 @@ func (w *Watch) Run(ctx context.Context) error {
 	if w.At <= 0 {
 		w.Log.Info("no take-profit share set: winning structures will be held to expiry")
 		return nil
+	}
+	// A SHARE of the credit, so above one it is not a share. Written as a percent
+	// - 35 for 0.35 - it says "close when the buy-back costs no more than
+	// thirty-five times the credit", which every structure satisfies from the
+	// moment it opens: the watch would buy back every winner at any price, on its
+	// first pass, and the log would call it working.
+	if w.At > 1 {
+		return fmt.Errorf("the take-profit share is %.2f: it is a share of the credit, so 0.35 rather than 35", w.At)
 	}
 	if w.Every <= 0 {
 		w.Every = 30 * time.Second

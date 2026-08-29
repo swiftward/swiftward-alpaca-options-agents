@@ -324,6 +324,23 @@ func TestALegQuotedOnOneSideStopsTheClose(t *testing.T) {
 	assert.Empty(t, b.sent)
 }
 
+// A share ABOVE ONE is refused at start rather than run.
+//
+// It is a share of the credit: 0.35, not 35. Written as a percent it says "close
+// when the buy-back costs no more than thirty-five times the credit", which
+// every structure satisfies the moment it opens - the watch would buy back every
+// winner at any price on its first pass, and the log would call it working.
+func TestAShareAboveOneIsRefused(t *testing.T) {
+	b := &brokerDouble{held: theQQQSpread()}
+	w := watching(b, 35)
+
+	err := w.Run(context.Background())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "0.35 rather than 35")
+	assert.Empty(t, b.sent, "and nothing is closed on the way to finding out")
+}
+
 // A share of zero switches the watch off entirely and says so, rather than running empty.
 func TestWithoutAShareItDoesNotRun(t *testing.T) {
 	b := &brokerDouble{held: theQQQSpread()}
