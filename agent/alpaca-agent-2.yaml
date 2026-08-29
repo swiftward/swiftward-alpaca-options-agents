@@ -50,14 +50,14 @@ parameters:
   # that count, and running a setting our own record shows losing, through the
   # only four days that are scored, is a bet against our own evidence. The
   # experiment gave what it was opened for and has nothing further to give.
-  short_leg_delta: "no more than 0.30 in absolute value; within that, edge_points decides"
+  short_leg_delta: "no more than 0.20 in absolute value; within that, edge_points decides"
   # The second account stands FURTHER along the curve than the first, and that is
   # its role in the three. Over 646 trading days: at 0 the expectation is near
   # zero - the sign changes between 0 and +1 - at +2 it is plus 2.63, at +3 plus
   # 4.14. "Strictly above 0" stood here until 28 August and meant trading exactly
   # on the point where the sign changes. We take +3: the most per trade, the
   # fewest trades, and deliberately a different angle from the neighbour's +2.
-  min_edge_points: "at least +3 on fresh quotes; within what qualifies, take the highest"
+  min_edge_points: "at least +5 on fresh quotes; within what qualifies, take the highest"
   min_edge_points_borrowed: "strictly above 0: borrowed volatility overstates the edge"
   # Three, as on the neighbour. The two accounts now run one setting, so a number
   # that differs between them is a difference nobody chose.
@@ -134,8 +134,8 @@ parameters:
   # NEGATIVE: selling that close pays less than it costs. So the wider list was
   # not more choice, it was a list with losing structures in it, ranked by a
   # measure that cannot see the difference.
-  screener_most_delta: "0.30"
-  screener_least_edge: "-3.0"
+  screener_most_delta: "0.20"
+  screener_least_edge: "-1.0"
 
 sessions:
   - name: open-check
@@ -153,75 +153,31 @@ sessions:
   # that Friday cannot reach the first number at all, and has four hours to hurt
   # the second one. The rules and both dates are in `docs/rules.md` of the team's
   # own repository.
-  # THE EXPERIMENT THIS ACCOUNT CARRIES: WHEN to enter, and what to ask at each
-  # hour. Taken from the declaration that is ahead on the money, unchanged.
+  # THE EXPERIMENT THIS ACCOUNT CARRIES, and it is the SELECTION rather than the
+  # clock. The hours were tried first and dropped on a teammate's measurement:
+  # replaying the rule at every half-hour slot against the three named windows
+  # gives 79 picks at $12.7 a trade against 78 at $11.7 - the same. Waking more
+  # often buys more trades, not better ones: a size lever, not an edge lever.
   #
-  # The first account tries every ten minutes from 09:45 to 15:15 with ONE bar all
-  # day. These three windows are the other idea, and it is not "enter less often":
-  # **how much of the day is left decides how much the structure must pay.** At
-  # 10:20 a whole day of movement lies ahead, so the premium has to be dear - a
-  # credit of at least 13% of the risk, and one underlying at most. At 12:30 the
-  # position lives half a session and the ordinary rule applies. 14:20 is the main
-  # window.
+  # What IS an edge lever, measured on 646 days and five underlyings tonight:
   #
-  # Measured 29 August: that declaration sent 40 orders and made 4,082 dollars
-  # against this engine's 173 and 2,700. Everything else here matches the first
-  # account deliberately - the same playbook, the same leg distance, the same
-  # thresholds, the same limits - so the week says something about the hours
-  # rather than about six differences at once.
-  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
-  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
-  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
-  # that Friday cannot reach the first number at all, and has four hours to hurt
-  # the second one. The rules and both dates are in `docs/rules.md` of the team's
-  # own repository.
-  - name: entry-morning
-    cause: "morning entry window, taken only when premium is dear"
-    at: "10:20"
-    within: 45m
-    days: [mon, tue, wed, thu]
-    task: |
-      **This window runs EVERY trading day. There is exactly one exception:
-      4 September 2026.** Ask the clock and check the date:
-      - today is NOT 4 September 2026 - carry on with this window as usual;
-      - today IS 4 September 2026 - open nothing, say so in one line and finish:
-        submissions close at 11:00 New York time, the result is counted at that
-        moment, and anything done after it is not counted at all.
-      There is no other reading: a date that does not match is NOT a reason to
-      finish.
-      A morning entry is not taken every day: a whole day of movement lies ahead,
-      so the premium has to be dear by a measure visible in the chain itself.
-      Run premium-harvest with two tightenings, both in our favour: enter only an
-      underlying whose best structure pays a credit-to-risk of at least 13%, and
-      no more than one underlying in this window.
-      If none clears it, say in one line what each of them paid and finish.
-
-  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
-  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
-  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
-  # that Friday cannot reach the first number at all, and has four hours to hurt
-  # the second one. The rules and both dates are in `docs/rules.md` of the team's
-  # own repository.
-  - name: entry-midday
-    cause: "midday entry window: a position taken here lives half a session"
-    at: "12:30"
-    within: 40m
-    days: [mon, tue, wed, thu]
-    task: |
-      **This window runs EVERY trading day. There is exactly one exception:
-      4 September 2026.** Ask the clock and check the date:
-      - today is NOT 4 September 2026 - carry on with this window as usual;
-      - today IS 4 September 2026 - open nothing, say so in one line and finish:
-        submissions close at 11:00 New York time, the result is counted at that
-        moment, and anything done after it is not counted at all.
-      There is no other reading: a date that does not match is NOT a reason to
-      finish.
-      The midday entry window. Run premium-harvest.
-      The rule lives in the skill in full and is not repeated here. Your limits -
-      what one position and the whole book may lose, which underlyings, which
-      expirations - come from the envelope (read_envelope). They are not in this
-      text and they will not be.
-
+  #   delta ceiling 0.30, edge +3   597 trades   +4.12 a trade   drawdown -1,561
+  #   delta ceiling 0.20, edge +5   113 trades   +8.77 a trade   drawdown   -222
+  #
+  # Twice the money per trade and a seventh of the drawdown, for a fifth of the
+  # trades - almost the same total by two very different roads. Which road is
+  # better over four days is exactly what one account can find out while the other
+  # runs the settled one, and it is not answerable from history: 113 trades over
+  # 646 days is one a week, and four days will show whether that is a real
+  # tightening or a way of not trading.
+  #
+  # So the cadence here matches the first account deliberately - every ten
+  # minutes, both sides, the same windows - and only these two numbers differ.
+  # Every ten minutes, not twenty. The candidate list is rewritten every three
+  # minutes and an edge on it does not live long: on 26 August the best row stood
+  # at +7.5 and a few minutes later, on fresh quotes, gave -7.2. A twenty-minute
+  # window meant the session never saw six or seven versions of the list at all,
+  # and met the one it did see already stale.
   # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
   # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
   # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
@@ -229,20 +185,293 @@ sessions:
   # the second one. The rules and both dates are in `docs/rules.md` of the team's
   # own repository.
   - name: entry
-    cause: "the main entry window of the day"
-    at: "14:20"
-    within: 45m
+    cause: "trying an entry: see whether a structure clears and what the broker answers"
+    every: 10m
+    between: ["09:45", "15:15"]
     days: [mon, tue, wed, thu]
     task: |
-      **This window runs EVERY trading day. There is exactly one exception:
-      4 September 2026.** Ask the clock and check the date:
-      - today is NOT 4 September 2026 - carry on with this window as usual;
-      - today IS 4 September 2026 - open nothing, say so in one line and finish:
-        submissions close at 11:00 New York time, the result is counted at that
-        moment, and anything done after it is not counted at all.
-      There is no other reading: a date that does not match is NOT a reason to
-      finish.
-      The main entry window of the day. Run premium-harvest.
+      This is the development account and a trial run. The value of a turn is in
+      the observation rather than in profit: we need to know that the order goes,
+      what the broker answers, and what lands in the record.
+      The entry rule in full; invent nothing:
+      **Where this task and the skill disagree, the TASK wins.** The skill describes
+      the technique in general and is written for every account at once; its numbers
+      are an example, not a law. If something here says otherwise about delta, side,
+      threshold or the cost of crossing - do as it says here, and say in one line
+      what diverged. Silently taking the skill's number instead of the task's
+      cancels the experiment this account exists for.
+      - **Do not look for underlyings yourself: ask read_candidates.** The screener
+        has priced the whole permitted list for you - hundreds of underlyings, both
+        sides, every five minutes - and returns a ready list: strikes, credit, risk,
+        the ratio of one to the other, the cost of crossing, and `credit_after_cost`
+        - the credit less half that cost, which is what an order at the midpoint
+        really costs. Searching by hand means getting through six, and those six are
+        whichever came up in order rather than the best: today none of the six
+        passed, while MU was paying 25.5%.
+        If read_candidates is unavailable or the list is empty, say so in one line
+        and end the turn. Do not start a search by hand: it eats the turn, and
+        behind the turn wait defence and closing.
+      - The list is what the market OFFERS, not what you should take. The screener's
+        filters are deliberately softer than yours. Check yours again on every
+        structure you intend to take.
+      - Expiry: the one the ENVELOPE permits and no other - you have no term of your
+        own. Today's is permitted; how to measure it is said below in a rule of its
+        own. A nearer one decays faster, a further one passes thresholds more often -
+        take the one that measures better.
+      - The structure: selling a vertical put spread. The ceiling on the sold leg's
+        delta stands in `short_leg_delta` at the head of this declaration; the number
+        is deliberately not here, so the two cannot diverge. Within what is permitted
+        it is not delta that decides. The bought leg is further from the money; HOW
+        much further the screener decides - it prices every width up to five strikes.
+        Both legs must have a two-sided quote.
+        You have no separate threshold on credit to risk: that ratio sits entirely
+        inside `edge_points` (the break-even probability IS risk/(credit+risk)), so a
+        threshold beside the measure is a second place holding the same knowledge,
+        and it has already cost us a trade: on 26 August the day's best call
+        candidate, with an edge of +1.4, was thrown out for 9.29% against "no worse
+        than 10".
+        Why not 0.15 as before: today's numbers say what makes or loses a structure
+        is the COST OF CROSSING rather than distance. The morning's trade with a
+        crossing of 6% of the credit is in profit; yesterday's far ones with 30% are
+        in loss. Distance is a risk preference, and holding it tighter than the limit
+        requires means giving up cheap structures for a handsome delta.
+      - **Select by the `edge_points` field, not by delta.** It says by how many
+        percentage points a structure pays MORE than what it has to survive: the
+        chance of the sold strike surviving, from the broker's delta, less the share
+        of wins this credit needs to break even. Positive means the market pays more
+        for this risk than it prices the risk at itself.
+        Neither half decides alone, and on 26 August that cost a day: a delta ceiling
+        of 0.25 rejected ORCL (+3.5), TSLA (+1.6) and INTC (+1.5) and left nothing in
+        their place. Take the highest `edge_points` in the list, and at equal edge the
+        cheaper crossing.
+        This is SELECTION, not a promise: delta is a risk-neutral probability, and a
+        spread does not lose its whole width when a strike is touched. So size still
+        comes from the envelope rather than from confidence.
+      - **Do not sell premium on an underlying that REPORTS before the structure
+        expires.** Before a report the premium is high and the selection measure
+        `edge_points` shows it as edge - but it computes probability from delta, and
+        ahead of an event the distribution is two-humped: delta understates the tail
+        the premium is paid for. Selling premium into an event is a fat LEFT tail,
+        exactly what the mandate says to avoid.
+        A live case from 26 August: the screener offered NVDA 207.5/205 put with
+        `edge_points` +6.38 on NVDA's report day, and the order was cancelled by
+        hand. Worse, it would have cancelled out our own bet on that event: a put
+        backspread pays on a sharp fall, and this spread loses on one.
+        Learn about a report from the news (`get_news`) or ask news-watch. The rule
+        fires on a CONFIRMED date before expiry, not on a silent feed. If the feed
+        said nothing, say so in one line and take it: silence is not evidence. On
+        26 August a veto on silence removed DELL and AMD from the main account,
+        neither of which had a report in the window at all - so the rule began
+        costing trades where the tail it is written for does not exist.
+        A tail needs an APPOINTED event; an absence of information does not create
+        one. On an event we bet by BUYING convexity, not by selling premium.
+      - **Structures expiring TODAY are permitted, but their measure is WEAKER, and
+        that changes the threshold.** On expiry day the broker gives neither delta
+        nor volatility - measured 26 August: of 28 QQQ contracts expiring that day,
+        not one carried either. So volatility is taken from the nearest other expiry
+        of the same underlying, and `edge_from` says "borrowed from another
+        expiration".
+        **Where the measure is borrowed, require an edge STRICTLY ABOVE ZERO,** not
+        merely the best in the list. The reason is the direction of the error: at the
+        shortest expiry volatility is usually HIGHER than at the next ones, so a
+        borrowed number understates how often price reaches the strike and overstates
+        the edge. The ordinary measure errs the other way - it understates the edge -
+        which is why there we accept a small negative. Here we do not.
+        Why this is worth knowing. A same-day expiry pays far more: measured 26
+        August at 17:15, 2h45m before the close, QQQ at 0.15% from price paid 49% of
+        risk at a crossing cost of 6% of the credit, while everything expiring in one
+        to five days paid 8-15% at a crossing of 20-100%. But it pays more precisely
+        because price reaches it more often, and the measure already accounts for
+        that.
+        One restriction beyond the measure: **do not take a strike nearer than a
+        quarter of a percent from price.** There the largest part of the payment
+        falls in the last minutes, when it is too late to cancel or defend.
+        And a second thing, about our own clock: **do not open a same-day structure
+        when less than forty-five minutes remain to the close.** Defence wakes every
+        fifteen minutes and the ladder leads an order for up to eight - a position
+        opened later cannot be defended EVEN ONCE, and that is not about the size of
+        the risk but about the machinery not reaching it. Work the time out yourself
+        from the broker's clock.
+      - **The edge must be ABOVE ZERO. The best in the list is not the same as
+        acceptable.** The list is ranked, and its first row stands first even when
+        the whole list is negative: then the right move is not to enter. A negative
+        edge means the market pays LESS than the risk is worth by that same market's
+        own reckoning - that is a slow loss rather than a risk.
+        On 26 August this cost an order for 906 sets at an edge of -2.81, cancelled
+        by hand.
+      - **Compute size from the WORST price you will declare, not from the midpoint.**
+        You send the order at the midpoint and write the worst acceptable price into
+        `client_order_id`; the ladder walks the order from the first to the second.
+        The credit at the worst price is SMALLER, so a set's loss is LARGER - and a
+        position that fitted the limit at the midpoint falls out of it.
+        A live case from 26 August: 234 sets at a midpoint credit of 0.36 give a
+        worst outcome of 14,976 (limit 14,989, it fits), while at the declared worst
+        price of 0.31 it is 16,146, which does not. The ladder judges an order by the
+        declared worst price and will cancel such a one.
+        So: compute a set's loss as (width less the WORST credit) × 100, and take the
+        number of sets from that.
+      - **Compute size from the envelope's `position_max_loss`, NOT from buying
+        power.** A set's maximum loss is the WIDTH between strikes times a hundred
+        less the credit received; the number of sets is the envelope's limit divided
+        by that loss, rounded down.
+      - **Re-quote no more than THREE structures per turn.** Take the best three by
+        `edge_points`, check those, and take the best that clears; if none clears,
+        say so in one line and end the turn.
+        The three are counted among candidates you COULD open: a name you already
+        hold on the same side and expiry cannot be opened at all, so skip it before
+        you count.
+        Turns run ONE AT A TIME, and a long turn takes the queue from the short ones.
+        Measured 28 August: two entry windows ate 58% of the day's turn time, hit the
+        six-minute turn limit three times running, and the defence window did not
+        arrive for 38 minutes - exactly while four structures sat in its closing zone
+        with 11,483 of loss. Checking a fourth is cheaper than losing the defence.
+      - **Add up one side separately.** The maximum losses of every open structure
+        betting the SAME way add up and must stay inside `same_direction_max_loss`
+        from the envelope. Sold puts are one side, sold calls the other. Four
+        positions, each inside its own limit, are not four bets if all four are puts:
+        that is one bet four times over. On 28 August that lost 19,193 on an ordinary
+        move down.
+        When a side is full, take a structure on the OTHER side or take nothing;
+        reducing size on the full side achieves nothing.
+      - **Take nine tenths of the limit, not the whole limit.** The ceiling is a
+        share of equity, and equity moves every second an order rests in the book.
+        An order written to 99% of the ceiling becomes illegal on the first move down
+        and the harness cancels it - not because it is bad but because the ceiling
+        dropped below it. On 28 August five of seven cancelled orders died that way,
+        each within seconds and without exhausting its walk on price. Ten percent of
+        headroom costs a tenth of a position and returns the trade whole.
+        A broker's refusal for want of buying power means the arithmetic is off by an
+        order of magnitude, not that the remaining buying power should be substituted:
+        on 26 August, after such a refusal, size was recomputed UPWARD to fill what
+        was left, five times the permitted. On such a refusal, stop and say what you
+        worked out and what is allowed.
+      - The cost of entry is NO LONGER checked by a threshold of its own, and you
+        have no number for it. The screener subtracts half the bid-ask spread of both
+        legs from the credit before any measurement and shows the result in
+        `credit_after_cost`; `edge_points` is computed from it. An expensive structure
+        therefore shows a low edge by itself and loses to a cheap one in the ranked
+        list - a separate rule would be a second place holding the same knowledge.
+        Measured 26 August: a structure paying 0.22 on a spread of 0.16 measured seven
+        points BETTER than one paying 0.15 on a spread of 0.02 - and it is the second
+        that earns. A threshold of a fifth discarded 833 structures per pass against
+        96 for the next filter, deciding the day on its own.
+        Compare `credit_after_cost` with `credit` when you want to see how much a
+        structure gives up on entry, but select by `edge_points`.
+      - Size: a position's maximum loss no larger than what the ENVELOPE named in
+        `position_max_loss`. The number is not here and will not be: an operator
+        changes it in one place, and the next session sees the new value without a
+        restart. Read equity from the broker rather than substituting it from
+        memory; contracts round down.
+        The mechanics are proven, so a position must now be visible: at a credit of
+        14 cents against 86 of risk that is on the order of thirty contracts, not one.
+      - Size does NOT depend on how the previous trade ended. It changes neither
+        after a loss nor after a win: increasing after a loss is a martingale, on
+        which funds lose their capital in a day.
+      - Take the BEST from the list by `edge_points`. The cost of crossing is already
+        subtracted from the credit inside that measure, so it need not be weighed
+        separately.
+        Open up to SIX new positions per window, each on its own filters. If you did
+        not find six, there are none right now, and that is a normal answer.
+      - Do not open a second position on the SAME SIDE of the same underlying with
+        the same expiry.
+        A put spread and a call spread on one underlying are two different positions,
+        and together they are both sides of the market: both cannot lose at once,
+        since price goes either up or down.
+        **And the broker knows it.** It holds collateral on the WORSE of the two
+        sides rather than on their sum, so a second side on the same underlying and
+        expiry is taken almost free in capital while collecting a credit of its own.
+        Measured 26 August on the main account: the sum of worst outcomes by
+        "underlying + day" groups gave 26,347 against equity of 99,728, and options
+        buying power was 73,535 - a difference of 26,193, exactly the figure we
+        compute ourselves, already netting both sides.
+        The practical conclusion: if one side is open on an underlying and the second
+        clears on edge, take it - it is the best exchange of risk for credit in this
+        book.
+        The limit is set by RISK rather than by the number of positions: add up the
+        maximum losses of every open structure and compare with what the envelope
+        named in `portfolio_max_loss`. There is no number of your own here.
+        Twelve positions of one contract are one and a half percent of risk, which is
+        an under-use rather than a limit. Beyond that keep a sane ceiling of thirty
+        positions, so a turn does not sprawl.
+      - Ask read_volatility_history for this underlying and write the rank you get
+        into the intent's thesis. If there are fewer than fifty samples, write that
+        the history is not there yet. The rank affects nothing and forbids nothing
+        today: we are accumulating data so that in a week we can ask, on our own
+        trades, whether entries at a high rank end differently from entries at a low
+        one. Practitioners call this 2025's main improvement, and it has no
+        peer-reviewed confirmation - so we will check it ourselves.
+      - Record the intent (record_intent) before the order: the thesis, the
+        structure, the maximum loss, and the underlying's price as you have just read
+        it. Without the price the tool refuses: the windows that watch a position
+        measure how far it has travelled from it.
+      - Send the spread as ONE order, a limit at the midpoint, and write into the
+        order's client_order_id the worst price you will accept, in the form
+        worst=-0.11 (a credit is negative), then a semicolon and something
+        unrepeatable - the broker refuses a name it has already seen
+        (client_order_id must be unique). For example worst=-0.11;QQQ703-702-1226.
+        The harness will never go below that price and will walk to it by itself: it
+        steps toward the book's price, waits at each price, and cancels if the book
+        never took it. Do not watch the order afterwards.
+        The worst price has to satisfy the same rule as the entry: work the edge out
+        again AT IT, the way the screener does - the chance of surviving less
+        risk/(credit+risk) at that price - and it must stay above the threshold you
+        entered on. Otherwise we agree to a fill at a price we ourselves called
+        unfit. Beyond that, give up no more than a third of the credit received;
+        whichever of the two bounds concedes less is taken.
+      - In one line say: whether you entered, and if not, what EDGE the best
+        structure on each underlying had and why it did not fit. That is the
+        observation.
+      - In the same line where you say the result, name two numbers from the account:
+        equity now, and how much credit the open positions hold. Do not report this in
+        a turn of its own - it costs more than it tells.
+
+  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
+  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
+  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
+  # that Friday cannot reach the first number at all, and has four hours to hurt
+  # the second one. The rules and both dates are in `docs/rules.md` of the team's
+  # own repository.
+  - name: entry-call
+    cause: "trying the other side: selling a call spread above the money"
+    every: 10m
+    between: ["09:50", "15:15"]
+    days: [mon, tue, wed, thu]
+    task: |
+      The same probe from the other side of the market. We have never checked this
+      structure with a live order, and it doubles the credit on an underlying
+      without increasing the position's risk: each side's loss is bounded by its
+      own width, and both sides cannot lose at once.
+      - **Do not look for underlyings yourself: ask read_candidates and work from
+        its list.** You need the call side: take the rows where `type` is `call`.
+        If the list is empty or the tool is unavailable, say so in one line and end.
+      - Expiry: the one the envelope permits. Today's is permitted here too, on the
+        terms described on the put side.
+      - The structure: selling a vertical call spread. The ceiling on the sold leg's
+        delta is `short_leg_delta` above; there is no separate number here.
+        **Select by `edge_points` from the screener's list, not by delta:** it says
+        by how many points a structure pays more than what it has to survive. Take
+        the highest, and at equal edge the cheaper crossing.
+        The bought leg is further from the money; the screener picks the width.
+      - Both legs with a two-sided quote. There is no threshold on credit to risk
+        here either, for the same reason as on the put side. But an edge above zero
+        is required here too: the day's best call at an edge of -2.81 is not to be
+        taken - the move is not to enter.
+      - The cost of entry is not checked by a threshold of its own: it is subtracted
+        from the credit inside `edge_points`, exactly as on the put side. An
+        expensive structure shows a low edge by itself.
+      - Size: a position's maximum loss no larger than what the envelope named in
+        `position_max_loss`; the number of contracts rounds down. No more than one
+        such position per underlying with one expiry.
+      - Open up to SIX new positions per window. If you did not find six, there are
+        none today, and that is a normal answer.
+      - Record the intent (record_intent) before the order and send it as ONE order,
+        a limit at the midpoint, writing into client_order_id the worst price and an
+        unrepeatable tail, for example worst=-0.11;QQQ703-702-1226: the broker
+        refuses a name it has already seen.
+      - In one line: whether you entered, and what edge the best structure had.
+      - In the same line where you say the result, name two numbers from the
+        account: equity now, and how much credit the open positions hold. Do not
+        report this in a turn of its own - it costs more than it tells.
 
   - name: earnings-crush
     # The cause names a CONDITION, not a fact. It used to read "AVGO reports
