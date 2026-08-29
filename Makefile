@@ -41,6 +41,9 @@ check: ## Every gate a push must pass: style, language, tests, the race detector
 	$(MAKE) -C golang test-race
 	$(MAKE) build
 
+claims: ## Recompute every number this project publishes, from data in the repository, with no credentials
+	cd research && uv run claims.py
+
 reconcile: ## Every order the broker holds, against what the record says: RECONCILE_SINCE=12h make reconcile
 	docker compose --env-file .env --profile tools run --rm reconcile
 

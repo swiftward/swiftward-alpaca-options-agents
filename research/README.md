@@ -7,6 +7,18 @@ rules**, or **assigned**. A test refuses to build if a number carries none.
 This directory is what stands behind the measured ones. It is not the product and
 nothing here trades: these scripts read Alpaca, replay history, and print tables.
 
+**You do not have to believe any of it.** From the repository root:
+
+```
+make claims
+```
+
+It recomputes every number below that can be recomputed and prints each one PASS
+or FAIL against what we publish. It needs no Alpaca key and reaches no network:
+the structures it reads - `research/data/candidates_bt.parquet`, the 327,634
+spreads the rule could have seen over 646 trading days - are committed here for
+exactly that reason. A claim that fails there is a claim we have to correct.
+
 The honest summary first, because it is the part that is easy to leave out:
 
 | | how many |

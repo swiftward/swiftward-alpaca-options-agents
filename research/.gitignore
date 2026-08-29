@@ -1,6 +1,12 @@
 # Data pulled by the collectors here. Not committed: the paths file alone is
 # 109 MB, and the collectors rebuild all of it from Alpaca.
-data/
+# The CONTENTS rather than the directory: git does not descend into an excluded
+# directory, so a negation for a file inside it can never re-include the file.
+data/*
+# And the one exception, which is the point of `make claims`: the structures the
+# rule could have seen. Five megabytes, DERIVED rather than raw market data, and
+# without it every number this project publishes needs a credential to check.
+!data/candidates_bt.parquet
 .venv/
 __pycache__/
 *.pyc
