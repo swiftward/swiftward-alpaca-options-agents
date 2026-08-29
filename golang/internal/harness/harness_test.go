@@ -129,7 +129,7 @@ type conversationSpy struct {
 	turnErrOnce error
 	// slowTurn is how long the agent takes to answer with a turn id.
 	slowTurn time.Duration
-	nextTurn        int
+	nextTurn int
 	// forgotten counts how many times the harness gave up on this conversation
 	// and asked for a fresh one.
 	forgotten int
