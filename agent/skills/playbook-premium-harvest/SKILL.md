@@ -38,7 +38,23 @@ The fuse is not enforced by anything but you. Nothing refuses the order if you s
 ## Choosing
 
 - **Underlying.** From the envelope's list, taken in turn. Start with those you have not looked at today. Single stocks have wider strikes, so one contract carries more risk than an ETF's - count contracts from the risk, not from habit.
-- **Expiration.** From the envelope's range, and from nowhere else - if the envelope permits today, today is permitted. The nearer expiration decays faster, the further one passes the thresholds more often; take whichever measures better.
+- **Expiration.** From the envelope's range, and from nowhere else - if the envelope permits today, today is permitted. **Prefer the NEAREST that qualifies**, and this is measured rather than stylistic. Over 646 trading days on five underlyings, 597 trades at these very thresholds, with the full crossing and the fees charged:
+
+  | trading days to expiry | trades | per trade |
+  |---|---|---|
+  | 1 | 32 | **+10.72** |
+  | 2 | 125 | +4.86 |
+  | 3 | 149 | +4.70 |
+  | 4 | 134 | +3.10 |
+  | 5 | 156 | +2.29 |
+
+  One day pays nearly five times what five days pays, per trade, and the gradient
+  is monotone. Yet 290 of the 597 trades sat at four and five days, because
+  `edge_points` ranks a structure without knowing how long it must be held: the
+  crossing is paid once whatever the life, so the same toll is charged against a
+  credit that decays for one day or for five. Where two structures measure alike,
+  take the nearer. Where the further one measures better, say by how much - the
+  gap has to beat this table to be worth it.
   On expiry day the broker computes no greeks and no volatility at all, so the screener borrows the volatility from the nearest other expiration of the same underlying and says so in `edge_from`. A borrowed number errs the dangerous way - the very short end usually sits above the days behind it, so it understates how often the strike is reached - which is why the TASK asks more of a borrowed measure than of a delta one. Follow the task.
 - **The short leg.** How far out is the TASK's to say, not this file's: the two accounts sell at deliberately different distances, and that difference is the experiment they exist for. The long leg is one strike further out.
 - **Width.** Prefer THREE to FIVE strikes, and this is measured, not stylistic. Over 646 days on SPY and QQQ, per unit of risk: one strike returned +0.8%, two +4.2%, three +12.0%, five +23.4%. The crossing is paid once whatever the width, so a wider structure carries the same cost over more credit. Take a narrow one only when nothing wider clears the threshold, and say so. Both legs need a two-sided quote. Risk is the width less the credit.
