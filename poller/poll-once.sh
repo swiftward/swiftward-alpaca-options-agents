@@ -27,13 +27,26 @@
 set -eu
 
 usage() {
-	echo "usage: $(basename "$0") <mailbox-url> [seconds]" >&2
+	echo "usage: $(basename "$0") [mailbox-url] [seconds]   (url may come from MAILBOX)" >&2
 	exit 64
 }
 
-[ $# -ge 1 ] || usage
-url=$1
-wait_for=${2:-90}
+# The address may be given or may already be in the environment as MAILBOX. The
+# second form is what a session uses: it runs one word and constructs nothing,
+# and the token stays out of the model's context and out of the process list -
+# where, on a machine shared with other participants, every one of them can read
+# it. A lone number is the wait, so `poll-once.sh 30` means thirty seconds with
+# the address from the environment.
+if [ $# -ge 1 ]; then
+	case "$1" in
+		http://*|https://*) url=$1; shift ;;
+		*) url=${MAILBOX:-} ;;
+	esac
+else
+	url=${MAILBOX:-}
+fi
+[ -n "$url" ] || { echo "no mailbox: pass the url or set MAILBOX" >&2; usage; }
+wait_for=${1:-90}
 
 case "$url" in
 	http://*|https://*) ;;

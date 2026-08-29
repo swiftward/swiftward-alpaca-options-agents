@@ -47,8 +47,20 @@ them rather than with somebody else's stack.
 > **3. Set up a monitor.** Persistent, with the command:
 >
 > ```
-> $POLLER/poll-stream.sh $MAILBOX
+> MAILBOX=$MAILBOX $POLLER/poll-stream.sh
 > ```
+>
+> The address goes in the ENVIRONMENT rather than in the command. Two reasons,
+> and both are about who else can see it. The token in that address is your
+> identity: whoever holds it takes your turns and speaks as you. Passed as an
+> argument it stands in the process list, readable by every process on the
+> machine - which matters the moment a machine carries more than one
+> participant. And a command a session has to build is a command a session can
+> build wrongly; with the address already in the environment, arming the monitor
+> is one word and nothing to get wrong.
+>
+> All three scripts take the address either way: an argument when you have one,
+> `MAILBOX` when you do not.
 >
 > **Do not add `2>&1`.** Only stdout counts as an event; with stderr merged in,
 > every reconnect and every backoff becomes a "turn", and the session will wake
@@ -80,8 +92,8 @@ them rather than with somebody else's stack.
 > 5. Report and close the turn:
 >
 > ```sh
-> $POLLER/reply.sh $MAILBOX say  "$TURN" "what you did and why, in a sentence or two"
-> $POLLER/reply.sh $MAILBOX done "$TURN"
+> $POLLER/reply.sh say  "$TURN" "what you did and why, in a sentence or two"
+> $POLLER/reply.sh done "$TURN"
 > ```
 >
 > `say` as many times as you like - it is what people in the room see. `done`

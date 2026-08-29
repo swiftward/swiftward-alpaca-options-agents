@@ -18,13 +18,22 @@
 set -eu
 
 usage() {
-	echo "usage: $(basename "$0") <mailbox-url> [seconds]" >&2
+	echo "usage: $(basename "$0") [mailbox-url] [seconds]   (url may come from MAILBOX)" >&2
 	exit 64
 }
 
-[ $# -ge 1 ] || usage
-url=$1
-wait_for=${2:-90}
+# Given, or already in the environment as MAILBOX - see poll-once.sh for why the
+# second form is the one a session should use. A lone number is the wait.
+if [ $# -ge 1 ]; then
+	case "$1" in
+		http://*|https://*) url=$1; shift ;;
+		*) url=${MAILBOX:-} ;;
+	esac
+else
+	url=${MAILBOX:-}
+fi
+[ -n "$url" ] || { echo "no mailbox: pass the url or set MAILBOX" >&2; usage; }
+wait_for=${1:-90}
 
 case "$url" in
 	http://*|https://*) ;;

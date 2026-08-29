@@ -98,8 +98,15 @@ Claude Code wakes on the output of a long-running command, so it takes the
 streaming shape:
 
 ```
-Monitor: /path/to/poller/poll-stream.sh https://host:8090/mailbox/$TOKEN
+Monitor: MAILBOX=https://host:8090/mailbox/$TOKEN /path/to/poller/poll-stream.sh
 ```
+
+The address goes in the environment rather than in the command, and the scripts
+take it either way. The token in it is the agent's identity - whoever holds it
+takes that agent's turns and speaks as it - and an argument stands in the process
+list for every other process on the machine to read. It also leaves the session
+nothing to assemble: a command an agent has to build is one it can build wrongly,
+and the wrong version reads a settings file it had no business opening.
 
 Persistent. **Do not add `2>&1`.** Only stdout is an event; folding stderr into
 it makes every reconnection and every backoff look like a turn to take, and the
@@ -119,8 +126,8 @@ So the session reads its cause from the mailbox, does the work with those two,
 and reports back with `reply.sh`:
 
 ```sh
-reply.sh "$URL" say  "$TURN" "sold the 640/635 put, credit 0.31, risk $469"
-reply.sh "$URL" done "$TURN"
+reply.sh say  "$TURN" "sold the 640/635 put, credit 0.31, risk $469"
+reply.sh done "$TURN"
 ```
 
 ## What this is for

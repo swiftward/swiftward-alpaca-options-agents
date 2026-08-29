@@ -17,15 +17,23 @@
 set -eu
 
 usage() {
-	echo "usage: $(basename "$0") <mailbox-url> say|done <turn-id> [text]" >&2
+	echo "usage: $(basename "$0") [mailbox-url] say|done <turn-id> [text]   (url may come from MAILBOX)" >&2
 	exit 64
 }
 
-[ $# -ge 3 ] || usage
-url=$1
-action=$2
-turn=$3
-text=${4:-}
+# Given, or already in the environment as MAILBOX. What tells the two forms
+# apart is the first word: an address begins with http, and an action is `say`
+# or `done`.
+case "${1:-}" in
+	http://*|https://*) url=$1; shift ;;
+	*) url=${MAILBOX:-} ;;
+esac
+[ -n "$url" ] || { echo "no mailbox: pass the url or set MAILBOX" >&2; usage; }
+
+[ $# -ge 2 ] || usage
+action=$1
+turn=$2
+text=${3:-}
 
 case "$action" in
 	say)
