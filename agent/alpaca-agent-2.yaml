@@ -60,11 +60,17 @@ sessions:
       Say in one line: the equity, how many positions are left from yesterday, and
       what their combined maximum loss is. Open nothing and close nothing.
 
+  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
+  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
+  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
+  # that Friday cannot reach the first number at all, and has four hours to hurt
+  # the second one. The rules and both dates are in `docs/rules.md` of the team's
+  # own repository.
   - name: entry
     cause: "an entry closer to the money: a sold leg at a delta near 0.30"
     every: 10m
     between: ["09:50", "15:30"]
-    days: [mon, tue, wed, thu, fri]
+    days: [mon, tue, wed, thu]
     task: |
       Carry out premium-harvest, but closer to the money than on the neighbouring
       account. The differences below are the whole point of this account and must

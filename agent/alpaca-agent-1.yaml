@@ -90,11 +90,17 @@ sessions:
   # at +7.5 and a few minutes later, on fresh quotes, gave -7.2. A twenty-minute
   # window meant the session never saw six or seven versions of the list at all,
   # and met the one it did see already stale.
+  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
+  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
+  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
+  # that Friday cannot reach the first number at all, and has four hours to hurt
+  # the second one. The rules and both dates are in `docs/rules.md` of the team's
+  # own repository.
   - name: entry
     cause: "trying an entry: see whether a structure clears and what the broker answers"
     every: 10m
     between: ["09:45", "15:15"]
-    days: [mon, tue, wed, thu, fri]
+    days: [mon, tue, wed, thu]
     task: |
       This is the development account and a trial run. The value of a turn is in
       the observation rather than in profit: we need to know that the order goes,
@@ -331,11 +337,17 @@ sessions:
         equity now, and how much credit the open positions hold. Do not report this in
         a turn of its own - it costs more than it tells.
 
+  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
+  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
+  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
+  # that Friday cannot reach the first number at all, and has four hours to hurt
+  # the second one. The rules and both dates are in `docs/rules.md` of the team's
+  # own repository.
   - name: entry-call
     cause: "trying the other side: selling a call spread above the money"
     every: 10m
     between: ["09:50", "15:15"]
-    days: [mon, tue, wed, thu, fri]
+    days: [mon, tue, wed, thu]
     task: |
       The same probe from the other side of the market. We have never checked this
       structure with a live order, and it doubles the credit on an underlying
@@ -479,11 +491,17 @@ sessions:
       broker answered, word for word, and end. The point of the probe is to see the
       answer, not to enter.
 
+  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
+  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
+  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
+  # that Friday cannot reach the first number at all, and has four hours to hurt
+  # the second one. The rules and both dates are in `docs/rules.md` of the team's
+  # own repository.
   - name: convexity
     cause: "the convexity layer: a cheap bet on a large move, bounded and known"
     every: 2h
     between: ["09:50", "15:00"]
-    days: [mon, tue, wed, thu, fri]
+    days: [mon, tue, wed, thu]
     task: |
       This layer exists for the day the market moves hard - the day on which the
       premium we sold loses all at once. So here we do not sell the move, we buy
