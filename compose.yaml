@@ -304,6 +304,15 @@ services:
       # own variable and does not follow the harness off the gateway.
       BROKER_MCP_URL: ${AGENT_1_PAGE_MCP_URL}
       BROKER_MCP_TOKEN: ${AGENT_1_PAGE_MCP_TOKEN}
+      # The person the page acts for. The gateway endpoint resolves a caller from
+      # BOTH the credential and this header, and until 29 August the page sent
+      # only the first: every request came back "Identity unresolved" and the page
+      # answered 503 "the broker is unavailable" - on the page a judge opens, for
+      # the whole of the account panel. The agents had always sent it; the page
+      # was written before the endpoint required it and nobody read /api/money
+      # again afterwards.
+      USER_TOKEN: ${USER_TOKEN:-}
+      USER_HEADER_NAME: ${USER_HEADER_NAME:-}
       ORDERS_SHOWN: ${ORDERS_SHOWN}
       HISTORY_DAYS: ${HISTORY_DAYS}
     ports:
@@ -344,6 +353,15 @@ services:
       # page cannot edit the envelope.
       ENVELOPE_PATH: /policy/envelope.yaml
       ENVELOPE_IDENTITY: ${AGENT_2_ENVELOPE_IDENTITY:-alpaca-agent-2}
+      # Its own read-only credential, and its own gateway endpoint. Until 29
+      # August this page had NEITHER: it answered 501 "no broker is configured"
+      # where the account panel should be, because no read-only role for this
+      # account had ever been created at the gateway. The first page had one, the
+      # teammate's had one, this one was missed.
+      BROKER_MCP_URL: ${AGENT_2_PAGE_MCP_URL}
+      BROKER_MCP_TOKEN: ${AGENT_2_PAGE_MCP_TOKEN}
+      USER_TOKEN: ${USER_TOKEN:-}
+      USER_HEADER_NAME: ${USER_HEADER_NAME:-}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
       RECORD_SHOWS: ${RECORD_SHOWS}
       ORDERS_SHOWN: ${ORDERS_SHOWN}
