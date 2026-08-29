@@ -712,7 +712,11 @@ func run(log *zap.Logger) error {
 
 			h.Conversation = box
 		default:
-			client, err := agent.Dial(ctx, cfg.AgentCommand, cfg.AgentCallTimeout, log.Named("agent"))
+			// By name, never inherited: see agent.Environment. The harness holds
+			// credentials the model has no use for, and a session that ran `env`
+			// would put them where the record and the page can be read.
+			environment := agent.Environment(cfg.AgentEnvKeep, os.LookupEnv)
+			client, err := agent.Dial(ctx, cfg.AgentCommand, environment, cfg.AgentCallTimeout, log.Named("agent"))
 			if err != nil {
 				return err
 			}

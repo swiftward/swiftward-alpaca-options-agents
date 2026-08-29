@@ -58,6 +58,7 @@ x-agent-environment: &agent-environment
   MCP_ADDR: ":8081"
   SESSION_MCP_URL: http://127.0.0.1:8081
   RECORD_SHOWS: ${RECORD_SHOWS}
+  AGENT_ENV_KEEP: ${AGENT_ENV_KEEP}
   AGENT_COMMAND: codex
   AGENT_DIR: /work
   # The container is the sandbox: root filesystem read-only, one writable

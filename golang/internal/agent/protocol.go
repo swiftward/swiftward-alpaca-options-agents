@@ -90,14 +90,62 @@ type Client struct {
 	closeOnce sync.Once
 }
 
+// Environment is what the agent's process is started with, and it is built by
+// NAME rather than inherited.
+//
+// The harness holds credentials the model has no use for: the database's URL,
+// the chat's bot token, whatever a future service adds. A child that inherits
+// the environment holds them all, and a session that read a poisoned headline
+// and ran `env` would have them in its context - from where they reach the
+// record and the page a judge opens. Nothing about the model's work needs them.
+//
+// What it DOES need is here by name: the path and home a process needs at all,
+// where its own configuration lives, the proxy it must go through to reach
+// anything, and the credentials its configuration names by environment
+// variable - `bearer_token_env_var` and `env_http_headers` in
+// `docker/agent-entrypoint.sh`. A name the configuration references and this
+// list omits is a session with no tools, so the two are edited together.
+//
+// keep adds names an operator needs without a new image: a server added to the
+// configuration tomorrow brings its own credential.
+func Environment(keep []string, lookup func(string) (string, bool)) []string {
+	names := append([]string{
+		"PATH", "HOME", "TMPDIR", "LANG", "TZ",
+		"CODEX_HOME",
+		"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+		"BROKER_MCP_TOKEN", "GATEWAY_TOKEN", "USER_TOKEN",
+	}, keep...)
+
+	out := make([]string, 0, len(names))
+	seen := map[string]bool{}
+	for _, name := range names {
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		if value, set := lookup(name); set {
+			out = append(out, name+"="+value)
+		}
+	}
+
+	return out
+}
+
 // Dial starts the agent's protocol server and completes the handshake. command
 // is the agent binary; it is a parameter so a test drives a real process.
+//
+// environment is what the process is started with, and an empty one means this
+// process's own - which is what a test wants and what production must never
+// have. See Environment.
 //
 // handshakeTimeout bounds the first request. Without it a server that starts but
 // never answers leaves the whole program waiting with nothing in the log - the
 // failure looks like a hang, not like a fault.
-func Dial(ctx context.Context, command string, handshakeTimeout time.Duration, log *zap.Logger) (*Client, error) {
+func Dial(ctx context.Context, command string, environment []string, handshakeTimeout time.Duration, log *zap.Logger) (*Client, error) {
 	cmd := exec.CommandContext(ctx, command, "app-server", "--listen", "stdio://")
+	if len(environment) > 0 {
+		cmd.Env = environment
+	}
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

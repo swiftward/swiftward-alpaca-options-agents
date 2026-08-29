@@ -94,6 +94,10 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       RECORD_SHOWS: ${RECORD_SHOWS}
       AGENT_COMMAND: codex
+      # Names given to the model's process on top of the ones it always gets.
+      # Empty is the normal state: what the session's configuration reads is
+      # already in that fixed set. See .env.example.
+      AGENT_ENV_KEEP: ${AGENT_ENV_KEEP:-}
       AGENT_DIR: /work
       # The container is the sandbox: root filesystem read-only, one writable
       # directory, no route out except the proxy. The agent's own sandbox needs

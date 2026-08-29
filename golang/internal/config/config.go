@@ -56,6 +56,13 @@ type Config struct {
 	DeclarationPath string
 	// AgentCommand is the agent binary the harness starts.
 	AgentCommand string
+	// AgentEnvKeep names the environment variables the agent's process is given
+	// ON TOP of the ones it always gets - see agent.Environment. The child is
+	// built by name rather than inheriting: the harness holds a database URL and
+	// a chat token the model has no use for, and a session that ran `env` would
+	// put them in its own context. A server added to the session's configuration
+	// tomorrow names its credential here rather than in a new image.
+	AgentEnvKeep []string
 	// AgentDir and AgentSandbox are what every session is given to work in;
 	// AgentModel overrides the agent's own configured model.
 	AgentDir     string
@@ -341,6 +348,7 @@ func Load() (Config, error) {
 		MCPAddr:               k.String("mcp_addr"),
 		DeclarationPath:       k.String("declaration"),
 		AgentCommand:          k.String("agent_command"),
+		AgentEnvKeep:          parseSymbols(k.String("agent_env_keep")),
 		AgentDir:              k.String("agent_dir"),
 		AgentSandbox:          k.String("agent_sandbox"),
 		SkillsDir:             k.String("skills_dir"),

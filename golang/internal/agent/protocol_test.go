@@ -38,7 +38,7 @@ func TestDialCompletesTheHandshake(t *testing.T) {
 	// seconds, and five of them were not enough - the test failed under the full run
 	// and passed on its own. A test that fails from load teaches you to distrust the
 	// run.
-	client, err := Dial(context.Background(), agent, 30*time.Second, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, nil, 30*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 }
@@ -57,7 +57,7 @@ echo '{"method":"turn/completed","params":{"threadId":"th-1","turn":{"id":"tu-1"
 read line
 `)
 
-	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, nil, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -126,7 +126,7 @@ while read line; do
 done
 `)
 
-	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, nil, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -152,7 +152,7 @@ echo '{"jsonrpc":"2.0","id":2,"error":{"code":-32602,"message":"turn already fin
 read line
 `)
 
-	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, nil, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -178,7 +178,7 @@ read line   # thread/start
 echo '{"jsonrpc":"2.0","id":2,"result":{"thread":{"id":"th-remembered"}}}'
 read line
 `)
-	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, nil, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -203,7 +203,7 @@ while read line; do
   echo "{\"jsonrpc\":\"2.0\",\"id\":$id,\"result\":{}}"
 done
 `)
-	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, nil, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -226,7 +226,7 @@ func TestDialGivesUpOnASilentServer(t *testing.T) {
 	agent := fakeAgent(t, "sleep 30\n")
 
 	start := time.Now()
-	_, err := Dial(context.Background(), agent, 300*time.Millisecond, zaptest.NewLogger(t))
+	_, err := Dial(context.Background(), agent, nil, 300*time.Millisecond, zaptest.NewLogger(t))
 	require.Error(t, err)
 	assert.Less(t, time.Since(start), 5*time.Second)
 }
@@ -238,7 +238,7 @@ func TestOpenGivesUpOnASilentResume(t *testing.T) {
 read line   # thread/resume - never answered
 sleep 30
 `)
-	client, err := Dial(context.Background(), agent, 2*time.Second, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, nil, 2*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -265,7 +265,7 @@ while read line; do
   echo "{\"jsonrpc\":\"2.0\",\"id\":$id,\"result\":{\"turn\":{\"id\":\"tu-1\"}}}"
 done
 `)
-	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, nil, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
@@ -332,7 +332,7 @@ func TestClosingEndsAnAgentThatWillNotLeave(t *testing.T) {
 	// Answers the handshake, then ignores EOF on its input and sits there.
 	agent := fakeAgent(t, answerHandshake+"\nsleep 300\n")
 
-	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, nil, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 
 	was := leaveTime
@@ -358,7 +358,7 @@ func TestClosingWaitsForAnAgentThatLeaves(t *testing.T) {
 	// Leaves of its own accord the moment its input closes.
 	agent := fakeAgent(t, answerHandshake+"\nread line\nexit 0\n")
 
-	client, err := Dial(context.Background(), agent, 5*time.Second, zaptest.NewLogger(t))
+	client, err := Dial(context.Background(), agent, nil, 5*time.Second, zaptest.NewLogger(t))
 	require.NoError(t, err)
 
 	was := leaveTime
