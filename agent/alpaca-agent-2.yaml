@@ -50,14 +50,14 @@ parameters:
   # that count, and running a setting our own record shows losing, through the
   # only four days that are scored, is a bet against our own evidence. The
   # experiment gave what it was opened for and has nothing further to give.
-  short_leg_delta: "no more than 0.20 in absolute value; within that, edge_points decides"
+  short_leg_delta: "no more than 0.30 in absolute value; within that, edge_points decides"
   # The second account stands FURTHER along the curve than the first, and that is
   # its role in the three. Over 646 trading days: at 0 the expectation is near
   # zero - the sign changes between 0 and +1 - at +2 it is plus 2.63, at +3 plus
   # 4.14. "Strictly above 0" stood here until 28 August and meant trading exactly
   # on the point where the sign changes. We take +3: the most per trade, the
   # fewest trades, and deliberately a different angle from the neighbour's +2.
-  min_edge_points: "at least +5 on fresh quotes; within what qualifies, take the highest"
+  min_edge_points: "at least +3 on fresh quotes; within what qualifies, take the highest"
   min_edge_points_borrowed: "strictly above 0: borrowed volatility overstates the edge"
   # Three, as on the neighbour. The two accounts now run one setting, so a number
   # that differs between them is a difference nobody chose.
@@ -134,8 +134,8 @@ parameters:
   # NEGATIVE: selling that close pays less than it costs. So the wider list was
   # not more choice, it was a list with losing structures in it, ranked by a
   # measure that cannot see the difference.
-  screener_most_delta: "0.20"
-  screener_least_edge: "-1.0"
+  screener_most_delta: "0.30"
+  screener_least_edge: "-3.0"
 
 sessions:
   - name: open-check
@@ -153,37 +153,36 @@ sessions:
   # that Friday cannot reach the first number at all, and has four hours to hurt
   # the second one. The rules and both dates are in `docs/rules.md` of the team's
   # own repository.
-  # THE EXPERIMENT THIS ACCOUNT CARRIES, and it is the SELECTION rather than the
-  # clock. The hours were tried first and dropped on a teammate's measurement:
-  # replaying the rule at every half-hour slot against the three named windows
-  # gives 79 picks at $12.7 a trade against 78 at $11.7 - the same. Waking more
-  # often buys more trades, not better ones: a size lever, not an edge lever.
+  # THIS ACCOUNT NOW RUNS THE SAME SETTING AS THE FIRST, and that is a decision
+  # rather than a copy left over from something.
   #
-  # What IS an edge lever, measured on 646 days and five underlyings tonight:
+  # Two experiments were set here today and measurement cancelled both. The entry
+  # hours went first: a teammate replayed the rule at every half-hour slot against
+  # three named windows and got 12.7 a trade against 11.7 - the same, so waking
+  # more often is a size lever and not an edge lever. Then the selection: a ceiling
+  # of 0.20 with a threshold of +5 pays 8.77 a trade against 4.12, which is real -
+  # and it takes 113 trades across 646 days, or 0.7 trades in a four-day week. An
+  # account that expects to trade ONCE is not an experiment, it is a coin toss that
+  # also earns nothing.
   #
-  #   delta ceiling 0.30, edge +3   597 trades   +4.12 a trade   drawdown -1,561
-  #   delta ceiling 0.20, edge +5   113 trades   +8.77 a trade   drawdown   -222
+  # Then the grid was read for TOTAL rather than per trade, across every cell:
   #
-  # Twice the money per trade and a seventh of the drawdown, for a fifth of the
-  # trades - almost the same total by two very different roads. Which road is
-  # better over four days is exactly what one account can find out while the other
-  # runs the settled one, and it is not answerable from history: 113 trades over
-  # 646 days is one a week, and four days will show whether that is a real
-  # tightening or a way of not trading.
+  #   ceiling  edge   trades in 4 days   total
+  #      0.30    +1          5.0         1,393
+  #      0.30    +2          4.3         2,154
+  #      0.30    +3          3.7         2,461   <- what both accounts run
+  #      0.30    +5          2.7         1,068
+  #      0.25    +3          2.4         1,523
+  #      0.20    +3          1.3         1,277
+  #      0.20    +5          0.7           991
   #
-  # So the cadence here matches the first account deliberately - every ten
-  # minutes, both sides, the same windows - and only these two numbers differ.
-  # Every ten minutes, not twenty. The candidate list is rewritten every three
-  # minutes and an edge on it does not live long: on 26 August the best row stood
-  # at +7.5 and a few minutes later, on fresh quotes, gave -7.2. A twenty-minute
-  # window meant the session never saw six or seven versions of the list at all,
-  # and met the one it did see already stale.
-  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
-  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
-  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
-  # that Friday cannot reach the first number at all, and has four hours to hurt
-  # the second one. The rules and both dates are in `docs/rules.md` of the team's
-  # own repository.
+  # The setting already in force is the best cell on the grid and every direction
+  # from it is worse. History has answered this question, so there is nothing here
+  # worth spending an account on.
+  #
+  # What two identical accounts are for over four judged days: two independent
+  # samples of one setting. At roughly four trades each, one account is a handful
+  # of coin flips and two are twice as many - and only one of them is submitted.
   - name: entry
     cause: "trying an entry: see whether a structure clears and what the broker answers"
     every: 10m
