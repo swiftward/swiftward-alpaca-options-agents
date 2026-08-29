@@ -720,6 +720,41 @@ func TestABackspreadIsNotMistakenForUnboundedRisk(t *testing.T) {
 	assert.Empty(t, cancelled)
 }
 
+// A CLOSING order walks the other way: it pays MORE, not less.
+//
+// One convention carries both directions - a credit is negative, a debit
+// positive, and conceding is always the larger number - so an opening order
+// walks down from -0.12 to -0.11 and a close walks up from 0.05 to 0.06. It is
+// worth pinning because the sign is where this codebase has been wrong before:
+// the profit watch sent its closes negative for two days and none of them
+// filled.
+func TestAClosingOrderWalksTowardPayingMore(t *testing.T) {
+	at := time.Date(2026, 8, 26, 18, 5, 0, 0, time.UTC)
+	closing := spread("o-close", 0.05, "new", at.Add(-2*time.Minute))
+	closing.ClientID = NameFor(0.20)
+	closing.Legs = []marketdata.Order{
+		{Symbol: "QQQ260826P00701000", Side: "buy", Quantity: 1, PositionIntent: "buy_to_close"},
+		{Symbol: "QQQ260826P00700000", Side: "sell", Quantity: 1, PositionIntent: "sell_to_close"},
+	}
+
+	broker := &brokerDouble{
+		orders: []marketdata.Order{closing},
+		quotes: map[string]marketdata.Quote{
+			// Buying the 701 back costs its ask; selling the 700 pays its bid.
+			"QQQ260826P00701000": quote(0.10, 0.12),
+			"QQQ260826P00700000": quote(0.02, 0.04),
+		},
+	}
+
+	l := ladder(broker, at, t)
+	l.step(context.Background())
+
+	replaced, cancelled := broker.seen()
+	assert.Empty(t, cancelled)
+	assert.InDelta(t, 0.06, replaced["o-close"], 1e-9,
+		"one cent MORE than it was resting at, because paying more is what fills a close")
+}
+
 // A single-set order is judged in full.
 //
 // The allowance below the per-position check forgives a breach smaller than one
