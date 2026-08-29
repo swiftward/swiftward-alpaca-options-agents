@@ -210,6 +210,38 @@ services:
         condition: service_completed_successfully
     profiles: [test]
 
+  # Reconciliation: every order the broker holds, against what our record says
+  # about it. It runs HERE rather than from a shell because the record's Postgres
+  # publishes no port - it is reachable only from this network - and the command
+  # written in the plan (`go run ./apps/reconcile` from a terminal) fails on that
+  # with a connection refused. Found on 29 August, which is the day before it
+  # would have been needed.
+  #
+  #   AGENT=alpaca-agent-1 RECONCILE_SINCE=12h make reconcile
+  #
+  reconcile:
+    image: golang:1.27-alpine
+    networks: [internal]
+    working_dir: /src
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${RECONCILE_DB:-${POSTGRES_DB}}?sslmode=disable
+      # Through the gateway, like every other call this project makes to the
+      # broker: reconciling against a different road than the orders took would
+      # compare two things and call them one.
+      BROKER_MCP_URL: ${RECONCILE_BROKER_URL:-${AGENT_1_BROKER_MCP_URL}}
+      BROKER_MCP_TOKEN: ${RECONCILE_BROKER_TOKEN:-${AGENT_1_BROKER_MCP_TOKEN}}
+      USER_TOKEN: ${USER_TOKEN:-}
+      USER_HEADER_NAME: ${USER_HEADER_NAME:-}
+      RECONCILE_SINCE: ${RECONCILE_SINCE:-12h}
+      GOFLAGS: -buildvcs=false
+      GOPROXY: "off"
+      GOCACHE: /tmp/gocache
+    volumes:
+      - ./golang:/src
+      - ${GOMODCACHE}:/go/pkg/mod
+    command: ["go", "run", "./apps/reconcile"]
+    profiles: [tools]
+
   # Alpaca's own MCP server. The account keys live here and nowhere else; no host
   # port, so the only caller is the policy gateway.
   alpaca-mcp-agent-1:

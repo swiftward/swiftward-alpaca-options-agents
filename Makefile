@@ -41,6 +41,9 @@ check: ## Every gate a push must pass: style, language, tests, the race detector
 	$(MAKE) -C golang test-race
 	$(MAKE) build
 
+reconcile: ## Every order the broker holds, against what the record says: RECONCILE_SINCE=12h make reconcile
+	docker compose --env-file .env --profile tools run --rm reconcile
+
 lint: ## Check the style
 	$(MAKE) -C golang lint
 	$(MAKE) english
