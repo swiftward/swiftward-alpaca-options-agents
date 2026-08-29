@@ -108,6 +108,86 @@ func TestAListTheScreenerStoppedRefreshingIsNotFresh(t *testing.T) {
 	assert.Equal(t, false, answer["fresh"], "forty minutes is eight intervals, and that is a stopped screener")
 }
 
+type restingDouble struct {
+	names  []string
+	broken error
+}
+
+func (r *restingDouble) RestingUnderlyings(context.Context) ([]string, error) {
+	return r.names, r.broken
+}
+
+// An underlying this account already has an order working on is not offered
+// again, and the list says which ones it left out.
+//
+// The session cannot see its own resting orders in this list. Offered the same
+// underlying twice it sizes the second position against an account that does not
+// yet hold the first, and the broker refused exactly that pair twice on
+// 28 August. Withheld rather than silently dropped: a session that asked for
+// three and got one is entitled to know whether the market was thin or we were
+// already in.
+func TestAnUnderlyingWeAreAlreadyInIsWithheld(t *testing.T) {
+	now := time.Date(2026, 8, 26, 19, 10, 0, 0, time.UTC)
+	shortlist := &shortlistDouble{
+		found: []screener.Candidate{
+			{Underlying: "QQQ", Type: "put"},
+			{Underlying: "SPY", Type: "put"},
+			{Underlying: "qqq", Type: "call"},
+		},
+		takenAt: now,
+	}
+
+	session := candidateSessionResting(t, shortlist, now, &restingDouble{names: []string{"QQQ"}})
+	out, err := session.CallTool(context.Background(),
+		&mcp.CallToolParams{Name: "read_candidates", Arguments: map[string]any{}})
+	require.NoError(t, err)
+	require.False(t, out.IsError)
+
+	answer := readCandidates(t, out)
+	require.Len(t, answer["candidates"], 1, "both QQQ rows go, whatever their case")
+	assert.Equal(t, []any{"QQQ"}, answer["withheld"], "and the reader is told which underlying went")
+}
+
+// With nothing working the list is exactly what the screener priced, and nothing
+// is named as withheld.
+func TestNothingIsWithheldWhenNothingIsWorking(t *testing.T) {
+	now := time.Date(2026, 8, 26, 19, 10, 0, 0, time.UTC)
+	shortlist := &shortlistDouble{
+		found:   []screener.Candidate{{Underlying: "QQQ", Type: "put"}},
+		takenAt: now,
+	}
+
+	session := candidateSessionResting(t, shortlist, now, &restingDouble{})
+	out, err := session.CallTool(context.Background(),
+		&mcp.CallToolParams{Name: "read_candidates", Arguments: map[string]any{}})
+	require.NoError(t, err)
+
+	answer := readCandidates(t, out)
+	assert.Len(t, answer["candidates"], 1)
+	assert.Nil(t, answer["withheld"])
+}
+
+func candidateSessionResting(t *testing.T, shortlist Shortlist, now time.Time, resting Resting) *mcp.ClientSession {
+	t.Helper()
+
+	server := httptest.NewServer(Tools{
+		Record:    record.NewMemory(),
+		Shortlist: shortlist,
+		Resting:   resting,
+		Now:       func() time.Time { return now },
+		Running:   &runningDouble{},
+	}.Handler())
+	t.Cleanup(server.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
+	session, err := client.Connect(context.Background(),
+		&mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	return session
+}
+
 func candidateSession(t *testing.T, shortlist Shortlist, now time.Time) *mcp.ClientSession {
 	t.Helper()
 

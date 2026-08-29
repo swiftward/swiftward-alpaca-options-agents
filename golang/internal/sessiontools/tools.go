@@ -180,6 +180,10 @@ type Tools struct {
 	Schedule Schedule
 	// Running says which turn the session is inside.
 	Running Running
+	// Resting names the underlyings this account already has an order working on.
+	// A nil one leaves the list as the screener priced it - which is what a
+	// deployment with no broker can honestly do.
+	Resting Resting
 	// Shortlist is what the screener priced across the whole universe. A nil one
 	// means no screener is running and the tool is not offered.
 	Shortlist Shortlist
@@ -218,6 +222,14 @@ type Asked interface {
 // envelopeTool is the name a session calls to learn its limits. Named here
 // because the check below is about that call and no other.
 const envelopeTool = "read_envelope"
+
+// Resting answers which underlyings already have an order of ours working on
+// them. A structure on one of those is not a candidate: the session cannot tell
+// its own resting order from a stranger's, would size against a position it does
+// not yet hold, and the broker refuses the pair - measured twice on 28 August.
+type Resting interface {
+	RestingUnderlyings(ctx context.Context) ([]string, error)
+}
 
 // Shortlist is the last sweep of the universe, richest first.
 type Shortlist interface {
@@ -377,6 +389,10 @@ func (t Tools) Handler() http.Handler {
 				if err != nil {
 					return nil, candidatesAnswer{}, err
 				}
+				found, withheld, err := t.withoutWhatIsAlreadyWorking(ctx, found)
+				if err != nil {
+					return nil, candidatesAnswer{}, err
+				}
 				// Age, not the timestamp: a session reasoning about "how stale is
 				// this" should not first have to work out what time it is.
 				age := 0
@@ -388,6 +404,7 @@ func (t Tools) Handler() http.Handler {
 					Candidates: found,
 					SecondsOld: age,
 					Fresh:      t.fresh(takenAt, found),
+					Withheld:   withheld,
 				}, nil
 			})
 	}
@@ -557,6 +574,54 @@ type candidatesAnswer struct {
 	// come at an interval, a list is routinely older than one of them, and one
 	// age tells nobody whether the screener is running.
 	Fresh bool `json:"fresh" jsonschema:"whether the screener is keeping this list up to date; false means treat it as no list at all"`
+	// Withheld names the underlyings taken out of the list because an order of
+	// ours is already working on them. Named rather than silently dropped: a
+	// session that asked for ten and got seven is entitled to know whether the
+	// market was thin or we were already in.
+	Withheld []string `json:"withheld,omitempty" jsonschema:"underlyings left out because this account already has an order working on them"`
+}
+
+// withoutWhatIsAlreadyWorking drops the structures whose underlying already has
+// an order of ours in the book, and names what it dropped.
+//
+// Two of them went to the broker on 28 August and came back refused. The session
+// cannot see its own resting orders in this list, so it sizes a second position
+// against an account that does not yet hold the first - and even where the
+// broker accepts, the two orders are one bet taken twice.
+func (t Tools) withoutWhatIsAlreadyWorking(ctx context.Context, found []screener.Candidate) ([]screener.Candidate, []string, error) {
+	if t.Resting == nil || len(found) == 0 {
+		return found, nil, nil
+	}
+	working, err := t.Resting.RestingUnderlyings(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(working) == 0 {
+		return found, nil, nil
+	}
+
+	busy := make(map[string]bool, len(working))
+	for _, underlying := range working {
+		busy[strings.ToUpper(underlying)] = true
+	}
+
+	kept := make([]screener.Candidate, 0, len(found))
+	var withheld []string
+	seen := map[string]bool{}
+	for _, candidate := range found {
+		name := strings.ToUpper(candidate.Underlying)
+		if !busy[name] {
+			kept = append(kept, candidate)
+
+			continue
+		}
+		if !seen[name] {
+			seen[name] = true
+			withheld = append(withheld, name)
+		}
+	}
+
+	return kept, withheld, nil
 }
 
 // fresh answers whether the list is being kept up to date.

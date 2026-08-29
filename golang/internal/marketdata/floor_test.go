@@ -51,3 +51,35 @@ func TestEachExpiryIsItsOwnSeries(t *testing.T) {
 
 	assert.Equal(t, []string{"SPY 2026-09-04"}, without)
 }
+
+// What is already working, by underlying: one entry each, however many orders or
+// legs stand on it.
+//
+// A structure the screener offers on an underlying we already have an order in
+// is not a candidate. The session cannot see its own resting order in that list,
+// sizes a second position against an account that does not hold the first, and
+// the broker refuses the pair - twice on 28 August.
+func TestRestingUnderlyingsNamesEachOnce(t *testing.T) {
+	names := RestingUnderlyings([]Order{
+		{Status: "new", Legs: []Order{
+			{Symbol: "QQQ260828C00725000"}, {Symbol: "QQQ260828C00726000"},
+		}},
+		{Status: "partially_filled", Legs: []Order{{Symbol: "SPY260904P00640000"}}},
+		{Status: "accepted", Symbol: "IWM260904P00230000"},
+	})
+
+	assert.Equal(t, []string{"QQQ", "SPY", "IWM"}, names)
+}
+
+// An order that has ENDED holds nothing: it cannot fill, and the underlying is
+// free. Counting it would take a good candidate off the list for the rest of the
+// day, and the ladder replaces an order on every step it walks.
+func TestAnEndedOrderHoldsNoUnderlying(t *testing.T) {
+	for _, status := range []string{"filled", "canceled", "replaced", "expired", "rejected"} {
+		t.Run(status, func(t *testing.T) {
+			assert.Empty(t, RestingUnderlyings([]Order{
+				{Status: status, Legs: []Order{{Symbol: "QQQ260828C00725000"}}},
+			}))
+		})
+	}
+}

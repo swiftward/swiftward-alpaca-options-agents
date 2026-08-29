@@ -118,3 +118,37 @@ func worstAtExpiry(held []Position) float64 {
 
 	return worst
 }
+
+// RestingUnderlyings names the underlyings this account has an order working on
+// right now - one entry each, however many orders or legs stand on it.
+//
+// It reads the orders the broker still has in play (Order.Active) and takes the
+// underlying out of each leg's contract symbol. An order the ladder is walking
+// counts: it can fill at any moment, and a second structure sized as though the
+// first were not there is one bet taken twice.
+func RestingUnderlyings(orders []Order) []string {
+	seen := map[string]bool{}
+	var names []string
+	for _, order := range orders {
+		if !order.Active() {
+			continue
+		}
+		legs := order.Legs
+		if len(legs) == 0 {
+			legs = []Order{order}
+		}
+		for _, leg := range legs {
+			contract, parsed := ContractFrom(leg.Symbol)
+			if !parsed {
+				continue
+			}
+			name := contract.Symbol[:len(contract.Symbol)-15]
+			if !seen[name] {
+				seen[name] = true
+				names = append(names, name)
+			}
+		}
+	}
+
+	return names
+}

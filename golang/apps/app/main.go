@@ -50,6 +50,23 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
 
+// restingUnderlyings answers which underlyings have an order of ours working.
+// It is a small adapter rather than a method on the broker: what the session's
+// tools need is a list of names, and the broker answers in orders.
+type restingUnderlyings struct {
+	broker *marketdata.Broker
+	shown  int
+}
+
+func (r restingUnderlyings) RestingUnderlyings(ctx context.Context) ([]string, error) {
+	orders, err := r.broker.Orders(ctx, r.shown)
+	if err != nil {
+		return nil, err
+	}
+
+	return marketdata.RestingUnderlyings(orders), nil
+}
+
 func main() {
 	// The level is a setting because the interesting failures are protocol-level
 	// and rare: turning the detail on must not need a new image.
@@ -373,6 +390,14 @@ func run(log *zap.Logger) error {
 			// guess what is normal - and guessing cost a trade on 27 August.
 			tools.SweepEvery = cfg.ScreenerEvery
 		}
+		// What is already working, so the screener's list does not offer a second
+		// position on an underlying this account is already in. Needs the broker:
+		// resting orders are the broker's own state, and a deployment without one
+		// leaves the list as the screener priced it.
+		if broker != nil {
+			tools.Resting = restingUnderlyings{broker: broker, shown: cfg.OrdersShown}
+		}
+
 		// The gate on record_intent: an intent is refused unless the envelope was
 		// read in the SAME turn. It is wired only where it can actually be
 		// satisfied, and where it cannot the log says so rather than the agent
