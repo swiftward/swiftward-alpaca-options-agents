@@ -116,6 +116,12 @@ is mid-order, it survives your turn without anyone knowing it exists, and nothin
 stops it after the day it was meant for. If you need to act later, say so with
 `wake_me_at`.
 
+One thing this does NOT forbid, and the distinction is the whole rule: the
+mailbox poller, where you are a session that takes its turns from one. That
+process decides nothing about WHEN you work - it carries what the harness already
+decided, and without it you get no turns at all. The line is between arranging to
+be woken, which is the harness's, and receiving what it decided, which is yours.
+
 ## Your notes
 
 `/work/notes/` is yours and survives between sessions.
