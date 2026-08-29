@@ -488,11 +488,22 @@ type wakeupsDouble struct {
 	mu       sync.Mutex
 	standing []wakeup.Wakeup
 	watching []string
+	// asked counts the clock ticks that reached this store, so a test can wait
+	// for the harness to have LOOKED rather than for a moment of wall clock.
+	asked int
+}
+
+func (w *wakeupsDouble) timesAsked() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return w.asked
 }
 
 func (w *wakeupsDouble) Due(now time.Time, price map[string]float64) []wakeup.Wakeup {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.asked++
 
 	var due []wakeup.Wakeup
 	kept := w.standing[:0]
@@ -626,13 +637,19 @@ func TestNoPriceIsReadWhenNothingWatchesOne(t *testing.T) {
 		Wakeups:      standing,
 		Prices:       prices,
 		CallTimeout:  2 * time.Second,
-		Now:          func() time.Time { return now },
-		Log:          zaptest.NewLogger(t),
+		// Fast enough that the wait below is over ticks the harness really took.
+		TickEvery: 10 * time.Millisecond,
+		Now:       func() time.Time { return now },
+		Log:       zaptest.NewLogger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
-	waitFor(t, func() bool { return true })
-	assert.Zero(t, prices.timesAsked())
+	// Waited on the CLOCK HAVING TICKED, not on `true`: waiting on a condition
+	// that is already met asserts before Run has done anything, so the count is
+	// zero whatever the harness would have done.
+	waitFor(t, func() bool { return standing.timesAsked() >= 2 })
+	assert.Zero(t, prices.timesAsked(),
+		"nothing standing watches a price, so none is read")
 	turns, _, _ := conversation.seen()
 	assert.Empty(t, turns)
 }
