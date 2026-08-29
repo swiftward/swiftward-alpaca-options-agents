@@ -105,7 +105,7 @@ x-agent-environment: &agent-environment
   # The ladder that walks an unfilled structure toward the price the book
   # shows. It finishes what a session started and can open nothing.
   # Доля полученного кредита, при которой выигравшая конструкция выкупается.
-  # ПОСЧИТАНО: research/threshold.py, 29 августа 2026, по минутному пути всех
+  # ПОСЧИТАНО 29 августа 2026 по минутному пути всех
   # 553 сделок, которые правило выбрало за 646 дней. Досидеть до истечения
   # даёт 2 287 долларов и 26% убыточных сделок; закрыть на 35% даёт 6 292 и
   # 9%. Лучше по обеим осям сразу. Вершина ровно на 35%, и обе половины
