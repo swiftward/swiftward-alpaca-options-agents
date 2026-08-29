@@ -476,6 +476,14 @@ func run(log *zap.Logger) error {
 
 	// The ladder finishes what the session started: it can move a price and cancel
 	// an order, and it can open nothing.
+	if cfg.Has(config.RoleHarness) && cfg.ExecutionEvery == 0 {
+		// Said, because the absence is invisible from the outside: orders rest at
+		// the price the session named, nothing walks them to the book, and nothing
+		// cancels what the book will not take. That is a legal deployment and a
+		// very different one.
+		log.Warn("no ladder: orders rest where the session placed them and are never walked or cancelled",
+			zap.String("why", "EXECUTION_EVERY is zero"))
+	}
 	if cfg.Has(config.RoleHarness) && cfg.ExecutionEvery > 0 {
 		// The one the ladder actually uses is the one checked: a declared-but-unset
 		// broker once passed a check on a different variable, and every step then

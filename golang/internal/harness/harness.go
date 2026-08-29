@@ -242,6 +242,12 @@ func (h *Harness) Run(ctx context.Context) error {
 	// minute to be noticed while other sessions queue behind it.
 	if h.TurnLimit > 0 {
 		go h.watchTheRunningTurn(ctx)
+	} else {
+		// Off is legal and quiet, which is the combination worth saying out loud.
+		// A turn that never ends then holds the conversation for the rest of the
+		// day: every window queues behind it, and the log shows a working harness.
+		h.Log.Warn("no bound on a turn: a session that never finishes will hold every window behind it",
+			zap.String("why", "TURN_LIMIT is zero"))
 	}
 	if h.Declaration != nil {
 		h.Log.Info("clock held",

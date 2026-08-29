@@ -1007,6 +1007,44 @@ func said(turns, steered []string, want string) bool {
 	return false
 }
 
+// A harness with no bound on a turn says so.
+//
+// Off is legal: a deployment may want a session that runs as long as it needs.
+// It is also invisible - the log of a harness that will never interrupt anything
+// looks exactly like the log of one that would - and a turn that never ends holds
+// every window behind it for the rest of the day.
+func TestAHarnessWithNoTurnLimitSaysSo(t *testing.T) {
+	spoken := make(chan string, 8)
+	log := zaptest.NewLogger(t, zaptest.WrapOptions(zap.Hooks(func(e zapcore.Entry) error {
+		if e.Level == zapcore.WarnLevel {
+			select {
+			case spoken <- e.Message:
+			default:
+			}
+		}
+
+		return nil
+	})))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: newChatDouble(), Conversation: newConversationSpy(),
+		CallTimeout: time.Second, Now: time.Now, Log: log,
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool {
+		select {
+		case said := <-spoken:
+			return strings.Contains(said, "no bound on a turn")
+		default:
+			return false
+		}
+	})
+}
+
 // A turn that ends before its name reaches us is still finished.
 //
 // The id exists only when Conversation.Turn returns. An agent quick enough to
