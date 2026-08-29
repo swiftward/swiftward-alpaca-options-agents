@@ -1,0 +1,6 @@
+# Data pulled by the collectors here. Not committed: the paths file alone is
+# 109 MB, and the collectors rebuild all of it from Alpaca.
+data/
+.venv/
+__pycache__/
+*.pyc
