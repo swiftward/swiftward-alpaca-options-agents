@@ -69,7 +69,24 @@ parameters:
   # - and it already turns the trade around where the ratio is low instead of
   # refusing it.
   crush_worst_case_share: "no more than 3% of equity"
-  crush_implied_over_realized: "sell at 1.3 or above; at 0.8 or below buy the move instead of selling; in between take nothing"
+  # MEASURED on 29 August, and the half that was missing is the realised one.
+  # Fourteen AVGO reports since 2023, the move net of the market on each:
+  #
+  #   median 8.0%, quartiles 5.9% and 10.6%
+  #   an ordinary day, measured the same way: 1.1%
+  #   so a report is 7.2 times an ordinary day
+  #
+  # Against a realised median of 8.0% the ratios below mean: SELL when the implied
+  # move is 10.4% or more, BUY when it is 6.4% or less, and take nothing between.
+  # The session still works the implied move out itself from the chain on the day -
+  # this is the number it compares against, and until now it had none.
+  #
+  # The report day is identified rather than given: the largest single-day move of
+  # each March, June, September and December, which is when this name reports. The
+  # largest of the QUARTER instead catches market-wide days - April 2025 and
+  # January 2025 both came out that way and neither is an earnings move. The
+  # market is subtracted for the same reason. `research/earnings_move.py`.
+  crush_implied_over_realized: "sell at 1.3 or above; at 0.8 or below buy the move instead of selling; in between take nothing. AVGO has moved a median of 8.0% net of the market on its last 14 reports, so this is 10.4% to sell and 6.4% to buy"
 
   # When a winner is bought back, as a share of the credit it was opened for.
   # Measured over the minute-by-minute path of 553 trades across 646 days: held
