@@ -1,6 +1,8 @@
 # Data pulled by the collectors here. Not committed: the paths file alone is
 # 109 MB, and the collectors rebuild all of it from Alpaca.
 data/
+# and the same name as a symlink, which a trailing slash does not match
+data
 .venv/
 __pycache__/
 *.pyc
