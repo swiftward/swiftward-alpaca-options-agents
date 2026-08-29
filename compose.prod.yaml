@@ -197,7 +197,15 @@ services:
       NO_PROXY: alpaca-mcp,envelope,postgres,egress,localhost,127.0.0.1
       CODEX_HOME: /home/agent/.codex
     volumes:
-      - ${CODEX_AUTH_DIR}:/mnt/codex:ro
+      # ONE FILE, not the directory it lives in. The entrypoint reads exactly
+      # `auth.json`, while `~/.codex` on a developer's machine holds every session
+      # that person has ever run - other projects, other people's work, years of
+      # transcripts and generated files. Mounting the directory put all of it
+      # inside a container whose model has a shell, one poisoned headline away
+      # from reading it. Measured 29 August on this machine: 4.6 GB, 475 session
+      # files. CODEX_AUTH_FILE names the file directly where it is not simply
+      # auth.json inside CODEX_AUTH_DIR.
+      - ${CODEX_AUTH_FILE:-${CODEX_AUTH_DIR}/auth.json}:/mnt/codex/auth.json:ro
       - codex-home:/home/agent/.codex
       # The full trace of the agent's work onto the machine's disk, not only into a
       # volume. codex writes a rollout here for every thread: what was fed in, which
