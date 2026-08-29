@@ -77,7 +77,7 @@ func (k *keeperDouble) PurgeCandidates(_ context.Context, before time.Time) (int
 
 func sweeping(broker Broker, kept Keeper, now func() time.Time, t *testing.T) *Sweep {
 	return &Sweep{
-		Broker: broker, Universe: []string{"QQQ"}, Wanted: anything(),
+		Broker: broker, Universe: []string{"QQQ"}, Thresholds: func() (Wanted, error) { return anything(), nil },
 		Every: time.Minute, Keep: 72 * time.Hour, Record: kept, PerMinute: 200, Expirations: 5,
 		Now: now, Log: zaptest.NewLogger(t),
 	}

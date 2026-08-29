@@ -169,6 +169,25 @@ parameters:
   # differing in how they were deployed.
   take_profit_at: "0.35"
 
+  # What a structure must clear to be OFFERED at all. Seven numbers, and every one
+  # of them is a trading decision - how far the sold leg sits, how likely it is to
+  # be reached, what the structure must pay, what the crossing may cost. Until
+  # 29 August they were environment variables, which put the screener's choices in
+  # a different place from every other trading choice and made changing one a
+  # redeployment.
+  #
+  # They are read on EVERY sweep, so lowering a bar is one edit here and the next
+  # pass obeys. A number missing or unreadable stops that pass rather than
+  # loosening it: a threshold quietly reading zero does not narrow the list, it
+  # opens it, and every structure clears a floor of zero.
+  screener_nearest: "0.1"
+  screener_furthest: "3.0"
+  screener_least_paid: "8"
+  screener_most_paid: "100"
+  screener_dearest: "150"
+  screener_most_delta: "0.45"
+  screener_least_edge: "-3.0"
+
 sessions:
   - name: open-check
     cause: "the market opened half an hour ago: see what we are working with"

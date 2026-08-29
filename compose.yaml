@@ -101,13 +101,6 @@ x-agent-environment: &agent-environment
   SCREENER_PER_MINUTE: ${SCREENER_PER_MINUTE}
   SCREENER_WORKERS: ${SCREENER_WORKERS}
   SCREENER_EXPIRATIONS: ${SCREENER_EXPIRATIONS}
-  SCREENER_NEAREST: ${SCREENER_NEAREST}
-  SCREENER_FURTHEST: ${SCREENER_FURTHEST}
-  SCREENER_LEAST_PAID: ${SCREENER_LEAST_PAID}
-  SCREENER_MOST_PAID: ${SCREENER_MOST_PAID}
-  SCREENER_MOST_DELTA: ${SCREENER_MOST_DELTA}
-  SCREENER_LEAST_EDGE: ${SCREENER_LEAST_EDGE}
-  SCREENER_DEAREST: ${SCREENER_DEAREST}
   # The volatility history the entry rules compare against. It is worth what
   # its length is, so it starts on the first day and is never paused.
   VOLATILITY_UNDERLYINGS: ${VOLATILITY_UNDERLYINGS}
@@ -379,6 +372,63 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+
+  # A page for the teammate's account. The record panels are empty here on
+  # purpose - his agent writes to his own database, not ours - but the MONEY comes
+  # from the broker through the read-only endpoint the gateway already grants for
+  # his account, so the team's report can carry every account's figure without
+  # anyone reading a trading key by hand.
+  #
+  # Behind the same profile as his broker server: it starts when someone asks for
+  # it by name.
+  page-agent-tikhon:
+    image: swiftward-alpaca-options-agents/page:local
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      target: page
+    networks: [internal, outbound]
+    # Its own resolvers: the page goes to the gateway for the money, and it would
+    # show a name-resolution failure as the broker being unavailable.
+    dns: [1.1.1.1, 8.8.8.8]
+    environment:
+      ROLES: api
+      ADDR: ":8080"
+      WEB_DIR: /srv/web
+      # The page serves the limits from the SAME file, through the same call that
+      # answers the agent. Otherwise it would show a retelling, and one day the
+      # retelling differs from what is actually traded, and a judge is shown a
+      # story about the system rather than the system. It reads and only reads: the
+      # page cannot edit the envelope.
+      ENVELOPE_PATH: /policy/envelope.yaml
+      ENVELOPE_IDENTITY: alpaca-agent-tikhon
+      # Its own read-only credential, and its own gateway endpoint. Until 29
+      # August this page had NEITHER: it answered 501 "no broker is configured"
+      # where the account panel should be, because no read-only role for this
+      # account had ever been created at the gateway. The first page had one, the
+      # teammate's had one, this one was missed.
+      BROKER_MCP_URL: ${AGENT_TIKHON_PAGE_MCP_URL}
+      BROKER_MCP_TOKEN: ${AGENT_TIKHON_PAGE_MCP_TOKEN}
+      USER_TOKEN: ${USER_TOKEN:-}
+      USER_HEADER_NAME: ${USER_HEADER_NAME:-}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      RECORD_SHOWS: ${RECORD_SHOWS}
+      ORDERS_SHOWN: ${ORDERS_SHOWN}
+      HISTORY_DAYS: ${HISTORY_DAYS}
+    ports:
+      - "${AGENT_TIKHON_PAGE_PORT:-8803}:8080"
+    # The week runs unattended: a machine that reboots at three in the morning
+    # must come back with the agent running, not with it waiting to be started.
+    restart: unless-stopped
+    volumes:
+      # Read-only: the page shows the limits and cannot change them. The same file
+      # the envelope and the ladder read - one source for everyone, or what is
+      # shown and what is in force diverge in silence.
+      - ./policy:/policy:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    profiles: [tikhon]
 
   alpaca-agent-1:
     <<: *agent-service

@@ -46,7 +46,15 @@ const pricesPerCall = 20
 type Sweep struct {
 	Broker   Broker
 	Universe []string
-	Wanted   Wanted
+	// Thresholds answers what a structure must clear to be offered at all, and is
+	// asked once per PASS rather than held as a value. Every number in it is a
+	// trading decision - how far the sold strike sits, how likely it is to be
+	// reached, what the structure must pay - so it lives in the declaration
+	// beside the rest of them, and a declaration is re-read while this process
+	// runs. Until 29 August they were seven environment variables, which put the
+	// screener's trading choices in a different place from every other one and
+	// meant changing any of them was a redeployment.
+	Thresholds func() (Wanted, error)
 	Every    time.Duration
 	Record   Keeper
 	// Keep is how long a sweep's findings stay readable after the sweep that
@@ -91,6 +99,8 @@ func (s *Sweep) Run(ctx context.Context) error {
 		return fmt.Errorf("the screener needs the broker's rate limit: set SCREENER_PER_MINUTE")
 	case s.Now == nil:
 		return fmt.Errorf("the screener has no clock")
+	case s.Thresholds == nil:
+		return fmt.Errorf("the screener is not told what a structure must clear")
 	case s.Record != nil && s.Keep <= 0:
 		return fmt.Errorf("the screener needs how long to keep what it finds: set SCREENER_KEEP")
 	}
@@ -157,6 +167,15 @@ func (s *Sweep) once(ctx context.Context) {
 // each of them would bury what was found.
 func (s *Sweep) look(ctx context.Context) ([]Candidate, Refused) {
 	refused := Refused{}
+	// Asked once for the pass: it is the same answer for every underlying in it,
+	// and an unreadable one offers NOTHING rather than offering everything at a
+	// threshold of zero. A screener that silently drops its bounds hands the
+	// session the whole book as though it had qualified.
+	wanted, err := s.Thresholds()
+	if err != nil {
+		s.Log.Error("could not read what a structure must clear; this pass offers nothing", zap.Error(err))
+		return nil, refused
+	}
 	prices := map[string]float64{}
 	for _, batch := range groups(s.Universe, pricesPerCall) {
 		s.wait(ctx)
@@ -208,7 +227,7 @@ func (s *Sweep) look(ctx context.Context) ([]Candidate, Refused) {
 				// two, and two was the sweep's whole cost: the broker allows 180 requests
 				// a minute, so what the pair bought in reach, the single call buys twice
 				// over.
-				reach := price * s.Wanted.MaxOutOfTheMoney / 100
+				reach := price * wanted.MaxOutOfTheMoney / 100
 				contracts, quotes, err := s.Broker.Chain(ctx, underlying,
 					price-reach, price+reach, s.Now().AddDate(0, 0, s.Expirations), chainMost)
 				switch {
@@ -220,7 +239,7 @@ func (s *Sweep) look(ctx context.Context) ([]Candidate, Refused) {
 					continue
 				}
 
-				best := Best(underlying, price, contracts, quotes, s.Now(), s.Wanted, mine)
+				best := Best(underlying, price, contracts, quotes, s.Now(), wanted, mine)
 				if len(best) == 0 {
 					continue
 				}

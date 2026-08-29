@@ -178,18 +178,11 @@ services:
       SCREENER_PER_MINUTE: ${SCREENER_PER_MINUTE}
       SCREENER_WORKERS: ${SCREENER_WORKERS}
       SCREENER_EXPIRATIONS: ${SCREENER_EXPIRATIONS}
-      SCREENER_NEAREST: ${SCREENER_NEAREST}
-      SCREENER_FURTHEST: ${SCREENER_FURTHEST}
-      SCREENER_LEAST_PAID: ${SCREENER_LEAST_PAID}
-      SCREENER_MOST_PAID: ${SCREENER_MOST_PAID}
-      SCREENER_MOST_DELTA: ${SCREENER_MOST_DELTA}
-      SCREENER_LEAST_EDGE: ${SCREENER_LEAST_EDGE}
       # How long a pass's findings live after a new pass replaces them. Without a
       # value the process DOES NOT START: the candidate history is what the
       # thresholds are computed on, and silently keeping it for zero time is worse
       # than refusing to run.
       SCREENER_KEEP: ${SCREENER_KEEP}
-      SCREENER_DEAREST: ${SCREENER_DEAREST}
       THREAD_RESUME_LIMIT: ${THREAD_RESUME_LIMIT}
       HTTP_PROXY: ${AGENT_1_OUTBOUND_PROXY:-http://egress:8888}
       HTTPS_PROXY: ${AGENT_1_OUTBOUND_PROXY:-http://egress:8888}

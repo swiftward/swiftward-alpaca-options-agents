@@ -90,4 +90,14 @@ var readByTheHarness = map[string]bool{
 	// too - playbook-premium-harvest requires it - so it is here only for a
 	// declaration that drops that playbook and keeps the fuse.
 	"daily_fuse_percent": true,
+	// What a structure must clear to be OFFERED at all. Read on every sweep by
+	// internal/screener, which builds the list the session then chooses from -
+	// so the session never sees these numbers, only their consequence.
+	"screener_nearest":    true,
+	"screener_furthest":   true,
+	"screener_least_paid": true,
+	"screener_most_paid":  true,
+	"screener_dearest":    true,
+	"screener_most_delta": true,
+	"screener_least_edge": true,
 }

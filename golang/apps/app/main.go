@@ -634,11 +634,12 @@ func run(log *zap.Logger) error {
 		}
 		sweep := &screener.Sweep{
 			Broker: broker, Universe: cfg.ScreenerUnderlyings, Record: shortlist,
-			Wanted: screener.Wanted{
-				MinOutOfTheMoney: cfg.ScreenerNearest, MaxOutOfTheMoney: cfg.ScreenerFurthest,
-				MinCreditToRisk: cfg.ScreenerLeastPaid, MostCreditToRisk: cfg.ScreenerMostPaid,
-				MaxCostShare: cfg.ScreenerDearest, MostDelta: cfg.ScreenerMostDelta,
-				LeastEdge: cfg.ScreenerLeastEdge,
+			// What a structure must clear, read from the declaration on every pass.
+			// Every one of these is a trading decision, so it lives where the rest
+			// of them live; how often and in how many hands the machine sweeps
+			// stays below, in the deployment.
+			Thresholds: func() (screener.Wanted, error) {
+				return screenerThresholds(declared)
 			},
 			Every: cfg.ScreenerEvery, Keep: cfg.ScreenerKeep,
 			PerMinute:   cfg.ScreenerPerMinute,
@@ -646,7 +647,23 @@ func run(log *zap.Logger) error {
 			Expirations: cfg.ScreenerExpirations,
 			Now:         time.Now, Log: log.Named("screener"),
 		}
+		// Said at startup, and the numbers with it. Every one of them is legal at
+		// almost any value and silent at all of them: a sweep with a threshold
+		// nobody meant offers a list nobody would have chosen, and the only place
+		// that shows is the trades a week later. The same reason the guards line
+		// exists.
+		wanted, err := screenerThresholds(declared)
+		if err != nil {
+			return fmt.Errorf("the screener cannot be told what a structure must clear: %w", err)
+		}
 		log.Info("pricing the universe",
+			zap.Float64("nearest_percent", wanted.MinOutOfTheMoney),
+			zap.Float64("furthest_percent", wanted.MaxOutOfTheMoney),
+			zap.Float64("least_paid_percent", wanted.MinCreditToRisk),
+			zap.Float64("most_paid_percent", wanted.MostCreditToRisk),
+			zap.Float64("dearest_percent_of_credit", wanted.MaxCostShare),
+			zap.Float64("most_delta", wanted.MostDelta),
+			zap.Float64("least_edge_points", wanted.LeastEdge),
 			zap.Int("underlyings", len(cfg.ScreenerUnderlyings)),
 			zap.Duration("every", cfg.ScreenerEvery),
 			zap.Int("per_minute", cfg.ScreenerPerMinute),
@@ -981,4 +998,53 @@ func layTheSkills(log *zap.Logger, layer *skills.Layer, wanted []string, given m
 		zap.String("dir", laid.Dir), zap.Strings("skills", laid.Names))
 
 	return nil
+}
+
+// screenerThresholds reads what a structure must clear out of the declaration.
+//
+// Parsed strictly and refusing on the first thing it cannot read: the parameters
+// are prose for a model, and a threshold that quietly reads zero does not offer
+// nothing - it offers EVERYTHING, as though the whole book had qualified. That is
+// the dangerous direction, so a missing or unreadable number stops the pass
+// instead of loosening it.
+func screenerThresholds(declared *declaration.Watcher) (screener.Wanted, error) {
+	if declared == nil {
+		return screener.Wanted{}, errors.New("there is no declaration to read the screener's thresholds from")
+	}
+	parameters := declared.Current().Parameters
+	number := func(name string) (float64, error) {
+		written, ok := parameters[name]
+		if !ok {
+			return 0, fmt.Errorf("the declaration names no %s", name)
+		}
+		value, err := strconv.ParseFloat(strings.TrimSpace(written), 64)
+		if err != nil {
+			return 0, fmt.Errorf("%s is %q, which is not a number", name, written)
+		}
+
+		return value, nil
+	}
+
+	var (
+		wanted screener.Wanted
+		err    error
+	)
+	for _, read := range []struct {
+		name string
+		into *float64
+	}{
+		{"screener_nearest", &wanted.MinOutOfTheMoney},
+		{"screener_furthest", &wanted.MaxOutOfTheMoney},
+		{"screener_least_paid", &wanted.MinCreditToRisk},
+		{"screener_most_paid", &wanted.MostCreditToRisk},
+		{"screener_dearest", &wanted.MaxCostShare},
+		{"screener_most_delta", &wanted.MostDelta},
+		{"screener_least_edge", &wanted.LeastEdge},
+	} {
+		if *read.into, err = number(read.name); err != nil {
+			return screener.Wanted{}, err
+		}
+	}
+
+	return wanted, nil
 }

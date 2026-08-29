@@ -82,7 +82,7 @@ func TestTheSweepAsksAboutSeveralNamesAtOnce(t *testing.T) {
 
 	broker := &slowBroker{took: 30 * time.Millisecond, asked: map[string]int{}}
 	sweep := &Sweep{
-		Broker: broker, Universe: universe, Wanted: anything(),
+		Broker: broker, Universe: universe, Thresholds: func() (Wanted, error) { return anything(), nil },
 		Every: time.Minute, Record: &countingKeeper{}, PerMinute: 10_000,
 		Expirations: 5, Workers: 6,
 		Now: time.Now, Log: zaptest.NewLogger(t),
@@ -107,7 +107,7 @@ func TestTheSweepAsksAboutSeveralNamesAtOnce(t *testing.T) {
 func TestWithoutWorkersTheSweepAsksOneAtATime(t *testing.T) {
 	broker := &slowBroker{took: 5 * time.Millisecond, asked: map[string]int{}}
 	sweep := &Sweep{
-		Broker: broker, Universe: []string{"AAA", "BBB", "CCC"}, Wanted: anything(),
+		Broker: broker, Universe: []string{"AAA", "BBB", "CCC"}, Thresholds: func() (Wanted, error) { return anything(), nil },
 		Every: time.Minute, Record: &countingKeeper{}, PerMinute: 10_000,
 		Expirations: 5,
 		Now:         time.Now, Log: zaptest.NewLogger(t),
@@ -141,7 +141,7 @@ func TestASweepThatGotNoAnswersSaysSo(t *testing.T) {
 	broker := &brokenBroker{slowBroker{asked: map[string]int{}}}
 	kept := &countingKeeper{}
 	sweep := &Sweep{
-		Broker: broker, Universe: []string{"AAA", "BBB", "CCC"}, Wanted: anything(),
+		Broker: broker, Universe: []string{"AAA", "BBB", "CCC"}, Thresholds: func() (Wanted, error) { return anything(), nil },
 		Every: time.Minute, Record: kept, PerMinute: 10_000, Expirations: 5, Workers: 3,
 		Now: time.Now, Log: zaptest.NewLogger(t),
 	}
