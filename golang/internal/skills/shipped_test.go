@@ -47,8 +47,9 @@ func TestEveryDeclarationGetsSkillsThatExistAndParametersTheyNeed(t *testing.T) 
 				}
 			}
 			for name := range declared.Parameters {
-				assert.True(t, asked[name],
-					"parameter %q is given to no skill that asks for it", name)
+				assert.True(t, asked[name] || readByTheHarness[name],
+					"parameter %q is given to no skill that asks for it and no part of the harness reads it",
+					name)
 			}
 
 			// Every number given reaches the session as one block, which the
@@ -70,4 +71,23 @@ func TestEveryDeclarationGetsSkillsThatExistAndParametersTheyNeed(t *testing.T) 
 			}
 		})
 	}
+}
+
+// readByTheHarness names the parameters our own processes read rather than the
+// session. They are declared beside the session's numbers because they are
+// TRADING decisions and every trading decision belongs in one file - but no
+// skill asks for them, so the check above would call each one a leftover.
+//
+// Listed rather than waved through: a typo in one of these names is exactly the
+// failure that check exists to catch, and it would otherwise pass here and be
+// found on the first winner of the week.
+var readByTheHarness = map[string]bool{
+	// The share of the credit at which the profit watch buys a winner back.
+	// Read on every pass by internal/takeprofit.
+	"take_profit_at": true,
+	// How far the account may fall from yesterday's close before the day is
+	// over. Read on every pass by internal/execution, and asked of the session
+	// too - playbook-premium-harvest requires it - so it is here only for a
+	// declaration that drops that playbook and keeps the fuse.
+	"daily_fuse_percent": true,
 }

@@ -100,15 +100,6 @@ type Config struct {
 	ExecutionEvery    time.Duration
 	ExecutionStep     float64
 	ExecutionPatience time.Duration
-	// TakeProfitAt is the share of the received credit at which a winning
-	// structure is bought back, and TakeProfitEvery is how often the book is
-	// looked at for one. Zero share switches the watch off: nothing closes a
-	// winner and everything is held to expiry, which is what this system did
-	// until 28 August 2026 and what a QQQ spread cost it that day.
-	//
-	// It is a share and not a dollar figure so that it means the same thing on a
-	// spread paying twenty cents and on one paying two.
-	TakeProfitAt    float64
 	TakeProfitEvery time.Duration
 	// AccountEvery is how often the account's value is written down. Zero means
 	// no history is kept here.
@@ -431,7 +422,6 @@ func Load() (Config, error) {
 		ExecutionEvery:        executionEvery,
 		ExecutionStep:         k.Float64("execution_step"),
 		ExecutionPatience:     executionPatience,
-		TakeProfitAt:          k.Float64("take_profit_at"),
 		TakeProfitEvery:       takeProfitEvery,
 		OrdersShown:           ordersShown,
 		HistoryDays:           historyDays,

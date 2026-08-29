@@ -32,7 +32,7 @@ cp .env.example .env
 
 | What | Why |
 |---|---|
-| `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | the account being traded |
+| `AGENT_1_ALPACA_KEY_ID`, `AGENT_1_ALPACA_SECRET_KEY` | the account being traded |
 | `DASHBOARD_HOST`, `ACME_EMAIL` | the page's domain and the email for the certificate |
 | `TELEGRAM_*` | the room where the session speaks and listens |
 | `AGENT_MODEL` | which model the session thinks with |
@@ -106,12 +106,12 @@ were found exactly this way.
 |---|---|---|
 | `ENVELOPE_CALLERS` | the envelope | `the envelope role would recognise nobody` |
 | `THREAD_RESUME_LIMIT` | the harness | a thread can only be remembered with a limit on resuming |
-| `GATEWAY_TOKEN` | the envelope and the agent | the session cannot prove who it is |
+| `AGENT_1_GATEWAY_TOKEN` | the envelope and the agent | the session cannot prove who it is |
 | `ENVELOPE_IDENTITY` | the ladder | it has nothing to enforce with: it reads that identity's limit |
 | `RECORD_DATABASES` | the migrations | nowhere to apply them |
-| `ALPACA_API_KEY_ID` and the secret | the broker's server | restarts in a loop |
-| `BROKER_MCP_URL` | the agent | there is no broker at all |
-| `PAGE_MCP_TOKEN` | the page | it shows no money and answers 503 |
+| `AGENT_1_ALPACA_KEY_ID` and the secret | the broker's server | restarts in a loop |
+| `AGENT_1_BROKER_MCP_URL` | the agent | there is no broker at all |
+| `AGENT_1_PAGE_MCP_TOKEN` | the page | it shows no money and answers 503 |
 | `SCREENER_KEEP` | the harness | `the screener needs how long to keep what it finds` |
 | `CODEX_AUTH_DIR` and the login | the agent | `no login at /mnt/codex/auth.json` |
 
@@ -129,13 +129,13 @@ forward. The directory belongs to `1000:1000` - the image runs as that user, and
 from root you get `Permission denied`. And it sits beside the stack rather than
 under `/root`: the container has no route there at all.
 
-`GATEWAY_TOKEN` and `ENVELOPE_CALLERS` are OUR own strings, not the broker's and
+`AGENT_1_GATEWAY_TOKEN` and `ENVELOPE_CALLERS` are OUR own strings, not the broker's and
 not another gateway's. One key per agent on purpose: limits are applied to
 whoever asked, and two agents sharing a key would be one agent to the rules.
 
 ```
 T=$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 32)
-printf 'GATEWAY_TOKEN=%s\nENVELOPE_CALLERS=%s=alpaca-agent-1\n' "$T" "$T" >> .env
+printf 'AGENT_1_GATEWAY_TOKEN=%s\nENVELOPE_CALLERS=%s=alpaca-agent-1\n' "$T" "$T" >> .env
 ```
 
 Be careful writing into `.env` over ssh: `\$T` inside a heredoc lands in the file

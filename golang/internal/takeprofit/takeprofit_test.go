@@ -66,7 +66,7 @@ func theQQQSpread() []marketdata.Position {
 func watching(b *brokerDouble, at float64) *Watch {
 	newYork, _ := time.LoadLocation("America/New_York")
 	return &Watch{
-		Broker: b, At: at, Every: time.Second,
+		Broker: b, At: func() (float64, error) { return at, nil }, Every: time.Second,
 		// Midday on 28 August in New York: the QQQ spread's expiry day is still running.
 		Now:   func() time.Time { return time.Date(2026, 8, 28, 16, 0, 0, 0, time.UTC) },
 		Where: newYork,
@@ -358,12 +358,40 @@ func TestAShareAboveOneIsRefused(t *testing.T) {
 	assert.Empty(t, b.sent, "and nothing is closed on the way to finding out")
 }
 
-// A share of zero switches the watch off entirely and says so, rather than running empty.
+// No share at all switches the watch off entirely and says so, rather than running empty.
 func TestWithoutAShareItDoesNotRun(t *testing.T) {
 	b := &brokerDouble{held: theQQQSpread()}
-	w := &Watch{Broker: b, At: 0, Log: zap.NewNop(), Now: time.Now}
+	w := &Watch{Broker: b, At: nil, Log: zap.NewNop(), Now: time.Now}
 	require.NoError(t, w.Run(context.Background()))
 	assert.Empty(t, b.sent)
+}
+
+// The share is read on EVERY pass, not captured when the watch starts. That is
+// the whole point of moving it into the declaration: an operator lowers it in one
+// file and the next pass obeys, with nothing restarted.
+//
+// The two passes below differ in nothing but the number. Read once at startup,
+// the second would behave like the first and this test would fail - which is
+// what makes it a test rather than a restatement.
+func TestTheShareIsReadOnEveryPassRatherThanOnce(t *testing.T) {
+	b := &brokerDouble{held: theQQQSpread(), quotes: map[string]marketdata.Quote{
+		// The spread was opened for a credit of 0.19 and buys back for 0.05: the
+		// sold leg costs its ask of 0.06, the bought leg returns its bid of 0.01.
+		// A fifth of the credit is 0.038 and will not do it; nine tenths is 0.171
+		// and will.
+		"QQQ260828C00725000": quote(0.05, 0.06),
+		"QQQ260828C00726000": quote(0.01, 0.02),
+	}}
+	w := watching(b, 0)
+	share := 0.20
+	w.At = func() (float64, error) { return share, nil }
+
+	w.step(context.Background())
+	require.Empty(t, b.sent, "at a fifth of the credit the buy-back is too dear")
+
+	share = 0.90
+	w.step(context.Background())
+	assert.Len(t, b.sent, 1, "the same watch, the same book, a share it now reaches")
 }
 
 func TestARefusedCloseIsNotRememberedAsSent(t *testing.T) {

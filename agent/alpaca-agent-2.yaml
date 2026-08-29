@@ -71,6 +71,18 @@ parameters:
   crush_worst_case_share: "no more than 3% of equity"
   crush_implied_over_realized: "sell at 1.3 or above; at 0.8 or below buy the move instead of selling; in between take nothing"
 
+  # When a winner is bought back, as a share of the credit it was opened for.
+  # Measured over the minute-by-minute path of 553 trades across 646 days: held
+  # to expiry the rule returns 2,287 dollars with 26% losing trades, closed here
+  # it returns 6,292 with 9%. The close is charged the full width of the book and
+  # the fee, twice - `research/threshold.py` in the team's own repository.
+  #
+  # It lives here rather than in the deployment because it is a TRADING decision,
+  # and every other one is here. Until 29 August it was TAKE_PROFIT_AT in the
+  # environment, which also meant the two accounts could not differ in it without
+  # differing in how they were deployed.
+  take_profit_at: "0.35"
+
 sessions:
   - name: open-check
     cause: "the start of the day: what is on the account and what is left from yesterday"
@@ -167,7 +179,7 @@ sessions:
   # It looks every thirty seconds and buys back at 0.35 of the credit; an agent's
   # window came round every fifteen minutes and settled for 0.50 - the same work
   # done worse, and it took a turn from the defence.
-  # With TAKE_PROFIT_AT=0 nothing closes a winner at all: there is nobody else.
+  # With no take_profit_at declared, nothing closes a winner at all: there is nobody else.
 
   # Taken from the declaration that already runs it, unchanged. Both windows fall
   # inside the days that are scored - Wednesday evening in, Thursday morning out -

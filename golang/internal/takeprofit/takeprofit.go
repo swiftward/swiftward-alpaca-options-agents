@@ -58,11 +58,19 @@ type Watch struct {
 	// Every is how often the book is looked at. Seconds, not minutes: the whole
 	// point is to be there when the number crosses.
 	Every time.Duration
-	// At is the share of the received credit at which a structure is closed -
+	// At answers the share of the received credit at which a structure is closed -
 	// 0.25 means "close when it can be bought back for a quarter of what it paid".
-	// Zero switches the watch off, and says so once at startup rather than
-	// running and doing nothing.
-	At float64
+	//
+	// A function rather than a number, and read on every pass, for the same reason
+	// the ladder's ceiling is: this is a TRADING decision, so it belongs in the
+	// declaration beside the rest of them, and a declaration is re-read while the
+	// process runs. Until 29 August it was an environment variable, which put one
+	// trading number in a different place from every other one and meant the two
+	// accounts could not differ in it without differing in their deployment.
+	//
+	// Nil switches the watch off, and says so once at startup rather than running
+	// and doing nothing.
+	At func() (float64, error)
 	// Ordered remembers what has already been sent, so a structure is not closed
 	// twice while the first order is still walking.
 	Now func() time.Time
@@ -95,25 +103,48 @@ type Structure struct {
 	Sets int
 }
 
+// share is the take-profit level for this pass, with the check that used to run
+// at startup. It runs on every pass because the number can now change under a
+// running process.
+//
+// A SHARE of the credit, so above one it is not a share. Written as a percent -
+// 35 for 0.35 - it says "close when the buy-back costs no more than thirty-five
+// times the credit", which every structure satisfies from the moment it opens:
+// the watch would buy back every winner at any price, on its first pass, and the
+// log would call it working.
+func (w *Watch) share() (float64, error) {
+	at, err := w.At()
+	if err != nil {
+		return 0, fmt.Errorf("read the take-profit share: %w", err)
+	}
+	if at <= 0 {
+		return 0, fmt.Errorf("the take-profit share is %.2f: nothing would ever be closed", at)
+	}
+	if at > 1 {
+		return 0, fmt.Errorf("the take-profit share is %.2f: it is a share of the credit, so 0.35 rather than 35", at)
+	}
+
+	return at, nil
+}
+
 func (w *Watch) Run(ctx context.Context) error {
-	if w.At <= 0 {
+	if w.At == nil {
 		w.Log.Info("no take-profit share set: winning structures will be held to expiry")
 		return nil
 	}
-	// A SHARE of the credit, so above one it is not a share. Written as a percent
-	// - 35 for 0.35 - it says "close when the buy-back costs no more than
-	// thirty-five times the credit", which every structure satisfies from the
-	// moment it opens: the watch would buy back every winner at any price, on its
-	// first pass, and the log would call it working.
-	if w.At > 1 {
-		return fmt.Errorf("the take-profit share is %.2f: it is a share of the credit, so 0.35 rather than 35", w.At)
+	// Asked once here so a deployment that cannot answer at all fails at startup
+	// rather than on the first winner of the week. Every pass asks again, because
+	// the declaration behind it is re-read while the process runs.
+	share, err := w.share()
+	if err != nil {
+		return err
 	}
 	if w.Every <= 0 {
 		w.Every = 30 * time.Second
 	}
 	w.sent = map[string]time.Time{}
 	w.Log.Info("watching for structures worth closing",
-		zap.Float64("at_share_of_credit", w.At), zap.Duration("every", w.Every))
+		zap.Float64("at_share_of_credit", share), zap.Duration("every", w.Every))
 
 	ticker := time.NewTicker(w.Every)
 	defer ticker.Stop()

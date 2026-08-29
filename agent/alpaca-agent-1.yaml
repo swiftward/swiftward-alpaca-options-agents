@@ -96,6 +96,18 @@ parameters:
   convexity_take: "three times what was paid or better: close it"
   convexity_horizon: "3 September 2026: anything expiring after it does not belong to this layer"
 
+  # When a winner is bought back, as a share of the credit it was opened for.
+  # Measured over the minute-by-minute path of 553 trades across 646 days: held
+  # to expiry the rule returns 2,287 dollars with 26% losing trades, closed here
+  # it returns 6,292 with 9%. The close is charged the full width of the book and
+  # the fee, twice - `research/threshold.py` in the team's own repository.
+  #
+  # It lives here rather than in the deployment because it is a TRADING decision,
+  # and every other one is here. Until 29 August it was TAKE_PROFIT_AT in the
+  # environment, which also meant the two accounts could not differ in it without
+  # differing in how they were deployed.
+  take_profit_at: "0.35"
+
 sessions:
   - name: open-check
     cause: "the market opened half an hour ago: see what we are working with"
@@ -421,7 +433,7 @@ sessions:
   # The condition this window was created for - "we have never walked a close with
   # a live order" - is met: on 28 August there were thirty-six closes.
   #
-  # A link to remember: with TAKE_PROFIT_AT=0 winners are not closed AT ALL,
+  # A link to remember: with no take_profit_at declared, winners are not closed AT ALL,
   # because there is nobody else to do it.
 
   - name: probe-close

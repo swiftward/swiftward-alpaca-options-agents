@@ -661,34 +661,63 @@ func run(log *zap.Logger) error {
 	// arithmetic on a clock. An agent's turn costs a minute and a half, defence
 	// comes round every thirty, and on 28 August a QQQ spread gave back three
 	// quarters of its credit unnoticed.
-	if cfg.Has(config.RoleHarness) && cfg.TakeProfitAt > 0 {
+	// The take-profit share is a TRADING number, so it lives in the declaration
+	// beside every other one rather than in the deployment. Until 29 August it was
+	// TAKE_PROFIT_AT in the environment - one trading decision kept in a different
+	// place from the rest, which also meant two accounts could not differ in it
+	// without differing in their deployment.
+	//
+	// How OFTEN the book is looked at stays in the environment: that is a property
+	// of the machine, not of the trade.
+	takeProfitDeclared := false
+	if declared != nil {
+		if _, ok := declared.Current().Parameters["take_profit_at"]; ok {
+			takeProfitDeclared = true
+		}
+	}
+	if cfg.Has(config.RoleHarness) && takeProfitDeclared {
 		if broker == nil {
 			// The WATCH refuses, not the process: equity snapshots, the screener
 			// and the volatility history live here too, and refusing to start
 			// would cost the curve a judge sees for the sake of a layer that
 			// could close nothing anyway.
-			log.Error("the profit watch is off: TAKE_PROFIT_AT is set but BROKER_MCP_URL is empty",
+			log.Error("the profit watch is off: take_profit_at is declared but BROKER_MCP_URL is empty",
 				zap.String("why", "the watch sends orders and they go through the gateway; "+
 					"without its address it would run and close nothing"))
-			cfg.TakeProfitAt = 0
+			takeProfitDeclared = false
 		}
 	}
 
-	if cfg.Has(config.RoleHarness) && cfg.TakeProfitAt == 0 {
+	if cfg.Has(config.RoleHarness) && !takeProfitDeclared {
 		// Off is a legal setting, and it is the one nobody notices: winners are
 		// then held to expiry and the log says nothing about why. It is said out
 		// loud here so a deployment started from a bare .env cannot look like one
 		// that watches.
-		log.Warn("no profit watch: TAKE_PROFIT_AT is zero, so a winning structure is held to expiry")
+		log.Warn("no profit watch: the declaration names no take_profit_at, so a winning structure is held to expiry")
 	}
 
-	if cfg.Has(config.RoleHarness) && cfg.TakeProfitAt > 0 {
+	if cfg.Has(config.RoleHarness) && takeProfitDeclared {
 		exchange, err := time.LoadLocation("America/New_York")
 		if err != nil {
 			return fmt.Errorf("load the exchange calendar: %w", err)
 		}
 		watch := &takeprofit.Watch{
-			Broker: broker, At: cfg.TakeProfitAt, Every: cfg.TakeProfitEvery,
+			Broker: broker, Every: cfg.TakeProfitEvery,
+			// Read on every pass, so lowering the share is one edit in the
+			// declaration and the next pass obeys - the same property the
+			// envelope's ceilings have.
+			At: func() (float64, error) {
+				written, ok := declared.Current().Parameters["take_profit_at"]
+				if !ok {
+					return 0, errors.New("the declaration names no take_profit_at")
+				}
+				share, err := strconv.ParseFloat(strings.TrimSpace(written), 64)
+				if err != nil {
+					return 0, fmt.Errorf("take_profit_at %q is not a number", written)
+				}
+
+				return share, nil
+			},
 			// The same record the ladder writes to. Without it a closing order
 			// this watch sends is in the record only if the ladder later meets
 			// it, and one cancelled before that pass is in it nowhere.
@@ -868,7 +897,7 @@ func run(log *zap.Logger) error {
 	// to read, not an investigation.
 	if cfg.Has(config.RoleHarness) {
 		log.Info("guards",
-			zap.Bool("profit_watch", cfg.TakeProfitAt > 0 && broker != nil),
+			zap.Bool("profit_watch", takeProfitDeclared && broker != nil),
 			zap.Bool("turn_limit", cfg.TurnLimit > 0),
 			zap.Bool("ladder", cfg.ExecutionEvery > 0 && broker != nil),
 			zap.Bool("daily_fuse", fuseStands),

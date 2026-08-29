@@ -63,12 +63,21 @@ func (w *Watch) step(ctx context.Context) {
 		}
 	}
 
+	// Asked once for the pass, like every other number this project reads from a
+	// declaration: it is the same answer for every structure in it, and an
+	// unreadable one closes nothing rather than closing everything at zero.
+	share, err := w.share()
+	if err != nil {
+		w.Log.Error("could not read the take-profit share; nothing is closed this pass", zap.Error(err))
+		return
+	}
+
 	for _, structure := range structures {
-		w.consider(ctx, structure, walking)
+		w.consider(ctx, structure, walking, share)
 	}
 }
 
-func (w *Watch) consider(ctx context.Context, s Structure, walking map[string]bool) {
+func (w *Watch) consider(ctx context.Context, s Structure, walking map[string]bool, share float64) {
 	if s.Credit <= 0 {
 		// A structure entered for a debit. What "giving back the credit" means
 		// there is a different question with a different answer, and guessing it
@@ -133,7 +142,7 @@ func (w *Watch) consider(ctx context.Context, s Structure, walking map[string]bo
 
 		return
 	}
-	if cost > s.Credit*w.At {
+	if cost > s.Credit*share {
 		return
 	}
 

@@ -123,7 +123,6 @@ x-agent-environment: &agent-environment
   # 2,287 dollars and 26% losing trades; closing at 35% gives 6,292 and 9%. Better
   # on both axes at once. The peak is exactly at 35%, and both halves of the
   # history agree on it - a plateau from 35 to 40, a cliff after 50.
-  TAKE_PROFIT_AT: ${TAKE_PROFIT_AT}
   # Half a minute. The point is to be there when the number crosses the line: the
   # defence comes round every thirty minutes and on 28 August it missed a spread
   # that gave back three quarters of its credit.
@@ -155,8 +154,8 @@ x-agent-environment: &agent-environment
   # The way out. The default is the internet gateway that stands beside the rest
   # of the stack; a stand running on someone's own machine is not on that network
   # and names its own way out instead.
-  HTTP_PROXY: ${OUTBOUND_PROXY:-http://swiftward-hackathon-server:8097}
-  HTTPS_PROXY: ${OUTBOUND_PROXY:-http://swiftward-hackathon-server:8097}
+  HTTP_PROXY: ${AGENT_1_OUTBOUND_PROXY:-http://swiftward-hackathon-server:8097}
+  HTTPS_PROXY: ${AGENT_1_OUTBOUND_PROXY:-http://swiftward-hackathon-server:8097}
   NO_PROXY: alpaca-mcp-agent-1,alpaca-mcp-agent-2,alpaca-mcp-agent-tikhon,alpaca-mcp-agent-stand,envelope,postgres,egress,swiftward-hackathon-server,localhost,127.0.0.1
   CODEX_HOME: /home/agent/.codex
 
@@ -224,8 +223,8 @@ services:
     <<: *broker-service
     environment:
       <<: *broker-environment
-      ALPACA_API_KEY: ${ALPACA_API_KEY_ID}
-      ALPACA_SECRET_KEY: ${ALPACA_API_SECRET_KEY}
+      ALPACA_API_KEY: ${AGENT_1_ALPACA_KEY_ID}
+      ALPACA_SECRET_KEY: ${AGENT_1_ALPACA_SECRET_KEY}
 
   # The second account. Its keys are the only thing that differs: one server
   # holds one account's keys, given at startup, so an account needs a server.
@@ -233,8 +232,8 @@ services:
     <<: *broker-service
     environment:
       <<: *broker-environment
-      ALPACA_API_KEY: ${ALPACA_NEAR_API_KEY_ID}
-      ALPACA_SECRET_KEY: ${ALPACA_NEAR_API_SECRET_KEY}
+      ALPACA_API_KEY: ${AGENT_2_ALPACA_KEY_ID}
+      ALPACA_SECRET_KEY: ${AGENT_2_ALPACA_SECRET_KEY}
 
   # A teammate's own account. Their server, their keys, and a gateway endpoint of
   # its own - because this server reads its credentials from its own environment,
@@ -250,8 +249,8 @@ services:
     profiles: [tikhon]
     environment:
       <<: *broker-environment
-      ALPACA_API_KEY: ${ALPACA_TIKHON_API_KEY_ID}
-      ALPACA_SECRET_KEY: ${ALPACA_TIKHON_API_SECRET_KEY}
+      ALPACA_API_KEY: ${AGENT_TIKHON_ALPACA_KEY_ID}
+      ALPACA_SECRET_KEY: ${AGENT_TIKHON_ALPACA_SECRET_KEY}
 
   # The same teammate's DEMO STAND, on a second account of his. One process per
   # account is why this is a service of its own rather than a setting on the one
@@ -263,8 +262,8 @@ services:
     profiles: [tikhon]
     environment:
       <<: *broker-environment
-      ALPACA_API_KEY: ${ALPACA_STAND_API_KEY_ID}
-      ALPACA_SECRET_KEY: ${ALPACA_STAND_API_SECRET_KEY}
+      ALPACA_API_KEY: ${AGENT_STAND_ALPACA_KEY_ID}
+      ALPACA_SECRET_KEY: ${AGENT_STAND_ALPACA_SECRET_KEY}
 
   # The session's container: the harness role plus the agent it starts. It holds
   # no credential of ours; the login it does carry is Codex's own, mounted from
@@ -292,7 +291,7 @@ services:
       # story about the system rather than the system. It reads and only reads: the
       # page cannot edit the envelope.
       ENVELOPE_PATH: /policy/envelope.yaml
-      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY:-alpaca-agent-1}
+      ENVELOPE_IDENTITY: ${AGENT_1_ENVELOPE_IDENTITY:-alpaca-agent-1}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       RECORD_SHOWS: ${RECORD_SHOWS}
       # The read side asks the broker what the account is worth. It only reads:
@@ -303,12 +302,12 @@ services:
       # is refused an order because the gateway refuses it. Pointed at the
       # broker's own server the same page could send one, so this address is its
       # own variable and does not follow the harness off the gateway.
-      BROKER_MCP_URL: ${PAGE_MCP_URL}
-      BROKER_MCP_TOKEN: ${PAGE_MCP_TOKEN}
+      BROKER_MCP_URL: ${AGENT_1_PAGE_MCP_URL}
+      BROKER_MCP_TOKEN: ${AGENT_1_PAGE_MCP_TOKEN}
       ORDERS_SHOWN: ${ORDERS_SHOWN}
       HISTORY_DAYS: ${HISTORY_DAYS}
     ports:
-      - "${APP_PORT}:8080"
+      - "${AGENT_1_PAGE_PORT}:8080"
     # The week runs unattended: a machine that reboots at three in the morning
     # must come back with the agent running, not with it waiting to be started.
     restart: unless-stopped
@@ -344,13 +343,13 @@ services:
       # story about the system rather than the system. It reads and only reads: the
       # page cannot edit the envelope.
       ENVELOPE_PATH: /policy/envelope.yaml
-      ENVELOPE_IDENTITY: ${ENVELOPE_NEAR_IDENTITY:-alpaca-agent-2}
+      ENVELOPE_IDENTITY: ${AGENT_2_ENVELOPE_IDENTITY:-alpaca-agent-2}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
       RECORD_SHOWS: ${RECORD_SHOWS}
       ORDERS_SHOWN: ${ORDERS_SHOWN}
       HISTORY_DAYS: ${HISTORY_DAYS}
     ports:
-      - "${APP_NEAR_PORT}:8080"
+      - "${AGENT_2_PAGE_PORT}:8080"
     # The week runs unattended: a machine that reboots at three in the morning
     # must come back with the agent running, not with it waiting to be started.
     restart: unless-stopped
@@ -378,31 +377,31 @@ services:
       # would see only a TCP connection and would record the container's name
       # marked "claimed"; with the key the agent's identity is verified, as it is
       # everywhere else.
-      HTTP_PROXY: ${OUTBOUND_PROXY:-http://agent:${BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
-      HTTPS_PROXY: ${OUTBOUND_PROXY:-http://agent:${BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
-      BROKER_MCP_URL: ${BROKER_MCP_URL}
+      HTTP_PROXY: ${AGENT_1_OUTBOUND_PROXY:-http://agent:${AGENT_1_BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
+      HTTPS_PROXY: ${AGENT_1_OUTBOUND_PROXY:-http://agent:${AGENT_1_BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
+      BROKER_MCP_URL: ${AGENT_1_BROKER_MCP_URL}
       # Where the harness's READS go - prices, the clock, the account, chains. An
       # empty value means "the same place the orders go". They can be separated
       # because the line above also lands in the session's own configuration as
       # [mcp_servers.broker], that is, it is the address an ORDER leaves by: its
       # place is the gateway, which can refuse it and records that it happened.
       # Reads carry no orders.
-      BROKER_MCP_TOKEN: ${BROKER_MCP_TOKEN}
+      BROKER_MCP_TOKEN: ${AGENT_1_BROKER_MCP_TOKEN}
       USER_TOKEN: ${USER_TOKEN:-}
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
       # The model through the policy gateway, under this agent's own name.
-      MODEL_GATEWAY_URL: ${MODEL_GATEWAY_URL}
-      DECLARATION: ${DECLARATION:-/mnt/agent/alpaca-agent-1.yaml}
-      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+      MODEL_GATEWAY_URL: ${AGENT_1_MODEL_GATEWAY_URL}
+      DECLARATION: ${AGENT_1_DECLARATION:-/mnt/agent/alpaca-agent-1.yaml}
+      GATEWAY_TOKEN: ${AGENT_1_GATEWAY_TOKEN}
       # The ladder reads the SAME ruleset the envelope serves, so what one
       # position may lose stops being advice at the last point our code holds an
       # order. The session still discovers its limits by asking; this is the
       # backstop under it.
       ENVELOPE_PATH: /policy/envelope.yaml
       ENVELOPE_IDENTITY: alpaca-agent-1
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_BOT_TOKEN: ${AGENT_1_TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
-      TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}
+      TELEGRAM_TOPIC_ID: ${AGENT_1_TELEGRAM_TOPIC_ID}
       TELEGRAM_ALLOW_USER_IDS: ${TELEGRAM_ALLOW_USER_IDS}
     volumes:
       # ONE FILE, not the directory it lives in. The entrypoint reads exactly
@@ -467,20 +466,20 @@ services:
       # would see only a TCP connection and would record the container's name
       # marked "claimed"; with the key the agent's identity is verified, as it is
       # everywhere else.
-      HTTP_PROXY: ${OUTBOUND_NEAR_PROXY:-http://agent:${BROKER_NEAR_MCP_TOKEN}@swiftward-hackathon-server:8097}
-      HTTPS_PROXY: ${OUTBOUND_NEAR_PROXY:-http://agent:${BROKER_NEAR_MCP_TOKEN}@swiftward-hackathon-server:8097}
-      BROKER_MCP_URL: ${BROKER_NEAR_MCP_URL:-http://alpaca-mcp-agent-2:8000/mcp}
-      BROKER_MCP_TOKEN: ${BROKER_NEAR_MCP_TOKEN}
+      HTTP_PROXY: ${AGENT_2_OUTBOUND_PROXY:-http://agent:${AGENT_2_BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
+      HTTPS_PROXY: ${AGENT_2_OUTBOUND_PROXY:-http://agent:${AGENT_2_BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
+      BROKER_MCP_URL: ${AGENT_2_BROKER_MCP_URL:-http://alpaca-mcp-agent-2:8000/mcp}
+      BROKER_MCP_TOKEN: ${AGENT_2_BROKER_MCP_TOKEN}
       USER_TOKEN: ${USER_TOKEN:-}
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
-      MODEL_GATEWAY_URL: ${MODEL_NEAR_GATEWAY_URL}
-      DECLARATION: ${DECLARATION_NEAR:-/mnt/agent/alpaca-agent-2.yaml}
-      GATEWAY_TOKEN: ${GATEWAY_NEAR_TOKEN}
+      MODEL_GATEWAY_URL: ${AGENT_2_MODEL_GATEWAY_URL}
+      DECLARATION: ${AGENT_2_DECLARATION:-/mnt/agent/alpaca-agent-2.yaml}
+      GATEWAY_TOKEN: ${AGENT_2_GATEWAY_TOKEN}
       ENVELOPE_PATH: /policy/envelope.yaml
       ENVELOPE_IDENTITY: alpaca-agent-2
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_NEAR_BOT_TOKEN}
+      TELEGRAM_BOT_TOKEN: ${AGENT_2_TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
-      TELEGRAM_TOPIC_ID: ${TELEGRAM_NEAR_TOPIC_ID}
+      TELEGRAM_TOPIC_ID: ${AGENT_2_TELEGRAM_TOPIC_ID}
       TELEGRAM_ALLOW_USER_IDS: ${TELEGRAM_ALLOW_USER_IDS}
     volumes:
       # ONE FILE, not the directory it lives in. The entrypoint reads exactly
