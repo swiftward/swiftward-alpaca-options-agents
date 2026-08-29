@@ -139,6 +139,13 @@ type Harness struct {
 	statusID    int
 	turnFor     string
 	turnStarted time.Time
+	// finishedBeforePublished is a turn the agent finished before this process
+	// had its id in hand. The id is known only when Conversation.Turn returns, and
+	// a turn short enough to end first would otherwise have its completion
+	// dropped as belonging to nobody - leaving a finished turn marked as running,
+	// every session queued behind it, and the record's row never closed. Only one
+	// turn can be opening at a time, so one name is enough.
+	finishedBeforePublished string
 	// opening is true from the moment a goroutine claims the right to start a
 	// turn until that turn has an id. Without it the clock and the room both read
 	// an empty turnID, both find nobody working, and both start one - two
@@ -481,6 +488,12 @@ func (h *Harness) Tell(ctx context.Context, prompt, who string) {
 	if h.steerWhenReady(ctx, prompt, who) {
 		return
 	}
+	// The cause that won the claim never started a turn, so there is nothing to
+	// say this into and nothing holding the place. One more attempt, and this
+	// time the claim is free.
+	if h.startTurnWith(ctx, prompt, who, "") {
+		return
+	}
 	h.Log.Error("nothing carried this: no turn started and none took it",
 		zap.String("who", who), zap.String("prompt", firstLine(prompt)))
 }
@@ -494,7 +507,13 @@ func (h *Harness) Tell(ctx context.Context, prompt, who string) {
 func (h *Harness) steerWhenReady(ctx context.Context, prompt, who string) bool {
 	deadline := time.Now().Add(h.CallTimeout)
 	for time.Now().Before(deadline) {
-		if turnID := h.runningTurn(); turnID != "" {
+		// Nobody opening and nobody running means the cause that won the claim
+		// never got a turn - the agent refused it, or the conversation would not
+		// open. Waiting out the deadline for a turn that will not arrive costs the
+		// caller its prompt; the caller is told at once and starts one itself.
+		if turnID, opening := h.turnState(); turnID == "" && !opening {
+			return false
+		} else if turnID != "" {
 			agentCtx, done := h.boundToAgent(ctx)
 			err := h.Conversation.Steer(agentCtx, turnID, prompt)
 			done()
@@ -644,6 +663,10 @@ func (h *Harness) startTurn(ctx context.Context, msg telegram.Message, stale str
 	if h.steerWhenReady(ctx, prompt, msg.Username) {
 		return
 	}
+	// That turn never started either, so the place is free now.
+	if h.startTurnWith(ctx, prompt, msg.Username, "") {
+		return
+	}
 	h.say(ctx, "a session was starting just as you wrote, and this did not reach it - say it again")
 }
 
@@ -669,6 +692,14 @@ func (h *Harness) numbersInFront(prompt string) string {
 
 // startTurnWith runs one turn. model names the model this particular turn is
 // worth: a session that only reads the news does not need the one that trades.
+// turnState is the running turn and whether one is being opened right now.
+func (h *Harness) turnState() (string, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.turnID, h.opening
+}
+
 // claim takes the right to start a turn, or reports that somebody else holds it.
 // The right is given up either by release or by the turn getting an id.
 //
@@ -781,6 +812,20 @@ func (h *Harness) startTurnReplacing(ctx context.Context, prompt, who, model, st
 	h.turnActed = false
 	h.brokerCalled = false
 	h.mu.Unlock()
+
+	// A turn that finished before its name reached us finishes now. Without this
+	// the completion was dropped, the turn stood as running, and the sessions
+	// behind it waited for the interrupt that comes minutes later.
+	h.mu.Lock()
+	endedAlready := h.finishedBeforePublished == turnID
+	if endedAlready {
+		h.finishedBeforePublished = ""
+	}
+	h.mu.Unlock()
+	if endedAlready {
+		h.Log.Info("the turn had already finished when its name arrived", zap.String("turn_id", turnID))
+		defer h.finishTurn(ctx, turnID)
+	}
 
 	go h.showTyping(ctx, turnID)
 
@@ -948,7 +993,15 @@ func (h *Harness) clearTurn(ctx context.Context) {
 func (h *Harness) finishTurn(ctx context.Context, turnID string) {
 	h.mu.Lock()
 	if turnID != "" && turnID != h.turnID {
+		// It may be the turn being started right now, finishing before this
+		// process learnt its name. Remembered, and finished the moment the name
+		// arrives; anything else is a turn that ended long ago and is ignored as
+		// before.
+		if h.opening {
+			h.finishedBeforePublished = turnID
+		}
 		h.mu.Unlock()
+
 		return
 	}
 	h.turnID = ""

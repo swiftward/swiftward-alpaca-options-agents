@@ -124,6 +124,9 @@ type conversationSpy struct {
 	steerErr   error
 	// refuseInterrupt is what the agent answers to turn/interrupt. Nil accepts it.
 	refuseInterrupt error
+	// turnErrOnce is refused to the FIRST turn only, so a test can fail the cause
+	// that wins a race and watch the one that lost recover.
+	turnErrOnce error
 	// slowTurn is how long the agent takes to answer with a turn id.
 	slowTurn time.Duration
 	nextTurn        int
@@ -177,6 +180,12 @@ func (c *conversationSpy) Turn(ctx context.Context, text, model string) (string,
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.turnErrOnce != nil {
+		err := c.turnErrOnce
+		c.turnErrOnce = nil
+
+		return "", err
+	}
 	if c.turnErr != nil {
 		return "", c.turnErr
 	}
@@ -924,6 +933,103 @@ func (c *movingClock) Set(at time.Time) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.now = at
+}
+
+// When the cause that won the race fails to start its turn, the one that lost
+// does not lose its prompt.
+//
+// A wake-up is consumed when it fires, so a dropped one never comes back. The
+// loser waits for the winner's turn to steer into - and if the winner never gets
+// one, waiting out the deadline would spend the prompt on nothing. It starts one
+// itself instead.
+func TestWhenTheWinnerFailsToStartTheLoserStillGetsATurn(t *testing.T) {
+	conversation := newConversationSpy()
+	conversation.slowTurn = 100 * time.Millisecond
+	conversation.turnErrOnce = fmt.Errorf("the agent refused the turn")
+	chat := newChatDouble()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Record: record.NewMemory(),
+		CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	// The clock's cause goes first and will fail. The room's arrives only once
+	// that one holds the claim, so which cause loses is decided rather than
+	// raced - otherwise the test proves whichever path it happened to take.
+	go h.Tell(ctx, "the entry window is open", "entry")
+	waitFor(t, func() bool { _, opening := h.turnState(); return opening })
+	chat.inbound <- telegram.Message{Text: "what do we hold", UserID: 42, Username: "joker"}
+
+	waitFor(t, func() bool { return h.runningTurn() != "" })
+
+	// Both prompts are carried, and neither is dropped for the refusal. Which of
+	// the two roads each took is not the point: the winner retried its own start
+	// after its first was refused, and the loser either steered into that turn or
+	// started one of its own. What must never happen is a prompt that reached
+	// nothing.
+	waitFor(t, func() bool {
+		turns, steered, _ := conversation.seen()
+
+		return said(turns, steered, "what do we hold") && said(turns, steered, "the entry window is open")
+	})
+}
+
+// said reports whether a prompt reached the agent at all - as a turn of its own
+// or said into one already running.
+func said(turns, steered []string, want string) bool {
+	for _, text := range append(append([]string{}, turns...), steered...) {
+		if strings.Contains(text, want) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// A turn that ends before its name reaches us is still finished.
+//
+// The id exists only when Conversation.Turn returns. An agent quick enough to
+// answer and finish inside that window sent a completion for a turn this process
+// could not yet name, and the completion was dropped: the turn was then published
+// as running, every session queued behind it, and the record's row stayed open
+// until the interrupt came minutes later - or forever where no limit is set.
+func TestATurnThatEndsBeforeItsNameArrivesIsStillFinished(t *testing.T) {
+	conversation := newConversationSpy()
+	conversation.slowTurn = 200 * time.Millisecond
+	chat := newChatDouble()
+	kept := record.NewMemory()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Record: kept,
+		CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	chat.inbound <- telegram.Message{Text: "what do we hold", UserID: 42, Username: "joker"}
+	// The agent answers and finishes while Turn is still returning: the id is
+	// known to it, not yet to us.
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+	conversation.events <- agent.Event{Kind: agent.KindText, TurnID: "tu-1", Text: "nothing is open"}
+	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
+
+	waitFor(t, func() bool { return h.runningTurn() == "" })
+
+	waitFor(t, func() bool {
+		state, err := kept.Read(context.Background())
+
+		return err == nil && len(state.Turns) == 1 && state.Turns[0].FinishedAt != nil
+	})
+
+	// And the next cause is not queued behind a turn that is over.
+	chat.inbound <- telegram.Message{Text: "and now", UserID: 42, Username: "joker"}
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 2 })
 }
 
 // A shell command goes into the record by NAME only.
