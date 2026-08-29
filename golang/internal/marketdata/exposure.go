@@ -42,6 +42,44 @@ func AtRisk(positions []Position) float64 {
 	return -total
 }
 
+// WithoutAFloor names the groups whose loss has no floor at all: a series left
+// net SHORT calls loses more the higher the underlying goes, and no price stops
+// it. Each name is one underlying and one expiry, in the form "SPY 2026-09-04".
+//
+// It is separate from AtRisk because AtRisk answers with a NUMBER, and there is
+// no number for this: it probes the payoff at the strikes, at zero and above the
+// highest strike, which is exact for every structure that flattens and wrong for
+// one that does not. A caller that only asked AtRisk would be handed a large
+// finite figure and would compare it with a ceiling as if it meant something.
+//
+// The cage refuses to OPEN such a position, so this is what is left when the
+// market makes one: a long leg assigned early, or expired while the short one
+// lived on.
+func WithoutAFloor(positions []Position) []string {
+	net := map[string]float64{}
+	order := []string{}
+	for _, position := range positions {
+		contract, parsed := ContractFrom(position.Symbol)
+		if !parsed || contract.Type != "call" {
+			continue
+		}
+		key := contract.Symbol[:len(contract.Symbol)-15] + " " + contract.Expiration.Format("2006-01-02")
+		if _, seen := net[key]; !seen {
+			order = append(order, key)
+		}
+		net[key] += position.Quantity
+	}
+
+	var without []string
+	for _, key := range order {
+		if net[key] < 0 {
+			without = append(without, key)
+		}
+	}
+
+	return without
+}
+
 // worstAtExpiry is what one group is worth at its worst point, money already
 // settled included. Negative means a loss.
 func worstAtExpiry(held []Position) float64 {

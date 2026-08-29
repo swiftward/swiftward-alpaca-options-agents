@@ -874,27 +874,34 @@ func (h *Harness) callStarted(ctx context.Context, ev agent.Event) {
 		return
 	}
 
-	// A SHELL call goes into the record by name only. Its arguments and its
-	// output are whatever the agent typed and whatever the machine printed, and
-	// the record is served, unauthenticated, on the page a judge opens: one
-	// `env` in a session that read a poisoned headline would put this stack's
-	// database password, gateway token and chat token on a public address. The
-	// tools that matter - the broker's and the session's own - are recorded in
-	// full, because that is what the page exists to show.
-	arguments := ev.Call.Arguments
-	if ev.Call.Server == agent.ServerShell {
-		arguments = nil
-	}
-
-	err := h.Record.CallStarted(ctx, record.ToolCall{
+	// A SHELL call reaches the record as the FACT that one ran, and nothing else.
+	//
+	// The record is served, unauthenticated, on the page a judge opens. A shell
+	// call carries the command line as its name, its arguments as typed and the
+	// first of its output as its answer - and one `env` in a session that read a
+	// poisoned headline would put this stack's database password, gateway token
+	// and chat token on a public address. The command line is as dangerous as the
+	// output: `echo $GATEWAY_TOKEN` says it in the name alone.
+	//
+	// The room still sees the command in full - it is private, and a person
+	// watching needs to know what ran. The tools that matter to a reader - the
+	// broker's and the session's own - are recorded whole, because showing them
+	// is what the page is for.
+	call := record.ToolCall{
 		Ref:       ev.Call.Ref,
 		TurnRef:   ev.TurnID,
 		Server:    ev.Call.Server,
 		Tool:      ev.Call.Tool,
-		Arguments: arguments,
+		Arguments: ev.Call.Arguments,
 		StartedAt: h.Now(),
 		Status:    ev.Call.Status,
-	})
+	}
+	if ev.Call.Server == agent.ServerShell {
+		call.Tool = shellCommandRan
+		call.Arguments = nil
+	}
+
+	err := h.Record.CallStarted(ctx, call)
 	if err != nil {
 		h.Log.Error("could not record the call", zap.String("tool", ev.Call.Named()), zap.Error(err))
 	}
@@ -905,18 +912,23 @@ func (h *Harness) callFinished(ctx context.Context, ev agent.Event) {
 		return
 	}
 
-	answer := ev.Call.Answer
+	answer, failure := ev.Call.Answer, ev.Call.Failure
 	if ev.Call.Server == agent.ServerShell {
-		// See callStarted: what a shell command printed does not go on a public
-		// page. Whether it worked still does.
-		answer = ""
+		// See callStarted. The failure goes too: a shell error quotes the command
+		// it failed on, so the credential a name carried arrives by that road
+		// instead.
+		answer, failure = "", ""
 	}
 
-	err := h.Record.CallFinished(ctx, ev.Call.Ref, h.Now(), ev.Call.Status, ev.Call.Failure, answer)
+	err := h.Record.CallFinished(ctx, ev.Call.Ref, h.Now(), ev.Call.Status, failure, answer)
 	if err != nil {
 		h.Log.Error("could not close the call", zap.String("tool", ev.Call.Named()), zap.Error(err))
 	}
 }
+
+// shellCommandRan is what the record calls a shell command. A fixed name, so
+// that no part of what was typed reaches the page.
+const shellCommandRan = "a shell command"
 
 // clearTurn forgets the running turn and takes down its status line.
 func (h *Harness) clearTurn(ctx context.Context) {

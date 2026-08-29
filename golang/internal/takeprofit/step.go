@@ -45,7 +45,12 @@ func (w *Watch) step(ctx context.Context) {
 	// against sending a second one inert exactly where it was needed.
 	walking := map[string]bool{}
 	for _, order := range orders {
-		if strings.EqualFold(order.Status, "filled") || strings.EqualFold(order.Status, "canceled") {
+		// What the BROKER still has in play, by its own list of statuses. Naming
+		// the finished ones instead - filled and canceled - counted `replaced`,
+		// `expired` and `rejected` as orders still walking, and the order list
+		// goes back far enough that a structure could be blocked from closing for
+		// the rest of the week by an order that ended days ago.
+		if !order.Active() {
 			continue
 		}
 		if order.Symbol != "" {

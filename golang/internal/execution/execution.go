@@ -174,6 +174,18 @@ func (l *Ladder) step(ctx context.Context) {
 				zap.Error(err))
 		} else {
 			book, atRisk, hasBook = limit, marketdata.AtRisk(positions), true
+			// A book that already holds a position whose loss has no floor is
+			// FULL, whatever the arithmetic says: there is no number to compare a
+			// ceiling with. The cage refuses to open one, so this is what the
+			// market leaves behind - a long leg assigned early, or expired while
+			// the short one lived. Adding to that book is the one move that
+			// cannot be right, and closing orders are exempt from this check as
+			// from the others.
+			if without := marketdata.WithoutAFloor(positions); len(without) > 0 {
+				l.Log.Warn("the book holds a position whose loss has no floor; no new exposure is added",
+					zap.Strings("series", without))
+				atRisk = math.Inf(1)
+			}
 		}
 	}
 
@@ -207,7 +219,7 @@ func (l *Ladder) step(ctx context.Context) {
 				// there is a set to give up: an order of ONE set that breaches is
 				// judged in full, because the session cannot take less of it and
 				// the rounding this forgives does not exist there.
-				if over > 0 && (resting <= 1 || over > -worst/resting) {
+				if over > 0 && (resting <= 1 || over >= -worst/resting) {
 					l.overBook(ctx, order, atRisk, -worst, book)
 					continue
 				}
@@ -450,12 +462,7 @@ func working(order marketdata.Order) bool {
 	if order.Class != "mleg" || len(order.Legs) == 0 || order.SubmittedAt == nil {
 		return false
 	}
-	switch order.Status {
-	case "new", "accepted", "pending_new", "partially_filled":
-		return true
-	default:
-		return false
-	}
+	return order.Active()
 }
 
 // Showing is the price the book is actually offering for this structure right
@@ -616,8 +623,12 @@ func (l *Ladder) tooBig(ctx context.Context, order marketdata.Order, ceiling flo
 	// whatever it risked: 20,000 dollars against a ceiling of 8,000 read as a
 	// rounding error. One set that breaches cannot be made smaller, so it is
 	// judged in full.
+	// STRICTLY smaller than one set. At exactly one set the breach is a whole set
+	// the session could have left out, which is a sizing error and not the
+	// rounding this forgives: two sets risking the ceiling each passed a ceiling
+	// they doubled.
 	resting := order.Quantity - order.FilledQuantity
-	if resting > 1 && -worst-ceiling <= -worst/resting {
+	if resting > 1 && -worst-ceiling < -worst/resting {
 		return false
 	}
 

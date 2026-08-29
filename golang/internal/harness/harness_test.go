@@ -940,12 +940,17 @@ func TestAShellCommandIsRecordedWithoutItsArgumentsOrOutput(t *testing.T) {
 	chat.inbound <- telegram.Message{Text: "look at the notes", UserID: 42, Username: "joker"}
 	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
 
+	// The shape a real shell call has: the agent's protocol gives it no tool name,
+	// so the COMMAND LINE becomes the name (see itemEvent.call). A test that puts
+	// a tidy word there instead cannot catch a credential in the command itself.
+	const typed = "sh -c 'echo $GATEWAY_TOKEN'"
 	conversation.events <- agent.Event{Kind: agent.KindToolStarted, TurnID: "tu-1",
-		Call: agent.Call{Ref: "call-shell", Server: agent.ServerShell, Tool: "env",
-			Arguments: []byte(`{"command":"env"}`), Status: "inProgress"}}
+		Call: agent.Call{Ref: "call-shell", Server: agent.ServerShell, Tool: typed,
+			Arguments: []byte(`{"command":"sh -c 'echo $GATEWAY_TOKEN'"}`), Status: "inProgress"}}
 	conversation.events <- agent.Event{Kind: agent.KindTool, TurnID: "tu-1",
-		Call: agent.Call{Ref: "call-shell", Server: agent.ServerShell, Tool: "env",
-			Status: "completed", Answer: "GATEWAY_TOKEN=hunter2 POSTGRES_PASSWORD=hunter2"}}
+		Call: agent.Call{Ref: "call-shell", Server: agent.ServerShell, Tool: typed,
+			Status: "failed", Failure: "sh -c 'echo $GATEWAY_TOKEN': exit 1",
+			Answer: "GATEWAY_TOKEN=hunter2 POSTGRES_PASSWORD=hunter2"}}
 
 	conversation.events <- agent.Event{Kind: agent.KindToolStarted, TurnID: "tu-1",
 		Call: agent.Call{Ref: "call-broker", Server: "broker", Tool: "get_clock",
@@ -968,9 +973,13 @@ func TestAShellCommandIsRecordedWithoutItsArgumentsOrOutput(t *testing.T) {
 	}
 
 	shell := byRef["call-shell"]
-	assert.Equal(t, "env", shell.Tool, "that a shell command ran is still on the record")
-	assert.Empty(t, shell.Arguments, "what it was called with is not")
-	assert.Empty(t, shell.Answer, "and neither is what it printed")
+	assert.Equal(t, "a shell command", shell.Tool, "that one ran is on the record; what it was is not")
+	assert.Empty(t, shell.Arguments, "nor what it was called with")
+	assert.Empty(t, shell.Answer, "nor what it printed")
+	assert.Empty(t, shell.Failure, "nor the error, which quotes the command back")
+	for _, field := range []string{shell.Tool, string(shell.Arguments), shell.Answer, shell.Failure} {
+		assert.NotContains(t, field, "GATEWAY_TOKEN", "no part of it reaches the page")
+	}
 
 	broker := byRef["call-broker"]
 	assert.NotEmpty(t, broker.Arguments, "a broker call is recorded in full")

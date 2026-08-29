@@ -756,6 +756,41 @@ func TestASingleSetOrderIsStillJudged(t *testing.T) {
 		"one set that breaches cannot be made smaller, so it is not rounding")
 }
 
+// A breach of EXACTLY one set is a sizing error, not rounding.
+//
+// The allowance forgives a breach smaller than one set, because the session
+// cannot size finer than that. At exactly one set there is a whole set it could
+// have left out - and two sets risking the ceiling each passed a ceiling they
+// doubled.
+func TestABreachOfAWholeSetIsNotForgiven(t *testing.T) {
+	at := time.Date(2026, 8, 26, 18, 5, 0, 0, time.UTC)
+	two := marketdata.Order{
+		ID: "o-two", Class: "mleg", Status: "new", Quantity: 2, LimitPrice: -1.00,
+		ClientID: NameFor(-1.00), SubmittedAt: &[]time.Time{at.Add(-2 * time.Minute)}[0],
+		Legs: []marketdata.Order{
+			{Symbol: "QQQ260826P00701000", Side: "sell", Quantity: 2},
+			{Symbol: "QQQ260826P00500000", Side: "buy", Quantity: 2},
+		},
+	}
+
+	broker := &brokerDouble{
+		orders: []marketdata.Order{two},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(1.20, 1.30),
+			"QQQ260826P00500000": quote(0.10, 0.15),
+		},
+	}
+
+	l := ladder(broker, at, t)
+	// Two sets of a 201-dollar-wide spread risk 40,000; one set risks 20,000, so
+	// a ceiling of 20,000 is breached by exactly one set.
+	l.Ceiling = func(context.Context) (float64, error) { return 20000, nil }
+	l.step(context.Background())
+
+	_, cancelled := broker.seen()
+	assert.Equal(t, []string{"o-two"}, cancelled)
+}
+
 // A CLOSING order is never cancelled for its size, however large the structure
 // it gives back.
 //

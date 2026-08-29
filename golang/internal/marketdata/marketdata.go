@@ -233,6 +233,23 @@ type Order struct {
 	Legs           []Order    `json:"legs,omitempty"`
 }
 
+// Active says whether the broker still has this order in play: it can still
+// fill, and anything watching for one in flight must count it.
+//
+// The statuses are the broker's own words, and this is the ONE place they are
+// listed. A second list drifts: a `replaced` order is finished - its
+// replacement carries the work - and a watcher that read "not filled and not
+// canceled" counted it as still walking and refused to close the structure it
+// belonged to, for as long as the order list went back.
+func (o Order) Active() bool {
+	switch o.Status {
+	case "new", "accepted", "pending_new", "partially_filled":
+		return true
+	default:
+		return false
+	}
+}
+
 // Account reads the money.
 func (b *Broker) Account(ctx context.Context) (Account, error) {
 	var answer accountAnswer

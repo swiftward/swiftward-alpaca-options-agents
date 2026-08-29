@@ -270,6 +270,38 @@ func TestItDoesNotCloseWhatAMultiLegOrderIsAlreadyClosing(t *testing.T) {
 	assert.Empty(t, b.sent, "the close in flight is the close; a second one closes twice")
 }
 
+// An order that has ENDED does not block the close.
+//
+// The broker's order list goes back days and carries every status. A watcher
+// that counted anything "not filled and not canceled" as in flight treated a
+// `replaced` order - one whose replacement did the work and filled or died
+// hours ago - as a close still walking, and refused to close that structure for
+// as long as the list reached back. Measured on the account: the ladder
+// replaces an order on every step it takes, so `replaced` is the commonest
+// status there is.
+func TestAnOrderThatHasEndedDoesNotBlockTheClose(t *testing.T) {
+	for _, status := range []string{"replaced", "expired", "rejected", "canceled", "filled"} {
+		t.Run(status, func(t *testing.T) {
+			b := &brokerDouble{
+				held: theQQQSpread(),
+				orders: []marketdata.Order{{
+					Status: status, Class: "mleg", Quantity: 170,
+					Legs: []marketdata.Order{
+						{Symbol: "QQQ260828C00725000", Side: "buy", Quantity: 170},
+						{Symbol: "QQQ260828C00726000", Side: "sell", Quantity: 170},
+					},
+				}},
+				quotes: map[string]marketdata.Quote{
+					"QQQ260828C00725000": quote(0.09, 0.10),
+					"QQQ260828C00726000": quote(0.02, 0.03),
+				},
+			}
+			watching(b, 0.5).step(context.Background())
+			assert.Len(t, b.sent, 1, "the order is over; the structure is still open and worth closing")
+		})
+	}
+}
+
 func TestItDoesNotSendTheSameCloseTwice(t *testing.T) {
 	b := &brokerDouble{held: theQQQSpread(), quotes: map[string]marketdata.Quote{
 		"QQQ260828C00725000": quote(0.09, 0.10),
