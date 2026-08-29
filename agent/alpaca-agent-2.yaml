@@ -99,7 +99,18 @@ parameters:
   screener_least_paid: "8"
   screener_most_paid: "100"
   screener_dearest: "150"
-  screener_most_delta: "0.45"
+  # 0.30, not 0.45, and the two numbers were fighting each other. The rule tells
+  # the session "no more than 0.30" while this told the screener to OFFER up to
+  # 0.45 - so the list handed to a session contained structures its own rule would
+  # refuse, and the only thing keeping them out was the session's discipline.
+  #
+  # Measured over 646 trading days of SPY and QQQ (`research/grid.py`): 0.30 beats
+  # 0.45 everywhere on the grid, not at one point - fewer trades, enough more
+  # expectation on each to win on the total - and at 0.40 the expectation turns
+  # NEGATIVE: selling that close pays less than it costs. So the wider list was
+  # not more choice, it was a list with losing structures in it, ranked by a
+  # measure that cannot see the difference.
+  screener_most_delta: "0.30"
   screener_least_edge: "-3.0"
 
 sessions:
