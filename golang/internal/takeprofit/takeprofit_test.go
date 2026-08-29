@@ -108,6 +108,23 @@ func TestOnTheDayOfExpiryItStillCloses(t *testing.T) {
 	assert.Len(t, b.sent, 1)
 }
 
+// An inverted book: the leg further from the money quoted ABOVE the nearer one,
+// which does not happen. Buying back a credit structure cannot cost less than
+// nothing - it is worth between nothing and its own width.
+//
+// Measured on QQQ 725/726 on 28 August 2026: the 726 call bid stood at 0.03
+// against the 725 call ask at 0.02. The watch priced the buy-back at minus a
+// cent, sent an order at a price that cannot exist, and had it cancelled on
+// patience - eleven times in two hours.
+func TestAnInvertedBookIsNotPricedToClose(t *testing.T) {
+	b := &brokerDouble{held: theQQQSpread(), quotes: map[string]marketdata.Quote{
+		"QQQ260828C00725000": quote(0.01, 0.02), // nearer the money
+		"QQQ260828C00726000": quote(0.03, 0.04), // further out, and somehow dearer
+	}}
+	watching(b, 0.5).step(context.Background())
+	assert.Empty(t, b.sent, "an inverted book gives no closing price")
+}
+
 func TestItReadsTheStructureOutOfWhatIsHeld(t *testing.T) {
 	got, ambiguous := Group(theQQQSpread())
 	require.Len(t, got, 1)

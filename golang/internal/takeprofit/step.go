@@ -113,6 +113,26 @@ func (w *Watch) consider(ctx context.Context, s Structure, walking map[string]bo
 		// Sending an order against half a quote is how a close becomes a gift.
 		return
 	}
+	if cost < 0 {
+		// Closing something opened for a CREDIT cannot pay us: such a structure is
+		// worth between nothing and its own width, and no one buys it back for
+		// less than nothing. A negative price means the book is inverted - the
+		// further leg quoted above the nearer one, which does not happen - and one
+		// of the two quotes is stale.
+		//
+		// Measured on QQQ 725/726 on 28 August 2026: the 726 call bid stood at
+		// 0.03 against the 725 call ask at 0.02. The watch priced the buy-back at
+		// minus a cent, sent an order at a price that cannot exist, and had it
+		// cancelled on patience. Eleven times in two hours, and every cancellation
+		// is a line in the record a judge reads.
+		//
+		// The screener refuses on the same grounds and in nearly the same words: a
+		// structure paying more than its width is not a find, it is a broken quote.
+		w.Log.Warn("the book is inverted, so this cannot be priced to close",
+			zap.String("structure", name), zap.Float64("apparent_buy_back", cost))
+
+		return
+	}
 	if cost > s.Credit*w.At {
 		return
 	}
