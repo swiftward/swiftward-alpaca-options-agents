@@ -16,8 +16,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -96,11 +98,22 @@ func run(ctx context.Context) error {
 		return missing[i].SubmittedAt.Before(*missing[j].SubmittedAt)
 	})
 
+	// Which record was read, and how much it holds. Without this a zero reads as
+	// "the record lost everything" when it more often means the wrong database:
+	// run through the `tests` service, this compares the live account against an
+	// empty test schema and reports every order as a hole. Measured on 29 August,
+	// by me, for several minutes.
+	fmt.Printf("record: %s, holding %d order references\n", recordName(databaseURL), len(known))
 	fmt.Printf("%d of %d orders the broker holds for the last %s are in our record\n",
 		counted-len(missing), counted, window)
 
 	if len(missing) == 0 {
 		return nil
+	}
+	if len(known) == 0 && counted > 0 {
+		fmt.Printf("\nThe record holds no order references at all while the broker holds %d.\n"+
+			"That is what an empty or wrong database looks like; a record that lost orders\n"+
+			"holds some. Check DATABASE_URL before reading the list below as holes.\n", counted)
 	}
 
 	fmt.Printf("\n%d are not, and each one is a hole in the record:\n", len(missing))
@@ -111,6 +124,18 @@ func run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// recordName is the database a connection string points at, without the
+// credentials in it: a report that names its source can be checked, and one that
+// prints a password cannot be pasted anywhere.
+func recordName(databaseURL string) string {
+	parsed, err := url.Parse(databaseURL)
+	if err != nil {
+		return "unreadable DATABASE_URL"
+	}
+
+	return parsed.Host + strings.TrimSuffix(parsed.Path, "/")
 }
 
 // whatTheRecordHolds is every broker order id our record knows, from both sides
