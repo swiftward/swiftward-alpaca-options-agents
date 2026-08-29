@@ -3,8 +3,10 @@
 # The CONTENTS rather than the directory: git does not descend into an excluded
 # directory, so a negation for a file inside it can never re-include the file.
 data/*
-# And the one exception, which is the point of `make claims`: the structures the
-# rule could have seen. Five megabytes, DERIVED rather than raw market data, and
+# and the same name as a symlink, which neither of the above matches
+data
+# The one exception, which is the point of `make claims`: the structures the rule
+# could have seen. Five megabytes, DERIVED rather than raw market data, and
 # without it every number this project publishes needs a credential to check.
 !data/candidates_bt.parquet
 .venv/
