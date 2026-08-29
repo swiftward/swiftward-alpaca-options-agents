@@ -91,6 +91,21 @@ type Ladder struct {
 	// A resting order is judged against what is already held plus what the orders
 	// before it in this pass would add. Nil leaves the book unchecked.
 	Book func(ctx context.Context) (float64, error)
+	// Fuse answers whether today is over: the account has fallen from yesterday's
+	// close by at least the share the declaration names. `said` is the sentence
+	// the session is told, because a cancellation it cannot explain is worse than
+	// none.
+	//
+	// It exists because until 29 August the fuse was a line in a playbook and
+	// nothing else. The playbook said so itself - "nothing refuses the order if
+	// you skip this check, so skipping it is not caught, it is simply a day the
+	// account keeps losing" - and on 27 August one account refused an entry at
+	// 14:01 and took one at 14:18 on the same two figures.
+	//
+	// It only ever CANCELS, and only orders that open. A day that has fallen far
+	// enough to blow the fuse is a day to stop adding risk, not one to stop
+	// giving it back.
+	Fuse func(ctx context.Context) (over bool, said string, err error)
 	// Reads bounds how many recent orders are examined.
 	Reads int
 	Now   func() time.Time
@@ -189,6 +204,21 @@ func (l *Ladder) step(ctx context.Context) {
 		}
 	}
 
+	// Whether the day is over, asked once for the pass like the two limits above.
+	// An unreadable answer cancels nothing: losing the fuse is a reason to speak,
+	// never a reason to take an account's working orders away.
+	fused, fuseSaid := false, ""
+	if l.Fuse != nil {
+		over, said, err := l.Fuse(ctx)
+		switch {
+		case err != nil:
+			l.Log.Error("could not tell whether the day's fuse has blown; resting orders go unchecked against it",
+				zap.Error(err))
+		case over:
+			fused, fuseSaid = true, said
+		}
+	}
+
 	for _, order := range orders {
 		if order.Status == "filled" || order.FilledQuantity > 0 {
 			l.report(ctx, order)
@@ -200,6 +230,20 @@ func (l *Ladder) step(ctx context.Context) {
 		// it: both price an order as if it were new, and the one that reduces the
 		// book would be cancelled for the size of the position it is undoing.
 		closing := OnlyCloses(order)
+		if fused && !closing {
+			if err := l.Broker.CancelOrder(ctx, order.ID); err != nil {
+				l.Log.Error("could not cancel an order the day's fuse refuses",
+					zap.String("order", order.ID), zap.Error(err))
+				continue
+			}
+			l.Log.Warn("cancelled an opening order: the day's fuse has blown",
+				zap.String("order", order.ID), zap.String("said", fuseSaid))
+			l.wroteDown(ctx, record.ExecutionStep{
+				OrderRef: order.ID, At: l.Now(), Action: "cancelled", Was: order.LimitPrice,
+			})
+			cancelled = append(cancelled, order)
+			continue
+		}
 		if !closing && l.unbounded(ctx, order) {
 			continue
 		}

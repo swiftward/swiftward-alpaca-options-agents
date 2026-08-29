@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -479,6 +481,11 @@ func run(log *zap.Logger) error {
 
 	// The ladder finishes what the session started: it can move a price and cancel
 	// an order, and it can open nothing.
+	// Whether the day's fuse is enforced rather than only asked of the session.
+	// Named here so the guards line below can say so: every protection on that
+	// line is legal when off and silent when off, which is why they are read in
+	// one place.
+	fuseStands := false
 	if cfg.Has(config.RoleHarness) && cfg.ExecutionEvery == 0 {
 		// Said, because the absence is invisible from the outside: orders rest at
 		// the price the session named, nothing walks them to the book, and nothing
@@ -556,6 +563,54 @@ func run(log *zap.Logger) error {
 			}
 			log.Info("resting orders are held to what one position may lose, and to what the book may lose",
 				zap.String("identity", cfg.EnvelopeIdentity))
+		}
+		// The daily fuse, and the number is the DECLARATION's - the same one the
+		// session is given at the head of every turn. It is read here rather than
+		// copied into a setting of its own, because two places holding one number
+		// is how they come to disagree.
+		//
+		// Until 29 August nothing enforced it. The playbook said as much in its own
+		// words, and on 27 August one account refused an entry at 14:01 and took
+		// one at 14:18 on the same two figures. It is the session's rule and now
+		// also a backstop under it, in the last place our code holds an order.
+		if declared != nil {
+			ladder.Fuse = func(ctx context.Context) (bool, string, error) {
+				written, ok := declared.Current().Parameters["daily_fuse_percent"]
+				if !ok {
+					return false, "", errors.New("the declaration names no daily_fuse_percent")
+				}
+				// Parsed strictly. The parameters are prose for a model, so this
+				// one can be written in a way no program can read - and a fuse
+				// that quietly reads zero from "three percent" would cancel every
+				// opening order on a flat day.
+				percent, err := strconv.ParseFloat(strings.TrimSpace(written), 64)
+				if err != nil {
+					return false, "", fmt.Errorf("daily_fuse_percent %q is not a number", written)
+				}
+				if percent <= 0 {
+					return false, "", fmt.Errorf("daily_fuse_percent is %v, which fuses nothing", percent)
+				}
+				account, err := broker.Account(ctx)
+				if err != nil {
+					return false, "", fmt.Errorf("read what the account is worth: %w", err)
+				}
+				// Yesterday's close is the thing fallen FROM. Without it there is
+				// no fall to measure, and a zero would read as a total loss.
+				if account.EquityYesterday <= 0 {
+					return false, "", errors.New("the broker gives no equity for yesterday's close")
+				}
+				fallen := (account.EquityYesterday - account.Equity) / account.EquityYesterday * 100
+				if fallen < percent {
+					return false, "", nil
+				}
+
+				return true, fmt.Sprintf(
+					"the account is down %.2f%% from yesterday's close of %.0f, and the fuse is %v%%",
+					fallen, account.EquityYesterday, percent), nil
+			}
+			fuseStands = true
+			log.Info("the day's fuse is enforced, not only asked of the session",
+				zap.String("from", "daily_fuse_percent in the declaration"))
 		}
 		if running != nil {
 			ladder.Wake = func(ctx context.Context, cause string) {
@@ -816,6 +871,7 @@ func run(log *zap.Logger) error {
 			zap.Bool("profit_watch", cfg.TakeProfitAt > 0 && broker != nil),
 			zap.Bool("turn_limit", cfg.TurnLimit > 0),
 			zap.Bool("ladder", cfg.ExecutionEvery > 0 && broker != nil),
+			zap.Bool("daily_fuse", fuseStands),
 			zap.Bool("intent_gate", intentGate),
 			zap.Bool("envelope", cfg.GatewayURL != ""),
 			zap.Bool("record", state != nil),

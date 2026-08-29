@@ -26,6 +26,7 @@ timezone: America/New_York
 # technique's description enters the prompt of EVERY turn.
 skills:
   - playbook-premium-harvest
+  - playbook-earnings-crush
   - read-my-envelope
 
 # The numbers this agent carries out its techniques with. A technique holds the
@@ -61,6 +62,14 @@ parameters:
   # Three, as on the neighbour. The two accounts now run one setting, so a number
   # that differs between them is a difference nobody chose.
   daily_fuse_percent: "3"
+
+  # The earnings layer's two numbers, taken verbatim from the declaration that
+  # has been running it. The second is the measure this whole week has been
+  # circling, done properly: implied against realised, per NAME, with a threshold
+  # - and it already turns the trade around where the ratio is low instead of
+  # refusing it.
+  crush_worst_case_share: "no more than 3% of equity"
+  crush_implied_over_realized: "sell at 1.3 or above; at 0.8 or below buy the move instead of selling; in between take nothing"
 
 sessions:
   - name: open-check
@@ -159,6 +168,58 @@ sessions:
   # window came round every fifteen minutes and settled for 0.50 - the same work
   # done worse, and it took a turn from the defence.
   # With TAKE_PROFIT_AT=0 nothing closes a winner at all: there is nobody else.
+
+  # Taken from the declaration that already runs it, unchanged. Both windows fall
+  # inside the days that are scored - Wednesday evening in, Thursday morning out -
+  # and each checks the date itself before doing anything, so on any other
+  # Wednesday it says one line and finishes. One technique running on one account
+  # of three was a loss, not caution.
+  - name: earnings-crush
+    # The cause names a CONDITION, not a fact. It used to read "AVGO reports
+    # tonight", and on any other Wednesday that was untrue - in the record and on
+    # the page a judge reads. The date itself is right: on 28 August six news
+    # sources agreed on 2 September, and the date check stands in the task below.
+    cause: "the earnings window: if a report lands after the close tonight, sell what the unknown has inflated"
+    at: "15:20"
+    within: 30m
+    days: [wed]
+    task: |
+      **Check the date first.** This session is written for the AVGO report of
+      2 September 2026. Ask the clock (get_clock). If today is not 2 September,
+      say so in one line and finish without doing anything: the weekday matched,
+      the date did not.
+      Then run earnings-crush on AVGO.
+      The report comes after the close, so take the expiration that comes AFTER
+      it - the one expiring today dies before the reaction and carries none of
+      the event.
+      The MEASUREMENT decides the side, not an opinion: work out the implied move
+      and the median of what this name has actually done on past reports, and say
+      both numbers out loud.
+
+  - name: earnings-crush-exit
+    cause: "the report landed last night: the crush happened at the open, what follows is drift"
+    at: "09:35"
+    within: 30m
+    days: [thu]
+    task: |
+      **Check the date first.** This session is written for the morning of
+      3 September 2026 - the morning after the AVGO report. Ask the clock. If
+      today is not 3 September, say so in one line and finish. If the earnings
+      layer holds no position, say that and finish too.
+      **Close what this layer holds, whatever it turned out to be.** Yesterday's
+      measurement could have sent it either way: usually a sold iron condor, but
+      on an inverted ratio a bought backspread. Both come out this morning.
+      The condor goes as one opposing mleg order, all four legs at once.
+      Do not confuse the earnings backspread with the convexity layer: that one
+      lives for days, this one was bought for a single report, the report has
+      happened, and the volatility it was bought on falls all day.
+      The crush happens at the open; everything after is drift, and this structure
+      was not hired to hold drift. Do not wait for the last cent of decay.
+      If price went through the short strike, close anyway and say what it cost:
+      the structure did its job by bounding the loss, and holding it for a
+      recovery is a different trade nobody decided to make.
+      Confirm with the broker that the position is gone, and name the price you
+      actually got.
 
   - name: defend
     cause: "price has reached the sold strike"
