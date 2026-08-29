@@ -161,7 +161,7 @@ concedes a cent every forty-five seconds until the book takes it, proven the sam
 day on an MU put that opened at 0.41, walked six times and filled at 0.36. So the
 cost of asking more is a minute of delay, not a lost fill.
 
-Put the worst price you will accept into `client_order_id` as `worst=-0.11` - negative because a credit is negative - then a semicolon and something unrepeatable, because the broker refuses a name it has seen (`client_order_id must be unique`). For example `worst=-0.11;QQQ703-702-1226`.
+Put the worst price you will accept into `client_order_id` as `worst=-0.11` - negative because a credit is negative - then your turn as `turn=<ref>`, then something unrepeatable, because the broker refuses a name it has seen (`client_order_id must be unique`). For example `worst=-0.11;turn=tu-7;QQQ703-702-1226`. The turn comes back from `record_intent`, which you have just called; it is what lets a reader match this order to the intent behind it.
 
 The harness walks the price toward the book from there, waits at each price long enough to be taken, never asks for worse than your number, and cancels what the book will not take. Do not watch the order afterwards.
 

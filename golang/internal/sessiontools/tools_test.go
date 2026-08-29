@@ -648,6 +648,38 @@ func TestAnOrdinaryPriceStillPasses(t *testing.T) {
 	assert.False(t, out.IsError)
 }
 
+// The answer to record_intent names the TURN it was filed under.
+//
+// A session cannot learn its own turn any other way: `read_state` lists turns
+// and picking its own out of them is a guess, and a guess is what sent another
+// team's agent into a shared settings file this morning. It needs the turn
+// because the order that follows carries it in `client_order_id`, and that is
+// the only thread joining what was declared to what was done where our record of
+// tool calls does not exist - which is every session driven through a mailbox.
+func TestRecordingAnIntentAnswersWithTheTurn(t *testing.T) {
+	server := httptest.NewServer(Tools{
+		Record: record.NewMemory(), Now: time.Now,
+		Running: &runningDouble{ref: "tu-7", wokenBy: "entry"},
+	}.Handler())
+	t.Cleanup(server.Close)
+	session, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil).
+		Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	out := statingAnIntent(t, session)
+	require.False(t, out.IsError)
+
+	var answered struct {
+		TurnRef string `json:"turn_ref"`
+	}
+	require.NotNil(t, out.StructuredContent)
+	raw, err := json.Marshal(out.StructuredContent)
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(raw, &answered))
+	assert.Equal(t, "tu-7", answered.TurnRef, "the session is told which turn its intent belongs to")
+}
+
 // An intent says whether it was checked, and the two cases are told apart in the
 // record.
 //

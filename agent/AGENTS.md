@@ -35,6 +35,8 @@ Send a spread as one order, and put the worst price you accept into the order's 
 
 The number is yours because it is part of the decision: it says how much of the credit this trade is still worth taking. Name none and the order simply rests where you placed it.
 
+Put your TURN in the same name, as `turn=<ref>`: `worst=-0.11;turn=tu-7;QQQ703-702`. The first field is the only one anything reads; the rest is yours, and the turn there is what lets a reader join the order to the intent you stated before it. `record_intent` answers with `turn_ref` - that is the value, and it is the only place you learn it. Do not work it out from `read_state`: the newest turn there is probably yours and probably is not a good enough word for a thing a reader will trust.
+
 ## What the defence needs to know
 
 The credit a position was opened for is in the broker's own record: `get_orders` carries `filled_avg_price` for the order that opened it, and a spread's is negative because it was a credit. Read it there rather than from your own earlier words.

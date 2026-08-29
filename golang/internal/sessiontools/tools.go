@@ -43,6 +43,14 @@ type recordIntentInput struct {
 
 type recordIntentOutput struct {
 	RecordedAt time.Time `json:"recorded_at" jsonschema:"when the intent was stored"`
+	// TurnRef is the turn this intent was filed under - which is to say, the
+	// session's own turn. It is answered here because a session cannot otherwise
+	// know it: `read_state` lists turns, and picking its own out of them is a
+	// guess. With it, the order that follows can carry the turn in its
+	// client_order_id, and a reader can then join what was DECLARED to what was
+	// DONE without our record of tool calls - which a session driven through a
+	// mailbox does not have at all.
+	TurnRef string `json:"turn_ref,omitempty" jsonschema:"the turn this intent belongs to; put it in the order's client_order_id so the order can be matched to it"`
 }
 
 type readStateInput struct{}
@@ -340,7 +348,7 @@ func (t Tools) Handler() http.Handler {
 			}); err != nil {
 				return nil, recordIntentOutput{}, err
 			}
-			return nil, recordIntentOutput{RecordedAt: at}, nil
+			return nil, recordIntentOutput{RecordedAt: at, TurnRef: turn}, nil
 		})
 
 	mcp.AddTool(server,
