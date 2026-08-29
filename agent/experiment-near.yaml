@@ -1,5 +1,5 @@
 kind: trading-agent
-name: options-alpha-near
+name: alpaca-agent-2
 version: "1"
 timezone: America/New_York
 

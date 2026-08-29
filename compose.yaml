@@ -265,7 +265,7 @@ services:
   # The read side: the demo page and the JSON behind it. It reads the record and
   # nothing else - no credential, no broker, no decision - so it is the one
   # service that may sit where a browser can reach it.
-  page:
+  page-agent-1:
     build:
       context: .
       dockerfile: docker/app.Dockerfile
@@ -316,7 +316,7 @@ services:
   # It does not show money yet: there is no observer role and no key for the second
   # account, so its broker address is empty. The record - turns, calls, intents,
   # words - is fully visible.
-  page-near:
+  page-agent-2:
     build:
       context: .
       dockerfile: docker/app.Dockerfile
