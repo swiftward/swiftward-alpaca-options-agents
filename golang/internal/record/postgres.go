@@ -31,8 +31,8 @@ func NewPostgres(pool *pgxpool.Pool, shows int) (*Postgres, error) {
 
 func (p *Postgres) AppendIntent(ctx context.Context, intent Intent) error {
 	_, err := p.pool.Exec(ctx,
-		`INSERT INTO intents (recorded_at, turn_ref, session, thesis, structure, max_loss, underlying_price)
-		 VALUES (@at, @turn, @session, @thesis, @structure, @max_loss, @underlying_price)`,
+		`INSERT INTO intents (recorded_at, turn_ref, session, thesis, structure, max_loss, underlying_price, envelope_checked)
+		 VALUES (@at, @turn, @session, @thesis, @structure, @max_loss, @underlying_price, @envelope_checked)`,
 		pgx.NamedArgs{
 			"at": intent.At, "turn": nullable(intent.TurnRef), "session": intent.Session,
 			"thesis": intent.Thesis, "structure": intent.Structure, "max_loss": intent.MaxLoss,
@@ -42,6 +42,7 @@ func (p *Postgres) AppendIntent(ctx context.Context, intent Intent) error {
 			// then be told its intent was not recorded, on the one call this
 			// system asks it to make before every order.
 			"underlying_price": nullable(intent.UnderlyingPrice),
+			"envelope_checked": intent.EnvelopeChecked,
 		})
 	if err != nil {
 		return fmt.Errorf("record the intent: %w", err)
@@ -293,7 +294,8 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 	}
 
 	intents, err := p.pool.Query(ctx,
-		`SELECT recorded_at, turn_ref, session, thesis, structure, max_loss, underlying_price
+		`SELECT recorded_at, turn_ref, session, thesis, structure, max_loss, underlying_price,
+		        envelope_checked
 		   FROM intents ORDER BY recorded_at DESC LIMIT @shows`,
 		pgx.NamedArgs{"shows": p.shows})
 	if err != nil {
@@ -306,7 +308,7 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 		var turn *string
 		var price *string
 		if err := intents.Scan(&intent.At, &turn, &intent.Session, &intent.Thesis,
-			&intent.Structure, &intent.MaxLoss, &price); err != nil {
+			&intent.Structure, &intent.MaxLoss, &price, &intent.EnvelopeChecked); err != nil {
 			return State{}, fmt.Errorf("read an intent: %w", err)
 		}
 		if turn != nil {

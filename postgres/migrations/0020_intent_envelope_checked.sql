@@ -1,0 +1,13 @@
+-- Whether this intent was checked against an envelope read in the same turn.
+--
+-- The rule is that a session states an intent only after reading its limits
+-- afresh, and the check is enforced where it can be: it asks the record whether
+-- read_envelope was called in this turn. Two deployments cannot answer that -
+-- one with no envelope to read, and one whose driver carries what the agent says
+-- rather than what it called - and there the intent is recorded anyway, because
+-- refusing every intent is worse than recording an unchecked one.
+--
+-- What must not happen is that the two look alike afterwards. A reader comparing
+-- what was declared with what was done is entitled to know which of the two this
+-- row is. NULL is the third answer: rows written before this column existed.
+ALTER TABLE intents ADD COLUMN IF NOT EXISTS envelope_checked BOOLEAN;

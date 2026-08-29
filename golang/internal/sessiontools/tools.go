@@ -270,6 +270,11 @@ func (t Tools) Handler() http.Handler {
 			// model's context and does not read as stale to it - which is why this
 			// is checked rather than asked for. A session that states an intent
 			// from memory is stating it against limits that may have moved.
+			// Whether this intent was checked, recorded beside it. A deployment
+			// that cannot make the check records intents anyway - refusing every
+			// one is worse - and a reader is entitled to know which of the two
+			// kinds of row they are looking at.
+			checked := t.Asked != nil
 			if t.Asked != nil && turn != "" {
 				asked, err := t.Asked.AskedInTurn(ctx, turn, envelopeTool)
 				if err != nil {
@@ -307,6 +312,7 @@ func (t Tools) Handler() http.Handler {
 				MaxLoss:   in.MaxLoss,
 
 				UnderlyingPrice: in.UnderlyingPrice,
+				EnvelopeChecked: &checked,
 			}); err != nil {
 				return nil, recordIntentOutput{}, err
 			}

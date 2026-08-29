@@ -30,6 +30,10 @@ type Intent struct {
 	// The defence windows measure how far price has travelled since, and there is
 	// nowhere else to read where it started.
 	UnderlyingPrice string `json:"underlying_price"`
+	// EnvelopeChecked says whether this intent was checked against an envelope
+	// read in the same turn. Absent where the row predates the column; false
+	// where the deployment cannot make the check - see the migration.
+	EnvelopeChecked *bool `json:"envelope_checked,omitempty"`
 }
 
 // Turn is one run of the agent: when it ran, who woke it and why.

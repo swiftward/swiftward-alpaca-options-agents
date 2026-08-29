@@ -45,10 +45,11 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 		Thesis: "premium is rich into the close", Structure: "put spread on SPY expiring today",
 		MaxLoss: "1% of capital",
 	}))
+	checked := true
 	require.NoError(t, kept.AppendIntent(ctx, Intent{
 		At: started.Add(2 * time.Minute), TurnRef: "turn-1", Session: "entry",
 		Thesis: "and one that did read the price", Structure: "put spread on QQQ",
-		MaxLoss: "1% of capital", UnderlyingPrice: "701.245000",
+		MaxLoss: "1% of capital", UnderlyingPrice: "701.245000", EnvelopeChecked: &checked,
 	}))
 
 	require.NoError(t, kept.CallStarted(ctx, ToolCall{
@@ -78,6 +79,9 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 	require.Len(t, state.Intents, 2)
 	assert.Equal(t, "701.245000", state.Intents[0].UnderlyingPrice, "a price that was read comes back")
 	assert.Empty(t, state.Intents[1].UnderlyingPrice, "and one that was not stays absent rather than zero")
+	require.NotNil(t, state.Intents[0].EnvelopeChecked)
+	assert.True(t, *state.Intents[0].EnvelopeChecked, "an intent says whether it was checked against the envelope")
+	assert.Nil(t, state.Intents[1].EnvelopeChecked, "and absent is the third answer, for a row that never said")
 	assert.Equal(t, "1% of capital", state.Intents[1].MaxLoss)
 	assert.Equal(t, "turn-1", state.Intents[1].TurnRef, "an intent belongs to the turn that produced it")
 	// The agent's words are read like everything else. This check stands here

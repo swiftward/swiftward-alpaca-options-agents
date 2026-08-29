@@ -593,6 +593,55 @@ func TestAnIntentIsAcceptedWhenTheLimitsWereReadInThisTurn(t *testing.T) {
 	assert.False(t, out.IsError, "the limits were read in this turn, so the intent stands")
 }
 
+// An intent says whether it was checked, and the two cases are told apart in the
+// record.
+//
+// Where the check cannot be made - a deployment with no envelope to read, or a
+// driver that carries what the agent says rather than what it called - the
+// intent is recorded anyway, because refusing every intent is worse. A reader
+// comparing what was declared with what was done is entitled to know which of
+// the two kinds of row this is, and without the flag the two look identical.
+func TestAnIntentSaysWhetherItWasChecked(t *testing.T) {
+	checked := record.NewMemory()
+	server := httptest.NewServer(Tools{
+		Record: checked, Now: time.Now,
+		Running: &runningDouble{ref: "turn-1", wokenBy: "entry"},
+		Asked:   &askedDouble{inTurn: map[string]bool{"turn-1/read_envelope": true}},
+	}.Handler())
+	t.Cleanup(server.Close)
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	require.False(t, statingAnIntent(t, session).IsError)
+	stored, err := checked.Read(context.Background())
+	require.NoError(t, err)
+	require.Len(t, stored.Intents, 1)
+	require.NotNil(t, stored.Intents[0].EnvelopeChecked)
+	assert.True(t, *stored.Intents[0].EnvelopeChecked)
+
+	// The same tool where the check is not wired at all.
+	unchecked := record.NewMemory()
+	server2 := httptest.NewServer(Tools{
+		Record: unchecked, Now: time.Now,
+		Running: &runningDouble{ref: "turn-1", wokenBy: "entry"},
+	}.Handler())
+	t.Cleanup(server2.Close)
+	session2, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil).
+		Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server2.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session2.Close() })
+
+	require.False(t, statingAnIntent(t, session2).IsError, "an intent is still recorded")
+	storedToo, err := unchecked.Read(context.Background())
+	require.NoError(t, err)
+	require.Len(t, storedToo.Intents, 1)
+	require.NotNil(t, storedToo.Intents[0].EnvelopeChecked)
+	assert.False(t, *storedToo.Intents[0].EnvelopeChecked,
+		"recorded, and recorded as unchecked")
+}
+
 // Without a database there is nothing to check against, and refusing every
 // intent would stop a run that keeps no record at all.
 func TestWithoutARecordTheCheckIsSkipped(t *testing.T) {

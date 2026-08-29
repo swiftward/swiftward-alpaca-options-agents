@@ -370,8 +370,30 @@ func run(log *zap.Logger) error {
 			// guess what is normal - and guessing cost a trade on 27 August.
 			tools.SweepEvery = cfg.ScreenerEvery
 		}
-		if shortlist != nil {
+		// The gate on record_intent: an intent is refused unless the envelope was
+		// read in the SAME turn. It is wired only where it can actually be
+		// satisfied, and where it cannot the log says so rather than the agent
+		// discovering it on its first intent in the middle of a trading day.
+		//
+		// Two things have to be true. There must be an envelope to read - a
+		// deployment without one offers the session no read_envelope at all, so
+		// the gate would refuse every intent and name a tool that is not in the
+		// list. And the driver must report the session's tool calls, because that
+		// is what fills the table this is asked of: a mailbox carries what the
+		// agent SAYS and not what it called, so the table stays empty however
+		// faithfully the session reads its envelope. The same distinction already
+		// governs the broker watchdog - see harness.ReportsToolCalls.
+		switch {
+		case shortlist == nil:
+		case cfg.GatewayURL == "":
+			log.Warn("intents are recorded without checking the envelope was read this turn",
+				zap.String("why", "this deployment has no envelope to read: GATEWAY_URL is empty"))
+		case cfg.AgentDriver == config.DriverMailbox:
+			log.Warn("intents are recorded without checking the envelope was read this turn",
+				zap.String("why", "this driver does not report the session's tool calls, so the record cannot show one"))
+		default:
 			tools.Asked = shortlist
+			log.Info("an intent is refused unless the envelope was read in the same turn")
 		}
 		// Where to place the legs of a structure whose worst case is in the MIDDLE.
 		// The screener answers the other half of the question - which underlying of
