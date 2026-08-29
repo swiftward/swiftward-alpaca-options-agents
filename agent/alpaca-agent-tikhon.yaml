@@ -128,7 +128,11 @@ parameters:
   # FROM THE RULES: submissions close on 4 September at 15:00 UTC, the result is
   # counted at that moment, and what is done after it is not counted. There is
   # nothing to measure here - it is a date.
-  convexity_horizon: "4 September 2026: anything expiring after it does not belong to this layer"
+  # 3 September, not 4. Alpaca takes the account's equity at the END OF THURSDAY
+  # 3 September, and a bought option expiring the next morning is worth almost
+  # nothing by then - all its time value is gone at exactly the moment the number
+  # is taken. A bet that cannot be worth anything when it is counted is not a bet.
+  convexity_horizon: "3 September 2026: anything expiring after it does not belong to this layer"
 
   # The earnings crush. The size is small on purpose: the right tail is closed by
   # the wings here, so the trade can avoid losing rather than win a race.
