@@ -355,6 +355,8 @@ func run(log *zap.Logger) error {
 		}
 	}
 
+	// Named out here so the summary at the end can say whether the gate stands.
+	intentGate := false
 	if cfg.Has(config.RoleMCP) {
 		var poster sessiontools.Poster
 		if chat != nil && !cfg.Has(config.RoleHarness) {
@@ -421,6 +423,7 @@ func run(log *zap.Logger) error {
 				zap.String("why", "this driver does not report the session's tool calls, so the record cannot show one"))
 		default:
 			tools.Asked = shortlist
+			intentGate = true
 			log.Info("an intent is refused unless the envelope was read in the same turn")
 		}
 		// Where to place the legs of a structure whose worst case is in the MIDDLE.
@@ -803,6 +806,21 @@ func run(log *zap.Logger) error {
 	}
 
 	close(started)
+	// One line naming every guard and whether it is standing. Each of them is
+	// legal when off and invisible when off, so before this the only way to know
+	// was to hunt three separate warnings and the absence of a fourth. On the
+	// morning of a judged day the question "is everything on" should be one line
+	// to read, not an investigation.
+	if cfg.Has(config.RoleHarness) {
+		log.Info("guards",
+			zap.Bool("profit_watch", cfg.TakeProfitAt > 0 && broker != nil),
+			zap.Bool("turn_limit", cfg.TurnLimit > 0),
+			zap.Bool("ladder", cfg.ExecutionEvery > 0 && broker != nil),
+			zap.Bool("intent_gate", intentGate),
+			zap.Bool("envelope", cfg.GatewayURL != ""),
+			zap.Bool("record", state != nil),
+			zap.Bool("screener", shortlist != nil && len(cfg.ScreenerUnderlyings) > 0))
+	}
 	log.Info("started", zap.Any("roles", cfg.Roles))
 
 	return group.Wait()
