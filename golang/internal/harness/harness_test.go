@@ -1947,7 +1947,7 @@ func TestThePriceIsReadOnItsOwnCadenceNotOnEveryTick(t *testing.T) {
 	standing := &wakeupsDouble{
 		standing: []wakeup.Wakeup{{
 			ID: "w1", Kind: wakeup.KindPrice, Symbol: "SPY", Direction: wakeup.Below, Level: 1,
-			Cause: "уровень, до которого рынок не дойдёт",
+			Cause: "a level the market will not reach",
 		}},
 		watching: []string{"SPY"},
 	}
@@ -1963,14 +1963,14 @@ func TestThePriceIsReadOnItsOwnCadenceNotOnEveryTick(t *testing.T) {
 		Log:          zaptest.NewLogger(t),
 	}
 
-	// Семь тактов по десять секунд: 0, 10, 20, 30, 40, 50, 60.
+	// Seven ticks ten seconds apart: 0, 10, 20, 30, 40, 50, 60.
 	for i := 0; i < 7; i++ {
 		h.fireWakeups(t.Context())
 		clock = clock.Add(10 * time.Second)
 	}
 
 	assert.Equal(t, 3, prices.timesAsked(),
-		"читать цену надо на нулевой, тридцатой и шестидесятой секунде, а не семь раз")
+		"the price belongs to seconds 0, 30 and 60, not to all seven ticks")
 }
 
 // A tick that skips the market still fires a wake-up waiting for a TIME. The
@@ -1982,8 +1982,8 @@ func TestATimeWakeupFiresOnATickThatReadsNoPrice(t *testing.T) {
 
 	standing := &wakeupsDouble{
 		standing: []wakeup.Wakeup{
-			{ID: "w1", Kind: wakeup.KindPrice, Symbol: "SPY", Direction: wakeup.Below, Level: 1, Cause: "не сработает"},
-			{ID: "w2", Kind: wakeup.KindAt, At: start.Add(10 * time.Second), Cause: "разбуди меня через десять секунд"},
+			{ID: "w1", Kind: wakeup.KindPrice, Symbol: "SPY", Direction: wakeup.Below, Level: 1, Cause: "will not fire"},
+			{ID: "w2", Kind: wakeup.KindAt, At: start.Add(10 * time.Second), Cause: "wake me in ten seconds"},
 		},
 		watching: []string{"SPY"},
 	}
@@ -2005,9 +2005,9 @@ func TestATimeWakeupFiresOnATickThatReadsNoPrice(t *testing.T) {
 	h.fireWakeups(t.Context())
 
 	turns, _, _ := conversation.seen()
-	assert.Len(t, turns, 1, "пробуждение по времени обязано сработать на такте, который рынок не спрашивал")
-	assert.Contains(t, turns[0], "через десять секунд")
-	assert.Equal(t, 1, prices.timesAsked(), "рынок спрашивается один раз за час, а не на каждом такте")
+	assert.Len(t, turns, 1, "a wake-up waiting for a time has to fire on a tick that asked the market nothing")
+	assert.Contains(t, turns[0], "in ten seconds")
+	assert.Equal(t, 1, prices.timesAsked(), "the market is asked once an hour, not on every tick")
 }
 
 // Reading the disk is the one thing a tick does that is not free, so it has its
@@ -2032,14 +2032,14 @@ func TestTheDeclarationIsRereadOnItsOwnCadenceNotOnEveryTick(t *testing.T) {
 		Log:         zaptest.NewLogger(t),
 	}
 
-	// Семь тактов по десять секунд: 0, 10, 20, 30, 40, 50, 60.
+	// Seven ticks ten seconds apart: 0, 10, 20, 30, 40, 50, 60.
 	for i := 0; i < 7; i++ {
 		h.tick(t.Context())
 		clock = clock.Add(10 * time.Second)
 	}
 
 	assert.Equal(t, 3, reads,
-		"диск читается на нулевой, тридцатой и шестидесятой секунде, а не семь раз")
+		"the disk is read at seconds 0, 30 and 60, not on all seven ticks")
 }
 
 // A clock that steps backwards has to read as due. The other way round is a
@@ -2050,11 +2050,11 @@ func TestAClockThatStepsBackDoesNotStopTheReading(t *testing.T) {
 	last := start
 
 	assert.False(t, elapsed(&last, start.Add(time.Second), time.Minute),
-		"секунда из минуты ещё не прошла")
+		"one second of a minute has not passed yet")
 	assert.True(t, elapsed(&last, start.Add(-time.Hour), time.Minute),
-		"часы шагнули назад - читаем, а не залипаем")
+		"the clock stepped back - read, do not stick")
 	assert.Equal(t, start.Add(-time.Hour), last,
-		"после чтения отметка обязана переехать на новое время, иначе следующее чтение снова ждёт")
+		"after a read the stamp has to move to the new time, or the next read waits again")
 }
 
 // A cadence that is a multiple of the tick has to hold, not fall through to the
@@ -2066,7 +2066,7 @@ func TestACadenceIsNotLostToATickArrivingAHairEarly(t *testing.T) {
 	last := start
 
 	assert.False(t, elapsed(&last, start.Add(5*time.Second), 10*time.Second),
-		"половина каденции - ещё не время")
+		"half a cadence is not yet due")
 	assert.True(t, elapsed(&last, start.Add(10*time.Second-5*time.Millisecond), 10*time.Second),
-		"такт, опередивший каденцию на пять миллисекунд, обязан считаться пришедшим")
+		"a tick five milliseconds ahead of the cadence still counts as having arrived")
 }

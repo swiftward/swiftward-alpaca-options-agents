@@ -282,18 +282,18 @@ func TestConfigCarriesExactlyOneBrokerAddress(t *testing.T) {
 		"every call goes to the gateway; a second broker address is how reads leave the record")
 }
 
-// Ноль — не «без задержки», а «оставить как было», и разницу оператор должен
-// узнать при старте, а не по журналу через день. Пустое значение законно,
-// написанный ноль — нет.
+// Zero is not "no delay", it is "leave it as it was", and the operator has to
+// learn the difference at startup rather than from a log a day later. An empty
+// value is legal; a written zero is not.
 func TestAnIntervalWrittenAsZeroIsRefusedRatherThanTakenAsUnset(t *testing.T) {
 	for _, raw := range []string{"0", "0s", "-10s"} {
 		_, err := parseDuration("TICK_EVERY", raw)
-		assert.Error(t, err, "TICK_EVERY=%q обязан быть отвергнут", raw)
+		assert.Error(t, err, "TICK_EVERY=%q has to be refused", raw)
 	}
 
 	every, err := parseDuration("TICK_EVERY", "")
 	assert.NoError(t, err)
-	assert.Zero(t, every, "пусто значит не задано, и это законно")
+	assert.Zero(t, every, "empty means unset, and that is legal")
 
 	every, err = parseDuration("TICK_EVERY", "10s")
 	assert.NoError(t, err)
