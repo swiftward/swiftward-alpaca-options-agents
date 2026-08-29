@@ -106,6 +106,17 @@ jobs:
           # second architecture for - development happens on our own machines,
           # where the image is built locally.
           platforms: linux/amd64
+          # The hosts this deployment reaches that the repository must not name:
+          # the address of its own policy gateway, which belongs to whoever runs
+          # it. The egress proxy bakes its allowlist in, so the address has to be
+          # here at build time rather than in the environment at run time.
+          #
+          # Empty is a working value - the proxy then allows only what the
+          # committed filter lists - and it fails in the loud direction: the agent
+          # cannot reach the gateway and says so on every call. That is how
+          # 29 August went, for ten hours, on a stand that looked healthy.
+          build-args: |
+            EXTRA_ALLOWED_HOSTS=${{ vars.EXTRA_ALLOWED_HOSTS }}
           push: true
           tags: ${{ steps.names.outputs.tags }}
           labels: ${{ steps.names.outputs.labels }}
