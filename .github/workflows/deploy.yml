@@ -1,0 +1,115 @@
+# Rolls a built version out to the deployment.
+#
+# Separate from the build, and that is the main decision in this file. Building is
+# safe at any minute; rolling out is not: a restart cuts a running turn, and a turn
+# is a trading decision. So the build runs by itself on a tag and the rollout only
+# on a button, so a person picks the moment.
+#
+# TWO files travel to the server and nothing else. The sources are not needed
+# there - everything is in the images. And `.env` never travels through GitHub: it
+# holds the broker's keys and the gateway's tokens. It lives on the machine and is
+# edited by hand, and it is the only thing deliberately left manual.
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'A version from the registry, for example v0.0.1 or latest'
+        required: true
+        default: latest
+      force:
+        description: 'Roll out while the market is open (this cuts a running turn)'
+        type: boolean
+        default: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # With the market open we do not roll out by default. Not a ban but a
+      # question: the force checkbox goes through. The reason is that a restart cuts
+      # a turn, and a turn may be an entry window or the defence.
+      - name: Check the hour
+        if: ${{ !inputs.force }}
+        run: |
+          ny=$(TZ=America/New_York date '+%H%M')
+          dow=$(TZ=America/New_York date '+%u')
+          if [ "$dow" -le 5 ] && [ "$ny" -ge 0930 ] && [ "$ny" -le 1600 ]; then
+            echo "::error::The market is open ($ny New York time). A restart will cut a running turn."
+            echo "::error::If that is deliberate, run again with the force checkbox."
+            exit 1
+          fi
+          echo "The market is closed ($ny New York time), rolling out."
+
+      - name: Put the key in place
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      # Configuration only. Not the whole repository: the server must not be able
+      # to build, or one day it will build something nobody checked.
+      - name: Ship the configuration
+        run: |
+          scp compose.prod.yaml \
+            root@${{ secrets.DEPLOY_HOST }}:/opt/alpaca-stand/compose.prod.yaml
+          scp docker/traefik/dynamic.yml \
+            root@${{ secrets.DEPLOY_HOST }}:/opt/alpaca-stand/docker/traefik/dynamic.yml
+
+      - name: Roll out
+        run: |
+          ssh root@${{ secrets.DEPLOY_HOST }} bash -s <<'REMOTE'
+            set -e
+            cd /opt/alpaca-stand
+            mkdir -p transcripts
+            # IMAGE_TAG is rewritten rather than appended: two values in one file
+            # would give a deployment running something other than what the log
+            # shows.
+            sed -i '/^IMAGE_TAG=/d' .env
+            echo "IMAGE_TAG=${{ inputs.tag }}" >> .env
+            # --profile session: the agent carries profiles: [session] so a bare
+            # `up` cannot start trading by accident. Without this the rollout brings
+            # up everything EXCEPT the main thing and reports success.
+            docker compose --env-file .env -f compose.prod.yaml --profile session pull
+            docker compose --env-file .env -f compose.prod.yaml --profile session up -d
+          REMOTE
+
+      # A rollout without a check is pointless: "the container is running" does not
+      # mean "it works". These marks in particular - `conversation ready` and
+      # `started`. Not `listening`: the port opens earlier, and on 27 August the
+      # harness hung on exactly that for five and a half hours while the log showed
+      # everything was fine.
+      - name: Make sure it came up
+        run: |
+          ssh root@${{ secrets.DEPLOY_HOST }} bash -s <<'REMOTE'
+            cd /opt/alpaca-stand
+            for i in $(seq 1 24); do
+              sleep 5
+              broken=$(docker compose -f compose.prod.yaml --profile session ps --format '{{.Service}} {{.State}}' \
+                       | awk '$2 == "restarting" {print $1}' | tr '\n' ' ')
+              [ -z "$broken" ] && break
+            done
+
+            echo "=== service states ==="
+            docker compose -f compose.prod.yaml --profile session ps --format '{{.Service}}\t{{.State}}\t{{.Status}}'
+
+            if [ -n "$broken" ]; then
+              echo "::error::restarting in a loop: $broken"
+              docker compose -f compose.prod.yaml logs --tail 15 $broken
+              exit 1
+            fi
+
+            if docker compose -f compose.prod.yaml --profile session ps --services | grep -q '^agent$'; then
+              if docker compose -f compose.prod.yaml logs --since 5m agent 2>&1 | grep -q '"msg":"started"'; then
+                echo "the agent came up: it reached started"
+              else
+                echo "::error::the agent did not reach started in the time allowed"
+                docker compose -f compose.prod.yaml logs --tail 20 agent
+                exit 1
+              fi
+            fi
+          REMOTE

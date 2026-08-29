@@ -1,0 +1,310 @@
+name: swiftward-alpaca-options-agents-prod
+
+# Same stack as compose.yaml with one change: first-party services pull published
+# images at ${IMAGE_TAG} instead of building. Rationale for each service lives once,
+# in compose.yaml - the two files must not carry two copies of it that drift apart.
+
+services:
+  postgres:
+    image: postgres:18.4-alpine
+    networks: [internal]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # The schema, applied before anything reads it. Files run in name order, and
+  # each is written to be safe to run again, so a restart is not a special case.
+  # The schema arrives as an image built from the same commit as the rest. It
+  # reads no files from this machine's disk: otherwise what is in the checkout
+  # would be applied while the code came from the image, and the two would match
+  # only while somebody watched.
+  migrate:
+    image: ghcr.io/swiftward/swiftward-alpaca-options-agents/migrate:${IMAGE_TAG}
+    networks: [internal]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      RECORD_DATABASES: ${RECORD_DATABASES:-${POSTGRES_DB}}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  alpaca-mcp:
+    restart: unless-stopped
+    image: ghcr.io/swiftward/swiftward-alpaca-options-agents/alpaca-mcp:${IMAGE_TAG}
+    networks: [internal, outbound]
+    # Its own resolvers, as the proxy has: a container asking the machine's
+    # resolver inherits its failures, and they look like a refusal from the
+    # broker.
+    dns: [1.1.1.1, 8.8.8.8]
+    environment:
+      ALPACA_API_KEY: ${ALPACA_API_KEY_ID}
+      ALPACA_SECRET_KEY: ${ALPACA_API_SECRET_KEY}
+      ALPACA_PAPER_TRADE: ${ALPACA_PAPER}
+      ALPACA_TOOLSETS: ${ALPACA_TOOLSETS}
+
+  page:
+    image: ghcr.io/swiftward/swiftward-alpaca-options-agents/page:${IMAGE_TAG}
+    networks: [internal, outbound]
+    dns: [1.1.1.1, 8.8.8.8]
+    environment:
+      ROLES: api
+      ADDR: ":8080"
+      WEB_DIR: /srv/web
+      # The page serves the limits from the SAME file, through the same call that
+      # answers the agent. Otherwise it would show a retelling, and one day the
+      # retelling differs from what is actually traded, and a judge is shown a
+      # story about the system rather than the system. It reads and only reads: the
+      # page cannot edit the envelope.
+      ENVELOPE_PATH: /policy/envelope.yaml
+      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY:-options-alpha}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      RECORD_SHOWS: ${RECORD_SHOWS}
+      # The read side asks the broker what the account is worth. It only reads:
+      # the money questions have no order in them.
+      BROKER_MCP_URL: ${PAGE_MCP_URL}
+      BROKER_MCP_TOKEN: ${PAGE_MCP_TOKEN}
+      ORDERS_SHOWN: ${ORDERS_SHOWN}
+      HISTORY_DAYS: ${HISTORY_DAYS}
+    # The page has no port of its own facing outwards: only the proxy faces out,
+    # and it also holds the certificate. The port stays internal, reachable by the
+    # proxy by name.
+    # The week runs unattended: a machine that reboots at three in the morning
+    # must come back with the agent running, not with it waiting to be started.
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  agent:
+    image: ghcr.io/swiftward/swiftward-alpaca-options-agents/agent:${IMAGE_TAG}
+    networks: [internal]
+    environment:
+      ROLES: harness,mcp
+      MCP_ADDR: ":8081"
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      RECORD_SHOWS: ${RECORD_SHOWS}
+      AGENT_COMMAND: codex
+      AGENT_DIR: /work
+      # The container is the sandbox: root filesystem read-only, one writable
+      # directory, no route out except the proxy. The agent's own sandbox needs
+      # user namespaces this container does not grant, and running two boundaries
+      # where one is real would only stall every command.
+      AGENT_SANDBOX: danger-full-access
+      AGENT_MODEL: ${AGENT_MODEL}
+      AGENT_REASONING_EFFORT: ${AGENT_REASONING_EFFORT}
+      # Kept in the work volume, so a restart continues the same conversation.
+      THREAD_FILE: /work/.thread
+      WAKEUP_FILE: /work/wakeups.json
+      # One request to the agent may take this long. Past it the chat is told,
+      # rather than the whole room waiting on a session that stopped answering.
+      AGENT_CALL_TIMEOUT: ${AGENT_CALL_TIMEOUT}
+      # No single turn lives longer than this: other sessions are waiting behind
+      # it, and a defence that did not run because of a long search is worse than
+      # the search.
+      TURN_LIMIT: ${TURN_LIMIT}
+      # The pause between the things the room hears from a session. Thirteen
+      # sessions at four lines each is a refusal from Telegram, with the answer
+      # that matters waiting behind it.
+      SAY_EVERY: ${SAY_EVERY}
+      SESSION_MCP_URL: http://127.0.0.1:8081
+      # Set only while the gateway is not yet in front of the broker, and only on
+      # a development account.
+      BROKER_MCP_URL: ${BROKER_MCP_URL}
+      # Where the harness's READS go - prices, the clock, the account, chains. An
+      # empty value means "the same place the orders go". They can be separated
+      # because the line above also lands in the session's own configuration as
+      # [mcp_servers.broker], that is, it is the address an ORDER leaves by: its
+      # place is the gateway, which can refuse it and records that it happened.
+      # Reads carry no orders.
+      # The volatility history the entry rules compare against. It is worth what
+      # its length is, so it starts on the first day and is never paused.
+      VOLATILITY_UNDERLYINGS: ${VOLATILITY_UNDERLYINGS}
+      VOLATILITY_EVERY: ${VOLATILITY_EVERY}
+      # How often the account's own value is written down: the week is judged on
+      # the line those readings draw.
+      ACCOUNT_EVERY: ${ACCOUNT_EVERY}
+      # The ladder that walks an unfilled structure toward the price the book
+      # shows. It finishes what a session started and can open nothing.
+      # The share of the credit received at which a winning structure is bought
+      # back. MEASURED: research/threshold.py, 29 August 2026, on the minute-by-
+      # minute path of all 553 trades the rule selected across 646 days. Sitting to
+      # expiry gives 2,287 dollars and 26% losing trades; closing at 35% gives
+      # 6,292 and 9%. Better on both axes at once. The peak is exactly at 35%, and
+      # both halves of the history agree on it - a plateau from 35 to 40, a cliff
+      # after 50.
+      TAKE_PROFIT_AT: ${TAKE_PROFIT_AT}
+      # Half a minute. The point is to be there when the number crosses the line:
+      # the defence comes round every thirty minutes and on 28 August it missed a
+      # spread that gave back three quarters of its credit.
+      TAKE_PROFIT_EVERY: ${TAKE_PROFIT_EVERY}
+      EXECUTION_EVERY: ${EXECUTION_EVERY}
+      EXECUTION_STEP: ${EXECUTION_STEP}
+      EXECUTION_PATIENCE: ${EXECUTION_PATIENCE}
+      DECLARATION: ${DECLARATION:-/agent/agent.yaml}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}
+      TELEGRAM_ALLOW_USER_IDS: ${TELEGRAM_ALLOW_USER_IDS}
+      GATEWAY_URL: ${GATEWAY_URL:-http://envelope:8090/mcp}
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+      # Where the playbooks come from. In a deployment, from the image: there is no
+      # checkout here, and an edit to a playbook's text arrives as a new image, like
+      # everything else.
+      SKILLS_DIR: /agent/skills
+      # Who this process presents itself as to the envelope: the ladder reads the
+      # same position limit the session is told to size by.
+      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY}
+      # The key to the broker when the route to it runs through the gateway.
+      BROKER_MCP_TOKEN: ${BROKER_MCP_TOKEN}
+      MODEL_GATEWAY_URL: ${MODEL_GATEWAY_URL}
+      # What the screener looks through and what it considers fit to show. The
+      # analysis is docs/screener.md; an empty list of underlyings switches off both
+      # the pass and the session's candidates tool, silently.
+      SCREENER_UNDERLYINGS: ${SCREENER_UNDERLYINGS}
+      SCREENER_EVERY: ${SCREENER_EVERY}
+      SCREENER_PER_MINUTE: ${SCREENER_PER_MINUTE}
+      SCREENER_WORKERS: ${SCREENER_WORKERS}
+      SCREENER_EXPIRATIONS: ${SCREENER_EXPIRATIONS}
+      SCREENER_NEAREST: ${SCREENER_NEAREST}
+      SCREENER_FURTHEST: ${SCREENER_FURTHEST}
+      SCREENER_LEAST_PAID: ${SCREENER_LEAST_PAID}
+      SCREENER_MOST_PAID: ${SCREENER_MOST_PAID}
+      SCREENER_MOST_DELTA: ${SCREENER_MOST_DELTA}
+      SCREENER_LEAST_EDGE: ${SCREENER_LEAST_EDGE}
+      # How long a pass's findings live after a new pass replaces them. Without a
+      # value the process DOES NOT START: the candidate history is what the
+      # thresholds are computed on, and silently keeping it for zero time is worse
+      # than refusing to run.
+      SCREENER_KEEP: ${SCREENER_KEEP}
+      SCREENER_DEAREST: ${SCREENER_DEAREST}
+      THREAD_RESUME_LIMIT: ${THREAD_RESUME_LIMIT}
+      HTTP_PROXY: ${OUTBOUND_PROXY:-http://egress:8888}
+      HTTPS_PROXY: ${OUTBOUND_PROXY:-http://egress:8888}
+      NO_PROXY: alpaca-mcp,envelope,postgres,egress,localhost,127.0.0.1
+      CODEX_HOME: /home/agent/.codex
+    volumes:
+      - ${CODEX_AUTH_DIR}:/mnt/codex:ro
+      - codex-home:/home/agent/.codex
+      # The full trace of the agent's work onto the machine's disk, not only into a
+      # volume. codex writes a rollout here for every thread: what was fed in, which
+      # tools were called and with what answer, what the agent replied. Postgres
+      # beside it holds the same thing broken into tables, but holds no texts -
+      # neither the task nor the answer. Across the judged week this is the only
+      # record that can show WHAT the agent did, not just what it ended up with.
+      - ./transcripts:/home/agent/.codex/sessions
+      - agent-work:/work
+    # The claims the architecture makes about this container, enforced here: it
+    # cannot write outside its work directory, cannot gain privileges, and holds
+    # no capability it was not given.
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    profiles: [session]
+
+  # The only thing facing outwards. It holds the certificate and serves the page
+  # on the domain: a judge opens the address by hand, and it must answer over
+  # https.
+  #
+  # The certificate is obtained and renewed by itself, through a challenge on port
+  # 80. That is why 80 is published, though it serves nothing but a redirect to
+  # 443.
+  #
+  # It deliberately has no docker socket: a socket inside a container is the right
+  # to start any other container on the machine, and this container is the only one
+  # facing the internet. Our route is single and does not change, so it is
+  # described in a file.
+  traefik:
+    image: traefik:v3.7.12
+    networks: [internal, outbound]
+    command:
+      - --entrypoints.http.address=:80
+      - --entrypoints.http.http.redirections.entrypoint.to=https
+      - --entrypoints.http.http.redirections.entrypoint.scheme=https
+      - --entrypoints.https.address=:443
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/acme/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=http
+      - --log.level=INFO
+      - --accesslog=true
+    environment:
+      # The domain a judge opens the page on. It is substituted into the route
+      # rule; a run confirmed the file provider can do this.
+      DASHBOARD_HOST: ${DASHBOARD_HOST}
+    volumes:
+      - ./docker/traefik:/etc/traefik/dynamic:ro
+      - acme:/acme
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    cap_drop: [ALL]
+    # Ports below 1024 cannot be taken otherwise, and they have to be taken: a
+    # judge opens an address with no port in it.
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - page
+
+  # What the session asks about its limits. The file is mounted from the checkout
+  # rather than taken from the image: lowering a ceiling should be one edit, which
+  # a running session sees on its next question.
+  envelope:
+    image: ghcr.io/swiftward/swiftward-alpaca-options-agents/envelope:${IMAGE_TAG}
+    networks: [internal]
+    environment:
+      ROLES: envelope
+      ENVELOPE_ADDR: ":8090"
+      ENVELOPE_PATH: /policy/envelope.yaml
+      ENVELOPE_CALLERS: ${ENVELOPE_CALLERS}
+    # The rules arrive as an image, like the schema: there is no file from this
+    # machine's disk here. Locally they are mounted from the checkout - that is
+    # where a ceiling is lowered on a live deployment and the session is checked to
+    # read the new number on its next question. Nobody does that in production, and
+    # a stray file beside the stack diverges from the image exactly as silently as
+    # the migrations used to.
+    #
+    # If a ceiling ever has to be lowered without a rebuild: mount a file at
+    # /policy/envelope.yaml and it covers the one in the image. The service re-reads
+    # it on every question, so no restart is needed there either.
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  egress:
+    restart: unless-stopped
+    image: ghcr.io/swiftward/swiftward-alpaca-options-agents/egress:${IMAGE_TAG}
+    networks: [internal, outbound]
+
+networks:
+  internal:
+    internal: true
+  outbound:
+
+volumes:
+  acme:
+  pgdata:
+  codex-home:
+  agent-work:

@@ -1,0 +1,22 @@
+# The only route out: the read-only page.
+#
+# Declared in a file rather than by container labels, and that is a choice rather
+# than a habit. Labels are read through the Docker socket, and a socket inside a
+# container is the right to start any other container on this machine. The stack
+# beside it declares the opposite of itself: a read-only filesystem, no extra
+# capabilities, nothing beyond what it was given. We have one route and it does
+# not change, so there is nothing to pay labels for.
+http:
+  routers:
+    page:
+      rule: "Host(`{{ env "DASHBOARD_HOST" }}`)"
+      entryPoints: [https]
+      service: page
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    page:
+      loadBalancer:
+        servers:
+          - url: "http://page:8080"

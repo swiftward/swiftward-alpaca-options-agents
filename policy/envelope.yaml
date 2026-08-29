@@ -1,0 +1,159 @@
+# The limits in force, and who is under them.
+#
+# This file is the operator's. A session never reads it: it asks `read_envelope`
+# and is told what applies to it, which is why lowering a ceiling here is one edit
+# in one place and takes effect without restarting or rewriting anything.
+#
+# Two things do NOT belong here, and keeping them out is what stops this file from
+# quietly becoming the strategy:
+#
+#   * how a trade is chosen - which leg to sell, what a structure must pay, when
+#     to close. Nobody grants those, and an agent has no reason to get around
+#     them. They live in the skill that describes the playbook.
+#   * anything the broker already tells us. The account's options level arrives
+#     from Alpaca on its own and is not repeated here.
+#
+# Raise `ruleset_version` on every change. A refusal names the version that judged
+# it, and a session that read one version and was refused by another can say so
+# instead of guessing it misread its own limits.
+
+ruleset_version: "2026-08-26.7"
+
+agents:
+  # The first account. Small positions, the whole list of underlyings.
+  options-alpha:
+    tools:
+      place_option_order:
+        - rule: max-loss-per-position
+          disclosure: boundary
+          subject: position_max_loss
+          kind: maximum
+          value: 8.0
+          unit: percent_of_equity
+
+        - rule: max-loss-across-portfolio
+          disclosure: boundary
+          subject: portfolio_max_loss
+          kind: maximum
+          value: 80
+          unit: percent_of_equity
+
+        # Everything staked on one side of the market counts together. Sold puts
+        # are one bet, sold calls another: each pays while the price stays on its
+        # side, and a single move takes them all at once. On 28 August four put
+        # spreads, each inside its own limit, lost 19,193 together on an ordinary
+        # move down, because nobody was looking at their sum.
+        - rule: max-loss-on-one-side
+          disclosure: boundary
+          subject: same_direction_max_loss
+          kind: maximum
+          value: 25
+          unit: percent_of_equity
+
+
+        - rule: permitted-underlyings
+          disclosure: boundary
+          subject: underlying
+          kind: enum
+          value: [SPY, QQQ, IWM, DIA, MDY, RSP, VOO, VTI, EFA, EEM, FXI, EWZ, EWJ, EWY, INDA,
+                  XLF, XLE, XLK, XLV, XLI, XLP, XLU, XLB, XLY, XLC, XLRE, XBI, XRT, XME, XOP,
+                  OIH, SMH, SOXX, KRE, ITB, XHB, IYR, TLT, IEF, SHY, HYG, LQD, AGG, TIP, BND,
+                  EMB, MUB, GLD, SLV, GDX, GDXJ, USO, UNG, DBA, DBC, PDBC, VXX, UVXY, SVXY,
+                  VIXY, ARKK, ARKG, ARKW, TQQQ, SQQQ, SPXL, SPXS, TNA, TZA, SOXL, SOXS, LABU,
+                  LABD, AAPL, MSFT, NVDA, AMZN, GOOGL, GOOG, META, TSLA, AVGO, AMD, NFLX, ADBE,
+                  CRM, ORCL, CSCO, INTC, QCOM, TXN, MU, AMAT, LRCX, KLAC, ADI, NXPI, ON, MRVL,
+                  SNPS, CDNS, ANET, SMCI, DELL, HPQ, IBM, NOW, PANW, CRWD, ZS, OKTA, DDOG,
+                  SNOW, MDB, NET, TEAM, WDAY, INTU, ADSK, EA, TTWO, RBLX, U, PLTR, SNAP, PINS,
+                  SPOT, UBER, LYFT, ABNB, DASH, COIN, HOOD, SQ, PYPL, SHOP, MELI, SE, BABA, JD,
+                  PDD, NIO, XPEV, LI, BIDU, TCEHY, JPM, BAC, WFC, C, GS, MS, SCHW, USB, PNC,
+                  TFC, COF, AXP, BLK, BX, KKR, APO, SPGI, ICE, CME, MCO, BRK.B, V, MA, FI, GPN,
+                  UNH, JNJ, PFE, MRK, ABBV, LLY, BMY, AMGN, GILD, BIIB, VRTX, REGN, MRNA, CVS,
+                  CI, ELV, HUM, ISRG, SYK, BSX, MDT, ABT, TMO, DHR, XOM, CVX, COP, EOG, SLB,
+                  HAL, OXY, PSX, VLO, MPC, KMI, WMB, OKE, DVN, FANG, HES, WMT, COST, TGT, HD,
+                  LOW, DG, DLTR, KR, SYY, MCD, SBUX, CMG, YUM, DPZ, NKE, LULU, TJX, ROST, PG,
+                  KO, PEP, PM, MO, CL, KMB, GIS, K, HSY, STZ, MDLZ, MNST, KDP, BA, LMT, RTX,
+                  NOC, GD, LHX, CAT, DE, HON, GE, MMM, UPS, FDX, UNP, CSX, NSC, DAL, UAL, AAL,
+                  LUV, T, VZ, TMUS, CMCSA, DIS, WBD, PARA, ROKU, F, GM, RIVN, LCID, HMC, TM,
+                  CRWV, ARM, DKNG, MSTR, CLSK, MARA, RIOT]
+
+        - rule: permitted-expirations
+          disclosure: boundary
+          subject: expiration
+          kind: range
+          value: {min: 0, max: 5}
+          unit: trading_days_from_today
+
+        # How often you may open is counted by whoever counts it, not by anything
+        # in the order. A rule that reads a counter cannot show a boundary without
+        # showing the counter, so it shows that it exists and nothing more.
+        - rule: entry-frequency
+          disclosure: existence
+          says: "how often you may open is governed; a refusal on it is final"
+
+  # The second account. Same engine, sold closer to the money, so positions are
+  # larger and the list of underlyings is its own.
+  options-alpha-near:
+    tools:
+      place_option_order:
+        - rule: max-loss-per-position
+          disclosure: boundary
+          subject: position_max_loss
+          kind: maximum
+          value: 8.0
+          unit: percent_of_equity
+
+        - rule: max-loss-across-portfolio
+          disclosure: boundary
+          subject: portfolio_max_loss
+          kind: maximum
+          value: 80
+          unit: percent_of_equity
+
+        # Everything staked on one side of the market counts together. Sold puts
+        # are one bet, sold calls another: each pays while the price stays on its
+        # side, and a single move takes them all at once. On 28 August four put
+        # spreads, each inside its own limit, lost 19,193 together on an ordinary
+        # move down, because nobody was looking at their sum.
+        - rule: max-loss-on-one-side
+          disclosure: boundary
+          subject: same_direction_max_loss
+          kind: maximum
+          value: 25
+          unit: percent_of_equity
+
+
+        - rule: permitted-underlyings
+          disclosure: boundary
+          subject: underlying
+          kind: enum
+          value: [SPY, QQQ, IWM, DIA, MDY, RSP, VOO, VTI, EFA, EEM, FXI, EWZ, EWJ, EWY, INDA,
+                  XLF, XLE, XLK, XLV, XLI, XLP, XLU, XLB, XLY, XLC, XLRE, XBI, XRT, XME, XOP,
+                  OIH, SMH, SOXX, KRE, ITB, XHB, IYR, TLT, IEF, SHY, HYG, LQD, AGG, TIP, BND,
+                  EMB, MUB, GLD, SLV, GDX, GDXJ, USO, UNG, DBA, DBC, PDBC, VXX, UVXY, SVXY,
+                  VIXY, ARKK, ARKG, ARKW, TQQQ, SQQQ, SPXL, SPXS, TNA, TZA, SOXL, SOXS, LABU,
+                  LABD, AAPL, MSFT, NVDA, AMZN, GOOGL, GOOG, META, TSLA, AVGO, AMD, NFLX, ADBE,
+                  CRM, ORCL, CSCO, INTC, QCOM, TXN, MU, AMAT, LRCX, KLAC, ADI, NXPI, ON, MRVL,
+                  SNPS, CDNS, ANET, SMCI, DELL, HPQ, IBM, NOW, PANW, CRWD, ZS, OKTA, DDOG,
+                  SNOW, MDB, NET, TEAM, WDAY, INTU, ADSK, EA, TTWO, RBLX, U, PLTR, SNAP, PINS,
+                  SPOT, UBER, LYFT, ABNB, DASH, COIN, HOOD, SQ, PYPL, SHOP, MELI, SE, BABA, JD,
+                  PDD, NIO, XPEV, LI, BIDU, TCEHY, JPM, BAC, WFC, C, GS, MS, SCHW, USB, PNC,
+                  TFC, COF, AXP, BLK, BX, KKR, APO, SPGI, ICE, CME, MCO, BRK.B, V, MA, FI, GPN,
+                  UNH, JNJ, PFE, MRK, ABBV, LLY, BMY, AMGN, GILD, BIIB, VRTX, REGN, MRNA, CVS,
+                  CI, ELV, HUM, ISRG, SYK, BSX, MDT, ABT, TMO, DHR, XOM, CVX, COP, EOG, SLB,
+                  HAL, OXY, PSX, VLO, MPC, KMI, WMB, OKE, DVN, FANG, HES, WMT, COST, TGT, HD,
+                  LOW, DG, DLTR, KR, SYY, MCD, SBUX, CMG, YUM, DPZ, NKE, LULU, TJX, ROST, PG,
+                  KO, PEP, PM, MO, CL, KMB, GIS, K, HSY, STZ, MDLZ, MNST, KDP, BA, LMT, RTX,
+                  NOC, GD, LHX, CAT, DE, HON, GE, MMM, UPS, FDX, UNP, CSX, NSC, DAL, UAL, AAL,
+                  LUV, T, VZ, TMUS, CMCSA, DIS, WBD, PARA, ROKU, F, GM, RIVN, LCID, HMC, TM,
+                  CRWV, ARM, DKNG, MSTR, CLSK, MARA, RIOT]
+
+        - rule: permitted-expirations
+          disclosure: boundary
+          subject: expiration
+          kind: range
+          value: {min: 0, max: 5}
+          unit: trading_days_from_today
+
+        - rule: entry-frequency
+          disclosure: existence
+          says: "how often you may open is governed; a refusal on it is final"

@@ -1,0 +1,99 @@
+/* ============================================================
+   The page's colours, radii and roles. Written for this page.
+
+   Two layers, because they answer different questions. The scale below is raw
+   values with no opinion about where they go; the roles under it say what a
+   surface, a border or a muted line IS, and a component only ever names a role.
+   A component that names a raw value has a colour that does not know which
+   theme it is in, and one day it is black text on black.
+   ============================================================ */
+
+:root {
+  /* ---------- Neutrals, dark to light ---------- */
+  --grey-1000: #000000;
+  --grey-950: #0b0b0c;
+  --grey-900: #17181a;
+  --grey-800: #1f2124;
+  --grey-700: #2a2c30;
+  --grey-600: #3b3e44;
+  --grey-500: #5c6169;
+  --grey-400: #767c85;
+  --grey-300: #9aa0a8;
+  --grey-200: #cdd1d6;
+  --grey-150: #e2e5e8;
+  --grey-100: #eceef0;
+  --grey-50: #f5f6f7;
+  --grey-25: #fbfbfc;
+  --grey-0: #ffffff;
+
+  /* ---------- The two colours that carry meaning ----------
+     One says the page is live and where to look; one says a number is
+     information rather than a state. Profit and loss are below, in their own
+     roles, and deliberately not these: a page coloured by one green would mean
+     "it is running" and "we are up" at once. */
+  --signal-500: #12a150;
+  --info-500: #3b6fe0;
+
+  /* ---------- Radii ---------- */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-2xl: 24px;
+}
+
+/* ---------- The roles, light ---------- */
+[data-theme='light'],
+:root {
+  --bg: var(--grey-25);
+  --bg-alt: var(--grey-50);
+  --surface: var(--grey-50);
+  --surface-raised: var(--grey-0);
+  --surface-sunk: var(--grey-100);
+
+  --text-primary: var(--grey-950);
+  --text-strong: var(--grey-1000);
+  --text-secondary: var(--grey-500);
+  --text-muted: var(--grey-400);
+  --text-inverse: var(--grey-0);
+  --text-on-accent: var(--grey-0);
+
+  --border: var(--grey-150);
+  --border-strong: var(--grey-200);
+  --divider: var(--grey-150);
+
+  --accent: var(--signal-500);
+  --accent-ink: var(--grey-950);
+  --accent-info: var(--info-500);
+
+  --focus-ring: var(--info-500);
+}
+
+/* ---------- The roles, dark ----------
+   Kept because the roles can carry it, and unused: the theme is fixed light on
+   <html> so the page looks the same to every reader. */
+[data-theme='dark'] {
+  --bg: var(--grey-900);
+  --bg-alt: var(--grey-950);
+  --surface: var(--grey-800);
+  --surface-raised: var(--grey-800);
+  --surface-sunk: var(--grey-700);
+
+  --text-primary: var(--grey-100);
+  --text-strong: var(--grey-0);
+  --text-secondary: var(--grey-300);
+  --text-muted: var(--grey-400);
+  --text-inverse: var(--grey-950);
+  --text-on-accent: var(--grey-0);
+
+  --border: var(--grey-700);
+  --border-strong: var(--grey-600);
+  --divider: var(--grey-700);
+
+  --accent: var(--signal-500);
+  --accent-ink: var(--grey-0);
+  --accent-info: var(--info-500);
+
+  --focus-ring: var(--signal-500);
+}

@@ -1,0 +1,22 @@
+.env
+*.local
+golang/bin/
+golang/cover/
+typescript/web/node_modules/
+typescript/web/dist/
+tmp/
+
+# Local agent settings: machine-specific, never published.
+.claude/
+
+# Anything kept beside a file as a copy of it. `.env` is ignored by name, and a
+# backup of it holds the same broker keys - this history opens whole, so a
+# blanket `git add` must not be able to reach one. `*.bak` alone did not do it:
+# on 27 August a copy named `.env.before-broker-fix` was left in the tree and was
+# not ignored, so the pattern now covers every suffix and lets back the one file
+# that is meant to be read.
+*.bak
+.env.*
+!.env.example
+
+transcripts/

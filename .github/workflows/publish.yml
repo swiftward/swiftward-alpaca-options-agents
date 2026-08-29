@@ -1,0 +1,113 @@
+# Builds the images and puts them in the registry, where the deployed stand pulls
+# them from.
+#
+# Why not build on the server: it would then run something nobody checked. A build
+# made in place can differ from the one that passed the gate, and a failed one can
+# leave the stand down. A pulled image cannot do either.
+#
+# Updating the stand is NOT automatic and stays a person's decision: a restart
+# cuts off the turn in flight, and a turn is a trading decision.
+name: publish
+
+on:
+  push:
+    branches: [main]
+    # A version tag builds the same images under that name. The stand is pinned to
+    # a tag rather than to `latest`, so that "what is running" has an answer and a
+    # rollback is one line changed rather than an investigation.
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  # Published images are built from a commit that PASSED, and the gate runs in
+  # this workflow rather than beside it: a separate ci workflow says nothing about
+  # whether the images pushed from this same commit were ever checked, and green
+  # somewhere else is not green here.
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+      - run: go vet ./...
+        working-directory: golang
+      - run: go test -race -count=1 ./...
+        working-directory: golang
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+        working-directory: typescript/web
+      - run: npm run build
+        working-directory: typescript/web
+
+  images:
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      # One failed image does not cancel the rest: the stand is updated one image
+      # at a time, and four that are ready beat four that were never started.
+      fail-fast: false
+      matrix:
+        include:
+          - name: agent
+            dockerfile: docker/app.Dockerfile
+            target: agent
+          - name: page
+            dockerfile: docker/app.Dockerfile
+            target: page
+          - name: envelope
+            dockerfile: docker/app.Dockerfile
+            target: envelope
+          - name: alpaca-mcp
+            dockerfile: docker/alpaca-mcp.Dockerfile
+            target: ""
+          - name: egress
+            dockerfile: docker/egress.Dockerfile
+            target: ""
+          - name: migrate
+            dockerfile: docker/migrate.Dockerfile
+            target: ""
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: names
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ matrix.name }}
+          # Two tags per build: one fixed to the commit and a moving latest. The
+          # stand under judging is pinned to the commit - then what runs on it is
+          # visible, and a rollback is one line changed.
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=tag
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          # x86 only: that is what the stand runs on. There is nothing to build a
+          # second architecture for - development happens on our own machines,
+          # where the image is built locally.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.names.outputs.tags }}
+          labels: ${{ steps.names.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

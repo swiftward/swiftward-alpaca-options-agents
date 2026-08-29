@@ -1,0 +1,442 @@
+// Package screener finds, in code, the structures worth a session's attention.
+//
+// A session that hunts for itself can look at six underlyings before its turn
+// runs out, and the six are whichever the schedule handed it - so an opportunity
+// on the seventh is not rejected, it is never seen. What decides whether a credit
+// spread earns is measurable without judgement: what it pays against what it
+// risks, and what the round trip costs against what it pays. Both are arithmetic
+// over quotes.
+//
+// So the arithmetic runs here, over hundreds of names, and the session is handed
+// a ranked shortlist. It still decides what to take, how much, and whether to
+// trade at all: nothing here sends an order or knows what an account holds.
+package screener
+
+import (
+	"math"
+	"sort"
+	"time"
+
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
+)
+
+// Candidate is one vertical credit spread, priced.
+type Candidate struct {
+	Underlying string    `json:"underlying"`
+	Type       string    `json:"type"`
+	Expiration time.Time `json:"expiration"`
+	// Short is the leg sold, Long the leg bought one strike further out.
+	Short       string  `json:"short"`
+	Long        string  `json:"long"`
+	ShortStrike float64 `json:"short_strike"`
+	LongStrike  float64 `json:"long_strike"`
+	Price       float64 `json:"underlying_price"`
+	// OutOfTheMoney is how far the sold strike sits from the price, in percent.
+	OutOfTheMoney float64 `json:"out_of_the_money_percent"`
+	Credit        float64 `json:"credit"`
+	Risk          float64 `json:"risk"`
+	// CreditToRisk is what the structure pays for what it risks, in percent.
+	CreditToRisk float64 `json:"credit_to_risk_percent"`
+	// Cost is what crossing the book costs once: both legs' bid-ask added. It is
+	// what a fill at the far side would give up against the midpoint.
+	Cost float64 `json:"cost"`
+	// CreditAfterCost is the credit with half that crossing taken out - what an
+	// order sent at the midpoint and walked toward the book is worth in
+	// expectation, rather than what the screen displays.
+	//
+	// Every measure below is computed from this and not from Credit. A structure
+	// paying 0.20 with a 0.16 spread and one paying 0.12 with a 0.02 spread look
+	// like a clear win for the first and are the opposite.
+	CreditAfterCost float64 `json:"credit_after_cost"`
+	// Delta is the broker's own reading of how likely the sold strike is to finish
+	// in the money. Nil where the broker computes none, which is the day the
+	// contract expires.
+	Delta *float64 `json:"short_delta,omitempty"`
+	// Edge is what the structure pays against what it must survive, in percentage
+	// points: the chance the broker's own delta gives the sold strike of expiring
+	// worthless, less the share of the time CreditAfterCost has to win to break
+	// even.
+	//
+	// Positive means the market is paying more for this risk than the same market
+	// says the risk is worth. It is a SCREEN and not a promise: delta is a
+	// risk-neutral probability rather than a real one, and a spread does not lose
+	// its whole width when the strike is touched. But it ranks on both halves at
+	// once, which neither credit-to-risk nor delta does alone - on 26 August a
+	// delta ceiling threw away ORCL at +3.5, TSLA at +1.6 and INTC at +1.5 for
+	// being 0.30, while keeping nothing better.
+	Edge *float64 `json:"edge_points,omitempty"`
+	// EdgeFrom names what the chance of surviving was read from: the broker's
+	// delta, or the market's implied volatility where the broker computes no
+	// delta. The two are the same quantity from different prices, and a session
+	// weighing a structure is entitled to know which it is looking at.
+	EdgeFrom string `json:"edge_from,omitempty"`
+	// CostShare is that cost as a percent of the credit. This is the number that
+	// separated what earned from what lost on 25-26 August: the structures that
+	// paid had it near 10, the ones that lost had it above 100.
+	CostShare float64 `json:"cost_share_percent"`
+}
+
+// Wanted is what a candidate has to clear to be worth listing. These are not the
+// session's rules - the session applies its own, and stricter. They only keep the
+// list short enough to read.
+type Wanted struct {
+	// MinOutOfTheMoney and MaxOutOfTheMoney bound how far the sold strike sits
+	// from the price, in percent.
+	MinOutOfTheMoney, MaxOutOfTheMoney float64
+	// MinCreditToRisk is the least a structure may pay, in percent.
+	MinCreditToRisk float64
+	// MostCreditToRisk is the most a structure may pay before it is read as a
+	// broken quote rather than an opportunity. A vertical sold OUT of the money
+	// cannot honestly pay more than its width: at 100 percent the credit already
+	// equals the risk, which would mean the market thinks a strike it placed out
+	// of the money is more likely than not to be crossed.
+	//
+	// This matters because the list is ranked by exactly the number bad data
+	// inflates. The first live sweep put a TSLA call paying 468 percent at the
+	// top - a spread two and a half dollars wide quoted at a credit of 2.06 -
+	// and without this the session would have been shown garbage first.
+	MostCreditToRisk float64
+	// MaxCostShare is the most crossing the book may cost, as a percent of credit.
+	//
+	// This is a bound on nonsense, not a way of choosing: what the crossing costs
+	// is already taken out of the credit before anything is measured, so an
+	// expensive structure loses on Edge without needing a threshold. Set it wide.
+	// It was 20 for one afternoon and threw away 833 structures in a single sweep
+	// against 96 for the next filter - a number picked from one good trade and
+	// three bad ones, deciding the day.
+	MaxCostShare float64
+	// MostDelta is how likely the sold strike may be to finish in the money, as
+	// the broker's own delta, absolute. Distance in percent is not the same
+	// measure: a strike one percent away is far on a quiet index and near on a
+	// share that moves five percent a day. Ranking by distance alone offered
+	// structures at delta 0.47 to a rule that wants 0.15, and the session threw
+	// every one of them away - a list nobody can act on is worse than no list,
+	// because it costs a turn to reject.
+	//
+	// Zero leaves delta unchecked.
+	MostDelta float64
+	// LeastEdge is the least a structure may pay above what it must survive, in
+	// percentage points, and it applies only where the broker gave a delta to
+	// measure with. Zero leaves it unchecked.
+	//
+	// It belongs below zero. Edge understates on both halves: delta is a
+	// risk-neutral probability rather than a real one, and a spread does not lose
+	// its whole width when the strike is touched, only the part the price passes.
+	// A floor at +0.5 on a measure that understates emptied the list entirely on
+	// 26 August - nought found over 284 underlyings - and an empty list is not
+	// caution, it is the screener deciding what the session is there to decide.
+	LeastEdge float64
+}
+
+// widest is how many strikes back the bought leg may sit from the sold one.
+//
+// Beyond a handful the structure stops being a spread anyone would hold: the
+// risk grows with the width, so the same maximum loss buys fewer and fewer sets,
+// and the far leg costs so little that it protects mostly on paper.
+const widest = 5
+
+// Refused counts why structures did not make the list, by the filter that
+// stopped each one.
+//
+// A sweep that reads 284 underlyings and returns one structure says nothing
+// about which of its own filters did that, and the difference decides what to
+// change: a market with no opportunity in it and a threshold set too tight look
+// identical from the outside. This is what tells them apart.
+type Refused map[string]int
+
+func (r Refused) note(reason string) { r[reason]++ }
+
+// The reasons, one per place a structure can be dropped.
+const (
+	// RefusedNoAnswer and RefusedTooFewContracts are not the structure's fault
+	// at all - they say the sweep never got to look. They are counted beside the
+	// rest because the tally is what tells a quiet market from a broken path, and
+	// a skip that is neither counted nor logged makes the two identical. Measured
+	// on 27 August: the machine's resolver stopped answering for the gateway,
+	// every chain call failed, the sweep discarded all two hundred and eighty
+	// four names in silence and reported nothing at all.
+	RefusedNoAnswer        = "the broker did not answer"
+	RefusedTooFewContracts = "fewer than two contracts came back"
+	RefusedNoQuote         = "no two-sided quote"
+	RefusedNoCredit        = "no credit or no risk"
+	RefusedDistance        = "distance from the price"
+	RefusedPaysTooLittle   = "pays too little for the risk"
+	RefusedPaysTooMuch     = "pays more than its width, so the quote is broken"
+	RefusedDelta           = "too likely to be crossed"
+	RefusedCost            = "the crossing costs more of the credit than the sanity bound"
+	RefusedEatenByCost     = "the crossing eats the whole credit"
+	RefusedEdge            = "pays less than what it must survive"
+
+	// What the chance of surviving was read from.
+	FromDelta = "delta"
+	// FromBorrowedVolatility marks a measure whose volatility came from another
+	// expiration of the same underlying, because the contract's own quote carried
+	// none. Measured 26 August: of 28 QQQ contracts expiring that day, not one
+	// carried implied volatility or delta - so this is the ONLY way the expiry-day
+	// book can be measured at all.
+	//
+	// It is a weaker number and it errs in the dangerous direction. Volatility at
+	// the very short end usually sits above the days behind it, so a borrowed one
+	// understates how often the strike is reached, which overstates the edge. Any
+	// rule reading this must ask more of it than of a measured one, never less.
+	FromBorrowedVolatility = "implied volatility, borrowed from another expiration"
+)
+
+// Best returns the best put spread and the best call spread this underlying
+// offers on one expiration, or nothing where the book will not price one.
+//
+// "Best" is the highest credit for the risk among those that clear Wanted. A
+// structure whose legs lack a two-sided quote is not ranked low, it is absent:
+// half a price is worse than no price.
+func Best(underlying string, price float64, contracts []marketdata.Contract,
+	quotes map[string]marketdata.Quote, now time.Time, want Wanted, refused Refused) []Candidate {
+
+	if price <= 0 {
+		return nil
+	}
+
+	// The one volatility this underlying is quoted at anywhere in the window. The
+	// expiry-day contracts carry none of their own, and this is what stands in.
+	borrowed := nearestVolatility(contracts, quotes, now)
+
+	// Grouped by type AND expiration. Two legs of different expirations are a
+	// different structure entirely - a calendar, not a vertical - and pricing one
+	// as the other gives a risk that does not exist: the width between strikes
+	// bounds the loss only when both legs die on the same day.
+	type series struct {
+		kind    string
+		expires string
+	}
+	bySeries := map[series][]marketdata.Contract{}
+	for _, contract := range contracts {
+		key := series{contract.Type, contract.Expiration.Format(time.DateOnly)}
+		bySeries[key] = append(bySeries[key], contract)
+	}
+
+	// One best per side, and the unmeasured book keeps a slot of its own.
+	//
+	// Measured and unmeasured are not comparable, so making them compete drops one
+	// of them for a reason that is not about what it pays. A candidate with no
+	// edge ranks below any candidate that has one, so the moment an underlying
+	// offers a measured structure at any edge at all, a structure paying three
+	// times as much disappears for being unmeasured. That is the whole expiry-day
+	// book, and opening expiry day and then ranking it away is not opening it.
+	type slot struct {
+		kind     string
+		measured bool
+	}
+	var found []Candidate
+	best := map[slot]Candidate{}
+	for key, list := range bySeries {
+		kind := key.kind
+		sort.Slice(list, func(i, j int) bool { return list[i].Strike < list[j].Strike })
+
+		// Every sold strike against every protective strike behind it, not only
+		// the one next door.
+		//
+		// Width changes the structure, not just its size. A wide spread pays more
+		// for the same sold strike and costs the same two crossings to enter, so
+		// what the book takes is a smaller share of a larger credit - and the edge
+		// measure, which now has that crossing inside it, sees the difference. The
+		// screener priced adjacent strikes only until 26 August, so the whole
+		// dimension was invisible while costing nothing to look at: the quotes are
+		// already in hand and no further request is made for any of it.
+		for i := 1; i < len(list); i++ {
+			for back := 1; back <= widest && i-back >= 0; back++ {
+				// A put spread sells the higher strike and buys the lower; a call
+				// spread the other way round. Both sell the leg nearer the money.
+				short, long := list[i], list[i-back]
+				if kind == "call" {
+					short, long = list[i-back], list[i]
+				}
+
+				candidate, ok := price_(underlying, kind, price, short, long, quotes, now, borrowed, want, refused)
+				if !ok {
+					continue
+				}
+				where := slot{kind: kind, measured: candidate.Edge != nil}
+				if kept, have := best[where]; !have || richer(candidate, kept) {
+					best[where] = candidate
+				}
+			}
+		}
+	}
+	for _, candidate := range best {
+		found = append(found, candidate)
+	}
+
+	sort.Slice(found, func(i, j int) bool { return richer(found[i], found[j]) })
+
+	return found
+}
+
+func price_(underlying, kind string, price float64,
+	short, long marketdata.Contract, quotes map[string]marketdata.Quote, now time.Time,
+	borrowed *float64, want Wanted, refused Refused) (Candidate, bool) {
+
+	shortQuote, haveShort := quotes[short.Symbol]
+	longQuote, haveLong := quotes[long.Symbol]
+	if !haveShort || !haveLong {
+		refused.note(RefusedNoQuote)
+		return Candidate{}, false
+	}
+	if shortQuote.Bid <= 0 || shortQuote.Ask <= 0 || longQuote.Bid <= 0 || longQuote.Ask <= 0 {
+		refused.note(RefusedNoQuote)
+		return Candidate{}, false
+	}
+
+	width := math.Abs(short.Strike - long.Strike)
+	if width <= 0 {
+		refused.note(RefusedNoCredit)
+		return Candidate{}, false
+	}
+
+	// Sold at what a buyer pays, bought at what a seller asks: the credit the
+	// book would actually give, not the midpoint it displays.
+	credit := (shortQuote.Bid+shortQuote.Ask)/2 - (longQuote.Bid+longQuote.Ask)/2
+	risk := width - credit
+	if credit <= 0 || risk <= 0 {
+		refused.note(RefusedNoCredit)
+		return Candidate{}, false
+	}
+
+	out := (price - short.Strike) / price * 100
+	if kind == "call" {
+		out = (short.Strike - price) / price * 100
+	}
+	if out < want.MinOutOfTheMoney || out > want.MaxOutOfTheMoney {
+		refused.note(RefusedDistance)
+		return Candidate{}, false
+	}
+
+	toRisk := credit / risk * 100
+	if toRisk < want.MinCreditToRisk {
+		refused.note(RefusedPaysTooLittle)
+		return Candidate{}, false
+	}
+	if want.MostCreditToRisk > 0 && toRisk > want.MostCreditToRisk {
+		refused.note(RefusedPaysTooMuch)
+		return Candidate{}, false
+	}
+
+	// The broker computes no delta on the day a contract expires, so every filter
+	// that reads one is skipped for those and the candidate is listed with delta
+	// and edge absent. Refusing them instead removed the whole expiry-day book
+	// from view - and that book is where the money is on the day: measured at
+	// 17:15 on 26 August, QQQ a fifth of a percent out paid 49 percent of its risk
+	// with the crossing at 6 percent of the credit, against 8 to 15 percent at a
+	// crossing of 20 to 100 on everything one to five days out.
+	//
+	// What the absence means is the session's to judge, and it can see it: a
+	// candidate with no edge ranks below every candidate that has one.
+	if want.MostDelta > 0 && shortQuote.Delta != nil {
+		if math.Abs(*shortQuote.Delta) > want.MostDelta {
+			refused.note(RefusedDelta)
+			return Candidate{}, false
+		}
+	}
+
+	cost := (shortQuote.Ask - shortQuote.Bid) + (longQuote.Ask - longQuote.Bid)
+	share := cost / credit * 100
+	if share > want.MaxCostShare {
+		refused.note(RefusedCost)
+		return Candidate{}, false
+	}
+
+	// An order goes out at the midpoint and is walked toward the book, so half the
+	// crossing is what it gives up in expectation. Taking it out here is what makes
+	// the cost part of the measure instead of a threshold beside it.
+	//
+	// Half is not a guess. Measured over this project's own 34 fills on 26 August:
+	// 0.0229 conceded on average against the price first asked, and 20 of the 34
+	// filled at that price exactly. Half a typical spread on these structures is
+	// two to four cents, so the charge matches what the book actually took.
+	net := credit - cost/2
+	netRisk := width - net
+	if net <= 0 || netRisk <= 0 {
+		refused.note(RefusedEatenByCost)
+		return Candidate{}, false
+	}
+
+	// The chance the sold strike survives, from the broker's delta where there is
+	// one and from the price of volatility where there is not. Both are the same
+	// quantity read off different prices, so the measure below does not change
+	// shape - only where its first half comes from.
+	survives, from := 0.0, ""
+	switch {
+	case shortQuote.Delta != nil:
+		survives, from = 1-math.Abs(*shortQuote.Delta), FromDelta
+	case borrowed != nil:
+		if chance, ok := Survival(price, short.Strike, *borrowed,
+			leftUntil(short.Expiration, now)); ok {
+			survives, from = chance, FromBorrowedVolatility
+		}
+	}
+
+	var edge *float64
+	if from != "" {
+		breakEven := netRisk / (net + netRisk)
+		points := round((survives - breakEven) * 100)
+		edge = &points
+		if want.LeastEdge != 0 && points < want.LeastEdge {
+			refused.note(RefusedEdge)
+			return Candidate{}, false
+		}
+	}
+
+	return Candidate{
+		Underlying: underlying, Type: kind, Expiration: short.Expiration,
+		Short: short.Symbol, Long: long.Symbol,
+		ShortStrike: short.Strike, LongStrike: long.Strike,
+		Price: price, OutOfTheMoney: round(out),
+		Credit: round(credit), Risk: round(risk), CreditToRisk: round(toRisk),
+		Cost: round(cost), CostShare: round(share), CreditAfterCost: round(net),
+		Delta: shortQuote.Delta, Edge: edge, EdgeFrom: from,
+	}, true
+}
+
+// richer compares on what a structure pays against what it must survive, and
+// falls back to what it pays against what it risks where no delta was given.
+func richer(one, than Candidate) bool {
+	if one.Edge != nil && than.Edge != nil {
+		return *one.Edge > *than.Edge
+	}
+	if one.Edge != nil {
+		return true
+	}
+	if than.Edge != nil {
+		return false
+	}
+
+	return one.CreditToRisk > than.CreditToRisk
+}
+
+func round(value float64) float64 { return math.Round(value*100) / 100 }
+
+// nearestVolatility is what this underlying's options are priced at, taken from
+// the soonest expiration that carries a volatility at all.
+//
+// The soonest, because volatility has a term structure and the nearest one is
+// the closest thing to the day being measured. Nil where the whole window is
+// quoted without it, which is what an underlying nobody trades options on looks
+// like.
+func nearestVolatility(contracts []marketdata.Contract,
+	quotes map[string]marketdata.Quote, now time.Time) *float64 {
+
+	var soonest time.Time
+	var found *float64
+	for _, contract := range contracts {
+		quote, quoted := quotes[contract.Symbol]
+		if !quoted || quote.ImpliedVolatility == nil || *quote.ImpliedVolatility <= 0 {
+			continue
+		}
+		if leftUntil(contract.Expiration, now) <= 0 {
+			continue
+		}
+		if found == nil || contract.Expiration.Before(soonest) {
+			soonest, found = contract.Expiration, quote.ImpliedVolatility
+		}
+	}
+
+	return found
+}

@@ -1,0 +1,219 @@
+kind: trading-agent
+name: options-alpha-near
+version: "1"
+timezone: America/New_York
+
+# The same engine, one difference: we sell CLOSER to the money.
+#
+# The experiment answers one question, and it is also the main complaint against
+# the first account - its trades collect pennies. A sold leg at a delta near 0.15
+# sits far from price, loses rarely and pays almost nothing. A leg at a delta near
+# 0.30 sits twice as close: it pays several times more and loses noticeably more
+# often. Which of the two is better is not settled by argument - it is settled by
+# two accounts on the same day.
+#
+# Everything else matches experiment.yaml on purpose: size from the loss, the
+# portfolio limit as a sum of maximum losses, the execution ladder, an intent
+# recorded before the order. EXACTLY ONE thing may differ, or there is nothing to
+# compare.
+
+
+# Which techniques this agent receives at all. The name is what stands at the head
+# of SKILL.md. It belongs to the agent rather than to a session: the agent reads
+# the catalogue of techniques once, at startup, and one process serves every
+# session, so there is nothing to narrow the set with per window. Which technique
+# to take is still said by the task in words. The set is narrowed because every
+# technique's description enters the prompt of EVERY turn.
+skills:
+  - playbook-premium-harvest
+  - read-my-envelope
+
+# The numbers this agent carries out its techniques with. A technique holds the
+# mechanics and an EXAMPLE number; the number actually applied lives here - two
+# accounts run the same technique deliberately, and the difference between them is
+# the whole experiment. A skill declares in its header (`requires:`) which numbers
+# it needs; without them the agent does not start and says which is missing.
+# They stand at the head of EVERY turn - whether a window woke it, a wake-up of the
+# session's own, or a person in the chat - so they need not be repeated in a
+# window's text; a window that needs a different number need only say so itself.
+parameters:
+  # The whole point of this account: sell CLOSER to the money than its neighbour.
+  # The screener returns everything up to 0.35; take what is nearer.
+  short_leg_delta: "around 0.30 in absolute value, not 0.15"
+  # The second account stands FURTHER along the curve than the first, and that is
+  # its role in the three. Over 646 trading days: at 0 the expectation is near
+  # zero - the sign changes between 0 and +1 - at +2 it is plus 2.63, at +3 plus
+  # 4.14. "Strictly above 0" stood here until 28 August and meant trading exactly
+  # on the point where the sign changes. We take +3: the most per trade, the
+  # fewest trades, and deliberately a different angle from the neighbour's +2.
+  min_edge_points: "at least +3 on fresh quotes; within what qualifies, take the highest"
+  min_edge_points_borrowed: "strictly above 0"
+  daily_fuse_percent: "2"
+
+sessions:
+  - name: open-check
+    cause: "the start of the day: what is on the account and what is left from yesterday"
+    at: "09:35"
+    within: 20m
+    days: [mon, tue, wed, thu, fri]
+    task: |
+      Say in one line: the equity, how many positions are left from yesterday, and
+      what their combined maximum loss is. Open nothing and close nothing.
+
+  - name: entry
+    cause: "an entry closer to the money: a sold leg at a delta near 0.30"
+    every: 10m
+    between: ["09:50", "15:30"]
+    days: [mon, tue, wed, thu, fri]
+    task: |
+      Carry out premium-harvest, but closer to the money than on the neighbouring
+      account. The differences below are the whole point of this account and must
+      be held strictly. Anything not mentioned here is taken from the skill
+      unchanged.
+
+      **Where this task and the skill disagree, the TASK wins.** The skill
+      describes the technique in general and is written for every account at once;
+      its numbers are an example, not a law. If something here says otherwise about
+      delta, side, threshold or the cost of crossing - do as it says here, and say
+      in one line what diverged. Silently taking the skill's number instead of the
+      task's cancels the experiment this account exists for.
+
+      - The sold leg: the one whose delta is nearest 0.30 in absolute value. Not
+        0.15. The bought leg is the neighbouring strike, one dollar wide (or one
+        step of strikes).
+      - Either side: a put spread below price or a call spread above. Look at what
+        we already hold a lot of, and do not take a third position on one side of
+        one underlying. A second side on an underlying that already holds one is
+        the best exchange of risk for credit in this book: the broker holds
+        collateral on the worse of the two sides rather than on their sum, because
+        price cannot go both up and down. The credit is collected on both.
+      - There is no separate threshold on credit to risk: it sits entirely inside
+        `edge_points`, because the break-even probability IS risk/(credit+risk). A
+        threshold beside the measure is a second place holding the same knowledge.
+        Select by edge.
+      - **The edge must be above zero.** The best in the list is not the same as
+        acceptable: the list is ranked, and the first row stands first even when
+        the whole list is negative. Then the right move is not to enter.
+      - **Compute size from the WORST price you will declare, not from the
+        midpoint.** The credit at the worst price is smaller, so a set's loss is
+        larger, and a position that fitted the limit at the midpoint falls out of
+        it; the ladder judges an order by the declared worst price and will cancel
+        such a one. A set's loss is (width less the WORST credit) × 100.
+      - **Compute size from the envelope's `position_max_loss`, not from buying
+        power.** A broker's refusal for want of buying power means the arithmetic
+        is off by an order of magnitude; size must not be recomputed against
+        what buying power is left. Stop and say what you worked out and what is
+        allowed.
+      - **Do not look for underlyings yourself: ask read_candidates.** The screener
+        has priced the whole permitted list for you - hundreds of underlyings, both
+        sides, every five minutes. Searching by hand gets through six in a turn,
+        and those six are whichever came up in order, not the best. If the list is
+        empty or the tool is unavailable, say so in one line and end the turn.
+      - **Structures expiring today are permitted, but their measure is weaker.**
+        The broker gives neither delta nor volatility that day, so volatility is
+        borrowed from the nearest other expiry; `edge_from` says "borrowed from
+        another expiration". A borrowed number OVERSTATES the edge, so there
+        require an edge strictly above zero. And do not take a strike nearer than a
+        quarter of a percent from price.
+        And a second thing, about our own clock: **do not open a same-day structure
+        when less than forty-five minutes remain to the close.** Defence wakes every
+        fifteen minutes and the ladder leads an order for up to eight - a position
+        opened later cannot be defended EVEN ONCE, and that is not about the size
+        of the risk but about the machinery not reaching it. Work the time out
+        yourself from the broker's clock.
+      - **Do not sell premium on an underlying that reports before the structure
+        expires.** Before a report the premium is high and the selection measure
+        shows it as edge, but ahead of an event delta understates the tail. Selling
+        premium into an event is a fat left tail; on an event we bet by buying
+        convexity. The rule fires on a CONFIRMED date before expiry, not on a
+        silent feed: silence is not evidence, and a tail needs an appointed event.
+      - Remember what makes this account different: you need a delta near 0.30, and
+        the screener returns everything up to 0.35. From the list take the ones
+        NEARER the money - the neighbouring account takes the far ones, and that is
+        the whole experiment.
+      - No more than three new positions per window.
+      - Name the sold leg's delta in the intent's thesis.
+      - In one line: what you took, at what delta, for how much, what the maximum
+        loss is, and how much is at risk in total.
+
+  # Closing at a share of the credit belongs to the WATCH, not to an agent's turn.
+  # It looks every thirty seconds and buys back at 0.35 of the credit; an agent's
+  # window came round every fifteen minutes and settled for 0.50 - the same work
+  # done worse, and it took a turn from the defence.
+  # With TAKE_PROFIT_AT=0 nothing closes a winner at all: there is nobody else.
+
+  - name: defend
+    cause: "price has reached the sold strike"
+    every: 15m
+    between: ["09:40", "15:55"]
+    days: [mon, tue, wed, thu, fri]
+    task: |
+      Do not deal with entry orders: the harness leads them.
+      If no positions are open, say so in one line and end.
+      Close a position if the underlying's price has passed the sold strike - for a
+      put that is price below the strike, for a call above it.
+      - **If price has gone past the BOUGHT leg, do not close.** With both legs in
+        the money the spread's loss already equals the width and grows no further:
+        it is bounded by construction. Closing then saves nothing, pays the
+        crossing, and gives up the last thing left - the chance the underlying
+        comes back before expiry. Close only while price is BETWEEN the sold and
+        the bought strike: there the loss is still growing, and stopping it has a
+        point.
+        A live case from 26 August: META 575/577.5 call with price at 583 - past
+        both legs - and the close was offered at 2.50 on a width of 2.50, that is
+        at the full loss plus the crossing.
+      The near leg is crossed more often here than on the neighbouring account:
+      that is expected and is the price of being paid more.
+      Close nothing else: a spread lives on time decay, and a position closed early
+      pays the crossing twice and collects half.
+      Otherwise name the current result on each position and touch nothing.
+
+  # The last day of the submission week is counted NOT at the market's close:
+  # submissions close on 4 September at 11:00 New York, and everything open at that
+  # minute enters the result at a mark we do not know. An ordinary flatten at 15:50
+  # would be four hours late.
+  #
+  # It stands here because the account for judging is not yet chosen: a window that
+  # does not exist cannot be added retroactively on the day it is needed.
+  - name: flatten-before-the-deadline
+    cause: "the result is counted at 11:00, not at the close"
+    at: "10:15"
+    within: 30m
+    days: [fri]
+    task: |
+      **This window is silent EVERY Friday. There is exactly one exception:
+      4 September 2026.**
+      Ask the broker's clock (get_clock) and check the date:
+      - today is NOT 4 September 2026 - say "not the day" in one line and end the
+        turn; read nothing and touch nothing;
+      - today is 4 September 2026 - carry on with this window.
+      There is no other reading of this.
+
+      Submissions close at 11:00 New York, and the result is counted on the account
+      as of that minute. An open position enters it at the broker's mark, not as
+      money.
+      Close everything that closes without costing more than holding it is worth.
+      Name and leave a position that closes for more than its mark - closing for the
+      sake of a round account costs money too.
+      Name each decision in one line: what you closed, what you left, and why.
+
+  - name: flatten
+    cause: "close what risks assignment today"
+    at: "15:35"
+    within: 20m
+    days: [mon, tue, wed, thu, fri]
+    task: |
+      Close positions in options expiring TODAY whose underlying has come nearer to
+      the sold strike than the WIDTH of the structure itself. Not "nearer than fifty
+      cents": that number is from the days when a position was one to five
+      contracts, while the width is a measure of the structure itself and grows
+      with it.
+      There is exactly one danger: price closing BETWEEN the legs. Then the sold leg
+      is exercised, the bought one expires empty, and instead of a bounded loss
+      there is a position in SHARES. The width is the size of that gap; anything
+      beyond it cannot fall in.
+      Count what you risk rather than what the buy-back costs: the buy-back is
+      bounded and known, an exercise is not.
+      Let the rest of today's expiries expire.
+      Do not touch positions with a later expiry.
+      Name the day's result as one number: equity against yesterday's close.

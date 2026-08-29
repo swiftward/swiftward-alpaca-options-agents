@@ -1,0 +1,482 @@
+# When the agent wakes and why. Hours are New York's, because the market is.
+#
+# Nothing here says what to trade: each session carries a task in words, and the
+# session that reads it decides. That line is what makes the agent autonomous
+# rather than driven.
+kind: trading-agent
+name: options-alpha
+version: v1
+timezone: America/New_York
+
+# Which playbooks this agent gets at all. The name is the one in the SKILL.md
+# header. This belongs to the agent, not to a session: the agent reads the
+# playbook catalogue once at start-up and one process serves every session, so
+# there is nothing to narrow the set with per window. Which playbook to run is
+# still said by the task, in words.
+# The set is narrowed because every playbook's description goes into EVERY turn's
+# prompt.
+skills:
+  - playbook-premium-harvest
+  - playbook-convexity
+  - playbook-earnings-crush
+  - playbook-event-convexity
+  - read-my-envelope
+
+# The numbers this agent runs its playbooks with. A playbook holds the mechanics
+# and an EXAMPLE number; the number actually applied lives here - two accounts run
+# the same playbook on purpose, and the difference between them is the whole
+# experiment.
+# A skill declares in its header (`requires:`) which numbers it needs; if one is
+# not given, the agent does not start and says which is missing.
+# They stand at the head of EVERY turn - whether a window, a session's own wake-up
+# or a person in the chat started it - so there is no need to repeat them in a
+# window's text; a window that needs a different number need only say so itself.
+parameters:
+  # MEASURED: research/grid.py, 27 August. SPY and QQQ, 646 trading days from
+  # 18 January 2024, 289,459 structures. Delta in the history was recovered by
+  # inversion and checked twice: against our own database (mean error 0.0082 on a
+  # grid step of 0.05) and by put-call parity on 9,312 strike pairs.
+  #
+  # 0.45 stood here from the morning of 27 August on ONE pass: in the 0.25-0.45
+  # band credit to risk was 40.9% against 14.3% below it. There is indeed more
+  # credit there, and proportionally more losses - across the history 0.45 is worse
+  # everywhere. A measurement of one slice lost to a measurement of two and a half
+  # years.
+  short_leg_delta: "no more than 0.30 in absolute value"
+  # MEASURED by the same run, and this number decides more than the delta ceiling.
+  # Expectancy rises monotonically with the threshold under any ceiling, and its
+  # SIGN changes between 0 and +1: at -1.0 expectancy is -0.72 dollars per trade,
+  # at +2 it is +2.63, at +3 it is +4.14. So until today the rule was loss-making
+  # by construction, not by bad luck.
+  #
+  # +3 was taken, and that is Kostya's correction to my +2. I chose +2 as one unit
+  # of margin from the sign change, assuming a smooth slope. He computed the TOTAL
+  # over the period: +2 gives 638 trades at 2.63 dollars = 1,678; +3 gives 553 at
+  # 4.14 = 2,289; +4 gives 1,710. Both neighbours lower means a peak, not the edge
+  # of a slope. And my own reasoning works for his number: +3 is FURTHER from the
+  # sign change than +2.
+  #
+  # A THRESHOLD and a CHOICE are different things. Sessions read "the largest in
+  # the list" as a bar equal to the best candidate, and such a bar cannot be
+  # cleared: the legs are re-read before the order, by then the list has aged, and
+  # the best falls below itself. The threshold applies to FRESH quotes; the choice
+  # happens among what clears it.
+  min_edge_points: "at least +3 measured on FRESH quotes; among those that clear it, take the largest"
+  # PROVISIONAL: never measured. Borrowed volatility occurs only on the expiry day,
+  # and the backtest of 27 August showed that a zero-day expiry does not clear the
+  # edge measure anyway - so there has been no occasion to measure it.
+  min_edge_points_borrowed: "strictly above 0: borrowed volatility overstates the edge"
+  # The day's fuse. This declaration had no number of its own and ran on the 2%
+  # from the skill - this is that number, moved to where it can be seen.
+  # PROVISIONAL: moved from the skill, where it stood without a justification. It is
+  # computed from the distribution of the account's daily drawdowns, and we have two
+  # days of those so far.
+  daily_fuse_percent: "2"
+
+  # The convexity layer. Size is measured by the WORST OUTCOME - the backspread's
+  # valley at the bought strike at expiry. A ceiling computed from the entry price
+  # bounds nothing: at two cents per set it permits hundreds of sets. That has
+  # already happened once, and it was an agent, not a person, who wrote it into the
+  # declaration.
+  # PROVISIONAL: assigned. It is computed the same way as the event bet's share -
+  # from the distribution of the structure's outcomes across the history. The layer
+  # has not been measured yet.
+  convexity_worst_case_share: "one structure: no more than 2% of equity at its worst case"
+  # WHERE THE LEGS STAND. Until 28 August the declaration said nothing about this:
+  # the playbook said "sell one nearer, buy two further" and was silent on the
+  # distance, while size and exit were written out in detail. The agent chose by eye
+  # and chose badly.
+  #
+  # MEASURED: research/sweep_backspread.py, 28 August 2026. A sweep of placements
+  # across 466 SPY windows in a volatility regime close to the present one (10.5%
+  # annualised), structures priced by Black-Scholes on that same volatility. ANY
+  # placement with the valley closer than 2 sigma has a negative expectancy. On
+  # 28 August the agent sold at 0.57 sigma with the valley at 1.25 sigma and got
+  # -68 dollars per trade; the best placements - selling at 1.5-2.0 sigma with the
+  # valley at 2.5-3.0 - give +10 to +14.
+  #
+  # This is not about luck: a valley placed where the market reaches on an ordinary
+  # move eats everything the structure earns the rest of the time. The character of
+  # the layer changes with it - a loss in 2.8% of cases instead of 22%, and 2.2% of
+  # the expectancy coming from the top percent of outcomes instead of 68%. Placed
+  # correctly, a backspread stops being a lottery.
+  convexity_short_leg_distance: "the sold leg no closer than 1.5 sigma of the move expected by expiry, where sigma is the underlying's volatility (read_volatility_history) times the square root of trading days remaining over 252, times the price"
+  # MEASURED: the same sweep on the same day. The valley is the bought strike; the
+  # worst outcome stands there.
+  convexity_valley_distance: "the bought strike - the valley, where the worst case sits - no closer than 2.5 of that same sigma"
+  # MEASURED: research/sweep_backspread.py, 28 August 2026. It was 3%, so the layer
+  # could hold one and a half structures at once. At a measured expectancy of +14
+  # dollars per trade and a worst case of -1,825 there is nothing to pay a second
+  # simultaneous bet with: it doubles the tail without doubling the expectancy. Set
+  # equal to one structure's ceiling, the layer's share means exactly one open
+  # structure at a time.
+  convexity_layer_share: "the whole layer, counting what is already open: no more than 2% of equity"
+  # PROVISIONAL: assigned.
+  convexity_daily_debit: "no more than 0.5% of equity per day"
+  # Divided by the WIDTH, not by the credit: the credit here is near zero, and
+  # dividing by it would forbid everything.
+  # PROVISIONAL: assigned. A live measurement of the book on 27 August gave a median
+  # of 0.07 dollars on a two-legged spread; there is no such measurement for a
+  # three-legged structure.
+  convexity_roundtrip_share: "no dearer than a tenth of the structure's width"
+  # PROVISIONAL: assigned.
+  convexity_take: "three times what was paid or better: close it"
+  # The last day whose result is counted. Not "the end of the week": a Friday rule
+  # closed a structure an hour after it opened on 27 August and on top of that
+  # forbade the layer from opening on any Thursday at all - every permitted expiry
+  # outlives a Friday.
+  # FROM THE RULES: submissions close on 4 September at 15:00 UTC, the result is
+  # counted at that moment, and what is done after it is not counted. There is
+  # nothing to measure here - it is a date.
+  convexity_horizon: "4 September 2026: anything expiring after it does not belong to this layer"
+
+  # The earnings crush. The size is small on purpose: the right tail is closed by
+  # the wings here, so the trade can avoid losing rather than win a race.
+  # PROVISIONAL: assigned.
+  crush_worst_case_share: "no more than 3% of equity"
+  # PROVISIONAL: assigned from general reasoning. It is computed on past earnings -
+  # the implied move against the realised one, and at what ratio selling paid off.
+  # The computation has not been done.
+  crush_implied_over_realized: "sell at 1.3 or above; at 0.8 or below buy the move instead of selling; in between take nothing"
+
+  # The event bet - the only one with an open right tail.
+  # Five percent is the default, and it is NOT a decision about size: twenty is
+  # taken only on a person's explicit word the evening before.
+  # MEASURED: research/gap_bet_analyze.py, 27 August, 25 earnings since February
+  # 2024. The median outcome is -32.6% of what was staked, in profit 7 times out of
+  # 25. Five percent against twenty across the lived history: $90,423 against
+  # $61,083, worst drawdown $86,258 against $53,594. Twenty is a bet that 25
+  # observations describe the tail; they do not.
+  event_bet_share: "5% of equity; 20% only on a person's explicit word, and history says that choice costs 29 thousand"
+  # MEASURED by the same run: an exit at 9:35 gives a mean of -7.4%, an exit at
+  # 10:00 gives +2.0%. Haste costs nine percentage points, so "close at once" was
+  # replaced by "not before 10:00".
+  event_exit_by: "not before 10:00 and not after 10:30 New York time"
+
+sessions:
+  - name: open-check
+    cause: "the market opened half an hour ago: see what we are working with"
+    at: "10:00"
+    within: 2h
+    days: [mon, tue, wed, thu, fri]
+    task: |
+      Check the market clock. If it is shut, say so and finish.
+      Read the account and the open positions: some were opened yesterday and
+      expire today. Name the money, the buying power, and for each position when
+      it expires.
+      Read the news for SPY, QQQ, IWM.
+      In one message: what is open, what changed overnight, what to watch today.
+      Send no orders in this session.
+
+  - name: entry-midday
+    cause: "midday entry window: a position taken here lives half a session"
+    at: "12:30"
+    within: 40m
+    days: [mon, tue, wed, thu, fri]
+    task: |
+      **This window runs EVERY trading day. There is exactly one exception:
+      4 September 2026.** Ask the clock and check the date:
+      - today is NOT 4 September 2026 - carry on with this window as usual;
+      - today IS 4 September 2026 - open nothing, say so in one line and finish:
+        submissions close at 11:00 New York time, the result is counted at that
+        moment, and anything done after it is not counted at all.
+      There is no other reading: a date that does not match is NOT a reason to
+      finish.
+      The midday entry window. Run premium-harvest.
+      The rule lives in the skill in full and is not repeated here. Your limits -
+      what one position and the whole book may lose, which underlyings, which
+      expirations - come from the envelope (read_envelope). They are not in this
+      text and they will not be.
+
+  - name: entry-morning
+    cause: "morning entry window, taken only when premium is dear"
+    at: "10:20"
+    within: 45m
+    days: [mon, tue, wed, thu, fri]
+    task: |
+      **This window runs EVERY trading day. There is exactly one exception:
+      4 September 2026.** Ask the clock and check the date:
+      - today is NOT 4 September 2026 - carry on with this window as usual;
+      - today IS 4 September 2026 - open nothing, say so in one line and finish:
+        submissions close at 11:00 New York time, the result is counted at that
+        moment, and anything done after it is not counted at all.
+      There is no other reading: a date that does not match is NOT a reason to
+      finish.
+      A morning entry is not taken every day: a whole day of movement lies ahead,
+      so the premium has to be dear by a measure visible in the chain itself.
+      Run premium-harvest with two tightenings, both in our favour: enter only an
+      underlying whose best structure pays a credit-to-risk of at least 13%, and
+      no more than one underlying in this window.
+      If none clears it, say in one line what each of them paid and finish.
+
+  - name: entry
+    cause: "the main entry window of the day"
+    at: "14:20"
+    within: 45m
+    days: [mon, tue, wed, thu, fri]
+    task: |
+      **This window runs EVERY trading day. There is exactly one exception:
+      4 September 2026.** Ask the clock and check the date:
+      - today is NOT 4 September 2026 - carry on with this window as usual;
+      - today IS 4 September 2026 - open nothing, say so in one line and finish:
+        submissions close at 11:00 New York time, the result is counted at that
+        moment, and anything done after it is not counted at all.
+      There is no other reading: a date that does not match is NOT a reason to
+      finish.
+      The main entry window of the day. Run premium-harvest.
+
+  - name: convexity
+    cause: "convexity layer: a cheap bet on a large move, bounded and known"
+    # It was 2h. The layer's expectancy is measured and small (+14 dollars per trade
+    # at the current volatility), and a turn here is the most expensive of all - 94
+    # seconds on average against 31 for the defence. There is no point looking more
+    # often: this step is still in time to take profit under convexity_take, and at
+    # a layer share of 2% there is one new entry at a time anyway.
+    every: 4h
+    between: ["09:50", "15:00"]
+    days: [mon, tue, wed, thu, fri]
+    task: |
+      **This layer is MANAGING ONLY until 4 September 2026. Open nothing new.**
+      Not a pause for lack of trust in the playbook - a measurement. Priced
+      against this underlying's own history in the volatility standing now, the
+      price reaches the sold strike in 1.4 percent of windows, and the whole of
+      the layer's positive expectation sits in a single episode of history. Over
+      four days you get the median outcome, not the average one, and the median
+      here is the debit back.
+      Run the part of the skill about what is ALREADY OPEN, in full:
+      - worth convexity_take of what was paid - close it and say what you took;
+      - a day or less to expiry and the move never came - close while something
+        is still bid;
+      - it outlives convexity_horizon - close it;
+      - none of these - say in one line what you hold and why, and finish.
+      Then finish. Do not price new structures, do not call score_placements for
+      a new one, do not send an opening order. If nothing is open, say so in one
+      line and finish - that is a complete turn, not an idle one.
+      Your limits come from the envelope (read_envelope): they are not in this
+      text.
+
+  - name: earnings-crush
+    # The cause names a CONDITION, not a fact. It used to read "AVGO reports
+    # tonight", and on any other Wednesday that was untrue - in the record and on
+    # the page a judge reads. The date itself is right: on 28 August six news
+    # sources agreed on 2 September, and the date check stands in the task below.
+    cause: "the earnings window: if a report lands after the close tonight, sell what the unknown has inflated"
+    at: "15:20"
+    within: 30m
+    days: [wed]
+    task: |
+      **Check the date first.** This session is written for the AVGO report of
+      2 September 2026. Ask the clock (get_clock). If today is not 2 September,
+      say so in one line and finish without doing anything: the weekday matched,
+      the date did not.
+      Then run earnings-crush on AVGO.
+      The report comes after the close, so take the expiration that comes AFTER
+      it - the one expiring today dies before the reaction and carries none of
+      the event.
+      The MEASUREMENT decides the side, not an opinion: work out the implied move
+      and the median of what this name has actually done on past reports, and say
+      both numbers out loud.
+
+  - name: earnings-crush-exit
+    cause: "the report landed last night: the crush happened at the open, what follows is drift"
+    at: "09:35"
+    within: 30m
+    days: [thu]
+    task: |
+      **Check the date first.** This session is written for the morning of
+      3 September 2026 - the morning after the AVGO report. Ask the clock. If
+      today is not 3 September, say so in one line and finish. If the earnings
+      layer holds no position, say that and finish too.
+      **Close what this layer holds, whatever it turned out to be.** Yesterday's
+      measurement could have sent it either way: usually a sold iron condor, but
+      on an inverted ratio a bought backspread. Both come out this morning.
+      The condor goes as one opposing mleg order, all four legs at once.
+      Do not confuse the earnings backspread with the convexity layer: that one
+      lives for days, this one was bought for a single report, the report has
+      happened, and the volatility it was bought on falls all day.
+      The crush happens at the open; everything after is drift, and this structure
+      was not hired to hold drift. Do not wait for the last cent of decay.
+      If price went through the short strike, close anyway and say what it cost:
+      the structure did its job by bounding the loss, and holding it for a
+      recovery is a different trade nobody decided to make.
+      Confirm with the broker that the position is gone, and name the price you
+      actually got.
+
+  - name: event-convexity-enter
+    cause: "the employment number lands in the morning: buy the gap tonight"
+    at: "15:30"
+    within: 25m
+    days: [thu]
+    task: |
+      **Check the date first.** This session is written for the employment report
+      of 4 September 2026, and the entry is taken the evening before - on
+      3 September. Ask the clock. If today is not 3 September, say so in one line
+      and finish.
+      Then run event-convexity on SPY, expiring 4 September.
+      This is the largest bet of the week and the only one whose right tail is
+      uncapped. It burns more often than it pays, and that is the chosen shape,
+      not a defect.
+      Take a size above the default only on a person's explicit word.
+
+  - name: event-convexity-exit
+    cause: "the number is out: sell the gap in the first hour"
+    at: "09:35"
+    within: 55m
+    days: [fri]
+    task: |
+      **Check the date first.** This session is written for the morning of
+      4 September 2026. Ask the clock. If today is not 4 September, say so in one
+      line and finish. If the event layer holds no position, say that and finish.
+      Then take the exit exactly as event-convexity states it, and it is not open
+      to argument: if the gap falls short of break-even, close - but not in the
+      first minutes, the skill says when and why; if the gap is there, sell in
+      pieces as it moves. Everything is closed by the appointed hour.
+      The book is wide in the first minutes: name the price you GOT, not the one
+      you wanted, and confirm with the broker that the position is gone.
+
+  - name: deadline-flatten
+    cause: "submissions close at 11:00 New York time: by that hour the account must be flat"
+    at: "10:35"
+    within: 20m
+    days: [fri]
+    task: |
+      **Check the date first.** This session is written for 4 September 2026 - the
+      day submissions close. Ask the clock. If today is not 4 September, say so in
+      one line and finish, closing nothing.
+      Then: the result is counted from the account's VALUE at 11:00, unrealised
+      INCLUDED, and anything done after that is not counted at all.
+
+      **Cancel every working order - that comes first and needs no thought.**
+      An order that fills a minute before the cut changes the result at random,
+      and nobody decided that.
+
+      **After that, do NOT close everything.** Measured on 27 August on a live
+      pair, QQQ 705/706 put, 50 sets: the broker marked it at -300, and closing it
+      right then cost -500. Closing turns a mark into cash and pays the crossing
+      for the privilege - two hundred dollars on one pair. A "clean account" is
+      bought with the very money we are judged on.
+
+      So for EACH position compare two numbers and name both: what the broker
+      marks it at, and what the worst side of the book would give for it now.
+      - They give no worse than the mark: close it, that is free.
+      - They give noticeably worse: leave it and say by how much. The 11:00 count
+        takes the mark, and the mark is the better of the two for us.
+      Not one decision without its pair of numbers beside it.
+
+      Finish like this: how much you closed and why, how much you left and by how
+      much the mark beat the crossing, the money and the result. And confirm WITH
+      THE BROKER that no working order is left - not "I sent the cancels" but "the
+      broker shows zero".
+
+  - name: news-watch
+    cause: "news check on the underlyings we hold"
+    every: 30m
+    between: ["09:35", "15:45"]
+    days: [mon, tue, wed, thu, fri]
+    # Reads, and decides whether the one who trades is worth waking. An expensive
+    # model is not needed here: the work is reading a feed and making one judgement.
+    model: gpt-5.6-luna
+    task: |
+      Read the news for SPY, QQQ, IWM and for the underlyings we hold.
+      If nothing matters, answer in one line - "nothing new" - and finish.
+      Waking a trading session is expensive, and forgetting whom you woke an hour
+      ago is easy: every run of yours starts with a clean memory. So what decides
+      is not the news but the PRICE - price is always visible and does not depend
+      on what you remember.
+      Wake one only when both hold: there is an open position in that underlying,
+      AND price has come within a third of the distance its short strike had when
+      the position was opened. Take that opening distance from the entry price in
+      the record (read_state) or from the opening order.
+      An official's opinion, a forecast, fund flows, announced tariffs - none is a
+      reason on its own: the market reads them without us, they are already in the
+      price, and if price has not moved toward our strike there is nobody to wake.
+      If both hold, set a wake-up five minutes out (wake_me_at) with a reason like
+      "check the open positions against this news: <news>. Open nothing new", and
+      say in the room what exactly you found.
+      Send no orders: your job is to notice, not to trade.
+
+  - name: defend
+    cause: "the defence rules"
+    every: 30m
+    between: ["09:40", "15:55"]
+    days: [mon, tue, wed, thu, fri]
+    task: |
+      If nothing is open, say so in one line and finish.
+      **Count the legs first, and only then think about price.** Yours - and only
+      yours - is EXACTLY TWO legs: one sold and one bought, same type, same
+      expiration. That is a vertical.
+
+      Everything else is not yours, and that is settled by COUNTING, not by
+      recognising a shape:
+      - more than two legs: not yours, whatever it is;
+      - more bought than sold: not yours all the more.
+
+      Counting rather than recognising is necessary because recognising has
+      already cost money. On 26 August, on the neighbouring account, defence
+      closed NVDA 222.5C/227.5C - one sold, two bought - because price stood
+      between the strikes. For a vertical that is right: the loss grows there.
+      Here the deepest point of the payoff lies between the strikes, and the
+      structure was bought for a move BEYOND the far leg. Closed at 0.61 debit a
+      set, 14 sets, minus $1,694 - on exactly the day it was bought for.
+
+      The convexity layer - a backspread, one sold leg against TWO bought - is not
+      yours at all. It was bought for the day the market moves hard, which is the
+      very day defence fires most often; closing it then throws away the cover at
+      the moment it starts working.
+
+      The earnings iron condor - four legs - is not a vertical either, however
+      much it reads like two. And do not think of it as cover: a condor is SOLD
+      premium, it earns when nothing moves and loses its maximum on exactly the
+      violent day. You leave it alone for a different reason - it has its own exit,
+      the morning after the report, and buying it back early pays the crossing on
+      four legs to collect a part. If its loss is growing, that is not cover
+      working, it is an ordinary loss inside a known width; say so and walk past
+      anyway.
+
+      Not a vertical - say that in one line and walk past.
+      **Close only when price has passed the BOUGHT strike, not the sold one.**
+      Measured: research/exit_rules.py, 638 trades over two and a half years.
+      Closing on a touch of the sold strike returns -$0.33 a trade; closing on the
+      bought strike +$0.86; holding to expiry +$2.63. The difference between the
+      first two is $1.19 a trade, and it costs almost nothing: the worst run is
+      four percent deeper, the worst single trade is the same.
+
+      Two numbers explain why. When price touches the sold strike the spread is
+      worth about 0.62 of its width - closing there locks in two thirds of the
+      maximum loss. And 37% of those cases finish OUT of the money: over two and a
+      half years this rule turned 103 winners into losses. On top of that, 38.5%
+      of the triggers land on the first bar of a day, meaning price gapped through
+      overnight and there is nothing left to prevent.
+
+      Past the bought strike the structure is lost in full, and closing frees
+      buying power rather than saving money. Say it that way.
+      Close nothing else: a spread lives on decay, and a position closed early
+      pays the crossing twice and collects half. A position expiring tomorrow
+      sleeps overnight - that is fine, its risk is bounded by the width.
+      Otherwise name the current result of each position and touch nothing.
+
+  # 15:40 with a ten-minute window, so the LATEST this can start is 15:49 and the
+  # fallback below still fits before the bell. At 15:50 with twenty minutes it
+  # could start at 16:09 - after the close, with nothing left to close - and the
+  # window that exists to prevent assignment would have been the one thing the day
+  # did not do.
+  - name: flatten
+    cause: "close what must not be held overnight"
+    at: "15:40"
+    within: 10m
+    days: [mon, tue, wed, thu, fri]
+    task: |
+      Close the options expiring TODAY whose short strike sits within fifty cents
+      of the underlying's price: those are the ones at risk of assignment.
+      Let the rest of today's expire - buying back a one-cent spread costs more
+      than it saves.
+      Leave later expirations alone: they were opened yesterday or today and live
+      on, and their risk is bounded by the width of the structure.
+      Do not wait inside this turn. If the position is still open after the limit
+      order, set a wake-up three minutes out (wake_me_at) and end the turn; on the
+      next turn close at market if it is still open. A turn is cut off at its own
+      limit, so a wait of five minutes inside one means the market order is never
+      sent - and an assigned short put is 100 shares per contract held overnight,
+      an assigned short call the same 100 shares short.
+      Name the day's result and confirm with the broker that what remains is only
+      what was left to expire and the later expirations.

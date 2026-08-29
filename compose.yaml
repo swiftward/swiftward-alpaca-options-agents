@@ -1,0 +1,578 @@
+name: swiftward-alpaca-options-agents
+
+# Local stack, built from this checkout. `make up` builds and starts it.
+#
+# Two networks on purpose. `internal` has no route out and cannot publish a port.
+# The services that must reach the public internet - Alpaca's own server, and the
+# page a browser opens - also sit on `outbound`. The agent sits on `internal`
+# alone, so its only ways anywhere are the services beside it and the egress
+# proxy, whose allowlist it cannot widen.
+
+x-broker-service: &broker-service
+  restart: unless-stopped
+  build:
+    context: .
+    dockerfile: docker/alpaca-mcp.Dockerfile
+  networks: [internal, outbound]
+  # Its own resolvers, as the proxy has. Without them the container asks the
+  # machine's resolver, and on 27 August that one returned failures in bursts: six
+  # unresolved lookups in three minutes, each turning into "the broker refused
+  # get_orders" at the ladder - a refusal that looks like the broker's decision
+  # when the broker was never asked. The name did not resolve; Alpaca was never
+  # reached.
+  dns: [1.1.1.1, 8.8.8.8]
+
+x-broker-environment: &broker-environment
+  ALPACA_PAPER_TRADE: ${ALPACA_PAPER}
+  ALPACA_TOOLSETS: ${ALPACA_TOOLSETS}
+
+x-agent-service: &agent-service
+  build:
+    context: .
+    dockerfile: docker/app.Dockerfile
+    target: agent
+    args:
+      AGENT_UID: ${AGENT_UID}
+  networks: [internal]
+  # The claims the architecture makes about this container, enforced here: it
+  # cannot write outside its work directory, cannot gain privileges, and holds
+  # no capability it was not given.
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+  profiles: [session]
+
+# Everything an agent needs that does NOT depend on which account it trades.
+# What does depend on the account - the record, the broker's server, the
+# declaration, and whether it speaks in the room - is set on each agent, and is
+# the whole difference between them.
+x-agent-environment: &agent-environment
+  ROLES: harness,mcp
+  MCP_ADDR: ":8081"
+  SESSION_MCP_URL: http://127.0.0.1:8081
+  RECORD_SHOWS: ${RECORD_SHOWS}
+  AGENT_COMMAND: codex
+  AGENT_DIR: /work
+  # The container is the sandbox: root filesystem read-only, one writable
+  # directory, no route out except the proxy. The agent's own sandbox needs
+  # user namespaces this container does not grant, and running two boundaries
+  # where one is real would only stall every command.
+  AGENT_SANDBOX: danger-full-access
+  AGENT_MODEL: ${AGENT_MODEL}
+  AGENT_REASONING_EFFORT: ${AGENT_REASONING_EFFORT}
+  # Kept in the work volume, so a restart continues the same conversation.
+  THREAD_FILE: /work/.thread
+  WAKEUP_FILE: /work/wakeups.json
+  # One request to the agent may take this long. Past it the chat is told,
+  # rather than the whole room waiting on a session that stopped answering.
+  AGENT_CALL_TIMEOUT: ${AGENT_CALL_TIMEOUT}
+  THREAD_RESUME_LIMIT: ${THREAD_RESUME_LIMIT}
+  # No single turn lives longer than this: other sessions are waiting behind it,
+  # and a defence that did not run because of a long search is worse than the
+  # search.
+  TURN_LIMIT: ${TURN_LIMIT}
+  # The pause between the things the room hears from a session. Thirteen sessions
+  # at four lines each is a refusal from Telegram, with the answer that matters
+  # waiting behind it.
+  SAY_EVERY: ${SAY_EVERY}
+  # The screener prices the whole permitted universe over and over, so a session
+  # chooses from what the market offers rather than from the few names its turn
+  # had time to look at. It reads and cannot order.
+  SCREENER_UNDERLYINGS: ${SCREENER_UNDERLYINGS}
+  SCREENER_EVERY: ${SCREENER_EVERY}
+  SCREENER_KEEP: ${SCREENER_KEEP}
+  SCREENER_PER_MINUTE: ${SCREENER_PER_MINUTE}
+  SCREENER_WORKERS: ${SCREENER_WORKERS}
+  SCREENER_EXPIRATIONS: ${SCREENER_EXPIRATIONS}
+  SCREENER_NEAREST: ${SCREENER_NEAREST}
+  SCREENER_FURTHEST: ${SCREENER_FURTHEST}
+  SCREENER_LEAST_PAID: ${SCREENER_LEAST_PAID}
+  SCREENER_MOST_PAID: ${SCREENER_MOST_PAID}
+  SCREENER_MOST_DELTA: ${SCREENER_MOST_DELTA}
+  SCREENER_LEAST_EDGE: ${SCREENER_LEAST_EDGE}
+  SCREENER_DEAREST: ${SCREENER_DEAREST}
+  # The volatility history the entry rules compare against. It is worth what
+  # its length is, so it starts on the first day and is never paused.
+  VOLATILITY_UNDERLYINGS: ${VOLATILITY_UNDERLYINGS}
+  VOLATILITY_EVERY: ${VOLATILITY_EVERY}
+  # How often the account's own value is written down: the week is judged on
+  # the line those readings draw.
+  ACCOUNT_EVERY: ${ACCOUNT_EVERY}
+  # The ladder that walks an unfilled structure toward the price the book
+  # shows. It finishes what a session started and can open nothing.
+  # The share of the credit received at which a winning structure is bought back.
+  # MEASURED: research/threshold.py, 29 August 2026, on the minute-by-minute path
+  # of all 553 trades the rule selected across 646 days. Sitting to expiry gives
+  # 2,287 dollars and 26% losing trades; closing at 35% gives 6,292 and 9%. Better
+  # on both axes at once. The peak is exactly at 35%, and both halves of the
+  # history agree on it - a plateau from 35 to 40, a cliff after 50.
+  TAKE_PROFIT_AT: ${TAKE_PROFIT_AT}
+  # Half a minute. The point is to be there when the number crosses the line: the
+  # defence comes round every thirty minutes and on 28 August it missed a spread
+  # that gave back three quarters of its credit.
+  TAKE_PROFIT_EVERY: ${TAKE_PROFIT_EVERY}
+  EXECUTION_EVERY: ${EXECUTION_EVERY}
+  EXECUTION_STEP: ${EXECUTION_STEP}
+  EXECUTION_PATIENCE: ${EXECUTION_PATIENCE}
+  # The whole policy directory is mounted, never the single file inside it. A
+  # one-file bind mount holds the file's inode, so anything that REPLACES the
+  # file rather than rewriting it - git checkout, a rebase, an editor that writes
+  # through a temporary - leaves the container reading the old content and says
+  # nothing. Measured 28 August: limits were lowered on the host and the envelope
+  # served the previous numbers for seven minutes, while the code that re-reads
+  # the file on every call was working exactly as written.
+  # Where the session asks what it is allowed to do. Until the policy gateway is
+  # in front of the broker, this is the stand-in beside it - under the same name,
+  # so the session cannot tell the two apart and needs no change when they swap.
+  # The token is NOT here: which limits apply is the one thing the two agents must
+  # not share.
+  # Read the playbooks from here rather than from the image: the checkout is
+  # mounted alongside, so an edit to their text reaches a running session. In the
+  # image the default is /agent/skills.
+  SKILLS_DIR: /mnt/skills
+  GATEWAY_URL: ${GATEWAY_URL:-http://envelope:8090/mcp}
+  # Every outbound request goes through the policy gateway, which records where
+  # the agent went and decides whether it may. The host list it enforces is the
+  # one the outbound proxy enforced before it - nothing new is refused, and now
+  # there is a record of what was asked for.
+  # The way out. The default is the internet gateway that stands beside the rest
+  # of the stack; a stand running on someone's own machine is not on that network
+  # and names its own way out instead.
+  HTTP_PROXY: ${OUTBOUND_PROXY:-http://swiftward-hackathon-server:8097}
+  HTTPS_PROXY: ${OUTBOUND_PROXY:-http://swiftward-hackathon-server:8097}
+  NO_PROXY: alpaca-mcp-agent-1,alpaca-mcp-agent-2,alpaca-mcp-agent-tikhon,alpaca-mcp-agent-stand,envelope,postgres,egress,swiftward-hackathon-server,localhost,127.0.0.1
+  CODEX_HOME: /home/agent/.codex
+
+services:
+  postgres:
+    image: postgres:18.4-alpine
+    networks: [internal]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # The schema, applied before anything reads it. Files run in name order, and
+  # each is written to be safe to run again, so a restart is not a special case.
+  migrate:
+    image: postgres:18.4-alpine
+    networks: [internal]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      RECORD_DATABASES: ${RECORD_DATABASES}
+    volumes:
+      - ./postgres/migrations:/migrations:ro
+      - ./postgres/migrate.sh:/migrate.sh:ro
+    entrypoint: ["/bin/sh", "/migrate.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # The database tier: the record's tests against the real Postgres, run beside
+  # it on the network that has no route out. `make test-db` starts this.
+  tests:
+    image: golang:1.27-alpine
+    networks: [internal]
+    working_dir: /src
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DATABASE}?sslmode=disable
+      BROKER_MCP_URL: http://alpaca-mcp-agent-1:8000/mcp
+      GOFLAGS: -buildvcs=false
+      # This network has no route out, so every module must already be in the
+      # cache mounted below. A download here is an error, not a wait.
+      GOPROXY: "off"
+      GOCACHE: /tmp/gocache
+    volumes:
+      - ./golang:/src
+      - ./postgres:/postgres:ro
+      - ${GOMODCACHE}:/go/pkg/mod
+    command: ["go", "test", "-tags", "db", "-count=1", "./internal/record/...", "./internal/volatility/..."]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    profiles: [test]
+
+  # Alpaca's own MCP server. The account keys live here and nowhere else; no host
+  # port, so the only caller is the policy gateway.
+  alpaca-mcp-agent-1:
+    <<: *broker-service
+    environment:
+      <<: *broker-environment
+      ALPACA_API_KEY: ${ALPACA_API_KEY_ID}
+      ALPACA_SECRET_KEY: ${ALPACA_API_SECRET_KEY}
+
+  # The second account. Its keys are the only thing that differs: one server
+  # holds one account's keys, given at startup, so an account needs a server.
+  alpaca-mcp-agent-2:
+    <<: *broker-service
+    environment:
+      <<: *broker-environment
+      ALPACA_API_KEY: ${ALPACA_NEAR_API_KEY_ID}
+      ALPACA_SECRET_KEY: ${ALPACA_NEAR_API_SECRET_KEY}
+
+  # A teammate's own account. Their server, their keys, and a gateway endpoint of
+  # its own - because this server reads its credentials from its own environment,
+  # so one process serves exactly one account and no request can say otherwise.
+  #
+  # Behind a profile: it does not start until someone asks for it by name, and a
+  # server with no keys would answer every call with an authentication error that
+  # reads like a broken gateway.
+  #
+  #   docker compose --profile tikhon up -d alpaca-mcp-agent-tikhon
+  alpaca-mcp-agent-tikhon:
+    <<: *broker-service
+    profiles: [tikhon]
+    environment:
+      <<: *broker-environment
+      ALPACA_API_KEY: ${ALPACA_TIKHON_API_KEY_ID}
+      ALPACA_SECRET_KEY: ${ALPACA_TIKHON_API_SECRET_KEY}
+
+  # The same teammate's DEMO STAND, on a second account of his. One process per
+  # account is why this is a service of its own rather than a setting on the one
+  # above: the server reads its keys from its own environment.
+  #
+  #   docker compose --profile tikhon up -d alpaca-mcp-agent-stand
+  alpaca-mcp-agent-stand:
+    <<: *broker-service
+    profiles: [tikhon]
+    environment:
+      <<: *broker-environment
+      ALPACA_API_KEY: ${ALPACA_STAND_API_KEY_ID}
+      ALPACA_SECRET_KEY: ${ALPACA_STAND_API_SECRET_KEY}
+
+  # The session's container: the harness role plus the agent it starts. It holds
+  # no credential of ours; the login it does carry is Codex's own, mounted from
+  # the host that performed it.
+  # The read side: the demo page and the JSON behind it. It reads the record and
+  # nothing else - no credential, no broker, no decision - so it is the one
+  # service that may sit where a browser can reach it.
+  page:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      target: page
+    networks: [internal, outbound]
+    # Its own resolvers: the page goes to the gateway for the money, and it would
+    # show a name-resolution failure as the broker being unavailable.
+    dns: [1.1.1.1, 8.8.8.8]
+    environment:
+      ROLES: api
+      ADDR: ":8080"
+      WEB_DIR: /srv/web
+      # The page serves the limits from the SAME file, through the same call that
+      # answers the agent. Otherwise it would show a retelling, and one day the
+      # retelling differs from what is actually traded, and a judge is shown a
+      # story about the system rather than the system. It reads and only reads: the
+      # page cannot edit the envelope.
+      ENVELOPE_PATH: /policy/envelope.yaml
+      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY:-options-alpha}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      RECORD_SHOWS: ${RECORD_SHOWS}
+      # The read side asks the broker what the account is worth. It only reads:
+      # the money questions have no order in them - and it carries a credential
+      # that CANNOT send one, so a leak here is not a trade.
+      #
+      # That last guarantee is the GATEWAY's, not this service's: the credential
+      # is refused an order because the gateway refuses it. Pointed at the
+      # broker's own server the same page could send one, so this address is its
+      # own variable and does not follow the harness off the gateway.
+      BROKER_MCP_URL: ${PAGE_MCP_URL}
+      BROKER_MCP_TOKEN: ${PAGE_MCP_TOKEN}
+      ORDERS_SHOWN: ${ORDERS_SHOWN}
+      HISTORY_DAYS: ${HISTORY_DAYS}
+    ports:
+      - "${APP_PORT}:8080"
+    # The week runs unattended: a machine that reboots at three in the morning
+    # must come back with the agent running, not with it waiting to be started.
+    restart: unless-stopped
+    volumes:
+      # Read-only: the page shows the limits and cannot change them. The same file
+      # the envelope and the ladder read - one source for everyone, or what is
+      # shown and what is in force diverge in silence.
+      - ./policy:/policy:ro
+
+  # The second page: the same program over the SECOND account's record. The agents
+  # keep separate records - `agents` and `agents_near` - so one page physically
+  # cannot show both, and which account we show a judge is decided on the last day.
+  # It does not show money yet: there is no observer role and no key for the second
+  # account, so its broker address is empty. The record - turns, calls, intents,
+  # words - is fully visible.
+  page-near:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      target: page
+    networks: [internal, outbound]
+    # Its own resolvers: the page goes to the gateway for the money, and it would
+    # show a name-resolution failure as the broker being unavailable.
+    dns: [1.1.1.1, 8.8.8.8]
+    environment:
+      ROLES: api
+      ADDR: ":8080"
+      WEB_DIR: /srv/web
+      # The page serves the limits from the SAME file, through the same call that
+      # answers the agent. Otherwise it would show a retelling, and one day the
+      # retelling differs from what is actually traded, and a judge is shown a
+      # story about the system rather than the system. It reads and only reads: the
+      # page cannot edit the envelope.
+      ENVELOPE_PATH: /policy/envelope.yaml
+      ENVELOPE_IDENTITY: ${ENVELOPE_NEAR_IDENTITY:-options-alpha-near}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
+      RECORD_SHOWS: ${RECORD_SHOWS}
+      ORDERS_SHOWN: ${ORDERS_SHOWN}
+      HISTORY_DAYS: ${HISTORY_DAYS}
+    ports:
+      - "${APP_NEAR_PORT}:8080"
+    # The week runs unattended: a machine that reboots at three in the morning
+    # must come back with the agent running, not with it waiting to be started.
+    restart: unless-stopped
+    volumes:
+      # Read-only: the page shows the limits and cannot change them. The same file
+      # the envelope and the ladder read - one source for everyone, or what is
+      # shown and what is in force diverge in silence.
+      - ./policy:/policy:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  alpaca-agent-1:
+    <<: *agent-service
+    environment:
+      <<: *agent-environment
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      # The broker's tools, reached through the policy gateway. The session sends
+      # its own credential, so the record names WHICH agent made each call and one
+      # agent can be stopped without touching the other.
+      # The agent reaches the outside through the internet gateway and presents it
+      # the SAME key it presents to the broker and the model. The key travels as
+      # the password in the proxy's address - that is how any standard client sends
+      # it, and the gateway reads it from Proxy-Authorization. Without the key it
+      # would see only a TCP connection and would record the container's name
+      # marked "claimed"; with the key the agent's identity is verified, as it is
+      # everywhere else.
+      HTTP_PROXY: ${OUTBOUND_PROXY:-http://agent:${BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
+      HTTPS_PROXY: ${OUTBOUND_PROXY:-http://agent:${BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
+      BROKER_MCP_URL: ${BROKER_MCP_URL}
+      # Where the harness's READS go - prices, the clock, the account, chains. An
+      # empty value means "the same place the orders go". They can be separated
+      # because the line above also lands in the session's own configuration as
+      # [mcp_servers.broker], that is, it is the address an ORDER leaves by: its
+      # place is the gateway, which can refuse it and records that it happened.
+      # Reads carry no orders.
+      BROKER_MCP_TOKEN: ${BROKER_MCP_TOKEN}
+      USER_TOKEN: ${USER_TOKEN:-}
+      USER_HEADER_NAME: ${USER_HEADER_NAME:-}
+      # The model through the policy gateway, under this agent's own name.
+      MODEL_GATEWAY_URL: ${MODEL_GATEWAY_URL}
+      DECLARATION: ${DECLARATION:-/mnt/agent/agent.yaml}
+      GATEWAY_TOKEN: ${GATEWAY_TOKEN}
+      # The ladder reads the SAME ruleset the envelope serves, so what one
+      # position may lose stops being advice at the last point our code holds an
+      # order. The session still discovers its limits by asking; this is the
+      # backstop under it.
+      ENVELOPE_PATH: /policy/envelope.yaml
+      ENVELOPE_IDENTITY: options-alpha
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      TELEGRAM_TOPIC_ID: ${TELEGRAM_TOPIC_ID}
+      TELEGRAM_ALLOW_USER_IDS: ${TELEGRAM_ALLOW_USER_IDS}
+    volumes:
+      - ${CODEX_AUTH_DIR}:/mnt/codex:ro
+      - codex-home:/home/agent/.codex
+      # The full trace of the agent's work, onto the host rather than only into
+      # that volume. codex writes a rollout here for every thread: what was fed in,
+      # which tools were called and with what answer, what the agent said in reply.
+      # Postgres beside it holds the same thing broken into tables, but does NOT
+      # hold the texts - neither the task nor the answer. A week's work can only be
+      # reviewed from this file, and inside a volume it is out of reach without
+      # docker cp.
+      - ./transcripts:/home/agent/.codex/sessions
+      - agent-work:/work
+      - ./policy:/policy:ro
+      # The skills come from the checkout rather than the image - into the SOURCE,
+      # not into the directory the session reads. The difference matters: the
+      # application itself copies from here into /work/.agents/skills the playbooks
+      # the declaration names, so the narrowing works the same here as in
+      # production. Had we mounted over the session's directory it would get ALL
+      # the checkout's playbooks, and locally we would watch behaviour other than
+      # the one that ships - the more so because both agents mount the same
+      # checkout while their `skills:` sets differ.
+      # An edit still reaches an ALREADY RUNNING session: on the same tick that
+      # re-reads the declaration, the harness rebuilds the directory if the text
+      # changed.
+      - ./agent/skills:/mnt/skills:ro
+      # The declaration comes from the checkout rather than the image, for the same
+      # reason as the skills, and this is exactly the trap we have already fallen
+      # into: an edit in `agent.yaml` passes the tests while the deployment runs the
+      # baked version and says nothing about it. It showed only in the `sessions:`
+      # line in the log, and then only if you knew where to look. A DIRECTORY is
+      # mounted here because the two agents take different files from it. In
+      # production (`compose.prod.yaml`) there is no such mount: there the
+      # deployment must run exactly what CI built.
+      - ./agent:/mnt/agent:ro
+
+  # The second account: the same engine selling NEARER the money. It keeps its
+  # own record, because a shared one would let this agent's restart close the
+  # other's live turns and let either skip a session the other already ran.
+  #
+  # It speaks in its own topic through its own bot. Sharing the first agent's bot
+  # was not possible: Telegram allows one reader per bot, so the two would have
+  # taken the channel from each other in turns. Its own bot also names itself in
+  # the room, so which of the two is speaking is read, not inferred.
+  alpaca-agent-2:
+    <<: *agent-service
+    environment:
+      <<: *agent-environment
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
+      # The agent reaches the outside through the internet gateway and presents it
+      # the SAME key it presents to the broker and the model. The key travels as
+      # the password in the proxy's address - that is how any standard client sends
+      # it, and the gateway reads it from Proxy-Authorization. Without the key it
+      # would see only a TCP connection and would record the container's name
+      # marked "claimed"; with the key the agent's identity is verified, as it is
+      # everywhere else.
+      HTTP_PROXY: ${OUTBOUND_NEAR_PROXY:-http://agent:${BROKER_NEAR_MCP_TOKEN}@swiftward-hackathon-server:8097}
+      HTTPS_PROXY: ${OUTBOUND_NEAR_PROXY:-http://agent:${BROKER_NEAR_MCP_TOKEN}@swiftward-hackathon-server:8097}
+      BROKER_MCP_URL: ${BROKER_NEAR_MCP_URL:-http://alpaca-mcp-agent-2:8000/mcp}
+      BROKER_MCP_TOKEN: ${BROKER_NEAR_MCP_TOKEN}
+      USER_TOKEN: ${USER_TOKEN:-}
+      USER_HEADER_NAME: ${USER_HEADER_NAME:-}
+      MODEL_GATEWAY_URL: ${MODEL_NEAR_GATEWAY_URL}
+      DECLARATION: ${DECLARATION_NEAR:-/mnt/agent/experiment-near.yaml}
+      GATEWAY_TOKEN: ${GATEWAY_NEAR_TOKEN}
+      ENVELOPE_PATH: /policy/envelope.yaml
+      ENVELOPE_IDENTITY: options-alpha-near
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_NEAR_BOT_TOKEN}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
+      TELEGRAM_TOPIC_ID: ${TELEGRAM_NEAR_TOPIC_ID}
+      TELEGRAM_ALLOW_USER_IDS: ${TELEGRAM_ALLOW_USER_IDS}
+    volumes:
+      - ${CODEX_AUTH_DIR}:/mnt/codex:ro
+      - codex-home-near:/home/agent/.codex
+      - agent-near-work:/work
+      - ./policy:/policy:ro
+      # The skills come from the checkout rather than the image - into the SOURCE,
+      # not into the directory the session reads. The difference matters: the
+      # application itself copies from here into /work/.agents/skills the playbooks
+      # the declaration names, so the narrowing works the same here as in
+      # production. Had we mounted over the session's directory it would get ALL
+      # the checkout's playbooks, and locally we would watch behaviour other than
+      # the one that ships - the more so because both agents mount the same
+      # checkout while their `skills:` sets differ.
+      # An edit still reaches an ALREADY RUNNING session: on the same tick that
+      # re-reads the declaration, the harness rebuilds the directory if the text
+      # changed.
+      - ./agent/skills:/mnt/skills:ro
+      # The declaration comes from the checkout rather than the image, for the same
+      # reason as the skills, and this is exactly the trap we have already fallen
+      # into: an edit in `agent.yaml` passes the tests while the deployment runs the
+      # baked version and says nothing about it. It showed only in the `sessions:`
+      # line in the log, and then only if you knew where to look. A DIRECTORY is
+      # mounted here because the two agents take different files from it. In
+      # production (`compose.prod.yaml`) there is no such mount: there the
+      # deployment must run exactly what CI built.
+      - ./agent:/mnt/agent:ro
+
+  # What the session asks about its own limits. It stands where the policy gateway
+  # will stand, and answers the one question that gateway answers first: what am I
+  # allowed to do, and by which version of the rules.
+  #
+  # It holds no broker credential and reaches nothing: it reads a file and
+  # answers. Judging an order and refusing it are the gateway's, not its, and it
+  # is deliberately unable to do either.
+  envelope:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+      target: envelope
+    networks: [internal]
+    environment:
+      ROLES: envelope
+      ENVELOPE_ADDR: ":8090"
+      ENVELOPE_PATH: /policy/envelope.yaml
+      # Which token belongs to which caller. It lives here and not in the ruleset
+      # because the ruleset is committed and a token is not.
+      ENVELOPE_CALLERS: ${ENVELOPE_CALLERS}
+    volumes:
+      # The working copy over the shipped one: an operator lowering a ceiling
+      # edits this file, and the session reads the new number on its next
+      # question, with nothing restarted.
+      - ./policy:/policy:ro
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  # The only door out. Hosts not named in docker/egress/filter.txt are refused.
+  egress:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: docker/egress.Dockerfile
+      args:
+        # Whatever else THIS deployment must reach, as regular expressions. The
+        # address of its policy gateway goes here when the gateway is not on the
+        # same machine; it is a property of the deployment, not of the project.
+        EXTRA_ALLOWED_HOSTS: ${EXTRA_ALLOWED_HOSTS:-}
+    networks: [internal, outbound]
+    # The gateway's address is pinned because the NAME disappears in bursts.
+    # Measured 27 August: two bursts in one morning, 09:57 and 11:07 New York time,
+    # a few minutes each; inside a burst everything the agent sends through the
+    # gateway fails - eight refusals out of eight in one turn, eight out of ten in
+    # another, and in those minutes the defence sees no positions. Public resolvers
+    # return the record 12 times out of 12 meanwhile, and from inside the container
+    # 0 out of 5: the record itself disappears, and it is fixed not by us but by
+    # whoever's node publishes it.
+    #
+    # All three addresses were checked one by one - each answers as the gateway
+    # within a second. The hosts file is read before DNS, so for this name lookup
+    # leaves the path entirely.
+    #
+    # The price: if the ingress moves we are pinned to a dead address. So a watcher
+    # stands beside this, knocking on these addresses, and it will say when they
+    # stop answering. The pinning comes off when we are given a name that does not
+    # disappear.
+    extra_hosts:
+      - "lab.tailc50179.ts.net:185.40.234.172"
+      - "lab.tailc50179.ts.net:185.40.234.210"
+      - "lab.tailc50179.ts.net:185.40.234.37"
+    # Outbound names are resolved HERE - both the agent and our own client go
+    # through this proxy, so its resolver is shared by everyone. It has to be its
+    # own: on 27 August the machine's resolver began returning NXDOMAIN for the
+    # gateway's name while public ones returned it, and the deployment stopped
+    # seeing the broker entirely - the error looked like "the network is down" when
+    # only name lookup had broken. Docker keeps its own service-name resolution on
+    # 127.0.0.11; this only sets who it asks for names OUTSIDE.
+    dns: [1.1.1.1, 8.8.8.8]
+
+networks:
+  internal:
+    internal: true
+  outbound:
+
+volumes:
+  pgdata:
+  codex-home:
+  # The volume KEYS keep their old names on purpose: renaming one would create a
+  # new, empty volume, and the session's notes live in the old one. What a
+  # service is called and what its disk is called are separate facts.
+  agent-work:
+  codex-home-near:
+  agent-near-work:

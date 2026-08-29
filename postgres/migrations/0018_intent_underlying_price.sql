@@ -1,0 +1,12 @@
+-- What the underlying cost when the intent was stated.
+--
+-- The news-watch window wakes the session when price has come within a third of
+-- the distance it started from, and that arithmetic needs the starting price. It
+-- had nowhere to live: the price reached the record only as prose inside
+-- `thesis`, and only when the session happened to write it. Measured 28 August -
+-- written for SLV, absent for SPY, and the window reported it could not compute
+-- the distance and set no wake-up.
+--
+-- Nullable, because rows written before this column existed have no answer and
+-- inventing one would be worse than an empty cell.
+ALTER TABLE intents ADD COLUMN IF NOT EXISTS underlying_price NUMERIC(14,6);
