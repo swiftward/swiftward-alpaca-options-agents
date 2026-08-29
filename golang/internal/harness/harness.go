@@ -640,12 +640,29 @@ func elapsed(last *time.Time, now time.Time, every time.Duration) bool {
 	// The first call is due: a harness that has just started knows nothing at
 	// all, and waiting out a cadence before the first read would leave a standing
 	// price wake-up blind for that long after every restart.
-	if !last.IsZero() && !now.Before(*last) && now.Sub(*last) < every {
+	if !last.IsZero() && !now.Before(*last) && now.Sub(*last) < every-slack(every) {
 		return false
 	}
 	*last = now
 
 	return true
+}
+
+// slack is how early a tick may be and still count as the cadence having
+// passed.
+//
+// Without it a cadence that is a MULTIPLE of the tick lands on the boundary and
+// loses: measured live on 29 August with a five-second tick and a ten-second
+// cadence, the tick arriving ten seconds later arrived 9.995 of them later, was
+// told to wait, and the read happened on the tick after - so a cadence written
+// as ten seconds ran at fifteen, and did it every other time.
+//
+// The tolerance is a fraction of the cadence rather than a fixed number so that
+// it stays sane at both ends: a hundredth of a millisecond of it at ten seconds,
+// and still only a second at a hundred. A tick early by more than that is not
+// jitter, it is a different tick.
+func slack(every time.Duration) time.Duration {
+	return every / 64
 }
 
 // priceCadence is how often prices are read, said in a way that is true in a log

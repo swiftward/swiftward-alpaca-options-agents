@@ -2056,3 +2056,17 @@ func TestAClockThatStepsBackDoesNotStopTheReading(t *testing.T) {
 	assert.Equal(t, start.Add(-time.Hour), last,
 		"после чтения отметка обязана переехать на новое время, иначе следующее чтение снова ждёт")
 }
+
+// A cadence that is a multiple of the tick has to hold, not fall through to the
+// tick after. Measured live: a five-second tick and a ten-second cadence, and
+// the tick ten seconds later arrives 9.995 of them later - a hair early, told to
+// wait, and the reading runs at fifteen seconds instead of ten.
+func TestACadenceIsNotLostToATickArrivingAHairEarly(t *testing.T) {
+	start := time.Date(2026, 8, 29, 6, 5, 19, 88_000_000, time.UTC)
+	last := start
+
+	assert.False(t, elapsed(&last, start.Add(5*time.Second), 10*time.Second),
+		"половина каденции - ещё не время")
+	assert.True(t, elapsed(&last, start.Add(10*time.Second-5*time.Millisecond), 10*time.Second),
+		"такт, опередивший каденцию на пять миллисекунд, обязан считаться пришедшим")
+}
