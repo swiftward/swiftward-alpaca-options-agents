@@ -318,13 +318,19 @@ sessions:
   # own repository.
   - name: convexity
     cause: "convexity layer: a cheap bet on a large move, bounded and known"
-    # It was 2h, and stays 4h now that the layer opens again. The expectancy is
-    # measured and small (+14 dollars per structure at the current volatility), and
-    # a turn here is the most expensive of all - 94 seconds on average against 31
-    # for the defence. There is no point looking more often: this step is still in
-    # time to take profit under convexity_take, and at a layer share of 2% there is
-    # one new entry at a time anyway.
-    every: 4h
+    # 4h was set while the layer was managing only, and inside a window of 09:50 to
+    # 15:00 it fires exactly twice - at the open of the window and once more at
+    # 13:50. That is too few looks for a layer that opens again: after a structure
+    # is closed the next chance to replace it could be three hours away.
+    #
+    # What actually bounds this layer is not the clock: convexity_layer_share is 2%
+    # of equity and convexity_worst_case_share is 2% per structure, so one is open
+    # at a time, and convexity_daily_debit caps the day at 0.5%. More looks buy
+    # nothing while a structure is open - they only shorten the gap after it closes.
+    # 2h gives three looks and misses none of the entry windows of the main
+    # technique (10:20, 12:30, 14:20); a turn here costs 94 seconds against 31 for
+    # the defence, which is why this is not hourly.
+    every: 2h
     between: ["09:50", "15:00"]
     days: [mon, tue, wed, thu]
     task: |
