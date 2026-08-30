@@ -25,11 +25,10 @@ import (
 // runningDouble is the harness as the tools see it: which turn is in flight and
 // who woke it.
 type runningDouble struct {
-	ref     string
-	wokenBy string
+	ref string
 }
 
-func (r *runningDouble) RunningTurn() (string, string) { return r.ref, r.wokenBy }
+func (r *runningDouble) RunningTurn() string { return r.ref }
 
 // The client here is the SDK's own, talking to our server over the same
 // transport the agent uses. Nothing about the protocol is hand-built.
@@ -380,7 +379,7 @@ func TestAnIntentIsFiledUnderTheTurnThatProducedIt(t *testing.T) {
 	at := time.Date(2026, 9, 3, 18, 20, 0, 0, time.UTC)
 	server := httptest.NewServer(Tools{
 		Record: state, Now: func() time.Time { return at },
-		Running: &runningDouble{ref: "turn-7", wokenBy: "entry"},
+		Running: &runningDouble{ref: "turn-7"},
 	}.Handler())
 	t.Cleanup(server.Close)
 
@@ -405,7 +404,6 @@ func TestAnIntentIsFiledUnderTheTurnThatProducedIt(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, stored.Intents, 1)
 	assert.Equal(t, "turn-7", stored.Intents[0].TurnRef)
-	assert.Equal(t, "entry", stored.Intents[0].Session, "the waker of the turn, not a name the model typed")
 }
 
 // One order, one intent. A session that states the same structure twice has
@@ -415,7 +413,7 @@ func TestTheSameStructureIsNotRecordedTwiceInOneTurn(t *testing.T) {
 	at := time.Date(2026, 8, 25, 15, 26, 0, 0, time.UTC)
 	server := httptest.NewServer(Tools{
 		Record: state, Now: func() time.Time { return at },
-		Running: &runningDouble{ref: "turn-9", wokenBy: "entry-call"},
+		Running: &runningDouble{ref: "turn-9"},
 	}.Handler())
 	t.Cleanup(server.Close)
 
@@ -496,7 +494,7 @@ func TestADifferentStructureInTheSameTurnIsRecorded(t *testing.T) {
 	state := record.NewMemory()
 	server := httptest.NewServer(Tools{
 		Record: state, Now: time.Now,
-		Running: &runningDouble{ref: "turn-9", wokenBy: "entry"},
+		Running: &runningDouble{ref: "turn-9"},
 	}.Handler())
 	t.Cleanup(server.Close)
 
@@ -540,7 +538,7 @@ func withLimits(t *testing.T, asked Asked) *mcp.ClientSession {
 
 	server := httptest.NewServer(Tools{
 		Record: record.NewMemory(), Now: time.Now,
-		Running: &runningDouble{ref: "turn-1", wokenBy: "entry"}, Asked: asked,
+		Running: &runningDouble{ref: "turn-1"}, Asked: asked,
 	}.Handler())
 	t.Cleanup(server.Close)
 
@@ -659,7 +657,7 @@ func TestAnOrdinaryPriceStillPasses(t *testing.T) {
 func TestRecordingAnIntentAnswersWithTheTurn(t *testing.T) {
 	server := httptest.NewServer(Tools{
 		Record: record.NewMemory(), Now: time.Now,
-		Running: &runningDouble{ref: "tu-7", wokenBy: "entry"},
+		Running: &runningDouble{ref: "tu-7"},
 	}.Handler())
 	t.Cleanup(server.Close)
 	session, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil).
@@ -692,7 +690,7 @@ func TestAnIntentSaysWhetherItWasChecked(t *testing.T) {
 	checked := record.NewMemory()
 	server := httptest.NewServer(Tools{
 		Record: checked, Now: time.Now,
-		Running: &runningDouble{ref: "turn-1", wokenBy: "entry"},
+		Running: &runningDouble{ref: "turn-1"},
 		Asked:   &askedDouble{inTurn: map[string]bool{"turn-1/read_envelope": true}},
 	}.Handler())
 	t.Cleanup(server.Close)
@@ -712,7 +710,7 @@ func TestAnIntentSaysWhetherItWasChecked(t *testing.T) {
 	unchecked := record.NewMemory()
 	server2 := httptest.NewServer(Tools{
 		Record: unchecked, Now: time.Now,
-		Running: &runningDouble{ref: "turn-1", wokenBy: "entry"},
+		Running: &runningDouble{ref: "turn-1"},
 	}.Handler())
 	t.Cleanup(server2.Close)
 	session2, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil).
@@ -734,7 +732,7 @@ func TestAnIntentSaysWhetherItWasChecked(t *testing.T) {
 func TestWithoutARecordTheCheckIsSkipped(t *testing.T) {
 	server := httptest.NewServer(Tools{
 		Record: record.NewMemory(), Now: time.Now,
-		Running: &runningDouble{ref: "turn-1", wokenBy: "entry"},
+		Running: &runningDouble{ref: "turn-1"},
 	}.Handler())
 	t.Cleanup(server.Close)
 
@@ -801,4 +799,69 @@ func TestListWakeupsAnswersWithAnObject(t *testing.T) {
 	require.NoError(t, err)
 
 	shape("one wake-up is set")
+}
+
+// The session may say which cause it is answering, and it may only name one that
+// was actually put in front of it.
+//
+// The bound is what keeps the field evidence. Unbounded, it is somewhere for the
+// model to type a story, and a reader would have no way to tell a claim about the
+// turn apart from an invention about it. Bounded, a wrong name is refused and the
+// refusal lists what the turn was given, so the session can correct itself in the
+// same breath.
+func TestASessionMayNameOnlyACauseItWasActuallyGiven(t *testing.T) {
+	ctx := context.Background()
+	state := record.NewMemory()
+	at := time.Date(2026, 9, 3, 18, 20, 0, 0, time.UTC)
+	require.NoError(t, state.TurnStarted(ctx,
+		record.Turn{Ref: "turn-7", StartedAt: at}, "entry", "trying an entry"))
+	_, err := state.AppendTurnCause(ctx, record.TurnCause{
+		TurnRef: "turn-7", At: at, WokenBy: "defend", Cause: "checking the defence rules",
+	})
+	require.NoError(t, err)
+
+	server := httptest.NewServer(Tools{
+		Record: state, Now: func() time.Time { return at },
+		Running: &runningDouble{ref: "turn-7"},
+	}.Handler())
+	t.Cleanup(server.Close)
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "v0"}, nil)
+	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+
+	call := func(answers, structure string) *mcp.CallToolResult {
+		res, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name: "record_intent",
+			Arguments: map[string]any{
+				"thesis": "premium is rich into the close", "structure": structure,
+				"max_loss": "0.5% of capital", "underlying_price": "612.40",
+				"answers": answers,
+			},
+		})
+		require.NoError(t, err)
+
+		return res
+	}
+
+	refused := call("news-watch", "SPY put spread 759/758 expiring today")
+	require.True(t, refused.IsError, "a cause this turn never had is not a claim it can make")
+	said := ""
+	for _, part := range refused.Content {
+		if text, ok := part.(*mcp.TextContent); ok {
+			said += text.Text
+		}
+	}
+	assert.Contains(t, said, "entry, defend", "the refusal says what it was given")
+
+	taken := call("defend", "SPY put spread 759/758 expiring today")
+	require.False(t, taken.IsError, taken.Content)
+
+	stored, err := state.Read(ctx)
+	require.NoError(t, err)
+	require.Len(t, stored.Intents, 1, "the refused one was not written")
+	require.NotNil(t, stored.Intents[0].Answers)
+	require.Len(t, stored.Causes, 2)
+	assert.Equal(t, stored.Causes[1].ID, *stored.Intents[0].Answers)
 }

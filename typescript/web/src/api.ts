@@ -46,15 +46,23 @@ export type Turn = {
   ref: string
   started_at: string
   finished_at?: string
-  woken_by: string
-  cause: string
   model?: string
   failure?: string
 }
 
+// What was put in front of a turn. The first is what woke it; the rest arrived
+// while it was already running, which is why this is a list and not a field on
+// the turn.
+export type TurnCause = {
+  id: number
+  turn_ref: string
+  at: string
+  woken_by: string
+  cause: string
+}
+
 export type Intent = {
   at: string
-  session: string
   thesis: string
   underlying?: string
 }
@@ -72,7 +80,13 @@ export type ToolCall = {
 // What the agent SAID inside a turn. The calls show what it did; this shows why.
 export type Said = { turn_ref: string; at: string; text: string }
 
-export type State = { turns: Turn[]; calls: ToolCall[]; intents: Intent[]; said: Said[] }
+export type State = {
+  turns: Turn[]
+  causes: TurnCause[]
+  calls: ToolCall[]
+  intents: Intent[]
+  said: Said[]
+}
 
 export type Constraint = {
   rule: string

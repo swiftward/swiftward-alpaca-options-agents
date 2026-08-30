@@ -731,8 +731,9 @@ sessions:
 
 	state, err := kept.Read(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, "flatten", state.Turns[0].WokenBy)
-	assert.Contains(t, state.Turns[0].Cause, "close everything before the day ends")
+	require.Len(t, state.Causes, 1)
+	assert.Equal(t, "flatten", state.Causes[0].WokenBy)
+	assert.Contains(t, state.Causes[0].Cause, "close everything before the day ends")
 
 	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
 	waitFor(t, func() bool {
@@ -798,11 +799,15 @@ func TestAWakeUpDuringATurnGoesIntoIt(t *testing.T) {
 
 	waitFor(t, func() bool { _, steered, _ := conversation.seen(); return len(steered) == 1 })
 
-	_, steered, _ := conversation.seen()
-	assert.Contains(t, steered[0], "check the spread after the news")
-
-	turns, _, _ := conversation.seen()
-	assert.Len(t, turns, 1, "the wake-up must not open a second turn")
+	// Both causes are due at once, so which of them opens the turn is a race and
+	// asserting on one of them made this test fail on the ordering rather than on
+	// the behaviour. What the test is about survives either order: ONE turn, and
+	// the other cause inside it rather than lost or in a turn of its own.
+	turns, steered, _ := conversation.seen()
+	require.Len(t, turns, 1, "the wake-up must not open a second turn")
+	together := turns[0] + strings.Join(steered, "\n")
+	assert.Contains(t, together, "check the spread after the news")
+	assert.Contains(t, together, "look at the positions")
 
 	state, err := kept.Read(ctx)
 	require.NoError(t, err)
@@ -832,8 +837,7 @@ sessions:
 	kept := record.NewMemory()
 	require.NoError(t, kept.TurnStarted(context.Background(), record.Turn{
 		Ref: "turn-1", ThreadRef: "th-1", StartedAt: at.Add(-18 * time.Minute),
-		WokenBy: "entry", Cause: "declaration: entry",
-	}))
+	}, "entry", "declaration: entry"))
 
 	conversation := newConversationSpy()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -910,8 +914,7 @@ sessions:
 	kept := record.NewMemory()
 	require.NoError(t, kept.TurnStarted(context.Background(), record.Turn{
 		Ref: "turn-1", ThreadRef: "th-1", StartedAt: at.Add(-time.Hour),
-		WokenBy: "wakeup w1", Cause: "a reason of its own",
-	}))
+	}, "wakeup w1", "a reason of its own"))
 
 	conversation := newConversationSpy()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1491,8 +1494,7 @@ sessions:
 	kept := record.NewMemory()
 	require.NoError(t, kept.TurnStarted(context.Background(), record.Turn{
 		Ref: "turn-1", ThreadRef: "th-1", StartedAt: now.Add(-18 * time.Minute),
-		WokenBy: "entry", Cause: "declaration: entry",
-	}))
+	}, "entry", "declaration: entry"))
 
 	ctx := context.Background()
 	h := &Harness{
@@ -1543,8 +1545,7 @@ sessions:
 	kept := record.NewMemory()
 	require.NoError(t, kept.TurnStarted(context.Background(), record.Turn{
 		Ref: "turn-1", ThreadRef: "th-1", StartedAt: now.Add(-30 * time.Minute),
-		WokenBy: "entry", Cause: "declaration: entry",
-	}))
+	}, "entry", "declaration: entry"))
 
 	ctx := context.Background()
 	h := &Harness{
@@ -1766,9 +1767,10 @@ sessions:
 	state, err := kept.Read(ctx)
 	require.NoError(t, err)
 	require.Len(t, state.Turns, 1)
-	assert.Equal(t, "flatten", state.Turns[0].WokenBy)
-	assert.Contains(t, state.Turns[0].Cause, "close everything before the day ends")
-	assert.NotContains(t, state.Turns[0].Cause, "Numbers this agent runs on")
+	require.Len(t, state.Causes, 1)
+	assert.Equal(t, "flatten", state.Causes[0].WokenBy)
+	assert.Contains(t, state.Causes[0].Cause, "close everything before the day ends")
+	assert.NotContains(t, state.Causes[0].Cause, "Numbers this agent runs on")
 
 	// And the numbers did reach the session - the cause is trimmed, not the
 	// prompt.
@@ -2124,4 +2126,71 @@ func TestACadenceIsNotLostToATickArrivingAHairEarly(t *testing.T) {
 		"half a cadence is not yet due")
 	assert.True(t, elapsed(&last, start.Add(10*time.Second-5*time.Millisecond), 10*time.Second),
 		"a tick five milliseconds ahead of the cadence still counts as having arrived")
+}
+
+// A steer is written down the moment the agent takes it.
+//
+// Everything about attributing an intent rests on this row existing. Held in a
+// field of this process instead, it would be gone after a restart - and gone
+// exactly when somebody later asks the record which session did what, which is
+// the question the record exists to answer. So the proof is that the row is in
+// the record, not that a variable changed.
+func TestWhatIsSaidIntoARunningTurnIsRecordedAsItsNewCause(t *testing.T) {
+	declared, err := declaration.Load(write(t, `
+kind: trading-agent
+name: alpaca-agent-1
+timezone: UTC
+sessions:
+  - name: entry
+    cause: "entry window"
+    task: "Sell a spread."
+    at: "14:20"
+    within: 45m
+`))
+	require.NoError(t, err)
+
+	chat := newChatDouble()
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	kept := record.NewMemory()
+	h := &Harness{
+		Chat: chat, Conversation: conversation, Declaration: declared,
+		Record: kept, CallTimeout: 2 * time.Second,
+		// Saturday, outside every window: nothing the clock does interferes.
+		Now: func() time.Time { return time.Date(2026, 8, 29, 11, 0, 0, 0, time.UTC) },
+		Log: zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	h.Tell(ctx, "the entry window is open", "entry")
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	h.Tell(ctx, "QQQ has moved three percent, check the positions", "defend")
+	waitFor(t, func() bool { _, steered, _ := conversation.seen(); return len(steered) == 1 })
+
+	waitFor(t, func() bool {
+		state, err := kept.Read(ctx)
+		return err == nil && len(state.Causes) == 2
+	})
+	state, err := kept.Read(ctx)
+	require.NoError(t, err)
+	require.Len(t, state.Turns, 1, "the steer joined the turn; a second turn would be other work")
+	require.Len(t, state.Causes, 2)
+	assert.Equal(t, "entry", state.Causes[0].WokenBy, "what opened the turn")
+	assert.Equal(t, "defend", state.Causes[1].WokenBy, "and what was said into it")
+	assert.Contains(t, state.Causes[1].Cause, "QQQ has moved three percent")
+
+	// And from here on that is the cause an intent falls under, which is the whole
+	// reason the row is written.
+	require.NoError(t, kept.AppendIntent(ctx, record.Intent{
+		At: h.Now(), TurnRef: state.Turns[0].Ref, Structure: "QQQ 710/705 put credit spread",
+	}))
+	state, err = kept.Read(ctx)
+	require.NoError(t, err)
+	require.Len(t, state.Intents, 1)
+	require.NotNil(t, state.Intents[0].CauseID)
+	assert.Equal(t, state.Causes[1].ID, *state.Intents[0].CauseID,
+		"the defence that cut in, not the entry that opened the turn")
 }

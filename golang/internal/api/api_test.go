@@ -24,7 +24,6 @@ func TestHealthAndState(t *testing.T) {
 	state := record.NewMemory()
 	require.NoError(t, state.AppendIntent(context.Background(), record.Intent{
 		At:        time.Date(2026, 9, 2, 19, 30, 0, 0, time.UTC),
-		Session:   "event",
 		Thesis:    "implied volatility collapses after the report",
 		Structure: "four legs on AVGO",
 		MaxLoss:   "1% of capital",
@@ -44,7 +43,6 @@ func TestHealthAndState(t *testing.T) {
 	var got record.State
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Len(t, got.Intents, 1)
-	assert.Equal(t, "event", got.Intents[0].Session)
 	assert.Equal(t, "1% of capital", got.Intents[0].MaxLoss)
 }
 

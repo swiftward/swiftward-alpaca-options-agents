@@ -39,6 +39,15 @@ type recordIntentInput struct {
 	// reconstruct later: the defence windows measure how far the underlying has
 	// travelled since the intent, and only the starting point is unrecoverable.
 	UnderlyingPrice string `json:"underlying_price" jsonschema:"what the underlying costs right now, as the session just read it"`
+	// Optional, and bounded: the name of one of the causes this turn was actually
+	// given. A turn is told more than one thing while it runs, and the record can
+	// see WHICH cause was in force when a line was written but never which one the
+	// session meant to answer - only the session knows that.
+	//
+	// It is a choice from a closed list rather than free text, which is what keeps
+	// it evidence. A name that was never put in front of this turn is refused, so
+	// the field cannot become somewhere to type a story.
+	Answers string `json:"answers,omitempty" jsonschema:"optional: which of the causes given to this turn this intent answers, by name"`
 }
 
 type recordIntentOutput struct {
@@ -161,11 +170,16 @@ type Schedule interface {
 	Schedule() []declaration.Scheduled
 }
 
-// Running says which turn is in flight and who woke it. Nil means nothing here
-// knows - a session running without a harness - and the intent is then recorded
-// without one rather than with a name the model invented.
+// Running says which turn is in flight. Nil means nothing here knows - a session
+// running without a harness - and the intent is then recorded without a turn
+// rather than with a name the model invented.
+//
+// Which CAUSE the intent falls under is deliberately not asked here. A turn is
+// told more than one thing while it runs, and the record resolves the cause in
+// force inside the same transaction as the insert; a value carried through here
+// would be a snapshot taken earlier than the row it lands on.
 type Running interface {
-	RunningTurn() (ref string, wokenBy string)
+	RunningTurn() (ref string)
 }
 
 // Tools is what this session is given. A field left nil is a tool the session is
@@ -245,9 +259,9 @@ type Shortlist interface {
 }
 
 // running names the turn an intent belongs to.
-func (t Tools) running() (ref string, wokenBy string) {
+func (t Tools) running() string {
 	if t.Running == nil {
-		return "", ""
+		return ""
 	}
 
 	return t.Running.RunningTurn()
@@ -295,7 +309,32 @@ func (t Tools) Handler() http.Handler {
 					"underlying_price is %q: state what the underlying costs, as a number below 100000000", in.UnderlyingPrice)
 			}
 			at := now()
-			turn, session := t.running()
+			turn := t.running()
+
+			// What the session says it is answering, checked against what it was
+			// actually given. Resolved to the row rather than stored as a name: two
+			// wakings of the same session in one turn are two different moments, and
+			// the later one is what a claim made now refers to.
+			var answers *int64
+			if in.Answers != "" {
+				causes, err := state.CausesOfTurn(ctx, turn)
+				if err != nil {
+					return nil, recordIntentOutput{}, err
+				}
+				names := make([]string, 0, len(causes))
+				for i := range causes {
+					names = append(names, causes[i].WokenBy)
+					if causes[i].WokenBy == in.Answers {
+						id := causes[i].ID
+						answers = &id
+					}
+				}
+				if answers == nil {
+					return nil, recordIntentOutput{}, fmt.Errorf(
+						"nothing called %q was put in front of this turn; it was given: %s",
+						in.Answers, strings.Join(names, ", "))
+				}
+			}
 
 			// The limits have to have been read in THIS turn. Sessions are turns on
 			// one conversation, so an answer from an earlier turn is still in the
@@ -338,7 +377,7 @@ func (t Tools) Handler() http.Handler {
 			if err := state.AppendIntent(ctx, record.Intent{
 				At:        at,
 				TurnRef:   turn,
-				Session:   session,
+				Answers:   answers,
 				Thesis:    in.Thesis,
 				Structure: in.Structure,
 				MaxLoss:   in.MaxLoss,

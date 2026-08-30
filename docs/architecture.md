@@ -76,7 +76,9 @@ The declaration says three things: when each session wakes and what it is asked 
 
 ## The record
 
-Seven tables. Three carry what the agent did, and each answers its own question: `turns` - when a session ran and why; `tool_calls` - what it did with its hands, with the arguments it sent and what came back; `intents` - what it meant to do before it ordered anything. The harness writes the first two from the agent's own stream, whether or not a chat is watching; `record_intent` writes the third.
+Eight tables. Four carry what the agent did, and each answers its own question: `turns` - when a session ran and how it ended; `turn_causes` - what was put in front of that turn, in order; `tool_calls` - what it did with its hands, with the arguments it sent and what came back; `intents` - what it meant to do before it ordered anything. The harness writes all but the last from the agent's own stream, whether or not a chat is watching; `record_intent` writes that one.
+
+`turn_causes` is a list rather than a column on `turns` because a turn is woken once and then told more things while it runs: an entry window opens one, and a defence window or a person says something into it minutes later. Each row's id is its order, since two causes that meet on the same minute carry the same timestamp. Every intent points at the cause that was in force when it was written, resolved inside the same transaction as the insert - so the record answers "what was this turn doing when it said that" from a row, not from a comparison of clocks.
 
 `execution_steps` carries what happened to an order after the session let go of it: every price the ladder walked it to, the cancellation if the book never came, and the fill with its price and how many contracts. Without the count the record holds a price and not money - a fill at 0.28 says nothing about whether twenty-eight dollars was collected or fourteen hundred.
 

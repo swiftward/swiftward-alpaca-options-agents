@@ -29,12 +29,22 @@ func NewPostgres(pool *pgxpool.Pool, shows int) (*Postgres, error) {
 	return &Postgres{pool: pool, shows: shows}, nil
 }
 
+// AppendIntent writes an intent under the cause in force at that moment.
+//
+// The cause is resolved inside the same transaction as the insert rather than
+// derived afterwards, and that is the whole point of the shape. Deriving it later
+// would mean comparing the intent's stamp against the causes' stamps - two
+// clocks, the database's and the harness's, and a tie whenever a cause lands in
+// the same instant as the intent it caused.
 func (p *Postgres) AppendIntent(ctx context.Context, intent Intent) error {
 	_, err := p.pool.Exec(ctx,
-		`INSERT INTO intents (recorded_at, turn_ref, session, thesis, structure, max_loss, underlying_price, envelope_checked)
-		 VALUES (@at, @turn, @session, @thesis, @structure, @max_loss, @underlying_price, @envelope_checked)`,
+		`INSERT INTO intents (recorded_at, turn_ref, cause_id, answers, thesis, structure, max_loss, underlying_price, envelope_checked)
+		 VALUES (@at, @turn,
+		         COALESCE(@cause_id, (SELECT max(id) FROM turn_causes WHERE turn_ref = @turn)),
+		         @answers, @thesis, @structure, @max_loss, @underlying_price, @envelope_checked)`,
 		pgx.NamedArgs{
-			"at": intent.At, "turn": nullable(intent.TurnRef), "session": intent.Session,
+			"at": intent.At, "turn": nullable(intent.TurnRef),
+			"cause_id": intent.CauseID, "answers": intent.Answers,
 			"thesis": intent.Thesis, "structure": intent.Structure, "max_loss": intent.MaxLoss,
 			// NULL rather than "": the column is numeric, and an empty string is
 			// not a number - Postgres refuses the whole row with "invalid input
@@ -64,20 +74,78 @@ func (p *Postgres) AppendSaid(ctx context.Context, said Said) error {
 	return nil
 }
 
-func (p *Postgres) TurnStarted(ctx context.Context, turn Turn) error {
-	_, err := p.pool.Exec(ctx,
-		`INSERT INTO turns (turn_ref, thread_ref, started_at, woken_by, cause, model)
-		 VALUES (@ref, @thread, @started, @woken_by, @cause, @model)
+func (p *Postgres) TurnStarted(ctx context.Context, turn Turn, wokenBy, cause string) error {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("record the turn: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	tag, err := tx.Exec(ctx,
+		`INSERT INTO turns (turn_ref, thread_ref, started_at, model)
+		 VALUES (@ref, @thread, @started, @model)
 		 ON CONFLICT (turn_ref) DO NOTHING`,
 		pgx.NamedArgs{
 			"ref": turn.Ref, "thread": turn.ThreadRef, "started": turn.StartedAt,
-			"woken_by": turn.WokenBy, "cause": turn.Cause, "model": turn.Model,
+			"model": turn.Model,
 		})
 	if err != nil {
 		return fmt.Errorf("record the turn: %w", err)
 	}
+	// The same turn written twice is one turn, and it keeps the cause it opened
+	// with. Appending a second opening cause here would make a retry look like a
+	// steer.
+	if tag.RowsAffected() == 0 {
+		return tx.Commit(ctx)
+	}
 
-	return nil
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO turn_causes (turn_ref, at, woken_by, cause)
+		 VALUES (@ref, @at, @woken_by, @cause)`,
+		pgx.NamedArgs{
+			"ref": turn.Ref, "at": turn.StartedAt, "woken_by": wokenBy, "cause": cause,
+		}); err != nil {
+		return fmt.Errorf("record what opened the turn: %w", err)
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (p *Postgres) AppendTurnCause(ctx context.Context, cause TurnCause) (int64, error) {
+	var id int64
+	if err := p.pool.QueryRow(ctx,
+		`INSERT INTO turn_causes (turn_ref, at, woken_by, cause)
+		 VALUES (@ref, @at, @woken_by, @cause) RETURNING id`,
+		pgx.NamedArgs{
+			"ref": cause.TurnRef, "at": cause.At,
+			"woken_by": cause.WokenBy, "cause": cause.Cause,
+		}).Scan(&id); err != nil {
+		return 0, fmt.Errorf("record what was said into the turn: %w", err)
+	}
+
+	return id, nil
+}
+
+func (p *Postgres) CausesOfTurn(ctx context.Context, turnRef string) ([]TurnCause, error) {
+	rows, err := p.pool.Query(ctx,
+		`SELECT id, turn_ref, at, woken_by, cause FROM turn_causes
+		 WHERE turn_ref = @ref ORDER BY id`,
+		pgx.NamedArgs{"ref": turnRef})
+	if err != nil {
+		return nil, fmt.Errorf("read what was put in front of the turn: %w", err)
+	}
+	defer rows.Close()
+
+	var causes []TurnCause
+	for rows.Next() {
+		var c TurnCause
+		if err := rows.Scan(&c.ID, &c.TurnRef, &c.At, &c.WokenBy, &c.Cause); err != nil {
+			return nil, fmt.Errorf("read what was put in front of the turn: %w", err)
+		}
+		causes = append(causes, c)
+	}
+
+	return causes, rows.Err()
 }
 
 func (p *Postgres) TurnFinished(ctx context.Context, ref string, finishedAt time.Time, failure string) error {
@@ -157,12 +225,17 @@ func (p *Postgres) CallFinished(ctx context.Context, ref string, finishedAt time
 	return nil
 }
 
-// LastRuns reads when each waker last started a turn. The harness asks at start,
-// so a restart inside a session's window does not run that session twice.
+// LastRuns reads when each waker last had its task put in front of the agent.
+// The harness asks at start, so a restart inside a session's window does not run
+// that session twice.
+//
+// It counts causes rather than turns on purpose: a session that steered into a
+// turn already running did run, and reading only the turns that a session OPENED
+// would wake it a second time the same day.
 func (p *Postgres) LastRuns(ctx context.Context, since time.Time) (map[string]time.Time, error) {
 	rows, err := p.pool.Query(ctx,
-		`SELECT woken_by, max(started_at) FROM turns
-		  WHERE started_at >= @since GROUP BY woken_by`,
+		`SELECT woken_by, max(at) FROM turn_causes
+		  WHERE at >= @since GROUP BY woken_by`,
 		pgx.NamedArgs{"since": since})
 	if err != nil {
 		return nil, fmt.Errorf("read when each session last ran: %w", err)
@@ -218,7 +291,7 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 	state := State{Turns: []Turn{}, Calls: []ToolCall{}, Steps: []ExecutionStep{}, Intents: []Intent{}, Said: []Said{}}
 
 	turns, err := p.pool.Query(ctx,
-		`SELECT turn_ref, thread_ref, started_at, finished_at, woken_by, cause, model, failure
+		`SELECT turn_ref, thread_ref, started_at, finished_at, model, failure
 		   FROM turns ORDER BY started_at DESC LIMIT @shows`,
 		pgx.NamedArgs{"shows": p.shows})
 	if err != nil {
@@ -230,7 +303,7 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 		var turn Turn
 		var failure *string
 		if err := turns.Scan(&turn.Ref, &turn.ThreadRef, &turn.StartedAt, &turn.FinishedAt,
-			&turn.WokenBy, &turn.Cause, &turn.Model, &failure); err != nil {
+			&turn.Model, &failure); err != nil {
 			return State{}, fmt.Errorf("read a turn: %w", err)
 		}
 		if failure != nil {
@@ -240,6 +313,34 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 	}
 	if err := turns.Err(); err != nil {
 		return State{}, fmt.Errorf("read the turns: %w", err)
+	}
+
+	// Only the causes of the turns just read: the point of the limit is that a
+	// session sees a recent window, and causes of turns outside it explain nothing
+	// it can see.
+	refs := make([]string, 0, len(state.Turns))
+	for i := range state.Turns {
+		refs = append(refs, state.Turns[i].Ref)
+	}
+	causes, err := p.pool.Query(ctx,
+		`SELECT id, turn_ref, at, woken_by, cause FROM turn_causes
+		  WHERE turn_ref = ANY(@refs) ORDER BY id`,
+		pgx.NamedArgs{"refs": refs})
+	if err != nil {
+		return State{}, fmt.Errorf("read what was put in front of the turns: %w", err)
+	}
+	defer causes.Close()
+
+	state.Causes = []TurnCause{}
+	for causes.Next() {
+		var c TurnCause
+		if err := causes.Scan(&c.ID, &c.TurnRef, &c.At, &c.WokenBy, &c.Cause); err != nil {
+			return State{}, fmt.Errorf("read what was put in front of a turn: %w", err)
+		}
+		state.Causes = append(state.Causes, c)
+	}
+	if err := causes.Err(); err != nil {
+		return State{}, fmt.Errorf("read what was put in front of the turns: %w", err)
 	}
 
 	calls, err := p.pool.Query(ctx,
@@ -294,8 +395,8 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 	}
 
 	intents, err := p.pool.Query(ctx,
-		`SELECT recorded_at, turn_ref, session, thesis, structure, max_loss, underlying_price,
-		        envelope_checked
+		`SELECT recorded_at, turn_ref, cause_id, answers, thesis, structure, max_loss,
+		        underlying_price, envelope_checked
 		   FROM intents ORDER BY recorded_at DESC LIMIT @shows`,
 		pgx.NamedArgs{"shows": p.shows})
 	if err != nil {
@@ -307,8 +408,9 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 		var intent Intent
 		var turn *string
 		var price *string
-		if err := intents.Scan(&intent.At, &turn, &intent.Session, &intent.Thesis,
-			&intent.Structure, &intent.MaxLoss, &price, &intent.EnvelopeChecked); err != nil {
+		if err := intents.Scan(&intent.At, &turn, &intent.CauseID, &intent.Answers,
+			&intent.Thesis, &intent.Structure, &intent.MaxLoss, &price,
+			&intent.EnvelopeChecked); err != nil {
 			return State{}, fmt.Errorf("read an intent: %w", err)
 		}
 		if turn != nil {

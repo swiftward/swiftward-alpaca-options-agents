@@ -18,11 +18,20 @@ import (
 // only this says what the session meant to do.
 type Intent struct {
 	At time.Time `json:"at"`
-	// TurnRef is the turn that recorded it, and Session is the waker of that turn.
+	// TurnRef is the turn that recorded it. CauseID is the cause that was in force
+	// when it was written - a turn is told more than one thing while it runs, and
+	// the last thing said before this line is what it answers to.
+	//
 	// Both come from the harness, not from the session: a name the model types is
 	// what it believes it is, and the record answers what it was.
-	TurnRef   string `json:"turn_ref"`
-	Session   string `json:"session"`
+	TurnRef string `json:"turn_ref"`
+	CauseID *int64 `json:"cause_id,omitempty"`
+	// Answers is the model's own claim about which cause it was addressing, and it
+	// is kept apart from CauseID because the two are known by different parties.
+	// The model chooses from the causes actually delivered to its turn and is
+	// refused otherwise, so it is a bounded claim rather than free text. Absent is
+	// the ordinary case: saying so is offered, never required.
+	Answers   *int64 `json:"answers,omitempty"`
 	Thesis    string `json:"thesis"`
 	Structure string `json:"structure"`
 	MaxLoss   string `json:"max_loss"`
@@ -49,10 +58,25 @@ type Turn struct {
 	ThreadRef  string     `json:"thread_ref"`
 	StartedAt  time.Time  `json:"started_at"`
 	FinishedAt *time.Time `json:"finished_at,omitempty"`
-	WokenBy    string     `json:"woken_by"`
-	Cause      string     `json:"cause"`
 	Model      string     `json:"model,omitempty"`
 	Failure    string     `json:"failure,omitempty"`
+}
+
+// TurnCause is one thing put in front of a turn: the waking that opened it, and
+// then whatever was said into it while it ran.
+//
+// ID is the order. Two causes can carry the same instant - the schedule ticks
+// once a minute, and a window every ten minutes meets one every fifteen on the
+// hour - so ordering by time answers differently on different reads. At is for
+// a person reading the record and for nothing else.
+type TurnCause struct {
+	ID      int64     `json:"id"`
+	TurnRef string    `json:"turn_ref"`
+	At      time.Time `json:"at"`
+	// WokenBy is a session name from the declaration, a person in the chat, or a
+	// wake-up. Cause says why in the words the record shows.
+	WokenBy string `json:"woken_by"`
+	Cause   string `json:"cause"`
 }
 
 // ToolCall is one thing the session did with its hands: which tool, on which
@@ -104,7 +128,11 @@ type ExecutionStep struct {
 // broker. A field standing empty until then would read as an agent under no
 // limits at all.
 type State struct {
-	Turns   []Turn          `json:"turns"`
+	Turns []Turn `json:"turns"`
+	// Causes is what was put in front of the turns above, oldest first. A turn is
+	// woken once and told more things while it runs, so "why did this happen" is
+	// a list and not a field on the turn.
+	Causes  []TurnCause     `json:"causes"`
 	Calls   []ToolCall      `json:"calls"`
 	Steps   []ExecutionStep `json:"steps"`
 	Intents []Intent        `json:"intents"`
@@ -121,7 +149,16 @@ type Keeper interface {
 	// reasoning behind it survives in a form anything can read - the transcripts
 	// keep it too, but in the agent's own format and with no link to our turns.
 	AppendSaid(ctx context.Context, said Said) error
-	TurnStarted(ctx context.Context, turn Turn) error
+	// TurnStarted records a turn together with the cause that opened it, in one
+	// transaction. A turn with no cause is a turn nothing can be attributed to,
+	// so the two are never written apart.
+	TurnStarted(ctx context.Context, turn Turn, wokenBy, cause string) error
+	// AppendTurnCause records something said into a turn already running and
+	// answers the id it was given. From that moment it is the cause in force.
+	AppendTurnCause(ctx context.Context, cause TurnCause) (int64, error)
+	// CausesOfTurn lists what was put in front of one turn, oldest first. It is
+	// what bounds the model's own claim about which cause it is answering.
+	CausesOfTurn(ctx context.Context, turnRef string) ([]TurnCause, error)
 	AppendExecutionStep(ctx context.Context, step ExecutionStep) error
 	// NoteFill writes a fill down once and answers whether this call was the one
 	// that wrote it. The ladder meets the same filled order on every pass and
@@ -163,8 +200,12 @@ const StatusUnknown = "unknown"
 // Memory keeps the record for the length of one run. Tests use it; nothing else
 // should, because the week's evidence has to outlive a restart.
 type Memory struct {
-	mu    sync.RWMutex
-	state State
+	mu sync.RWMutex
+	// nextCause hands out cause ids the way the database's sequence does: the id
+	// is the order, and ordering by time would tie whenever two causes land in
+	// the same instant.
+	nextCause int64
+	state     State
 }
 
 func NewMemory() *Memory {
@@ -181,6 +222,7 @@ func (m *Memory) Read(context.Context) (State, error) {
 		Calls:   append(make([]ToolCall, 0, len(m.state.Calls)), m.state.Calls...),
 		Steps:   append(make([]ExecutionStep, 0, len(m.state.Steps)), m.state.Steps...),
 		Turns:   append(make([]Turn, 0, len(m.state.Turns)), m.state.Turns...),
+		Causes:  append(make([]TurnCause, 0, len(m.state.Causes)), m.state.Causes...),
 		Intents: append(make([]Intent, 0, len(m.state.Intents)), m.state.Intents...),
 		Said:    append(make([]Said, 0, len(m.state.Said)), m.state.Said...),
 	}
@@ -191,6 +233,19 @@ func (m *Memory) Read(context.Context) (State, error) {
 func (m *Memory) AppendIntent(_ context.Context, intent Intent) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// The same resolution the real keeper does in its transaction. A double that
+	// stored the intent as handed to it would let a test pass while the column
+	// the record answers from stayed empty.
+	if intent.CauseID == nil {
+		for i := range m.state.Causes {
+			if m.state.Causes[i].TurnRef != intent.TurnRef {
+				continue
+			}
+			id := m.state.Causes[i].ID
+			intent.CauseID = &id
+		}
+	}
 	m.state.Intents = append(m.state.Intents, intent)
 
 	return nil
@@ -204,12 +259,48 @@ func (m *Memory) AppendSaid(_ context.Context, said Said) error {
 	return nil
 }
 
-func (m *Memory) TurnStarted(_ context.Context, turn Turn) error {
+func (m *Memory) TurnStarted(_ context.Context, turn Turn, wokenBy, cause string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	for i := range m.state.Turns {
+		if m.state.Turns[i].Ref == turn.Ref {
+			return nil
+		}
+	}
 	m.state.Turns = append(m.state.Turns, turn)
+	m.nextCause++
+	m.state.Causes = append(m.state.Causes, TurnCause{
+		ID: m.nextCause, TurnRef: turn.Ref, At: turn.StartedAt,
+		WokenBy: wokenBy, Cause: cause,
+	})
 
 	return nil
+}
+
+func (m *Memory) AppendTurnCause(_ context.Context, cause TurnCause) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.nextCause++
+	cause.ID = m.nextCause
+	m.state.Causes = append(m.state.Causes, cause)
+
+	return cause.ID, nil
+}
+
+func (m *Memory) CausesOfTurn(_ context.Context, turnRef string) ([]TurnCause, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var causes []TurnCause
+	for i := range m.state.Causes {
+		if m.state.Causes[i].TurnRef == turnRef {
+			causes = append(causes, m.state.Causes[i])
+		}
+	}
+
+	return causes, nil
 }
 
 func (m *Memory) CloseTurnsLeftOpen(_ context.Context, at time.Time) (int, error) {
@@ -304,12 +395,12 @@ func (m *Memory) LastRuns(_ context.Context, since time.Time) (map[string]time.T
 	defer m.mu.RUnlock()
 
 	last := map[string]time.Time{}
-	for _, turn := range m.state.Turns {
-		if turn.StartedAt.Before(since) {
+	for _, cause := range m.state.Causes {
+		if cause.At.Before(since) {
 			continue
 		}
-		if was, seen := last[turn.WokenBy]; !seen || turn.StartedAt.After(was) {
-			last[turn.WokenBy] = turn.StartedAt
+		if was, seen := last[cause.WokenBy]; !seen || cause.At.After(was) {
+			last[cause.WokenBy] = cause.At
 		}
 	}
 

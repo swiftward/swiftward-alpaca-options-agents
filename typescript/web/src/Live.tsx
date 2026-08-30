@@ -11,7 +11,18 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 
-import type { Everything, Limits, Money, Said, Snapshot, State, Sweep, ToolCall, Turn } from './api'
+import type {
+  Everything,
+  Limits,
+  Money,
+  Said,
+  Snapshot,
+  State,
+  Sweep,
+  ToolCall,
+  Turn,
+  TurnCause,
+} from './api'
 import { readEverything } from './api'
 import { Equity } from './Equity'
 import { ago, clock, dollars, percent, signed, took, trim } from './format'
@@ -359,6 +370,13 @@ function Turns({ state }: { state: State }) {
     callsByTurn.set(call.turn_ref, [...(callsByTurn.get(call.turn_ref) ?? []), call])
   }
 
+  // A turn is woken once and then told more things while it runs, so what caused
+  // it is a list. They arrive in order and stay in it.
+  const causesByTurn = new Map<string, TurnCause[]>()
+  for (const cause of state.causes ?? []) {
+    causesByTurn.set(cause.turn_ref, [...(causesByTurn.get(cause.turn_ref) ?? []), cause])
+  }
+
   // It reads like a conversation: old at the top, newest at the bottom. The
   // record arrives newest first, so it is reversed here.
   const inOrder = [...turns].reverse()
@@ -377,6 +395,7 @@ function Turns({ state }: { state: State }) {
           <li key={turn.ref}>
             <TurnCard
               turn={turn}
+              causes={causesByTurn.get(turn.ref) ?? []}
               said={saidByTurn.get(turn.ref) ?? []}
               calls={callsByTurn.get(turn.ref) ?? []}
             />
@@ -387,7 +406,17 @@ function Turns({ state }: { state: State }) {
   )
 }
 
-function TurnCard({ turn, said, calls }: { turn: Turn; said: Said[]; calls: ToolCall[] }) {
+function TurnCard({
+  turn,
+  causes,
+  said,
+  calls,
+}: {
+  turn: Turn
+  causes: TurnCause[]
+  said: Said[]
+  calls: ToolCall[]
+}) {
   const state = turn.failure
     ? { text: turn.failure, colour: 'text-loss', Icon: CircleAlert }
     : turn.finished_at
@@ -400,7 +429,13 @@ function TurnCard({ turn, said, calls }: { turn: Turn; said: Said[]; calls: Tool
     <div className="rounded-lg border border-line bg-surface-raised px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[11px] text-muted">
         <span>{clock(turn.started_at)}</span>
-        <span className="font-medium text-primary">{turn.woken_by}</span>
+        <span className="font-medium text-primary">{causes[0]?.woken_by ?? 'unknown'}</span>
+        {causes.slice(1).map((cause) => (
+          <Chip key={cause.id}>
+            {'+ '}
+            {cause.woken_by}
+          </Chip>
+        ))}
         <Chip tone={turn.failure ? 'loss' : turn.finished_at ? undefined : 'gain'}>
           <state.Icon className={`size-3 ${turn.finished_at || turn.failure ? '' : 'animate-spin'}`} />
           {state.text}
@@ -413,7 +448,11 @@ function TurnCard({ turn, said, calls }: { turn: Turn; said: Said[]; calls: Tool
         ) : null}
       </div>
 
-      <p className="mt-2 text-sm text-secondary">{turn.cause}</p>
+      {causes.map((cause) => (
+        <p key={cause.id} className="mt-2 text-sm text-secondary">
+          {cause.cause}
+        </p>
+      ))}
 
       {/* Its own words. They are what the page is opened for: anyone can show a
           curve, few can show the decision in words. They are separated from the

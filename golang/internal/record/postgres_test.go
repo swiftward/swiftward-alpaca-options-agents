@@ -30,24 +30,24 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 	ctx := context.Background()
 	started := time.Date(2026, 9, 3, 18, 20, 0, 0, time.UTC)
 	turn := Turn{
-		Ref: "turn-1", ThreadRef: "thread-1", StartedAt: started,
-		WokenBy: "entry", Cause: "declaration: entry", Model: "gpt-5.6",
+		Ref: "turn-1", ThreadRef: "thread-1", StartedAt: started, Model: "gpt-5.6",
 	}
-	require.NoError(t, kept.TurnStarted(ctx, turn))
-	require.NoError(t, kept.TurnStarted(ctx, turn), "the same turn twice is one row")
+	require.NoError(t, kept.TurnStarted(ctx, turn, "entry", "declaration: entry"))
+	require.NoError(t, kept.TurnStarted(ctx, turn, "entry", "declaration: entry"),
+		"the same turn twice is one row, and one opening cause")
 	require.NoError(t, kept.TurnFinished(ctx, "turn-1", started.Add(90*time.Second), ""))
 	// No underlying price on purpose: a session states one when it read one, and
 	// the column is numeric, so an empty string has to reach Postgres as NULL. It
 	// reached it as "" until 29 August 2026 and the whole row was refused - on
 	// the one call this system asks the agent to make before every order.
 	require.NoError(t, kept.AppendIntent(ctx, Intent{
-		At: started.Add(time.Minute), TurnRef: "turn-1", Session: "entry",
+		At: started.Add(time.Minute), TurnRef: "turn-1",
 		Thesis: "premium is rich into the close", Structure: "put spread on SPY expiring today",
 		MaxLoss: "1% of capital",
 	}))
 	checked := true
 	require.NoError(t, kept.AppendIntent(ctx, Intent{
-		At: started.Add(2 * time.Minute), TurnRef: "turn-1", Session: "entry",
+		At: started.Add(2 * time.Minute), TurnRef: "turn-1",
 		Thesis: "and one that did read the price", Structure: "put spread on QQQ",
 		MaxLoss: "1% of capital", UnderlyingPrice: "701.245000", EnvelopeChecked: &checked,
 	}))
@@ -71,7 +71,8 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 	state, err := kept.Read(ctx)
 	require.NoError(t, err)
 	require.Len(t, state.Turns, 1)
-	assert.Equal(t, "entry", state.Turns[0].WokenBy)
+	require.Len(t, state.Causes, 1, "written twice, opened once")
+	assert.Equal(t, "entry", state.Causes[0].WokenBy)
 	assert.Equal(t, started.UTC(), state.Turns[0].StartedAt.UTC())
 	require.NotNil(t, state.Turns[0].FinishedAt)
 	assert.Equal(t, started.Add(90*time.Second).UTC(), state.Turns[0].FinishedAt.UTC())
@@ -97,8 +98,7 @@ func TestPostgresKeepsTheRecord(t *testing.T) {
 		require.NoError(t, kept.TurnStarted(ctx, Turn{
 			Ref: fmt.Sprintf("turn-later-%d", i), ThreadRef: "thread-1",
 			StartedAt: started.Add(time.Duration(i+1) * time.Hour),
-			WokenBy:   "clock", Cause: "declaration: defend",
-		}))
+		}, "clock", "declaration: defend"))
 	}
 	state, err = kept.Read(ctx)
 	require.NoError(t, err)
@@ -302,4 +302,62 @@ func TestAnOlderSweepSurvivesButIsNotOffered(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, found, 1, "the purge took the old sweep and left the new one")
 	assert.Equal(t, "SPY", found[0].Underlying)
+}
+
+// Attribution survives the process that made it.
+//
+// Everything here is written through one keeper and read back through another,
+// built on a second pool with nothing shared between them. That is what says the
+// answer lives in the database rather than in a field of the harness: the harness
+// is not in this test at all, and neither is the pool that did the writing.
+func TestWhatCausedAnIntentOutlivesTheProcess(t *testing.T) {
+	dsn := dbtest.Fresh(t)
+	ctx := context.Background()
+	started := time.Date(2026, 9, 3, 18, 20, 0, 0, time.UTC)
+
+	writing, err := db.Open(ctx, dsn)
+	require.NoError(t, err)
+	wrote, err := NewPostgres(writing, 10)
+	require.NoError(t, err)
+
+	require.NoError(t, wrote.TurnStarted(ctx,
+		Turn{Ref: "turn-1", ThreadRef: "thread-1", StartedAt: started}, "entry", "trying an entry"))
+	require.NoError(t, wrote.AppendIntent(ctx, Intent{
+		At: started.Add(time.Minute), TurnRef: "turn-1", Structure: "before", Thesis: "t", MaxLoss: "m",
+	}))
+	defended, err := wrote.AppendTurnCause(ctx, TurnCause{
+		TurnRef: "turn-1", At: started.Add(2 * time.Minute),
+		WokenBy: "defend", Cause: "checking the defence rules",
+	})
+	require.NoError(t, err)
+	require.NoError(t, wrote.AppendIntent(ctx, Intent{
+		At: started.Add(3 * time.Minute), TurnRef: "turn-1", Structure: "after", Thesis: "t", MaxLoss: "m",
+	}))
+	// The writer is gone before anything is read, which is the point.
+	writing.Close()
+
+	reading, err := db.Open(ctx, dsn)
+	require.NoError(t, err)
+	t.Cleanup(reading.Close)
+	read, err := NewPostgres(reading, 10)
+	require.NoError(t, err)
+
+	state, err := read.Read(ctx)
+	require.NoError(t, err)
+	require.Len(t, state.Intents, 2)
+	require.Len(t, state.Causes, 2)
+
+	byStructure := map[string]int64{}
+	for _, intent := range state.Intents {
+		require.NotNil(t, intent.CauseID, intent.Structure)
+		byStructure[intent.Structure] = *intent.CauseID
+	}
+	assert.Equal(t, state.Causes[0].ID, byStructure["before"], "written before the steer")
+	assert.Equal(t, defended, byStructure["after"], "written after the steer")
+
+	causes, err := read.CausesOfTurn(ctx, "turn-1")
+	require.NoError(t, err)
+	require.Len(t, causes, 2)
+	assert.Equal(t, []string{"entry", "defend"}, []string{causes[0].WokenBy, causes[1].WokenBy},
+		"oldest first, by id and never by time")
 }

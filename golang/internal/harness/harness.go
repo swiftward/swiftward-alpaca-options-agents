@@ -511,6 +511,40 @@ func (h *Harness) fireWakeups(ctx context.Context) {
 	}
 }
 
+// steerInto says something into a turn already running and, when the agent takes
+// it, writes down that it was said.
+//
+// The write is the point. A turn is told more than one thing while it runs, and
+// what an intent recorded afterwards answers to is the LAST thing said before it.
+// Holding that in a field of this process would lose it on restart and would lose
+// it exactly when somebody later asks the record who did what - so it is a row,
+// written the moment the agent accepts the steer, and never a snapshot.
+func (h *Harness) steerInto(ctx context.Context, turnID, prompt, who string) error {
+	agentCtx, done := h.boundToAgent(ctx)
+	err := h.Conversation.Steer(agentCtx, turnID, prompt)
+	done()
+	if err != nil {
+		return err
+	}
+	if h.Record == nil {
+		return nil
+	}
+	if _, err := h.Record.AppendTurnCause(ctx, record.TurnCause{
+		TurnRef: turnID,
+		At:      h.Now(),
+		WokenBy: who,
+		Cause:   firstLine(prompt),
+	}); err != nil {
+		// The steer has already been taken; refusing here would tell the caller to
+		// start a second turn beside a turn that is now doing the work. The record
+		// loses this cause and says so, which is the lesser of the two.
+		h.Log.Error("said into the running turn but could not record what was said",
+			zap.String("who", who), zap.String("turn_id", turnID), zap.Error(err))
+	}
+
+	return nil
+}
+
 // Tell puts something in front of the session now. A turn already running takes
 // it as another instruction; otherwise it becomes a turn of its own.
 //
@@ -520,9 +554,7 @@ func (h *Harness) fireWakeups(ctx context.Context) {
 func (h *Harness) Tell(ctx context.Context, prompt, who string) {
 	stale := ""
 	if turnID := h.runningTurn(); turnID != "" {
-		agentCtx, done := h.boundToAgent(ctx)
-		err := h.Conversation.Steer(agentCtx, turnID, prompt)
-		done()
+		err := h.steerInto(ctx, turnID, prompt, who)
 		if err == nil {
 			h.Log.Info("said into the running turn",
 				zap.String("who", who), zap.String("turn_id", turnID))
@@ -569,9 +601,7 @@ func (h *Harness) steerWhenReady(ctx context.Context, prompt, who string) bool {
 		if turnID, opening := h.turnState(); turnID == "" && !opening {
 			return false
 		} else if turnID != "" {
-			agentCtx, done := h.boundToAgent(ctx)
-			err := h.Conversation.Steer(agentCtx, turnID, prompt)
-			done()
+			err := h.steerInto(ctx, turnID, prompt, who)
 			if err == nil {
 				h.Log.Info("said into the turn another cause had just started",
 					zap.String("who", who), zap.String("turn_id", turnID))
@@ -769,9 +799,7 @@ func (h *Harness) handle(ctx context.Context, msg telegram.Message) {
 
 	stale := ""
 	if turnID := h.runningTurn(); turnID != "" {
-		agentCtx, done := h.boundToAgent(ctx)
-		err := h.Conversation.Steer(agentCtx, turnID, textOf(msg))
-		done()
+		err := h.steerInto(ctx, turnID, textOf(msg), msg.Username)
 		if err != nil {
 			// The turn ended between the check and the call. Nothing is lost: the
 			// message becomes the next turn instead of vanishing into a finished one.
@@ -933,10 +961,8 @@ func (h *Harness) startTurnReplacing(ctx context.Context, prompt, who, model, st
 			Ref:       turnID,
 			ThreadRef: threadID,
 			StartedAt: h.Now(),
-			WokenBy:   who,
-			Cause:     firstLine(woke),
 			Model:     h.modelOf(model),
-		}); err != nil {
+		}, who, firstLine(woke)); err != nil {
 			h.Log.Error("could not record the turn", zap.Error(err))
 		}
 	}
@@ -1413,14 +1439,14 @@ func (h *Harness) runningTurn() string {
 	return h.turnID
 }
 
-// RunningTurn says which turn is in flight and who woke it. The session's own
-// tools ask, so an intent is filed under the turn that produced it rather than
-// under a name the model typed.
-func (h *Harness) RunningTurn() (ref string, wokenBy string) {
+// RunningTurn says which turn is in flight. The session's own tools ask, so an
+// intent is filed under the turn that produced it rather than under a name the
+// model typed.
+func (h *Harness) RunningTurn() (ref string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	return h.turnID, h.turnFor
+	return h.turnID
 }
 
 // interruptAttempts is how many refusals in a row are tolerated before the
