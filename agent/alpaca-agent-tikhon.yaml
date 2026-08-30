@@ -318,31 +318,53 @@ sessions:
   # own repository.
   - name: convexity
     cause: "convexity layer: a cheap bet on a large move, bounded and known"
-    # It was 2h. The layer's expectancy is measured and small (+14 dollars per trade
-    # at the current volatility), and a turn here is the most expensive of all - 94
-    # seconds on average against 31 for the defence. There is no point looking more
-    # often: this step is still in time to take profit under convexity_take, and at
-    # a layer share of 2% there is one new entry at a time anyway.
+    # It was 2h, and stays 4h now that the layer opens again. The expectancy is
+    # measured and small (+14 dollars per structure at the current volatility), and
+    # a turn here is the most expensive of all - 94 seconds on average against 31
+    # for the defence. There is no point looking more often: this step is still in
+    # time to take profit under convexity_take, and at a layer share of 2% there is
+    # one new entry at a time anyway.
     every: 4h
     between: ["09:50", "15:00"]
     days: [mon, tue, wed, thu]
     task: |
-      **This layer is MANAGING ONLY until 4 September 2026. Open nothing new.**
-      Not a pause for lack of trust in the playbook - a measurement. Priced
-      against this underlying's own history in the volatility standing now, the
-      price reaches the sold strike in 1.4 percent of windows, and the whole of
-      the layer's positive expectation sits in a single episode of history. Over
-      four days you get the median outcome, not the average one, and the median
-      here is the debit back.
-      Run the part of the skill about what is ALREADY OPEN, in full:
+      The convexity layer. Run playbook-convexity in full - manage what is open
+      first, then price a new structure.
+
+      **It was managing only until 30 August, and it opens again on a
+      measurement.** The verdict that closed it - "the whole of the layer's
+      positive expectation sits in a single episode of history, and over four days
+      you get the median, which is the debit back" - was measured on the placements
+      the layer had actually been using. It does not hold for the placements this
+      declaration now requires, and that is the whole difference.
+
+      Re-measured on 466 windows of SPY in volatility like today's. Mean payoff per
+      structure, the median beside it, and the share of the mean that comes from
+      the best one percent of windows:
+
+        sold at 0.50 sigma, valley 0.75   -74.00   median -436   83% of windows lose
+        sold at 0.75 sigma, valley 1.50   -68.24   median +253   23% lose
+        sold at 1.50 sigma, valley 2.50   +13.41   median  +49    7% lose, 3.1% from the tail
+        sold at 1.75 sigma, valley 2.50   +14.18   median  +35    3% lose, 2.2% from the tail
+
+      What the agent did on 28 August was the first row: it sold at 0.57 sigma and
+      put the valley at 1.25, in the most populated part of the distribution. What
+      `convexity_short_leg_distance` and `convexity_valley_distance` require is the
+      last two rows. There the median is LARGER than the mean and only a couple of
+      per cent of the payoff comes from the tail - the profit is broad, not a
+      lottery. Across the 39 placements that meet both distances, 38 have a
+      positive mean.
+
+      So the numbers at the head of this declaration are load-bearing here in a way
+      they are not anywhere else: they are what separates +14 from -74. If the
+      chain will not give you a structure that meets BOTH distances, take nothing
+      and say which one you could not meet.
+
+      Then manage what is already open, in full:
       - worth convexity_take of what was paid - close it and say what you took;
       - a day or less to expiry and the move never came - close while something
         is still bid;
-      - it outlives convexity_horizon - close it;
-      - none of these - say in one line what you hold and why, and finish.
-      Then finish. Do not price new structures, do not call score_placements for
-      a new one, do not send an opening order. If nothing is open, say so in one
-      line and finish - that is a complete turn, not an idle one.
+      - it outlives convexity_horizon - close it.
       Your limits come from the envelope (read_envelope): they are not in this
       text.
 
