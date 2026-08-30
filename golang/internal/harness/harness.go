@@ -1355,8 +1355,10 @@ func (h *Harness) boundToAgent(ctx context.Context) (context.Context, context.Ca
 	return context.WithTimeout(ctx, h.CallTimeout)
 }
 
-// runningFor is the name the current turn runs under: a session's name, or the
-// person who wrote.
+// runningFor names what OPENED the current turn - a session, or the person who
+// wrote. Not what the turn is doing now: a steer changes that and does not change
+// this, and the record answers the second question through the turn's causes.
+// This is the chat's label, and a label follows the turn it was posted for.
 func (h *Harness) runningFor() string {
 	h.mu.Lock()
 	defer h.mu.Unlock()

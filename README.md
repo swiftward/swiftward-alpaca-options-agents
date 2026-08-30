@@ -29,10 +29,10 @@ The agent trades defined-risk options structures on Alpaca. Every broker call pa
 
 ```
 cp .env.example .env     # fill in the keys
-make up                  # local stack, built from this checkout
+make local-up            # the whole stack, built from this checkout, agents included
 ```
 
-`make prod-up` runs the same stack from published images.
+`make prod-up` runs the same stack from published images. Both bring the agents up; a bare `docker compose up` does not, because the agents sit behind a compose profile.
 
 ## Licence
 

@@ -3,23 +3,28 @@
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
-.PHONY: help up down build test test-db test-broker lint english migrate fmt
+.PHONY: help local-up local-down prod-up prod-down build test test-db test-broker lint english migrate fmt
 
 help: ## List the targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS=":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
-up: ## Start the local stack from this checkout
-	docker compose --env-file .env up -d --build
+# --profile session is on both `up` targets and has to be. The agent carries
+# profiles: [session], so a compose command without it brings up everything EXCEPT
+# the thing that trades - and that looks exactly like success. It cost us a
+# rebuild on 30 August: the stack came up, the agents kept running the previous
+# binary, and the only symptom was that they were writing to a column the
+# migration had just dropped. Never run a bare `docker compose up` here.
+local-up: ## Start the whole stack from this checkout, agents included
+	docker compose --env-file .env --profile session up -d --build
 
-down: ## Stop the stack, keeping the volumes
-	docker compose --env-file .env down
+local-down: ## Stop the local stack, keeping the volumes
+	docker compose --env-file .env --profile session down
 
-prod-up: ## Start the stack from the published images, agent included
-	# --profile session is required: the agent carries profiles: [session] so a
-	# bare `up` cannot start trading by accident. The guard is right, but it has to
-	# be called explicitly - without it everything comes up EXCEPT the main thing,
-	# and that looks like success.
+prod-up: ## Start the whole stack from the published images, agents included
 	docker compose --env-file .env -f compose.prod.yaml --profile session up -d
+
+prod-down: ## Stop the published stack, keeping the volumes
+	docker compose --env-file .env -f compose.prod.yaml --profile session down
 
 build: ## Build everything
 	$(MAKE) -C golang build
