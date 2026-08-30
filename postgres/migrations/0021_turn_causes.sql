@@ -22,8 +22,21 @@ CREATE INDEX IF NOT EXISTS turn_causes_turn_idx ON turn_causes (turn_ref, id);
 
 -- Every turn already recorded becomes its own first cause. Nothing is lost and
 -- nothing is invented: a turn that was never steered had exactly one cause.
-INSERT INTO turn_causes (turn_ref, at, woken_by, cause)
-SELECT turn_ref, started_at, woken_by, cause FROM turns;
+--
+-- Guarded on the old column rather than written plainly, because the migrations
+-- are applied again on every start and this file drops the column it reads. Left
+-- unguarded it succeeds once and then fails every start after it, which is a
+-- stack that will not come up.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_name = 'turns' AND column_name = 'woken_by'
+    ) THEN
+        INSERT INTO turn_causes (turn_ref, at, woken_by, cause)
+        SELECT turn_ref, started_at, woken_by, cause FROM turns;
+    END IF;
+END $$;
 
 -- Which cause was in force when the intent was written. Resolved when the intent
 -- is inserted, never derived afterwards by comparing timestamps: the two would
