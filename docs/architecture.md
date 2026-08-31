@@ -94,11 +94,13 @@ the market closed, which is the point: the answer is available on a Sunday.
 
 ## The record
 
-Nine tables. Four carry what the agent did, and each answers its own question: `turns` - when a session ran and how it ended; `turn_causes` - what was put in front of that turn, in order; `tool_calls` - what it did with its hands, with the arguments it sent and what came back; `intents` - what it meant to do before it ordered anything. The harness writes all but the last from the agent's own stream, whether or not a chat is watching; `record_intent` writes that one.
+Ten tables. Four carry what the agent did, and each answers its own question: `turns` - when a session ran and how it ended; `turn_causes` - what was put in front of that turn, in order; `tool_calls` - what it did with its hands, with the arguments it sent and what came back; `intents` - what it meant to do before it ordered anything. The harness writes all but the last from the agent's own stream, whether or not a chat is watching; `record_intent` writes that one.
 
 `turn_causes` is a list rather than a column on `turns` because a turn is woken once and then told more things while it runs: an entry window opens one, and a defence window or a person says something into it minutes later. Each row's id is its order, since two causes that meet on the same minute carry the same timestamp. Every intent points at the cause that was in force when it was written, resolved inside the same transaction as the insert - so the record answers "what was this turn doing when it said that" from a row, not from a comparison of clocks.
 
 `execution_steps` carries what happened to an order after the session let go of it: every price the ladder walked it to, the cancellation if the book never came, and the fill with its price and how many contracts. Without the count the record holds a price and not money - a fill at 0.28 says nothing about whether twenty-eight dollars was collected or fourteen hundred.
+
+`said` carries the agent's own words, line by line against the turn that spoke them - the reasoning behind an entry, and behind a refusal. It is written by the harness from the same stream it posts to the chat, because the alternative was parsing codex transcripts on every page request: a second route to the data, in a format that is not ours. 469 lines on the first judged day.
 
 `volatility_samples`, `account_snapshots` and `candidates` carry what the market and the account were worth over time, and what the screener last priced.
 
@@ -106,7 +108,7 @@ A refused order is in `tool_calls`, in the broker's own words. There is no separ
 
 It lives in Postgres because it is the evidence: a restart must not empty the page a judge is reading. `RECORD_SHOWS` bounds how many rows of each kind that page carries.
 
-A ninth table, `record_account`, holds one row: the name of the account this record is of. The agent writes it the first time it starts and every process compares its own name against it before serving anything, so a database reached by the wrong `DATABASE_URL` is a refusal at startup rather than one account's equity line shown under another's name.
+`record_account` holds one row: the name of the account this record is of. The agent writes it the first time it starts and every process compares its own name against it before serving anything, so a database reached by the wrong `DATABASE_URL` is a refusal at startup rather than one account's equity line shown under another's name.
 
 ## The volatility history
 
