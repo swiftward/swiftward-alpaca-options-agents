@@ -99,7 +99,15 @@ func (b *Broker) roundTripper() http.RoundTripper {
 		DialContext:           (&net.Dialer{Timeout: dialLimit}).DialContext,
 		TLSHandshakeTimeout:   dialLimit,
 		ResponseHeaderTimeout: brokerCallLimit,
-		IdleConnTimeout:       90 * time.Second,
+		// 20 seconds, not 90. A kept-alive connection is only useful while BOTH
+		// ends still believe in it, and the far end here closes idle ones sooner
+		// than we did: on 31 August the agent took 20 "EOF" failures in eight
+		// hours - a request written into a connection the server had already hung
+		// up. About one call in ninety, spread over reads of the account, the
+		// positions and the orders, and one of them was the check of the day's
+		// fuse. Holding an idle connection for less time than any common server
+		// keeps one costs a handshake now and then and removes the race.
+		IdleConnTimeout:       20 * time.Second,
 		MaxIdleConnsPerHost:   4,
 	}
 
