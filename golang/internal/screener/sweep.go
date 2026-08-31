@@ -55,8 +55,8 @@ type Sweep struct {
 	// screener's trading choices in a different place from every other one and
 	// meant changing any of them was a redeployment.
 	Thresholds func() (Wanted, error)
-	Every    time.Duration
-	Record   Keeper
+	Every      time.Duration
+	Record     Keeper
 	// Keep is how long a sweep's findings stay readable after the sweep that
 	// replaced them. They are the only record of what the option book offered,
 	// because the broker publishes no history of two-sided option quotes.

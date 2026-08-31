@@ -1050,6 +1050,7 @@ func screenerThresholds(declared *declaration.Watcher) (screener.Wanted, error) 
 		{"screener_most_paid", &wanted.MostCreditToRisk},
 		{"screener_dearest", &wanted.MaxCostShare},
 		{"screener_most_delta", &wanted.MostDelta},
+		{"screener_least_width", &wanted.LeastWidth},
 		{"screener_least_edge", &wanted.LeastEdge},
 	} {
 		if *read.into, err = number(read.name); err != nil {

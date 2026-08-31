@@ -100,7 +100,7 @@ type Config struct {
 	ExecutionEvery    time.Duration
 	ExecutionStep     float64
 	ExecutionPatience time.Duration
-	TakeProfitEvery time.Duration
+	TakeProfitEvery   time.Duration
 	// AccountEvery is how often the account's value is written down. Zero means
 	// no history is kept here.
 	AccountEvery time.Duration

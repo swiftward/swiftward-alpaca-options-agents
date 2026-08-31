@@ -115,6 +115,21 @@ type Wanted struct {
 	//
 	// Zero leaves delta unchecked.
 	MostDelta float64
+	// LeastWidth is the narrowest structure whose edge is worth ranking, in
+	// dollars of strike distance. Zero leaves width unchecked.
+	//
+	// Edge is counted in points of the WIDTH, and credits move on a one-cent grid
+	// - measured on our own sweep of 31 August, every credit of 797 rows was a
+	// whole number of cents. So one tick of credit is 100/width points of edge:
+	// two points at a width of 0.50, a fifth of a point at 5.00. The SAME
+	// threshold therefore means one and a half cents on one row and fifteen on
+	// another, and ranking by it puts at the top the rows it can least measure.
+	// That day every one of the 119 structures clearing +3 was a dollar wide or
+	// narrower, and the session's own re-quote turned them negative.
+	//
+	// The bound is on the instrument, not on the opportunity: below it the number
+	// is not small, it is unreadable.
+	LeastWidth float64
 	// LeastEdge is the least a structure may pay above what it must survive, in
 	// percentage points, and it applies only where the broker gave a delta to
 	// measure with. Zero leaves it unchecked.
@@ -166,6 +181,7 @@ const (
 	RefusedCost            = "the crossing costs more of the credit than the sanity bound"
 	RefusedEatenByCost     = "the crossing eats the whole credit"
 	RefusedEdge            = "pays less than what it must survive"
+	RefusedTooNarrow       = "too narrow for its edge to be measured"
 
 	// What the chance of surviving was read from.
 	FromDelta = "delta"
@@ -250,7 +266,7 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 					short, long = list[i-back], list[i]
 				}
 
-				candidate, ok := price_(underlying, kind, price, short, long, quotes, now, borrowed, want, refused)
+				candidate, ok := priceOneSpread(underlying, kind, price, short, long, quotes, now, borrowed, want, refused)
 				if !ok {
 					continue
 				}
@@ -270,7 +286,7 @@ func Best(underlying string, price float64, contracts []marketdata.Contract,
 	return found
 }
 
-func price_(underlying, kind string, price float64,
+func priceOneSpread(underlying, kind string, price float64,
 	short, long marketdata.Contract, quotes map[string]marketdata.Quote, now time.Time,
 	borrowed *float64, want Wanted, refused Refused) (Candidate, bool) {
 
@@ -288,6 +304,10 @@ func price_(underlying, kind string, price float64,
 	width := math.Abs(short.Strike - long.Strike)
 	if width <= 0 {
 		refused.note(RefusedNoCredit)
+		return Candidate{}, false
+	}
+	if want.LeastWidth > 0 && width < want.LeastWidth {
+		refused.note(RefusedTooNarrow)
 		return Candidate{}, false
 	}
 

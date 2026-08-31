@@ -107,8 +107,8 @@ func (b *Broker) roundTripper() http.RoundTripper {
 		// positions and the orders, and one of them was the check of the day's
 		// fuse. Holding an idle connection for less time than any common server
 		// keeps one costs a handshake now and then and removes the race.
-		IdleConnTimeout:       20 * time.Second,
-		MaxIdleConnsPerHost:   4,
+		IdleConnTimeout:     20 * time.Second,
+		MaxIdleConnsPerHost: 4,
 	}
 
 	if b.token == "" {

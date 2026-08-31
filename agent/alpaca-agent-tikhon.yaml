@@ -217,6 +217,15 @@ parameters:
   # NEGATIVE: selling that close pays less than it costs. So the wider list was
   # not more choice, it was a list with losing structures in it, ranked by a
   # measure that cannot see the difference.
+  # MEASURED on our own sweep of 31 August, 797 rows. Edge is counted in points of
+  # the WIDTH and credits move on a one-cent grid, so one tick of credit is
+  # 100/width points: two points at 0.50, a fifth of a point at 5.00. The same
+  # "+3" therefore meant one and a half cents on one row and fifteen on another,
+  # and every one of the 119 structures clearing it that day was a dollar wide or
+  # narrower - the rows where the number cannot survive one tick, which is why the
+  # session's own re-quote kept turning them negative. At a dollar, one tick is one
+  # point and the threshold is three ticks.
+  screener_least_width: "1.0"
   screener_most_delta: "0.30"
   screener_least_edge: "-3.0"
 
