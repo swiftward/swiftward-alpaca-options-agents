@@ -3,8 +3,8 @@
 # else in the stack.
 FROM python:3.13-alpine
 
-ARG ALPACA_MCP_VERSION=2.3.0
-RUN pip install --no-cache-dir "alpaca-mcp-server==${ALPACA_MCP_VERSION}"
+COPY docker/alpaca-mcp.requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && rm /tmp/requirements.txt
 
 RUN adduser -D -u 1002 mcp
 USER mcp
