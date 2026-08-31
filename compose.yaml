@@ -204,7 +204,7 @@ services:
       - ./golang:/src
       - ./postgres:/postgres:ro
       - ${GOMODCACHE}:/go/pkg/mod
-    command: ["go", "test", "-tags", "db", "-count=1", "./internal/record/...", "./internal/volatility/..."]
+    command: ["go", "test", "-tags", "db", "-count=1", "./internal/db/...", "./internal/record/...", "./internal/volatility/..."]
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -469,10 +469,12 @@ services:
       BROKER_MCP_TOKEN: ${AGENT_TIKHON_PAGE_MCP_TOKEN}
       USER_TOKEN: ${USER_TOKEN:-}
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
-      RECORD_SHOWS: ${RECORD_SHOWS}
-      ORDERS_SHOWN: ${ORDERS_SHOWN}
-      HISTORY_DAYS: ${HISTORY_DAYS}
+      # No record here, and that is the whole configuration: this account's
+      # agent runs elsewhere and keeps its work elsewhere. Pointed at a
+      # database, this page showed the FIRST agent's equity line and intents
+      # beside its own account's money, which is what it did until 31 August.
+      # Without one the page serves the money and answers plainly that no
+      # history is kept here.
     ports:
       - "${AGENT_TIKHON_PAGE_PORT:-8803}:8080"
     # The week runs unattended: a machine that reboots at three in the morning
@@ -521,10 +523,12 @@ services:
       BROKER_MCP_TOKEN: ${AGENT_STAND_PAGE_MCP_TOKEN}
       USER_TOKEN: ${USER_TOKEN:-}
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
-      RECORD_SHOWS: ${RECORD_SHOWS}
-      ORDERS_SHOWN: ${ORDERS_SHOWN}
-      HISTORY_DAYS: ${HISTORY_DAYS}
+      # No record here, and that is the whole configuration: this account's
+      # agent runs elsewhere and keeps its work elsewhere. Pointed at a
+      # database, this page showed the FIRST agent's equity line and intents
+      # beside its own account's money, which is what it did until 31 August.
+      # Without one the page serves the money and answers plainly that no
+      # history is kept here.
     ports:
       - "${AGENT_STAND_PAGE_PORT:-8804}:8080"
     # The week runs unattended: a machine that reboots at three in the morning

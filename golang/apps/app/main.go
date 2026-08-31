@@ -188,6 +188,17 @@ func run(log *zap.Logger) error {
 			return err
 		}
 		defer pool.Close()
+
+		// The process that keeps the record stamps it; everything else compares
+		// and refuses. See internal/db/account.go for what this stops.
+		bind := db.Check
+		if cfg.Has(config.RoleHarness) {
+			bind = db.Claim
+		}
+		if err := bind(ctx, pool, cfg.EnvelopeIdentity); err != nil {
+			return err
+		}
+		log.Info("the record is of this account", zap.String("account", cfg.EnvelopeIdentity))
 	}
 
 	var state record.Keeper = record.NewMemory()
