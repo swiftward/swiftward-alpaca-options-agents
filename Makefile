@@ -3,7 +3,7 @@
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
-.PHONY: help local-up local-down prod-up prod-down build test test-db test-broker lint english migrate fmt
+.PHONY: help local-up local-down prod-up prod-down build test test-db test-broker rehearse lint english migrate fmt
 
 help: ## List the targets
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS=":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -48,6 +48,14 @@ check: ## Every gate a push must pass: style, language, tests, the race detector
 
 claims: ## Recompute every number this project publishes, from data in the repository, with no credentials
 	cd research && uv run claims.py
+
+rehearse: ## Send the reads a trading day sends, from every agent at once, and print what was refused
+	# Run it BEFORE the day, including with the market closed: reads work at the
+	# weekend and the answer is the same one Monday would give. On 31 August the
+	# market opened and the screener could not read a single price - a rate limit
+	# inside our own platform, left on its default, that no check had ever asked
+	# for a burst. Two entry windows went before the cause was found.
+	docker compose --env-file .env --profile tools run --rm rehearse
 
 reconcile: ## Every order the broker holds, against what the record says: RECONCILE_SINCE=12h make reconcile
 	docker compose --env-file .env --profile tools run --rm reconcile

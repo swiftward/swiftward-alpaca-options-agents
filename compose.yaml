@@ -242,6 +242,32 @@ services:
     command: ["go", "run", "./apps/reconcile"]
     profiles: [tools]
 
+  # The load a trading day puts on the read path, sent while nothing is at stake.
+  # It goes down the same road the screener does - each agent's own entry point
+  # with its own credential - because a rehearsal on a different road measures a
+  # different system. See the Makefile target for what it cost not to have this.
+  rehearse:
+    image: golang:1.27-alpine
+    networks: [internal]
+    working_dir: /src
+    environment:
+      REHEARSE_CALLERS: alpaca-agent-1,alpaca-agent-2
+      REHEARSE_URL_ALPACA_AGENT_1: ${AGENT_1_BROKER_MCP_URL}
+      REHEARSE_TOKEN_ALPACA_AGENT_1: ${AGENT_1_BROKER_MCP_TOKEN}
+      REHEARSE_URL_ALPACA_AGENT_2: ${AGENT_2_BROKER_MCP_URL}
+      REHEARSE_TOKEN_ALPACA_AGENT_2: ${AGENT_2_BROKER_MCP_TOKEN}
+      REHEARSE_UNDERLYINGS: ${SCREENER_UNDERLYINGS}
+      USER_TOKEN: ${USER_TOKEN}
+      USER_HEADER_NAME: ${USER_HEADER_NAME:-}
+      GOFLAGS: -buildvcs=false
+      GOPROXY: "off"
+      GOCACHE: /tmp/gocache
+    volumes:
+      - ./golang:/src
+      - ${GOMODCACHE}:/go/pkg/mod
+    command: ["go", "run", "./apps/rehearse"]
+    profiles: [tools]
+
   # Alpaca's own MCP server. The account keys live here and nowhere else; no host
   # port, so the only caller is the policy gateway.
   alpaca-mcp-agent-1:
