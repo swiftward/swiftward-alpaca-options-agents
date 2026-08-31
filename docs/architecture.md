@@ -136,6 +136,8 @@ The reason is not tidiness. A threshold beside a measure is a second place holdi
 
 Thresholds remain where they catch nonsense rather than choose between sound structures: a quote paying more than the width it risks, a crossing that eats the whole credit.
 
+One more remains, and it bounds the INSTRUMENT rather than the opportunity. Edge is counted in points of the width, and credits move on a one-cent grid, so one tick of credit is `100 / width` points: two points on a half-dollar spread, a fifth of a point on a five-dollar one. The same threshold therefore means one and a half cents on one row and fifteen on another, and the ranking fills its top with the rows it can least measure - on 31 August every one of the 119 structures clearing +3 was a dollar wide or narrower, and the session's own re-quote turned them negative. `screener_least_width` refuses those, not because their edge is small but because it cannot be read. It is not the class of threshold removed above: those discarded structures whose value the measure already carried.
+
 ### What one sweep costs
 
 The broker allows 180 requests a minute, and that limit - not the arithmetic - is the whole cost of a sweep. So the number of requests per underlying IS the reach of the screener.
