@@ -174,7 +174,13 @@ services:
       SKILLS_DIR: /agent/skills
       # Who this process presents itself as to the envelope: the ladder reads the
       # same position limit the session is told to size by.
-      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY}
+      # The same default as the page above, and for the same reason. Without one,
+      # an .env that named the old identity could be emptied but not corrected,
+      # and an agent under no ruleset refuses every entry rather than trading
+      # unguarded. That is the right refusal and the wrong cause: on 31 August it
+      # cost the morning window, because `options-alpha` was renamed to
+      # `alpaca-agent-1` everywhere except one line of a deployed .env.
+      ENVELOPE_IDENTITY: ${ENVELOPE_IDENTITY:-alpaca-agent-1}
       # The key to the broker when the route to it runs through the gateway.
       BROKER_MCP_TOKEN: ${BROKER_MCP_TOKEN}
       MODEL_GATEWAY_URL: ${MODEL_GATEWAY_URL}
