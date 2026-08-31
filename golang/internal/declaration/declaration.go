@@ -237,7 +237,13 @@ func (s *Session) Due(now, last time.Time) bool {
 // only to a scheduled one, so the harness puts them in front of whatever woke
 // the session. See Numbers.
 func (s *Session) Prompt() string {
-	return fmt.Sprintf("Woken by the schedule: %s\n%s", s.Cause, s.Task)
+	// The NAME as well as the reason, because the session is asked elsewhere which
+	// cause it is answering and can only answer with a name it has been given.
+	// Twice on 31 August a session guessed - it said "entry" inside a turn that
+	// `entry-call` had opened - and the record refused the claim. One of the two
+	// recovered by dropping the claim entirely, which loses the only fact nobody
+	// but the session knows.
+	return fmt.Sprintf("Woken by the schedule, session %q: %s\n%s", s.Name, s.Cause, s.Task)
 }
 
 // Numbers is what this agent runs its skills with, written the way a session

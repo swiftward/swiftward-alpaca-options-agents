@@ -232,10 +232,12 @@ sessions:
 	// agent has to read again.
 	assert.Less(t, strings.Index(numbers, "min_edge_points"), strings.Index(numbers, "short_leg_delta"))
 
-	// A session's own prompt still says why it was woken and what to do, and
-	// nothing else: the numbers reach it through the harness.
+	// A session's own prompt says which session it is, why it was woken and what
+	// to do, and nothing else: the numbers reach it through the harness. The name
+	// is there because the session is asked elsewhere which cause it is answering,
+	// and it cannot answer with a name it was never told.
 	assert.Equal(t,
-		"Woken by the schedule: the entry window\nRun premium-harvest.",
+		"Woken by the schedule, session \"entry\": the entry window\nRun premium-harvest.",
 		d.Sessions[0].Prompt())
 }
 
@@ -247,9 +249,8 @@ func TestWithNoParametersThereAreNoNumbers(t *testing.T) {
 
 	assert.Empty(t, d.Skills)
 	assert.Empty(t, d.Numbers())
-	assert.Equal(t,
-		"Woken by the schedule: the entry window in the second half of the session\nJudge the entry conditions and open a position if they line up.",
-		d.Sessions[0].Prompt())
+	assert.Contains(t, d.Sessions[0].Prompt(), "the entry window in the second half of the session")
+	assert.Contains(t, d.Sessions[0].Prompt(), "session \""+d.Sessions[0].Name+"\"")
 }
 
 func TestLoadRefusesParametersThatCannotBeRead(t *testing.T) {
