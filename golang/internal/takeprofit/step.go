@@ -252,7 +252,7 @@ func Group(held []marketdata.Position) (structures []Structure, ambiguous []stri
 			Underlying: parts[0], Expiration: parts[1], Kind: parts[2],
 			Legs: legs, Credit: credit, Sets: sets,
 		}
-		if !onePair(legs) {
+		if !oneForOne(legs) {
 			ambiguous = append(ambiguous, structure.key())
 
 			continue
@@ -265,23 +265,32 @@ func Group(held []marketdata.Position) (structures []Structure, ambiguous []stri
 	return out, ambiguous
 }
 
-// onePair says whether these legs can only have come from one structure: one
-// sold, one bought. Two sold legs are two structures merged; three legs are the
-// same; one leg alone is half of something whose other half has gone.
-func onePair(legs []marketdata.Position) bool {
+// oneForOne says whether these legs can only have come from one credit vertical:
+// one leg sold, one leg bought, and the SAME number of each. Two sold legs are
+// two structures merged; three legs are the same; one leg alone is half of
+// something whose other half has gone.
+//
+// The quantities matter as much as the count, and leaving them out is what this
+// watch got wrong until 31 August. A backspread sells one and buys two: it has a
+// sold leg and a bought leg, so counting legs calls it a vertical - and then the
+// watch buys it back the moment its small credit is recovered. That is the whole
+// structure destroyed for a few dollars, because a backspread is not paid by
+// decay at all; it is paid by a move that has not happened yet. Whoever opened it
+// said how long to hold it, and it is theirs to close.
+func oneForOne(legs []marketdata.Position) bool {
 	if len(legs) != 2 {
 		return false
 	}
-	sold, bought := 0, 0
+	sold, bought := 0.0, 0.0
 	for _, leg := range legs {
 		if leg.Quantity < 0 {
-			sold++
+			sold += math.Abs(leg.Quantity)
 		} else {
-			bought++
+			bought += leg.Quantity
 		}
 	}
 
-	return sold == 1 && bought == 1
+	return sold > 0 && sold == bought
 }
 
 // setsIn is the largest whole number of sets the held quantities all divide by.

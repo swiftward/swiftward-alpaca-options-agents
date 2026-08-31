@@ -138,16 +138,33 @@ func TestItReadsTheStructureOutOfWhatIsHeld(t *testing.T) {
 	assert.InDelta(t, 0.19, s.Credit, 1e-9, "sold at 0.50, bought at 0.31: a credit of 0.19 per set")
 }
 
-// A backspread: six sold against twelve bought is SIX sets one to two, not twelve
-// halves. An error here would close twice what we hold.
-func TestSetsAreCountedByTheGreatestCommonDivisor(t *testing.T) {
-	got, _ := Group([]marketdata.Position{
+// Six sold against twelve bought is a backspread, and this watch declines it.
+//
+// It used to group it and count six sets, and that is what the watch acted on
+// until 31 August: a SPY 744/726 one-for-two opened at 13:55 for a credit of 0.03
+// had a closing order against it at 13:58, because the credit had been recovered.
+// The credit is not what a backspread is for. It is paid by a move that has not
+// happened yet, the layer that opened it declared how long to hold it, and buying
+// it back for three dollars throws that away.
+func TestABackspreadIsDeclinedRatherThanGrouped(t *testing.T) {
+	got, ambiguous := Group([]marketdata.Position{
 		leg("SPY260902C00777000", -6, 1.34),
 		leg("SPY260902C00780000", 12, 0.63),
 	})
+	assert.Empty(t, got)
+	assert.Equal(t, []string{"SPY-2026-09-02-call"}, ambiguous)
+}
+
+// The greatest common divisor still decides how many sets a vertical is, which is
+// what stops a close from being written for twice what is held.
+func TestSetsAreCountedByTheGreatestCommonDivisor(t *testing.T) {
+	got, _ := Group([]marketdata.Position{
+		leg("SPY260902C00777000", -12, 1.34),
+		leg("SPY260902C00780000", 12, 0.63),
+	})
 	require.Len(t, got, 1)
-	assert.Equal(t, 6, got[0].Sets)
-	assert.InDelta(t, 1.34-2*0.63, got[0].Credit, 1e-9)
+	assert.Equal(t, 12, got[0].Sets)
+	assert.InDelta(t, 1.34-0.63, got[0].Credit, 1e-9)
 }
 
 // Two structures on one underlying, expiry and type are NOT one structure.
