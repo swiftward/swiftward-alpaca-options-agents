@@ -117,6 +117,85 @@ type Ladder struct {
 	// redeployment reads the day's fills back into the room as news - which is
 	// exactly what one did on 25 August, eighteen lines at once.
 	watching time.Time
+
+	// ages remembers, for the order id the broker is showing NOW, when the order
+	// was first placed and when it last moved. Both were read from the order's own
+	// submitted_at until 31 August, and a replacement is a NEW order with a NEW
+	// submission time, so both restarted on every step.
+	//
+	// What that cost: the freshness check found the order younger than the
+	// interval on the tick after each step and skipped it, so an order got a step
+	// every OTHER tick. Measured on the live market that day, chaining
+	// `execution_steps` through `replaced_by` on both judged accounts, the median
+	// interval between one order's steps was 90 seconds against a configured 45 -
+	// five offers to the book across eight minutes of patience instead of ten. And
+	// patience, read from the same field, measured how long the order had stood
+	// STILL rather than how long it had gone unfilled, so an order that kept
+	// stepping never aged out at all.
+	//
+	// It is memory rather than record because the ladder must work with Record
+	// nil. What a restart loses is the chain's history, and the fallback is the
+	// order's own submitted_at - the behaviour there was before, and it errs
+	// toward giving the order more time rather than less.
+	ages map[string]orderAge
+}
+
+// orderAge is the life of one order across the replacements that carry it.
+type orderAge struct {
+	placed, moved time.Time
+}
+
+// lifeOf is when this order's chain was placed and when it last moved. An order
+// this ladder has not seen before is taken at the broker's word: its own
+// submission time is both.
+func (l *Ladder) lifeOf(order marketdata.Order) orderAge {
+	if known, found := l.ages[order.ID]; found {
+		return known
+	}
+	life := orderAge{placed: l.Now(), moved: l.Now()}
+	if order.SubmittedAt != nil {
+		life = orderAge{placed: *order.SubmittedAt, moved: *order.SubmittedAt}
+	}
+	if l.ages == nil {
+		l.ages = map[string]orderAge{}
+	}
+	l.ages[order.ID] = life
+
+	return life
+}
+
+// carried moves a chain's life onto the id the replacement was given. The old id
+// is gone from the broker, so keeping it would only grow the map.
+func (l *Ladder) carried(from, to string) {
+	life := l.ages[from]
+	delete(l.ages, from)
+	if to == "" {
+		// A broker that answered without an id leaves nothing to carry the life
+		// onto; the next pass takes the order at its word again.
+		return
+	}
+	life.moved = l.Now()
+	if l.ages == nil {
+		l.ages = map[string]orderAge{}
+	}
+	l.ages[to] = life
+}
+
+// forgetAllBut drops the chains of orders the broker no longer shows, so a day of
+// filled and cancelled orders does not accumulate here.
+func (l *Ladder) forgetAllBut(shown []marketdata.Order) {
+	if len(l.ages) == 0 {
+		return
+	}
+	live := make(map[string]bool, len(shown))
+	for _, order := range shown {
+		live[order.ID] = true
+	}
+	for id := range l.ages {
+		if !live[id] {
+			delete(l.ages, id)
+		}
+	}
 }
 
 // Run walks orders until ctx ends.
@@ -219,6 +298,12 @@ func (l *Ladder) step(ctx context.Context) {
 		}
 	}
 
+	// Filled and cancelled orders stop being shown, and their chains go with them.
+	// An order that falls outside the bound on how many are read loses its chain
+	// too and is taken at the broker's word next pass, which gives it more time
+	// rather than less.
+	l.forgetAllBut(orders)
+
 	for _, order := range orders {
 		if order.Status == "filled" || order.FilledQuantity > 0 {
 			l.report(ctx, order)
@@ -272,10 +357,11 @@ func (l *Ladder) step(ctx context.Context) {
 				atRisk -= worst
 			}
 		}
-		age := l.Now().Sub(*order.SubmittedAt)
-		if age < l.Every {
+		life := l.lifeOf(order)
+		if l.Now().Sub(life.moved) < l.Every {
 			continue
 		}
+		age := l.Now().Sub(life.placed)
 		if age > l.Patience {
 			if err := l.Broker.CancelOrder(ctx, order.ID); err != nil {
 				l.Log.Error("could not cancel an order the book would not take",
@@ -466,6 +552,7 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 	if err != nil {
 		return err
 	}
+	l.carried(order.ID, replacement)
 	l.Log.Info("walked an order toward the book",
 		zap.String("order", order.ID),
 		zap.String("became", replacement),

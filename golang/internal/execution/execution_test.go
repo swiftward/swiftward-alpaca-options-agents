@@ -26,6 +26,17 @@ type brokerDouble struct {
 	positions []marketdata.Position
 	// replacements counts how many ids this double has minted, so each one differs.
 	replacements int
+	// now is the clock the replacement's submission time is stamped from. Nil
+	// falls back to the wall clock, which is right for a test that runs one pass.
+	now func() time.Time
+}
+
+func (b *brokerDouble) at() time.Time {
+	if b.now != nil {
+		return b.now()
+	}
+
+	return time.Now()
 }
 
 func (b *brokerDouble) Positions(context.Context) ([]marketdata.Position, error) {
@@ -67,7 +78,25 @@ func (b *brokerDouble) ReplaceOrder(_ context.Context, id string, limit float64,
 	b.replaced[id] = limit
 	b.names[id] = name
 	b.replacements++
-	return fmt.Sprintf("%s-r%d", id, b.replacements), nil
+	fresh := fmt.Sprintf("%s-r%d", id, b.replacements)
+
+	// The replacement is a NEW order and the broker stamps it with a new
+	// submission time - verified against Alpaca on 31 August, where the interval
+	// between one order's steps came out at 90 seconds against a configured 45.
+	// A double that left the old order in place could not show that at all: the
+	// ladder's own freshness check reads exactly this field.
+	for i := range b.orders {
+		if b.orders[i].ID != id {
+			continue
+		}
+		submitted := b.at()
+		b.orders[i].ID = fresh
+		b.orders[i].LimitPrice = limit
+		b.orders[i].ClientID = name
+		b.orders[i].SubmittedAt = &submitted
+	}
+
+	return fresh, nil
 }
 
 func (b *brokerDouble) CancelOrder(_ context.Context, id string) error {
@@ -1150,4 +1179,82 @@ func TestWalkingRecordsTheIdTheReplacementGot(t *testing.T) {
 		assert.NotEqual(t, step.OrderRef, *step.ReplacedBy, "the broker mints a new id; the same one back is a lost link")
 	}
 	require.Equal(t, 1, walked, "one price move, one step")
+}
+
+// An order gets a step every `Every`, and it is cancelled `Patience` after it was
+// PLACED - not after it last moved.
+//
+// Both readings came from one field. `age` was taken from the order the broker is
+// showing now, and a replacement is a new order with a new submission time, so
+// after every step the order was young again: it was skipped on the next tick and
+// stepped on the one after. Measured on the live market on 31 August, on both
+// judged accounts, chaining `execution_steps` through `replaced_by`: the median
+// interval between one order's steps was 90.0 seconds against a configured 45.
+// Over eight minutes of patience that is five steps offered instead of ten.
+//
+// The same field made patience mean "how long it has stood still" rather than
+// "how long it has been unfilled", so an order that keeps stepping never ages out
+// at all.
+func TestAnOrderStepsEveryIntervalAndAgesFromItsFirstPlacement(t *testing.T) {
+	at := time.Date(2026, 9, 1, 15, 0, 0, 0, time.UTC)
+
+	// Far from the book on purpose, so the walk is never stopped by arriving.
+	book := map[string]marketdata.Quote{
+		"QQQ260826P00701000": quote(0.10, 0.80),
+		"QQQ260826P00700000": quote(0.05, 0.70),
+	}
+
+	// ticks runs the ladder for n intervals of one minute and reports how many of
+	// them produced a step, and how long after the order was placed it was
+	// cancelled - or -1 for never.
+	ticks := func(t *testing.T, patience time.Duration, n int) (int, time.Duration) {
+		t.Helper()
+		clock := at
+		broker := &brokerDouble{
+			orders: []marketdata.Order{spread("o-1", -0.30, "new", at)},
+			quotes: book,
+		}
+		// The replacement is stamped a moment AFTER the tick that made it, because
+		// that is when it happens: the pass is already running. On the next tick
+		// the order is therefore a hair YOUNGER than the interval, which is the
+		// whole mechanism - a freshness check reading that field skips it.
+		broker.now = func() time.Time { return clock.Add(10 * time.Millisecond) }
+
+		rung := ladder(broker, at, t)
+		rung.Every = time.Minute
+		rung.Patience = patience
+		rung.Now = func() time.Time { return clock }
+
+		steps, cancelledAfter := 0, time.Duration(-1)
+		for tick := 1; tick <= n; tick++ {
+			clock = at.Add(time.Duration(tick) * time.Minute)
+			before, _ := broker.seen()
+			was := len(before)
+			rung.step(context.Background())
+			after, cancelled := broker.seen()
+			if len(after) > was {
+				steps++
+			}
+			if len(cancelled) > 0 && cancelledAfter < 0 {
+				cancelledAfter = clock.Sub(at)
+			}
+		}
+
+		return steps, cancelledAfter
+	}
+
+	// Patience far out of the way, so this measures the stepping alone.
+	t.Run("a step on every interval", func(t *testing.T) {
+		steps, _ := ticks(t, time.Hour, 6)
+		assert.Equal(t, 6, steps,
+			"six intervals, six steps - not one step every other interval")
+	})
+
+	// Cancelled on the first tick where the age is PAST patience, not level with
+	// it, so five minutes of patience ends on the sixth.
+	t.Run("patience runs from the placement", func(t *testing.T) {
+		_, cancelledAfter := ticks(t, 5*time.Minute, 10)
+		assert.Equal(t, 6*time.Minute, cancelledAfter,
+			"an order that keeps stepping still ages out, because it is the same order")
+	})
 }
