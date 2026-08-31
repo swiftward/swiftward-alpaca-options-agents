@@ -34,6 +34,18 @@ make local-up            # the whole stack, built from this checkout, agents inc
 
 `make prod-up` runs the same stack from published images. Both bring the agents up; a bare `docker compose up` does not, because the agents sit behind a compose profile.
 
+Before a trading day, and it is worth doing while the market is closed:
+
+```
+make rehearse            # send a trading day's reads and print what was refused
+```
+
+It goes down the road the screener uses - each agent's own entry point, its own
+credential, the same batch size, every caller at once. Reads work at the weekend,
+so it answers on a Sunday the question a Monday would ask. What it exists for is
+the failure a green test suite cannot see: a limit somewhere on the call path
+sized for one caller, met by four.
+
 ## Licence
 
 MIT. See `LICENSE`.

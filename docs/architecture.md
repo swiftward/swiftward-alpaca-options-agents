@@ -74,6 +74,24 @@ The same binary runs twice, under two sets of limits: `alpaca-agent-1` sells far
 
 The declaration says three things: when each session wakes and what it is asked to do, which skills the agent is given, and the numbers those skills are run with. It is re-read while the process runs, so tightening a window or adding a session is one edit rather than a restart in the middle of a trading day. The same tick also brings the skills the session reads level with what the source holds, so editing the text of a technique reaches a session already at work. A file that is half-saved or does not check out is refused and said so in the log; the schedule already in force keeps working.
 
+## Checking it before the day rather than during it
+
+Two things exist because a suite that passes proves the code agrees with itself
+and nothing more.
+
+`internal/structures` names every option structure a declaration can open - a
+credit vertical, a backspread, a ratio - and what each guard does with each. The
+guard that decides which structures the profit watch may close is tested against
+all of them, so a new shape fails the build until somebody says what happens to
+it. That decision is the one that goes missing: a guard written when only
+verticals existed keeps running unchanged when the first backspread arrives, and
+says nothing.
+
+`apps/rehearse` sends the reads of a trading day - every agent at once, each down
+its own entry point with its own credential, at the screener's own batch size -
+and prints what came back, counted by reason. It writes nothing. Reads work with
+the market closed, which is the point: the answer is available on a Sunday.
+
 ## The record
 
 Eight tables. Four carry what the agent did, and each answers its own question: `turns` - when a session ran and how it ended; `turn_causes` - what was put in front of that turn, in order; `tool_calls` - what it did with its hands, with the arguments it sent and what came back; `intents` - what it meant to do before it ordered anything. The harness writes all but the last from the agent's own stream, whether or not a chat is watching; `record_intent` writes that one.
