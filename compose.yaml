@@ -203,7 +203,7 @@ services:
     volumes:
       - ./golang:/src
       - ./postgres:/postgres:ro
-      - ${GOMODCACHE}:/go/pkg/mod
+      - ${GOMODCACHE:-./.gomodcache}:/go/pkg/mod
     command: ["go", "test", "-tags", "db", "-count=1", "./internal/db/...", "./internal/record/...", "./internal/volatility/..."]
     depends_on:
       migrate:
@@ -238,7 +238,7 @@ services:
       GOCACHE: /tmp/gocache
     volumes:
       - ./golang:/src
-      - ${GOMODCACHE}:/go/pkg/mod
+      - ${GOMODCACHE:-./.gomodcache}:/go/pkg/mod
     command: ["go", "run", "./apps/reconcile"]
     profiles: [tools]
 
@@ -264,7 +264,7 @@ services:
       GOCACHE: /tmp/gocache
     volumes:
       - ./golang:/src
-      - ${GOMODCACHE}:/go/pkg/mod
+      - ${GOMODCACHE:-./.gomodcache}:/go/pkg/mod
     command: ["go", "run", "./apps/rehearse"]
     profiles: [tools]
 

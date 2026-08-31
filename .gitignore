@@ -20,3 +20,6 @@ tmp/
 !.env.example
 
 transcripts/
+# Stands in for the host's module cache when GOMODCACHE is unset, so the compose
+# file renders from a bare .env.example instead of refusing to parse.
+.gomodcache/
