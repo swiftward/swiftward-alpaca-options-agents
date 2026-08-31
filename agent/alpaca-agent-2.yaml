@@ -113,7 +113,20 @@ parameters:
   # opens it, and every structure clears a floor of zero.
   screener_nearest: "0.1"
   screener_furthest: "3.0"
-  screener_least_paid: "8"
+  # Raised from 8 to 25 on 31 August, from the day's own sweeps and not from
+  # taste. Edge is the chance the sold strike survives less the share of the time
+  # the credit has to win, so the credit is its denominator: at 8 percent of risk
+  # the structure must survive 92 percent of the time to break even, and a short
+  # leg at the 0.30 delta ceiling survives about 70. Those rows cannot carry a
+  # positive edge at all - they only fill the list.
+  #
+  # Measured over 372 rated candidates in three hours: average edge -0.31 below
+  # 10 percent, +0.14 below 20, +0.89 below 30, +1.34 below 40, +1.81 below 50,
+  # +3.09 above. Three quarters of the list sat in the two hopeless bands, and
+  # since edge itself moves about 1.2 points between sweeps, the three the session
+  # re-quotes were often noise from that crowd - which is why 30 entry windows
+  # today produced 5 entries.
+  screener_least_paid: "25"
   screener_most_paid: "100"
   # 100, not 150, and it is the list's density rather than the trades. Measured on
   # 3,336 real candidates from our own record: `edge_points` falls monotonically
