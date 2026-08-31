@@ -3,19 +3,31 @@
 # agent it starts as a child process.
 #
 # Neither holds a broker credential, a database or a docker socket.
-FROM node:22-alpine AS web
+# Both of these stages run on the machine doing the building, not on the machine
+# the image is for. What they produce does not depend on the architecture: the web
+# stage emits JavaScript, and Go cross-compiles from one line of environment. Left
+# on the target platform they would run under emulation, which on a developer's
+# laptop turns a two-minute build into a twenty-minute one - and a deployment that
+# takes twenty minutes is one nobody makes in a hurry.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS web
 WORKDIR /src
 COPY typescript/web/package*.json ./
 RUN npm ci
 COPY typescript/web/ ./
 RUN npm run build
 
-FROM golang:1.27-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /src
 COPY golang/go.mod golang/go.sum ./
 RUN go mod download
 COPY golang/ ./
-RUN CGO_ENABLED=0 go build -o /out/app ./apps/app
+# CGO is already off, so naming the target is the whole of cross-compiling. The
+# defaults are the building machine's own, which is what makes this line necessary
+# rather than decorative.
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
+    go build -o /out/app ./apps/app
 
 FROM alpine:3.22 AS page
 COPY --from=build /out/app /usr/local/bin/app
