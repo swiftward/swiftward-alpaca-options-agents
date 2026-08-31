@@ -2194,3 +2194,87 @@ sessions:
 	assert.Equal(t, state.Causes[1].ID, *state.Intents[0].CauseID,
 		"the defence that cut in, not the entry that opened the turn")
 }
+
+// A session with a hard cut-off does not queue behind a running turn.
+//
+// On 31 August the closing window fired at 15:35 on both accounts and both times
+// stood in line - behind the defence on one, behind the news on the other. Both
+// got through on the second attempt, and it cost nothing only because nothing
+// expired that day. On the last judged day the book has to close, and a turn that
+// runs past 15:55 would carry the window away with it.
+func TestASessionThatCannotWaitGoesIntoTheRunningTurn(t *testing.T) {
+	closing := func(cannotWait bool) *declaration.Declaration {
+		t.Helper()
+		wait := ""
+		if cannotWait {
+			wait = "    cannot_wait: true\n"
+		}
+		path := filepath.Join(t.TempDir(), "agent.yaml")
+		require.NoError(t, os.WriteFile(path, []byte(`
+kind: trading-agent
+name: alpaca-agent-1
+timezone: UTC
+sessions:
+  - name: flatten
+    cause: "the book closes before the bell"
+    task: "Buy back everything that expires today."
+    at: "15:35"
+    within: 20m
+`+wait), 0o600))
+		declared, err := declaration.Load(path)
+		require.NoError(t, err)
+
+		return declared
+	}
+
+	run := func(t *testing.T, declared *declaration.Declaration) *conversationSpy {
+		t.Helper()
+		chat := newChatDouble()
+		conversation := newConversationSpy()
+		at := time.Date(2026, 9, 3, 15, 20, 0, 0, time.UTC)
+		clock := newClock(at)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		h := &Harness{
+			Chat: chat, Conversation: conversation, Declaration: declared,
+			Record: record.NewMemory(), CallTimeout: 2 * time.Second,
+			TurnLimit: time.Hour, TickEvery: 20 * time.Millisecond,
+			Now: clock.Now, Log: zaptest.NewLogger(t),
+		}
+		go func() { _ = h.Run(ctx) }()
+
+		// A turn that is still thinking when the window opens - the spy holds it
+		// open, because nothing tells the harness it ended.
+		chat.inbound <- telegram.Message{Text: "what do we hold", UserID: 42, Username: "joker"}
+		waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+		clock.Set(time.Date(2026, 9, 3, 15, 36, 0, 0, time.UTC))
+
+		return conversation
+	}
+
+	t.Run("it is said into the turn that is running", func(t *testing.T) {
+		conversation := run(t, closing(true))
+		waitFor(t, func() bool { _, steered, _ := conversation.seen(); return len(steered) == 1 })
+
+		turns, steered, _ := conversation.seen()
+		assert.Len(t, turns, 1, "and no second turn was opened beside the first")
+		assert.Contains(t, steered[0], "tu-1: ")
+		assert.Contains(t, steered[0], "Buy back everything that expires today.")
+		assert.Contains(t, steered[0], `session "flatten"`,
+			"it still has to be able to say which cause it is answering")
+	})
+
+	// The same window without the flag waits, which is what every other session
+	// must keep doing: two sessions on one account close each other's positions.
+	t.Run("without it the session still waits", func(t *testing.T) {
+		conversation := run(t, closing(false))
+		time.Sleep(300 * time.Millisecond)
+
+		turns, steered, _ := conversation.seen()
+		assert.Len(t, turns, 1)
+		assert.Empty(t, steered, "a session that may wait waits")
+	})
+}

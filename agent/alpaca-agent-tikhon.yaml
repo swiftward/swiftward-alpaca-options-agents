@@ -623,6 +623,7 @@ sessions:
     at: "15:40"
     within: 10m
     days: [mon, tue, wed, thu, fri]
+    cannot_wait: true
     task: |
       Close the options expiring TODAY whose short strike sits within fifty cents
       of the underlying's price: those are the ones at risk of assignment.

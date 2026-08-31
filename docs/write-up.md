@@ -18,6 +18,8 @@ The agent is a model session with tools, not a script with a model in it. Its sc
 
 `at` and `within` mean *fire at 14:20, and still count as due for 45 minutes* - so a restart at 14:35 does not lose the window, and a restart at 18:00 does not open a position nobody asked for. `every` with `between` fires repeatedly inside a window. `model` names a cheaper model for a session that only reads the news.
 
+One session at a time holds the agent, because two sessions on one account close each other's positions: a session that comes due while a turn is running waits and tries again a minute later. `cannot_wait: true` is the exception, and the window that empties the book before the bell carries it - waiting past that window is the same as not running at all, so the task is said into the turn already running instead.
+
 Three things wake a session: the schedule, a person writing in the chat, and a wake-up the session set for itself (`wake_me_at`, `wake_me_on_price`). It keeps one conversation across all of them, so the session that closes a position remembers opening it - and the conversation survives a restart, because the thread is kept on disk.
 
 The session carries tools the broker's server does not have:

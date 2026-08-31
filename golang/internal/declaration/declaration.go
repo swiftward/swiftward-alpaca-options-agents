@@ -73,6 +73,11 @@ type Session struct {
 	Every string `yaml:"every"`
 	// Between bounds Every to a window, ["09:40", "15:55"].
 	Between []string `yaml:"between"`
+	// CannotWait says this session goes into whatever turn is already running
+	// instead of waiting for a free agent. It belongs to a session with a hard
+	// cut-off - the close before the bell - where waiting past the window is the
+	// same as not running at all.
+	CannotWait bool `yaml:"cannot_wait"`
 
 	at       time.Duration
 	within   time.Duration

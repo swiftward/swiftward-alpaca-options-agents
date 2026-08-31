@@ -734,12 +734,31 @@ func (h *Harness) fireDue(ctx context.Context) {
 			continue
 		}
 		if turnID := h.runningTurn(); turnID != "" {
-			// Two sessions on one account close each other's positions. The due
-			// session is not lost: it stays due until the running turn ends.
-			h.Log.Info("session is due but the agent is working",
-				zap.String("session", session.Name),
-				zap.String("turn_id", turnID))
-			return
+			if !session.CannotWait {
+				// Two sessions on one account close each other's positions. The due
+				// session is not lost: it stays due until the running turn ends.
+				h.Log.Info("session is due but the agent is working",
+					zap.String("session", session.Name),
+					zap.String("turn_id", turnID))
+				return
+			}
+			// A session with a hard cut-off has nowhere to wait, so the running turn
+			// is told instead. On 31 August both accounts' closing windows queued
+			// behind another session and got through only because nothing expired
+			// that day.
+			if err := h.steerInto(ctx, turnID, session.Prompt(), session.Name); err != nil {
+				// The turn ended between the check and the call. Left unmarked, so the
+				// next tick starts it as a turn of its own.
+				h.Log.Info("could not say the due session into the running turn; it stays due",
+					zap.String("session", session.Name), zap.Error(err))
+
+				return
+			}
+			h.Log.Info("said the due session into the running turn",
+				zap.String("session", session.Name), zap.String("turn_id", turnID))
+			h.lastRun[session.Name] = now
+
+			continue
 		}
 
 		h.Log.Info("waking a session", zap.String("session", session.Name), zap.String("cause", session.Cause))

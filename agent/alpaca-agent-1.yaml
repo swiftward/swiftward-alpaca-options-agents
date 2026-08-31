@@ -681,6 +681,7 @@ sessions:
     at: "10:15"
     within: 30m
     days: [fri]
+    cannot_wait: true
     task: |
       **This window stays silent EVERY Friday. There is exactly one exception:
       4 September 2026.**
@@ -703,6 +704,7 @@ sessions:
     at: "15:35"
     within: 20m
     days: [mon, tue, wed, thu, fri]
+    cannot_wait: true
     task: |
       First read the intents (read_state). A position whose intent says plainly that
       it was opened as a CHECK OF ASSIGNMENT stays as it is: it was opened precisely

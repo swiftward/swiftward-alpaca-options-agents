@@ -570,6 +570,7 @@ sessions:
     at: "10:15"
     within: 30m
     days: [fri]
+    cannot_wait: true
     task: |
       **This window is silent EVERY Friday. There is exactly one exception:
       4 September 2026.**
@@ -592,6 +593,7 @@ sessions:
     at: "15:35"
     within: 20m
     days: [mon, tue, wed, thu, fri]
+    cannot_wait: true
     task: |
       Close positions in options expiring TODAY whose underlying has come nearer to
       the sold strike than the WIDTH of the structure itself. Not "nearer than fifty
