@@ -109,6 +109,18 @@ type Ladder struct {
 	// enough to blow the fuse is a day to stop adding risk, not one to stop
 	// giving it back.
 	Fuse func(ctx context.Context) (over bool, said string, err error)
+	// MinEdgePoints answers the least a structure may pay above what it must
+	// survive, in percentage points, from the declaration in force - the same
+	// number the session enters on. The ladder holds the WORST PRICE to it: an
+	// order whose name states an edge below this one is left where it stands
+	// rather than walked, because walking it would buy a structure the session
+	// itself had already called unfit.
+	//
+	// An order that states no edge is walked as before, and said once. The
+	// annotation is the session's claim, and a claim nobody made is not a claim
+	// this can judge; refusing those would stop an account trading over a missing
+	// word. Nil leaves worst prices unchecked.
+	MinEdgePoints func() (float64, error)
 	// Reads bounds how many recent orders are examined.
 	Reads int
 	Now   func() time.Time
@@ -651,6 +663,10 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order, now time.Time
 		return nil
 	}
 
+	if l.refusesTheFloor(order, floor) {
+		return nil
+	}
+
 	target := showing
 	if worseThan(showing, floor) {
 		target = floor
@@ -667,7 +683,7 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order, now time.Time
 	// The floor travels with the order: a replacement the broker names itself would
 	// drop it, and the next step would find nothing to obey. The name is rebuilt
 	// rather than copied, because the broker refuses a name it has already seen.
-	replacement, err := l.Broker.ReplaceOrder(ctx, order.ID, next, NameCarrying(floor, now))
+	replacement, err := l.Broker.ReplaceOrder(ctx, order.ID, next, NameCarrying(order, now))
 	if err != nil {
 		return err
 	}
@@ -903,6 +919,49 @@ func (l *Ladder) tooBig(ctx context.Context, order marketdata.Order, ceiling flo
 				"power, and say in one line what you worked out.",
 			order.ID, -worst, ceiling))
 	}
+
+	return true
+}
+
+// refusesTheFloor answers whether the worst price this order names is one the
+// session's own entry rule would have refused.
+//
+// The ladder walks toward the floor and stops there, so the floor is the price
+// this order can actually be filled at. If the edge there is below what the
+// declaration demands, the walk is an offer to buy what the entry rule refuses -
+// which is what happened on 1 September: entered on +3, floor named at +2.53,
+// walked to it in forty-five seconds.
+//
+// It never cancels. The price the order was PLACED at cleared the rule, so the
+// order is still worth leaving in the book; only the concession is refused.
+func (l *Ladder) refusesTheFloor(order marketdata.Order, floor float64) bool {
+	if l.MinEdgePoints == nil {
+		return false
+	}
+	edge, stated := EdgeAt(order)
+	if !stated {
+		l.Log.Info("walking an order whose name states no edge at its worst price",
+			zap.String("order", order.ID), zap.String("name", order.ClientID))
+
+		return false
+	}
+	least, err := l.MinEdgePoints()
+	if err != nil {
+		// Losing the number is a reason to speak, never a reason to stop walking an
+		// order the session placed within the rules it could read at the time.
+		l.Log.Error("could not read the least edge a structure may pay; worst prices go unchecked",
+			zap.Error(err))
+
+		return false
+	}
+	if edge >= least {
+		return false
+	}
+	l.Log.Warn("left an order alone: its worst price pays less than the entry rule demands",
+		zap.String("order", order.ID),
+		zap.Float64("floor", floor),
+		zap.Float64("edge_at_floor", edge),
+		zap.Float64("min_edge_points", least))
 
 	return true
 }

@@ -114,6 +114,26 @@ func fusePercent(declared *declaration.Watcher) (float64, error) {
 	return percent, nil
 }
 
+// minEdgePoints is the least a structure may pay above what it must survive, in
+// percentage points, from the declaration in force. The ladder holds an order's
+// WORST PRICE to it; the session enters on the same number.
+//
+// Parsed strictly, for the reason above it: the parameters are prose for a model,
+// and an edge that quietly took zero from "at least +3" would let every worst
+// price through and read as a working gate.
+func minEdgePoints(declared *declaration.Watcher) (float64, error) {
+	written, ok := declared.Current().Parameters["min_edge_points"]
+	if !ok {
+		return 0, errors.New("the declaration names no min_edge_points")
+	}
+	points, err := strconv.ParseFloat(strings.TrimSpace(written), 64)
+	if err != nil {
+		return 0, fmt.Errorf("min_edge_points %q is not a number", written)
+	}
+
+	return points, nil
+}
+
 // whyStopped prefers the error that CANCELLED the run over the error that merely
 // noticed it. The workers start before the last of the startup steps, so one
 // worker refusing its configuration cancels the group and every step after it
@@ -657,6 +677,15 @@ func run(log *zap.Logger) error {
 			fuseStands = true
 			log.Info("the day's fuse is enforced, not only asked of the session",
 				zap.String("from", "daily_fuse_percent in the declaration"))
+
+			// No check at startup yet, unlike the fuse above. Until the declaration
+			// carries min_edge_points as a bare number this cannot be read, and a
+			// process that refuses to start over it would take both accounts down
+			// mid-session. It says so on every pass instead, and the startup check
+			// arrives with the declaration that makes it readable.
+			ladder.MinEdgePoints = func() (float64, error) { return minEdgePoints(declared) }
+			log.Info("a worst price is held to the same edge the session enters on",
+				zap.String("from", "min_edge_points in the declaration"))
 		}
 		if running != nil {
 			ladder.Wake = func(ctx context.Context, cause string) {
