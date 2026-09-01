@@ -256,10 +256,14 @@ sessions:
     within: 40m
     days: [mon, tue, wed, thu]
     task: |
-      When you file the intent, the cause is the name of the session that woke
-      you, copied from the schedule letter for letter - not the playbook you are
-      running, not a list, not a description. The gateway refuses any other name,
-      and a refused intent means no order was sent.
+      When you file the intent, the cause is the one IN FORCE FOR THIS TURN - the
+      name the harness put in front of you when it woke you, copied letter for
+      letter. It is not the playbook you are running, not a list, not a
+      description, and not the window that opened the day: a turn the execution
+      ladder wakes to tell you an order was cancelled carries the cause
+      `execution`, and filing that continuation under the entry window's name is
+      refused. The gateway says which name it was given; take it from there rather
+      than from memory. A refused intent means no order was sent.
       **This window runs EVERY trading day. There is exactly one exception:
       4 September 2026.** Ask the clock and check the date:
       - today is NOT 4 September 2026 - carry on with this window as usual;
@@ -286,10 +290,14 @@ sessions:
     within: 45m
     days: [mon, tue, wed, thu]
     task: |
-      When you file the intent, the cause is the name of the session that woke
-      you, copied from the schedule letter for letter - not the playbook you are
-      running, not a list, not a description. The gateway refuses any other name,
-      and a refused intent means no order was sent.
+      When you file the intent, the cause is the one IN FORCE FOR THIS TURN - the
+      name the harness put in front of you when it woke you, copied letter for
+      letter. It is not the playbook you are running, not a list, not a
+      description, and not the window that opened the day: a turn the execution
+      ladder wakes to tell you an order was cancelled carries the cause
+      `execution`, and filing that continuation under the entry window's name is
+      refused. The gateway says which name it was given; take it from there rather
+      than from memory. A refused intent means no order was sent.
       **This window runs EVERY trading day. There is exactly one exception:
       4 September 2026.** Ask the clock and check the date:
       - today is NOT 4 September 2026 - carry on with this window as usual;
@@ -317,10 +325,14 @@ sessions:
     within: 45m
     days: [mon, tue, wed, thu]
     task: |
-      When you file the intent, the cause is the name of the session that woke
-      you, copied from the schedule letter for letter - not the playbook you are
-      running, not a list, not a description. The gateway refuses any other name,
-      and a refused intent means no order was sent.
+      When you file the intent, the cause is the one IN FORCE FOR THIS TURN - the
+      name the harness put in front of you when it woke you, copied letter for
+      letter. It is not the playbook you are running, not a list, not a
+      description, and not the window that opened the day: a turn the execution
+      ladder wakes to tell you an order was cancelled carries the cause
+      `execution`, and filing that continuation under the entry window's name is
+      refused. The gateway says which name it was given; take it from there rather
+      than from memory. A refused intent means no order was sent.
       **This window runs EVERY trading day. There is exactly one exception:
       4 September 2026.** Ask the clock and check the date:
       - today is NOT 4 September 2026 - carry on with this window as usual;
@@ -355,10 +367,14 @@ sessions:
     between: ["09:50", "15:00"]
     days: [mon, tue, wed, thu]
     task: |
-      When you file the intent, the cause is the name of the session that woke
-      you, copied from the schedule letter for letter - not the playbook you are
-      running, not a list, not a description. The gateway refuses any other name,
-      and a refused intent means no order was sent.
+      When you file the intent, the cause is the one IN FORCE FOR THIS TURN - the
+      name the harness put in front of you when it woke you, copied letter for
+      letter. It is not the playbook you are running, not a list, not a
+      description, and not the window that opened the day: a turn the execution
+      ladder wakes to tell you an order was cancelled carries the cause
+      `execution`, and filing that continuation under the entry window's name is
+      refused. The gateway says which name it was given; take it from there rather
+      than from memory. A refused intent means no order was sent.
       The convexity layer. Run playbook-convexity in full - manage what is open
       first, then price a new structure.
 
