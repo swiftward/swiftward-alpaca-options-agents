@@ -48,7 +48,7 @@ func TestThePageShowsTheSameLimitsTheAgentIsGiven(t *testing.T) {
 	})
 
 	answer := httptest.NewRecorder()
-	handler.ServeHTTP(answer, httptest.NewRequest(http.MethodGet, "/api/limits", nil))
+	handler.ServeHTTP(answer, requestWithKey(http.MethodGet, "/api/limits", nil))
 	require.Equal(t, http.StatusOK, answer.Code)
 
 	var shown envelope.Envelope
@@ -70,7 +70,7 @@ func TestWithoutAnEnvelopeThePageSaysSo(t *testing.T) {
 	handler := serving(t, Read{Record: record.NewMemory()})
 
 	answer := httptest.NewRecorder()
-	handler.ServeHTTP(answer, httptest.NewRequest(http.MethodGet, "/api/limits", nil))
+	handler.ServeHTTP(answer, requestWithKey(http.MethodGet, "/api/limits", nil))
 	// 501, not 503: this is not "temporarily unavailable" but "this deployment has
 	// no envelope". The difference matters to the reader - they would keep
 	// refreshing on the second and not on the first.
@@ -96,7 +96,7 @@ func TestTheSweepSaysWhenItWasTaken(t *testing.T) {
 	})
 
 	answer := httptest.NewRecorder()
-	handler.ServeHTTP(answer, httptest.NewRequest(http.MethodGet, "/api/sweep", nil))
+	handler.ServeHTTP(answer, requestWithKey(http.MethodGet, "/api/sweep", nil))
 	require.Equal(t, http.StatusOK, answer.Code)
 
 	var shown struct {
@@ -112,6 +112,11 @@ func serving(t *testing.T, read Read) http.Handler {
 	t.Helper()
 
 	read.Log = zaptest.NewLogger(t)
+	// The read side refuses to start without a key, so every case built here
+	// carries the same one - and every request in this package carries it back.
+	if read.Key == "" {
+		read.Key = testKey
+	}
 	handler, err := read.Handler()
 	require.NoError(t, err)
 
@@ -134,20 +139,20 @@ func TestAPageRouteIsAnsweredByThePage(t *testing.T) {
 
 	for _, route := range []string{"/", "/live", "/whatever/deep"} {
 		answer := httptest.NewRecorder()
-		handler.ServeHTTP(answer, httptest.NewRequest(http.MethodGet, route, nil))
+		handler.ServeHTTP(answer, requestWithKey(http.MethodGet, route, nil))
 		require.Equal(t, http.StatusOK, answer.Code, route)
 		assert.Contains(t, answer.Body.String(), "the page", "%s must serve the page", route)
 	}
 
 	// A real file stays itself: replacing it with the page would break the build.
 	answer := httptest.NewRecorder()
-	handler.ServeHTTP(answer, httptest.NewRequest(http.MethodGet, "/app.js", nil))
+	handler.ServeHTTP(answer, requestWithKey(http.MethodGet, "/app.js", nil))
 	assert.Contains(t, answer.Body.String(), "a real file")
 
 	// Data under /api is outside this rule: a refusal there must stay a refusal
 	// rather than turn into the page with a 200.
 	data := httptest.NewRecorder()
-	handler.ServeHTTP(data, httptest.NewRequest(http.MethodGet, "/api/limits", nil))
+	handler.ServeHTTP(data, requestWithKey(http.MethodGet, "/api/limits", nil))
 	assert.Equal(t, http.StatusNotImplemented, data.Code)
 }
 
@@ -164,7 +169,7 @@ func TestAnEmptySweepIsAnEmptyListNotNull(t *testing.T) {
 	})
 
 	answer := httptest.NewRecorder()
-	handler.ServeHTTP(answer, httptest.NewRequest(http.MethodGet, "/api/sweep", nil))
+	handler.ServeHTTP(answer, requestWithKey(http.MethodGet, "/api/sweep", nil))
 	require.Equal(t, http.StatusOK, answer.Code)
 
 	assert.Contains(t, answer.Body.String(), `"candidates":[]`,

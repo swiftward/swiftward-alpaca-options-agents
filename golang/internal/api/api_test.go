@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -29,15 +30,15 @@ func TestHealthAndState(t *testing.T) {
 		MaxLoss:   "1% of capital",
 	}))
 
-	handler, err := Read{Record: state, Log: zaptest.NewLogger(t)}.Handler()
+	handler, err := Read{Record: state, Key: testKey, Log: zaptest.NewLogger(t)}.Handler()
 	require.NoError(t, err)
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/healthz", nil))
 	assert.Equal(t, http.StatusOK, rec.Code)
 
 	rec = httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/state", nil))
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/api/state", nil))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	var got record.State
@@ -50,11 +51,11 @@ func TestServesBuiltPage(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>the record</h1>"), 0o600))
 
-	handler, err := Read{Record: record.NewMemory(), WebDir: dir, Log: zaptest.NewLogger(t)}.Handler()
+	handler, err := Read{Record: record.NewMemory(), WebDir: dir, Key: testKey, Log: zaptest.NewLogger(t)}.Handler()
 	require.NoError(t, err)
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/", nil))
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), "the record")
 }
@@ -65,6 +66,7 @@ func TestMissingWebDirRefuses(t *testing.T) {
 	_, err := Read{
 		Record: record.NewMemory(),
 		WebDir: filepath.Join(t.TempDir(), "absent"),
+		Key:    testKey,
 		Log:    zaptest.NewLogger(t),
 	}.Handler()
 	require.Error(t, err)
@@ -98,12 +100,12 @@ func TestMoneyCarriesTheAccountThePositionsAndTheOrders(t *testing.T) {
 		orders:    []marketdata.Order{{ID: "4530b033", Status: "canceled", Class: "mleg"}},
 	}
 	handler, err := Read{
-		Record: record.NewMemory(), Broker: broker, OrdersShown: 7, Log: zaptest.NewLogger(t),
+		Record: record.NewMemory(), Broker: broker, OrdersShown: 7, Key: testKey, Log: zaptest.NewLogger(t),
 	}.Handler()
 	require.NoError(t, err)
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/money", nil))
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/api/money", nil))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	var got struct {
@@ -124,12 +126,13 @@ func TestMoneyRefusesWhenTheBrokerCannotAnswer(t *testing.T) {
 	handler, err := Read{
 		Record: record.NewMemory(),
 		Broker: &brokerDouble{failure: errors.New("the broker is down")},
+		Key:    testKey,
 		Log:    zaptest.NewLogger(t),
 	}.Handler()
 	require.NoError(t, err)
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/money", nil))
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/api/money", nil))
 
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }
@@ -137,11 +140,11 @@ func TestMoneyRefusesWhenTheBrokerCannotAnswer(t *testing.T) {
 // A deployment with no broker says so rather than answering with zeros, which
 // would read as an empty account.
 func TestMoneyWithoutABrokerSaysSo(t *testing.T) {
-	handler, err := Read{Record: record.NewMemory(), Log: zaptest.NewLogger(t)}.Handler()
+	handler, err := Read{Record: record.NewMemory(), Key: testKey, Log: zaptest.NewLogger(t)}.Handler()
 	require.NoError(t, err)
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/money", nil))
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/api/money", nil))
 
 	assert.Equal(t, http.StatusNotImplemented, rec.Code)
 }
@@ -162,12 +165,12 @@ func TestTheEquityLineIsDrawnFromTheRecordedHistory(t *testing.T) {
 		{RecordedAt: time.Date(2026, 8, 28, 15, 0, 0, 0, time.UTC), Equity: 100420},
 	}}
 	handler, err := Read{
-		Record: record.NewMemory(), History: line, HistoryDays: 3, Log: zaptest.NewLogger(t),
+		Record: record.NewMemory(), History: line, HistoryDays: 3, Key: testKey, Log: zaptest.NewLogger(t),
 	}.Handler()
 	require.NoError(t, err)
 
 	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/equity", nil))
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/api/equity", nil))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	var got []account.Snapshot
@@ -175,4 +178,16 @@ func TestTheEquityLineIsDrawnFromTheRecordedHistory(t *testing.T) {
 	require.Len(t, got, 2)
 	assert.InDelta(t, 100420, got[1].Equity, 1e-9)
 	assert.WithinDuration(t, time.Now().AddDate(0, 0, -3), line.since, time.Minute)
+}
+
+// testKey is the page's key in this file. The read side refuses to start without
+// one, so every case here has to carry it - which is the contract, not scaffolding.
+const testKey = "test-page-key"
+
+// requestWithKey is httptest.NewRequest with the key a reader must carry.
+func requestWithKey(method, target string, body io.Reader) *http.Request {
+	req := httptest.NewRequest(method, target, body)
+	req.Header.Set(keyHeader, testKey)
+
+	return req
 }

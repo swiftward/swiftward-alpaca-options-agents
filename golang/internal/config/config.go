@@ -90,6 +90,12 @@ type Config struct {
 	// own header beside the machine's credential, so the record reads as "this
 	// agent, for this person". Empty where nobody stands behind the agent.
 	UserToken string
+	// PageKey is what a reader of the demo page must carry. The page is served on
+	// a port the platform requires a judge to reach by hand, and it answers with
+	// the account's positions, its equity and the agent's own words - so who may
+	// read it is a decision, and an empty value is refused rather than defaulted
+	// to open. internal/api/key.go says how it arrives.
+	PageKey string
 
 	// UserHeader is the header the endpoint was declared to read the person from.
 	// It comes from the same value the declaration uses, so the client writes
@@ -401,6 +407,7 @@ func Load() (Config, error) {
 		WakeupFile:            k.String("wakeup_file"),
 		BrokerMCPURL:          k.String("broker_mcp_url"),
 		UserToken:             k.String("user_token"),
+		PageKey:               k.String("page_key"),
 		UserHeader:            k.String("user_header_name"),
 		BrokerMCPToken:        k.String("broker_mcp_token"),
 		TickEvery:             tickEvery,

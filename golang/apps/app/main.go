@@ -325,6 +325,7 @@ func run(log *zap.Logger) error {
 			OrdersShown: cfg.OrdersShown,
 			HistoryDays: cfg.HistoryDays,
 			WebDir:      cfg.WebDir,
+			Key:         cfg.PageKey,
 			Log:         log.Named("api"),
 		}
 		if broker != nil {

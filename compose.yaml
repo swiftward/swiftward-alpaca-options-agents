@@ -235,6 +235,7 @@ services:
       BROKER_MCP_TOKEN: ${RECONCILE_BROKER_TOKEN:-${AGENT_1_BROKER_MCP_TOKEN}}
       USER_TOKEN: ${USER_TOKEN:-}
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
+      PAGE_KEY: ${PAGE_KEY}
       RECONCILE_SINCE: ${RECONCILE_SINCE:-12h}
       GOFLAGS: -buildvcs=false
       GOPROXY: "off"
@@ -367,6 +368,7 @@ services:
       # again afterwards.
       USER_TOKEN: ${USER_TOKEN:-}
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
+      PAGE_KEY: ${PAGE_KEY}
       ORDERS_SHOWN: ${ORDERS_SHOWN}
       HISTORY_DAYS: ${HISTORY_DAYS}
     ports:
@@ -416,6 +418,7 @@ services:
       BROKER_MCP_TOKEN: ${AGENT_2_PAGE_MCP_TOKEN}
       USER_TOKEN: ${USER_TOKEN:-}
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
+      PAGE_KEY: ${PAGE_KEY}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
       RECORD_SHOWS: ${RECORD_SHOWS}
       ORDERS_SHOWN: ${ORDERS_SHOWN}
@@ -472,6 +475,7 @@ services:
       BROKER_MCP_TOKEN: ${AGENT_TIKHON_PAGE_MCP_TOKEN}
       USER_TOKEN: ${USER_TOKEN:-}
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
+      PAGE_KEY: ${PAGE_KEY}
       # No record here, and that is the whole configuration: this account's
       # agent runs elsewhere and keeps its work elsewhere. Pointed at a
       # database, this page showed the FIRST agent's equity line and intents
@@ -526,6 +530,7 @@ services:
       BROKER_MCP_TOKEN: ${AGENT_STAND_PAGE_MCP_TOKEN}
       USER_TOKEN: ${USER_TOKEN:-}
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
+      PAGE_KEY: ${PAGE_KEY}
       # No record here, and that is the whole configuration: this account's
       # agent runs elsewhere and keeps its work elsewhere. Pointed at a
       # database, this page showed the FIRST agent's equity line and intents
@@ -577,6 +582,7 @@ services:
       BROKER_MCP_TOKEN: ${AGENT_1_BROKER_MCP_TOKEN}
       USER_TOKEN: ${USER_TOKEN:-}
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
+      PAGE_KEY: ${PAGE_KEY}
       # The model through the policy gateway, under this agent's own name.
       MODEL_GATEWAY_URL: ${AGENT_1_MODEL_GATEWAY_URL}
       DECLARATION: ${AGENT_1_DECLARATION:-/mnt/agent/alpaca-agent-1.yaml}
@@ -668,6 +674,7 @@ services:
       BROKER_MCP_TOKEN: ${AGENT_2_BROKER_MCP_TOKEN}
       USER_TOKEN: ${USER_TOKEN:-}
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
+      PAGE_KEY: ${PAGE_KEY}
       MODEL_GATEWAY_URL: ${AGENT_2_MODEL_GATEWAY_URL}
       DECLARATION: ${AGENT_2_DECLARATION:-/mnt/agent/alpaca-agent-2.yaml}
       GATEWAY_TOKEN: ${AGENT_2_GATEWAY_TOKEN}

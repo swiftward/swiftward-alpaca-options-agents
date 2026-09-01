@@ -6,9 +6,11 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -63,7 +65,12 @@ type Read struct {
 	// WebDir holds the built page. Empty serves the JSON alone, and the log says
 	// so, because a page served from nowhere looks like a broken deployment.
 	WebDir string
-	Log    *zap.Logger
+	// Key is what a reader must carry. See key.go for why it exists and how it
+	// arrives. Empty is refused where the handler is built: a read side on a port
+	// open to the internet, serving the account with no key at all, is the state
+	// this exists to end - so it is not a state this can be started in.
+	Key string
+	Log *zap.Logger
 }
 
 // money is what the page shows above everything else.
@@ -87,6 +94,10 @@ type money struct {
 
 // Handler builds the read-side routes.
 func (r Read) Handler() (http.Handler, error) {
+	if strings.TrimSpace(r.Key) == "" {
+		return nil, errors.New("PAGE_KEY is empty: this serves the account's positions and the agent's own words, and it will not do that to whoever reaches the port")
+	}
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, req *http.Request) {
@@ -174,7 +185,7 @@ func (r Read) Handler() (http.Handler, error) {
 
 	if r.WebDir == "" {
 		r.Log.Info("no WEB_DIR set: serving JSON only")
-		return mux, nil
+		return guarded(r.Key, mux), nil
 	}
 	if _, err := os.Stat(r.WebDir); err != nil {
 		return nil, err
@@ -186,7 +197,7 @@ func (r Read) Handler() (http.Handler, error) {
 	mux.Handle("GET /", spa(r.WebDir))
 	r.Log.Info("serving the built page", zap.String("web_dir", r.WebDir))
 
-	return mux, nil
+	return guarded(r.Key, mux), nil
 }
 
 // money asks the broker its three questions. One failure fails the answer: a
