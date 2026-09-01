@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/execution"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
@@ -468,4 +469,35 @@ func TestAnOrderTheWatchSendsIsWrittenDownAtOnce(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, placed, "one order sent, one order written down")
+}
+
+// A holding this watch cannot read is said ONCE, not on every pass. The watch
+// looks at the book every few seconds, so a book carrying two backspreads wrote
+// the same two lines five thousand times a day and buried everything a reader was
+// actually looking for. Measured on the account, 1 September: fifty-four lines in
+// twenty minutes on one agent.
+func TestAHoldingThatCannotBeReadIsSaidOnce(t *testing.T) {
+	backspread := []marketdata.Position{
+		leg("QQQ260903P00669000", -1, 0.06),
+		leg("QQQ260903P00668000", 2, 0.08),
+	}
+	seen, logs := observer.New(zap.InfoLevel)
+	b := &brokerDouble{held: backspread}
+	w := watching(b, 0.5)
+	w.Log = zap.New(seen)
+
+	w.step(context.Background())
+	w.step(context.Background())
+	w.step(context.Background())
+
+	assert.Equal(t, 1, logs.FilterMessage("leaving a holding this watch cannot read as one structure").Len(),
+		"three passes, one line")
+
+	// And it is said again if the holding goes and comes back: that is news.
+	b.held = nil
+	w.step(context.Background())
+	b.held = backspread
+	w.step(context.Background())
+
+	assert.Equal(t, 2, logs.FilterMessage("leaving a holding this watch cannot read as one structure").Len())
 }

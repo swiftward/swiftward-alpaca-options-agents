@@ -81,6 +81,12 @@ type Watch struct {
 	Log   *zap.Logger
 
 	sent map[string]time.Time
+	// declined remembers which holdings this watch has already said it cannot
+	// read, so it says each one ONCE. Without it a book carrying two backspreads
+	// writes the same two lines every pass - five thousand a day, on top of
+	// everything a reader is actually looking for. A holding that goes and comes
+	// back is said again, because that is news.
+	declined map[string]bool
 }
 
 // standing is how long a sent order is remembered. Past it the structure is
@@ -143,6 +149,7 @@ func (w *Watch) Run(ctx context.Context) error {
 		w.Every = 30 * time.Second
 	}
 	w.sent = map[string]time.Time{}
+	w.declined = map[string]bool{}
 	w.Log.Info("watching for structures worth closing",
 		zap.Float64("at_share_of_credit", share), zap.Duration("every", w.Every))
 

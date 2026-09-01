@@ -22,11 +22,26 @@ func (w *Watch) step(ctx context.Context) {
 		return
 	}
 	structures, ambiguous := Group(held)
+	if w.declined == nil {
+		// A pass may be driven without Run, and a nil map reads but does not write.
+		w.declined = map[string]bool{}
+	}
+	still := make(map[string]bool, len(ambiguous))
 	for _, name := range ambiguous {
+		still[name] = true
+		if w.declined[name] {
+			continue
+		}
+		w.declined[name] = true
 		w.Log.Info("leaving a holding this watch cannot read as one structure",
 			zap.String("holding", name),
 			zap.String("why", "one underlying, expiry and type hold more than one sold-and-bought pair, "+
 				"so what the credit belonged to cannot be told from what the broker reports"))
+	}
+	for name := range w.declined {
+		if !still[name] {
+			delete(w.declined, name)
+		}
 	}
 	if len(structures) == 0 {
 		return
