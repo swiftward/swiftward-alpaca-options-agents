@@ -1531,3 +1531,63 @@ func TestAnOrderStepsOnEveryTickWhenTheClockMovesDuringThePass(t *testing.T) {
 	assert.Equal(t, 6, steps,
 		"six ticks, six steps - the pass must ask its question with ONE moment, not with a clock that moved under it")
 }
+
+// The scheduler's own jitter does not decide whether an order steps.
+//
+// A teammate's arena measured this on the fixed code: 45.002, 45.000, 89.999,
+// 90.001 seconds between passes. The systematic skip was gone and half the passes
+// still skipped, at random - which is worse than always, because it looks fixed.
+//
+// The cause was an equality. The freshness threshold WAS the ticker's period, and
+// the two readings it compared are one tick apart by construction, so the answer
+// came out of however many microseconds the scheduler added to each pass. When the
+// previous pass was delayed more than this one, the difference fell a fraction
+// under the interval and the order was skipped.
+//
+// A tolerance would have hidden it rather than answered it. Passes are counted
+// instead, and the clock is out of the question entirely.
+func TestSchedulerJitterDoesNotDecideWhetherAnOrderSteps(t *testing.T) {
+	at := time.Date(2026, 9, 1, 15, 0, 0, 0, time.UTC)
+
+	// The delay between a tick firing and the pass reading the clock, pass by
+	// pass. Alternating means every second pass is read EARLIER relative to its
+	// tick than the one before - the exact case the arena caught.
+	delays := []time.Duration{
+		5 * time.Millisecond, time.Millisecond,
+		5 * time.Millisecond, time.Millisecond,
+		5 * time.Millisecond, time.Millisecond,
+	}
+
+	tick := 0
+	broker := &brokerDouble{
+		orders: []marketdata.Order{spread("o-1", -0.30, "new", at)},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.10, 0.80),
+			"QQQ260826P00700000": quote(0.05, 0.70),
+		},
+	}
+	moment := func() time.Time {
+		return at.Add(time.Duration(tick)*time.Minute + delays[tick-1])
+	}
+	broker.now = moment
+
+	rung := ladder(broker, at, t)
+	rung.Every = time.Minute
+	rung.Patience = time.Hour
+	rung.Stride = StrideByTick
+	rung.Now = moment
+
+	steps := 0
+	for tick = 1; tick <= len(delays); tick++ {
+		before, _ := broker.seen()
+		was := len(before)
+		rung.step(context.Background())
+		after, _ := broker.seen()
+		if len(after) > was {
+			steps++
+		}
+	}
+
+	assert.Equal(t, len(delays), steps,
+		"a pass that ran a few milliseconds earlier than the last one must not cost the order its step")
+}

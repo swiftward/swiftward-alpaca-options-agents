@@ -121,6 +121,10 @@ type Ladder struct {
 	// exactly what one did on 25 August, eighteen lines at once.
 	watching time.Time
 
+	// passes counts this ladder's own passes. It is what "has the order rested a
+	// tick" is answered with, because the clock cannot answer it: see orderAge.
+	passes int64
+
 	// ages remembers, for the order id the broker is showing NOW, when the order
 	// was first placed and when it last moved. Both were read from the order's own
 	// submitted_at until 31 August, and a replacement is a NEW order with a NEW
@@ -143,9 +147,26 @@ type Ladder struct {
 	ages map[string]orderAge
 }
 
-// orderAge is the life of one order across the replacements that carry it.
+// orderAge is the life of one order across the replacements that carry it:
+// WHEN it was first placed, and on WHICH pass this ladder last moved it.
+//
+// The second is a pass number and not a time, and that is the point. "Has it
+// rested a full interval" was asked by comparing two clock readings against the
+// interval itself, and the two are equal by construction - the ticker fires every
+// `Every` and the readings are one tick apart - so the answer was decided by
+// however many microseconds the scheduler added to each pass. A teammate's arena
+// measured the result: 45.002, 45.000, 89.999, 90.001. Half the passes skipped, at
+// random rather than always, which is worse than always because it looks fixed.
+//
+// A tolerance would have hidden it. Counting passes removes the clock from the
+// question: two passes cannot be closer together than the ticker's period, so an
+// order this ladder moved on an EARLIER pass has rested its interval by
+// construction. Only an order we have never moved has to be timed at all, and
+// only against the moment the session placed it.
 type orderAge struct {
-	placed, moved time.Time
+	placed time.Time
+	// movedOn is the pass this ladder last moved the order on. Zero is never.
+	movedOn int64
 }
 
 // lifeOf is when this order's chain was placed and when it last moved. An order
@@ -155,9 +176,9 @@ func (l *Ladder) lifeOf(order marketdata.Order, now time.Time) orderAge {
 	if known, found := l.ages[order.ID]; found {
 		return known
 	}
-	life := orderAge{placed: now, moved: now}
+	life := orderAge{placed: now}
 	if order.SubmittedAt != nil {
-		life = orderAge{placed: *order.SubmittedAt, moved: *order.SubmittedAt}
+		life = orderAge{placed: *order.SubmittedAt}
 	}
 	if l.ages == nil {
 		l.ages = map[string]orderAge{}
@@ -169,7 +190,7 @@ func (l *Ladder) lifeOf(order marketdata.Order, now time.Time) orderAge {
 
 // carried moves a chain's life onto the id the replacement was given. The old id
 // is gone from the broker, so keeping it would only grow the map.
-func (l *Ladder) carried(from, to string, now time.Time) {
+func (l *Ladder) carried(from, to string) {
 	life := l.ages[from]
 	delete(l.ages, from)
 	if to == "" {
@@ -177,7 +198,7 @@ func (l *Ladder) carried(from, to string, now time.Time) {
 		// onto; the next pass takes the order at its word again.
 		return
 	}
-	life.moved = now
+	life.movedOn = l.passes
 	if l.ages == nil {
 		l.ages = map[string]orderAge{}
 	}
@@ -262,6 +283,7 @@ func (l *Ladder) step(ctx context.Context) {
 	// twice. A teammate's arena measured the same 90 seconds on the fixed code and
 	// said so.
 	now := l.Now()
+	l.passes++
 
 	orders, err := l.Broker.Orders(ctx, l.Reads)
 	if err != nil {
@@ -383,7 +405,13 @@ func (l *Ladder) step(ctx context.Context) {
 			}
 		}
 		life := l.lifeOf(order, now)
-		if now.Sub(life.moved) < l.Every {
+		// Moved on an earlier pass: the passes are the ticker's own interval apart,
+		// so it has rested one by construction. Never moved: it is the session's
+		// own order and it rests one interval before this touches it.
+		if life.movedOn == 0 && now.Sub(life.placed) < l.Every {
+			continue
+		}
+		if life.movedOn == l.passes {
 			continue
 		}
 		age := now.Sub(life.placed)
@@ -626,7 +654,7 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order, now time.Time
 	if err != nil {
 		return err
 	}
-	l.carried(order.ID, replacement, now)
+	l.carried(order.ID, replacement)
 	l.Log.Info("walked an order toward the book",
 		zap.String("order", order.ID),
 		zap.String("became", replacement),

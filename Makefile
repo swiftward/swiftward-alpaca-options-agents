@@ -49,6 +49,14 @@ check: ## Every gate a push must pass: style, language, tests, the race detector
 claims: ## Recompute every number this project publishes, from data in the repository, with no credentials
 	cd research && uv run claims.py
 
+day: ## The three numbers a trading day is judged by, per account, from the record
+	@for db in $$(grep -E '^RECORD_DATABASES=' .env | cut -d= -f2-); do \
+		echo "===== $$db"; \
+		docker compose --env-file .env exec -T postgres \
+			psql -U "$$(grep -E '^POSTGRES_USER=' .env | cut -d= -f2-)" -d "$$db" \
+			-f - < postgres/the-day.sql; \
+	done
+
 rehearse: ## Send the reads a trading day sends, from every agent at once, and print what was refused
 	# Run it BEFORE the day, including with the market closed: reads work at the
 	# weekend and the answer is the same one Monday would give. On 31 August the
