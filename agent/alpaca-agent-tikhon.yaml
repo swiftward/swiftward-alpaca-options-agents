@@ -61,7 +61,7 @@ parameters:
   # cleared: the legs are re-read before the order, by then the list has aged, and
   # the best falls below itself. The threshold applies to FRESH quotes; the choice
   # happens among what clears it.
-  min_edge_points: "at least +3 measured on FRESH quotes; among those that clear it, take the largest"
+  min_edge_points: "3"
   # PROVISIONAL: never measured. Borrowed volatility occurs only on the expiry day,
   # and the backtest of 27 August showed that a zero-day expiry does not clear the
   # edge measure anyway - so there has been no occasion to measure it.

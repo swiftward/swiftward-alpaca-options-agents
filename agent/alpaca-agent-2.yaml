@@ -62,7 +62,7 @@ parameters:
   # 4.14. "Strictly above 0" stood here until 28 August and meant trading exactly
   # on the point where the sign changes. We take +3: the most per trade, the
   # fewest trades, and deliberately a different angle from the neighbour's +2.
-  min_edge_points: "at least +3 on fresh quotes; within what qualifies, take the highest"
+  min_edge_points: "3"
   min_edge_points_borrowed: "strictly above 0: borrowed volatility overstates the edge"
   # Three, as on the neighbour. The two accounts now run one setting, so a number
   # that differs between them is a difference nobody chose.

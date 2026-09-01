@@ -68,7 +68,7 @@ parameters:
   # on both sides are lower, so it is a peak rather than the edge of a slope.
   # Computed on the same grid, the cell "delta 0.30". The choice within what
   # qualifies is still by the highest edge_points - the skill says so.
-  min_edge_points: "at least +3 on fresh quotes; within what qualifies, take the highest"
+  min_edge_points: "3"
   min_edge_points_borrowed: "strictly above 0: borrowed volatility overstates the edge"
   # The day's fuse: below this much of yesterday's close, the entry windows open
   # nothing more today. It does NOT stop the defence or the profit watch, so the
