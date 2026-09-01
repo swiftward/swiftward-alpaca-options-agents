@@ -66,7 +66,24 @@ parameters:
   min_edge_points_borrowed: "strictly above 0: borrowed volatility overstates the edge"
   # Three, as on the neighbour. The two accounts now run one setting, so a number
   # that differs between them is a difference nobody chose.
-  daily_fuse_percent: "3"
+  # The day's fuse: below this much of yesterday's close, the entry windows open
+  # nothing more today. It does NOT stop the defence or the profit watch, so the
+  # book is still managed - only new risk stops.
+  #
+  # Raised from 3 on 1 September, and the reason is that 3 was never compared with
+  # the two numbers it has to sit between. One position may lose 9% of equity at
+  # its worst, so a fuse at 3 fired before a SINGLE bounded loss had finished
+  # happening - and a bounded loss is an expected outcome of this method, not a
+  # signal to stop. At the other end, the worst intraday drawdown measured on 31
+  # August was 1.90% on `alpaca-agent-2`, which is the account that ENDED the day
+  # up 3.04% and earned it in trades taken across the whole day. It came within
+  # 1.1 points of stopping its own entries on the best day we have had.
+  #
+  # So the fuse belongs above the noise with margin and below one position's worst
+  # case, or it measures "one trade is going wrong" instead of "the day is bad".
+  # That band is roughly 4 to 7; 5 is the lower half of it, because stopping a good
+  # day early costs a day of entries and not stopping a bad one costs the week.
+  daily_fuse_percent: "5"
 
   # The earnings layer's two numbers, taken verbatim from the declaration that
   # has been running it. The second is the measure this whole week has been
