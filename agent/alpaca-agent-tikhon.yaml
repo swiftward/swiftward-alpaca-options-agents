@@ -256,6 +256,10 @@ sessions:
     within: 40m
     days: [mon, tue, wed, thu]
     task: |
+      When you file the intent, the cause is the name of the session that woke
+      you, copied from the schedule letter for letter - not the playbook you are
+      running, not a list, not a description. The gateway refuses any other name,
+      and a refused intent means no order was sent.
       **This window runs EVERY trading day. There is exactly one exception:
       4 September 2026.** Ask the clock and check the date:
       - today is NOT 4 September 2026 - carry on with this window as usual;
@@ -282,45 +286,10 @@ sessions:
     within: 45m
     days: [mon, tue, wed, thu]
     task: |
-      **This window runs EVERY trading day. There is exactly one exception:
-      4 September 2026.** Ask the clock and check the date:
-      - today is NOT 4 September 2026 - carry on with this window as usual;
-      - today IS 4 September 2026 - open nothing, say so in one line and finish:
-        submissions close at 11:00 New York time, the result is counted at that
-        moment, and anything done after it is not counted at all.
-      There is no other reading: a date that does not match is NOT a reason to
-      finish.
-      A morning entry is not taken every day: a whole day of movement lies ahead,
-      so the premium has to be dear by a measure visible in the chain itself.
-      Run premium-harvest with two tightenings, both in our favour: enter only an
-      underlying whose best structure pays a credit-to-risk of at least 13%, and
-      no more than one underlying in this window.
-      If none clears it, say in one line what each of them paid and finish.
-
-  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
-  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
-  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
-  # that Friday cannot reach the first number at all, and has four hours to hurt
-  # the second one. The rules and both dates are in `docs/rules.md` of the team's
-  # own repository.
-  # ONE DAY ONLY - 31 August 2026, and taken out again after it.
-  #
-  # The 10:20 window opened nothing this morning: the agent could not read the
-  # limits in force for it, so it refused to trade. That refusal is the correct
-  # one - an agent that cannot read its limits must not open a position - and the
-  # cause behind it was a stale name in a deployed environment, now fixed. Waiting
-  # until 12:30 to learn whether entries work again would spend a quarter of the
-  # week's trading on not knowing.
-  #
-  # It costs no edge. Replayed at every half-hour slot of the day, picks inside
-  # our three named windows average $11.7 and picks outside them $12.7 - the same.
-  # Another window buys another trade, not a better one.
-  - name: entry-recheck
-    cause: "an extra entry window, taken only when premium is dear"
-    at: "11:40"
-    within: 45m
-    days: [mon]
-    task: |
+      When you file the intent, the cause is the name of the session that woke
+      you, copied from the schedule letter for letter - not the playbook you are
+      running, not a list, not a description. The gateway refuses any other name,
+      and a refused intent means no order was sent.
       **This window runs EVERY trading day. There is exactly one exception:
       4 September 2026.** Ask the clock and check the date:
       - today is NOT 4 September 2026 - carry on with this window as usual;
@@ -348,6 +317,10 @@ sessions:
     within: 45m
     days: [mon, tue, wed, thu]
     task: |
+      When you file the intent, the cause is the name of the session that woke
+      you, copied from the schedule letter for letter - not the playbook you are
+      running, not a list, not a description. The gateway refuses any other name,
+      and a refused intent means no order was sent.
       **This window runs EVERY trading day. There is exactly one exception:
       4 September 2026.** Ask the clock and check the date:
       - today is NOT 4 September 2026 - carry on with this window as usual;
@@ -382,6 +355,10 @@ sessions:
     between: ["09:50", "15:00"]
     days: [mon, tue, wed, thu]
     task: |
+      When you file the intent, the cause is the name of the session that woke
+      you, copied from the schedule letter for letter - not the playbook you are
+      running, not a list, not a description. The gateway refuses any other name,
+      and a refused intent means no order was sent.
       The convexity layer. Run playbook-convexity in full - manage what is open
       first, then price a new structure.
 
