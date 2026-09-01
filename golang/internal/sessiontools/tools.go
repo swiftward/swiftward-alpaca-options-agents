@@ -254,6 +254,9 @@ type Placements interface {
 // Asked answers whether a tool was called during one turn.
 type Asked interface {
 	AskedInTurn(ctx context.Context, turnRef, tool string) (bool, error)
+	// TriedInTurn is the same question without "and it answered". A close is let
+	// through an envelope that could not answer, never through one nobody called.
+	TriedInTurn(ctx context.Context, turnRef, tool string) (bool, error)
 }
 
 // envelopeTool is the name a session calls to learn its limits. Named here
@@ -368,16 +371,34 @@ func (t Tools) Handler() http.Handler {
 			// accounts, and a position needing to leave in that window could not
 			// have. The row says it was not checked and says it was a close.
 			checked := t.Asked != nil && !in.Closing
-			if t.Asked != nil && turn != "" && !in.Closing {
+			if t.Asked != nil && turn != "" {
 				asked, err := t.Asked.AskedInTurn(ctx, turn, envelopeTool)
 				if err != nil {
 					return nil, recordIntentOutput{}, err
 				}
-				if !asked {
+				if !asked && !in.Closing {
 					return nil, recordIntentOutput{}, fmt.Errorf(
 						"call %s in this turn before recording an intent: limits change while a conversation runs, and an answer from an earlier turn is not this turn's answer",
 						envelopeTool)
 				}
+				// A close is let through an envelope that could not ANSWER, never
+				// through one nobody called. Without this the flag is a way to skip
+				// the step rather than a way past a service that is down, and the
+				// difference is invisible in the record afterwards.
+				if !asked && in.Closing {
+					tried, err := t.Asked.TriedInTurn(ctx, turn, envelopeTool)
+					if err != nil {
+						return nil, recordIntentOutput{}, err
+					}
+					if !tried {
+						return nil, recordIntentOutput{}, fmt.Errorf(
+							"call %s in this turn even to close: a close is excused an envelope that cannot answer, not one nobody asked",
+							envelopeTool)
+					}
+				}
+				// An envelope that DID answer was read, whichever way this intent
+				// goes, and the row should not say otherwise.
+				checked = asked
 			}
 
 			// The same structure stated twice in one turn is one decision written

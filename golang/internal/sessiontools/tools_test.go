@@ -520,10 +520,15 @@ func TestADifferentStructureInTheSameTurnIsRecorded(t *testing.T) {
 	assert.Len(t, stored.Intents, 2)
 }
 
-// askedDouble answers whether a tool was called in a turn.
+// askedDouble answers whether a tool was called in a turn, and whether it
+// answered. A call that answered was also a call, exactly as the record has it:
+// one query filters on status and the other does not.
 type askedDouble struct {
 	inTurn map[string]bool
-	failed error
+	// triedInTurn is a call that was made and FAILED - a service that is down
+	// rather than a step nobody took.
+	triedInTurn map[string]bool
+	failed      error
 }
 
 func (a *askedDouble) AskedInTurn(_ context.Context, turnRef, tool string) (bool, error) {
@@ -531,6 +536,14 @@ func (a *askedDouble) AskedInTurn(_ context.Context, turnRef, tool string) (bool
 		return false, a.failed
 	}
 	return a.inTurn[turnRef+"/"+tool], nil
+}
+
+func (a *askedDouble) TriedInTurn(_ context.Context, turnRef, tool string) (bool, error) {
+	if a.failed != nil {
+		return false, a.failed
+	}
+	key := turnRef + "/" + tool
+	return a.inTurn[key] || a.triedInTurn[key], nil
 }
 
 func withLimits(t *testing.T, asked Asked) *mcp.ClientSession {

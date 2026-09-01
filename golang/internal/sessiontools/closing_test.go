@@ -13,6 +13,8 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 )
 
+const envelopeInTurnOne = "turn-1/" + envelopeTool
+
 func statingAClose(t *testing.T, session *mcp.ClientSession, structure string) *mcp.CallToolResult {
 	t.Helper()
 
@@ -32,35 +34,55 @@ func statingAClose(t *testing.T, session *mcp.ClientSession, structure string) *
 // was not already risking, and a session that cannot record an intent cannot
 // order at all by its own rule - so a limit service that cannot answer would hold
 // a position open. Measured 1 September on both accounts.
-func TestAClosingIntentDoesNotWaitForTheLimits(t *testing.T) {
-	session := withLimits(t, &askedDouble{inTurn: map[string]bool{}})
+func TestAClosingIntentIsExcusedAnEnvelopeThatCannotAnswer(t *testing.T) {
+	session := withLimits(t, &askedDouble{
+		inTurn:      map[string]bool{},
+		triedInTurn: map[string]bool{envelopeInTurnOne: true},
+	})
 
 	require.True(t, statingAnIntent(t, session).IsError,
 		"an opening is still held to the limits, or this test proves nothing")
 
+	assert.False(t, statingAClose(t, session, "QQQ 701/700 put").IsError,
+		"a close goes through an envelope that could not answer")
+}
+
+// And no further. The flag is a way past a service that is DOWN, never a way to
+// skip the step: both leave the same absence behind, and only one of them is a
+// reason to let anything through.
+func TestAClosingIntentIsNotExcusedAnEnvelopeNobodyCalled(t *testing.T) {
+	session := withLimits(t, &askedDouble{inTurn: map[string]bool{}})
+
 	out := statingAClose(t, session, "QQQ 701/700 put")
-	assert.False(t, out.IsError, "a close is recorded whatever the envelope says")
+	require.True(t, out.IsError, "a close that never asked is refused like any other intent")
+
+	said := ""
+	for _, part := range out.Content {
+		if text, ok := part.(*mcp.TextContent); ok {
+			said += text.Text
+		}
+	}
+	assert.Contains(t, said, envelopeTool, "and it is told what to call")
 }
 
 // Opening a structure and then leaving it in the same turn is two decisions about
 // one structure. The refusal that stops one decision being written down twice
 // must not stop the second of those two.
 func TestAStructureCanBeOpenedAndLeftInOneTurn(t *testing.T) {
-	session := withLimits(t, &askedDouble{inTurn: map[string]bool{"turn-1/read_envelope": true}})
+	session := withLimits(t, &askedDouble{inTurn: map[string]bool{envelopeInTurnOne: true}})
 
 	require.False(t, statingAnIntent(t, session).IsError)
 	assert.False(t, statingAClose(t, session, "QQQ 701/700 put").IsError,
 		"the same structure may be left in the turn that opened it")
 }
 
-// The record separates a close from a deployment that cannot check: both leave
-// envelope_checked false, and only one of them is a decision anybody made.
-func TestTheRecordSaysWhichIntentsWereCloses(t *testing.T) {
+func recording(t *testing.T, asked Asked) (*record.Memory, *mcp.ClientSession) {
+	t.Helper()
+
 	kept := record.NewMemory()
 	server := httptest.NewServer(Tools{
 		Record: kept, Now: time.Now,
-		Running: &runningDouble{ref: "turn-1"},
-		Asked:   &askedDouble{inTurn: map[string]bool{"turn-1/read_envelope": true}},
+		Running: &runningDouble{ref: "turn-1"}, Asked: asked,
 	}.Handler())
 	t.Cleanup(server.Close)
 
@@ -68,6 +90,15 @@ func TestTheRecordSaysWhichIntentsWereCloses(t *testing.T) {
 	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: server.URL}, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = session.Close() })
+
+	return kept, session
+}
+
+// The record says which intents were closes, and separately whether the envelope
+// actually answered. Two columns, because a close during an outage and a close
+// beside a healthy envelope are not the same row.
+func TestTheRecordSaysWhichIntentsWereCloses(t *testing.T) {
+	kept, session := recording(t, &askedDouble{inTurn: map[string]bool{envelopeInTurnOne: true}})
 
 	require.False(t, statingAnIntent(t, session).IsError)
 	require.False(t, statingAClose(t, session, "QQQ 705/704 put").IsError)
@@ -78,10 +109,26 @@ func TestTheRecordSaysWhichIntentsWereCloses(t *testing.T) {
 
 	opened, left := stored.Intents[0], stored.Intents[1]
 	assert.False(t, opened.IsClosing)
-	require.NotNil(t, opened.EnvelopeChecked)
-	assert.True(t, *opened.EnvelopeChecked, "an opening carries the check it passed")
-
 	assert.True(t, left.IsClosing)
-	require.NotNil(t, left.EnvelopeChecked)
-	assert.False(t, *left.EnvelopeChecked, "a close is not held to it, and says so")
+	for _, intent := range stored.Intents {
+		require.NotNil(t, intent.EnvelopeChecked)
+		assert.True(t, *intent.EnvelopeChecked,
+			"the envelope answered, so both rows say it was read")
+	}
+}
+
+func TestACloseDuringAnOutageSaysTheEnvelopeWasNotRead(t *testing.T) {
+	kept, session := recording(t, &askedDouble{
+		inTurn:      map[string]bool{},
+		triedInTurn: map[string]bool{envelopeInTurnOne: true},
+	})
+
+	require.False(t, statingAClose(t, session, "QQQ 705/704 put").IsError)
+
+	stored, err := kept.Read(context.Background())
+	require.NoError(t, err)
+	require.Len(t, stored.Intents, 1)
+	require.NotNil(t, stored.Intents[0].EnvelopeChecked)
+	assert.False(t, *stored.Intents[0].EnvelopeChecked)
+	assert.True(t, stored.Intents[0].IsClosing)
 }

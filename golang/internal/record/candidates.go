@@ -119,6 +119,25 @@ func (p *Postgres) AskedInTurn(ctx context.Context, turnRef, tool string) (bool,
 	return asked, nil
 }
 
+// TriedInTurn reports whether a tool was CALLED during one turn, answered or not.
+//
+// It is the difference between a service that is down and a session that skipped
+// the step. Both leave the same absence in AskedInTurn, and only one of them is a
+// reason to let anything through.
+func (p *Postgres) TriedInTurn(ctx context.Context, turnRef, tool string) (bool, error) {
+	var tried bool
+	err := p.pool.QueryRow(ctx,
+		`SELECT EXISTS (
+		     SELECT 1 FROM tool_calls
+		      WHERE turn_ref = @turn AND tool = @tool)`,
+		pgx.NamedArgs{"turn": turnRef, "tool": tool}).Scan(&tried)
+	if err != nil {
+		return false, fmt.Errorf("ask whether %s was tried in turn %s: %w", tool, turnRef, err)
+	}
+
+	return tried, nil
+}
+
 // PurgeCandidates drops sweeps older than the given moment and says how many
 // rows went.
 //

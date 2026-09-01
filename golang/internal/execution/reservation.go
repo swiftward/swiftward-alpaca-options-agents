@@ -2,6 +2,7 @@ package execution
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -49,20 +50,30 @@ func NameStating(worst, edge float64) string {
 // ("client_order_id must be unique"), so passing the old name through refuses
 // every step of the walk.
 //
-// It is built from the ORDER rather than from a floor handed in, because a
-// replacement that keeps the floor and drops the edge would pass the gate below
-// on its first step and every step after it.
+// The whole name is kept and only the uniqueness tail is replaced. Rebuilding it
+// from the fields this package knows drops everything else the session wrote -
+// including `turn=`, which is the only thing joining a filled order back to the
+// intent behind it, and which every replacement therefore used to lose.
 func NameCarrying(order marketdata.Order, at time.Time) string {
-	worst, named := Reservation(order)
-	if !named {
-		return fmt.Sprintf("%d", at.UnixNano())
+	fresh := strconv.FormatInt(at.UnixNano(), 10)
+
+	// The tail this package added last time is dropped rather than kept, or an
+	// order walked twenty times carries twenty timestamps and runs past what the
+	// broker will hold. It is recognised by being the only field that is a bare
+	// whole number: everything a session writes is `key=value` or words.
+	fields := strings.Split(order.ClientID, ";")
+	for len(fields) > 0 {
+		last := strings.TrimSpace(fields[len(fields)-1])
+		if _, err := strconv.ParseInt(last, 10, 64); err != nil && last != "" {
+			break
+		}
+		fields = fields[:len(fields)-1]
 	}
-	name := NameFor(worst)
-	if edge, stated := EdgeAt(order); stated {
-		name = NameStating(worst, edge)
+	if len(fields) == 0 {
+		return fresh
 	}
 
-	return fmt.Sprintf("%s;%d", name, at.UnixNano())
+	return strings.Join(fields, ";") + ";" + fresh
 }
 
 // Reservation reads the worst price out of an order's name. An order that names
@@ -79,24 +90,30 @@ func EdgeAt(order marketdata.Order) (float64, bool) {
 	return stated(order.ClientID, edgePrefix)
 }
 
-// stated reads one number a session wrote into an order's name. The name is the
-// session's own text with these segments in it, so it is read from wherever the
-// prefix appears and ends at whatever separates the session's words.
+// stated reads one number a session wrote into an order's name. The rest of the
+// name is the session's own text, so the field is found by splitting on the
+// separators a session writes between its words and matching a WHOLE field - not
+// by searching for the prefix anywhere in the string. A search would read
+// `min_edge=3` as the edge and walk to a floor this refuses.
+//
+// A value that is not a finite number is no value: `strconv.ParseFloat` accepts
+// "NaN" and "Inf", and a NaN compares false against every bound, so it would not
+// pass a check, it would fail every one of them - an order stranded until
+// patience by a word in its own name.
 func stated(name, prefix string) (float64, bool) {
-	at := strings.Index(name, prefix)
-	if at < 0 {
-		return 0, false
+	for _, field := range strings.FieldsFunc(name, func(r rune) bool {
+		return r == ';' || r == ',' || r == ' '
+	}) {
+		if !strings.HasPrefix(field, prefix) {
+			continue
+		}
+		value, err := strconv.ParseFloat(field[len(prefix):], 64)
+		if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
+			return 0, false
+		}
+
+		return round(value), true
 	}
 
-	rest := name[at+len(prefix):]
-	if cut := strings.IndexAny(rest, " ;,"); cut >= 0 {
-		rest = rest[:cut]
-	}
-
-	value, err := strconv.ParseFloat(rest, 64)
-	if err != nil {
-		return 0, false
-	}
-
-	return round(value), true
+	return 0, false
 }

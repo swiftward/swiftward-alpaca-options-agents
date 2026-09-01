@@ -938,6 +938,14 @@ func (l *Ladder) refusesTheFloor(order marketdata.Order, floor float64) bool {
 	if l.MinEdgePoints == nil {
 		return false
 	}
+	// An exit is never held to an entry rule. A closing order has no edge to
+	// measure - it is leaving a position, not taking one - so a session that
+	// writes any edge on one would have the ladder strand its exit and patience
+	// cancel it. This is the rule that must never be what stops a position being
+	// left, for the same reason the envelope is not one.
+	if OnlyCloses(order) {
+		return false
+	}
 	edge, stated := EdgeAt(order)
 	if !stated {
 		l.Log.Info("walking an order whose name states no edge at its worst price",

@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"os/signal"
@@ -129,6 +130,12 @@ func minEdgePoints(declared *declaration.Watcher) (float64, error) {
 	points, err := strconv.ParseFloat(strings.TrimSpace(written), 64)
 	if err != nil {
 		return 0, fmt.Errorf("min_edge_points %q is not a number", written)
+	}
+	// "NaN" parses. It then compares false against every edge, so the ladder would
+	// refuse every concession it was given rather than let them through, and every
+	// opening order would die on patience.
+	if math.IsNaN(points) || math.IsInf(points, 0) {
+		return 0, fmt.Errorf("min_edge_points is %q: state a number", written)
 	}
 
 	return points, nil

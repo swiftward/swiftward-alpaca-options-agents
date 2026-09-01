@@ -3,6 +3,7 @@ package execution
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -130,4 +131,74 @@ func TestTheEdgeIsReadOutOfWhateverTheSessionWrote(t *testing.T) {
 		_, stated := EdgeAt(marketdata.Order{ClientID: name})
 		assert.False(t, stated, name)
 	}
+}
+
+// An exit is not held to an entry rule. A close has no edge to measure - it is
+// leaving a position, not taking one - and a session that writes any edge on one
+// would otherwise have its exit stranded here and cancelled by patience.
+func TestAClosingOrderIsNotHeldToTheEntryRule(t *testing.T) {
+	at := time.Date(2026, 9, 1, 14, 46, 0, 0, time.UTC)
+	order := spread("o-1", -0.30, "new", at.Add(-2*time.Minute))
+	order.ClientID = NameStating(-0.28, 0.00)
+	for i := range order.Legs {
+		order.Legs[i].PositionIntent = "sell_to_close"
+	}
+	broker := awayFromTheBook(order)
+
+	holdingTo(3, broker, at, t).step(context.Background())
+
+	replaced, _ := broker.seen()
+	assert.NotEmpty(t, replaced, "the exit walks whatever its edge says")
+}
+
+// The name is the session's own text, so a field is matched whole. A search for
+// the prefix anywhere in the string reads `min_edge=3` as the edge and walks to a
+// floor this exists to refuse.
+func TestAFieldIsMatchedWholeAndNotFoundInsideAnother(t *testing.T) {
+	edge, stated := EdgeAt(marketdata.Order{ClientID: "worst=-0.28;min_edge=3;edge=2.53;turn=tu-7"})
+	require.True(t, stated)
+	assert.InDelta(t, 2.53, edge, 1e-9, "the field named edge, not the one ending in it")
+
+	_, stated = EdgeAt(marketdata.Order{ClientID: "worst=-0.28;min_edge=3;turn=tu-7"})
+	assert.False(t, stated, "a name with no edge field states no edge")
+}
+
+// "NaN" and "Inf" parse. A NaN then compares false against every bound, so it
+// would not pass a check - it would fail all of them, and strand the order until
+// patience over a word in its own name.
+func TestANumberThatIsNotFiniteIsNoNumber(t *testing.T) {
+	for _, name := range []string{"worst=-0.28;edge=NaN", "worst=-0.28;edge=+Inf", "worst=-0.28;edge=-Inf"} {
+		_, stated := EdgeAt(marketdata.Order{ClientID: name})
+		assert.False(t, stated, name)
+	}
+	for _, name := range []string{"worst=NaN;edge=3.62", "worst=Inf"} {
+		_, named := Reservation(marketdata.Order{ClientID: name})
+		assert.False(t, named, name)
+	}
+}
+
+// The turn in the name is the only thing joining a filled order back to the
+// intent behind it. A replacement rebuilt from the fields this package knows
+// dropped it at the first step, and every step after kept it dropped.
+func TestAReplacementKeepsEverythingTheSessionWrote(t *testing.T) {
+	at := time.Date(2026, 9, 1, 14, 46, 0, 0, time.UTC)
+	order := marketdata.Order{ClientID: "worst=-0.28;edge=3.62;turn=tu-7;SPY772-773-0909"}
+
+	first := NameCarrying(order, at)
+	assert.Contains(t, first, "turn=tu-7")
+	assert.Contains(t, first, "SPY772-773-0909")
+	assert.NotEqual(t, order.ClientID, first, "the broker refuses a name it has seen")
+
+	// And it does not grow: a walk of twenty steps must not carry twenty stamps
+	// past what the broker will hold.
+	second := NameCarrying(marketdata.Order{ClientID: first}, at.Add(time.Second))
+	assert.Len(t, strings.Split(second, ";"), len(strings.Split(first, ";")))
+	assert.NotEqual(t, first, second)
+
+	floor, named := Reservation(marketdata.Order{ClientID: second})
+	require.True(t, named)
+	assert.InDelta(t, -0.28, floor, 1e-9)
+	edge, stated := EdgeAt(marketdata.Order{ClientID: second})
+	require.True(t, stated)
+	assert.InDelta(t, 3.62, edge, 1e-9)
 }
