@@ -119,16 +119,27 @@ func worstAtExpiry(held []Position) float64 {
 	return worst
 }
 
-// RestingUnderlyings names the underlyings this account has an order working on
-// right now - one entry each, however many orders or legs stand on it.
+// Side is one underlying and one side of the market. A structure is refused a
+// place on the shortlist by its SIDE, not by its underlying: a put spread and a
+// call spread on one name are two different positions, and the second of them is
+// the best exchange of risk for credit this book has - the broker holds
+// collateral on the worse of the two rather than on their sum. Withholding the
+// whole underlying refused exactly that trade.
+type Side struct {
+	Underlying string
+	Type       string
+}
+
+// RestingSides names the sides this account has an order working on right now -
+// one entry each, however many orders or legs stand on it.
 //
 // It reads the orders the broker still has in play (Order.Active) and takes the
-// underlying out of each leg's contract symbol. An order the ladder is walking
-// counts: it can fill at any moment, and a second structure sized as though the
-// first were not there is one bet taken twice.
-func RestingUnderlyings(orders []Order) []string {
-	seen := map[string]bool{}
-	var names []string
+// underlying and the type out of each leg's contract symbol. An order the ladder
+// is walking counts: it can fill at any moment, and a second structure on the
+// SAME side, sized as though the first were not there, is one bet taken twice.
+func RestingSides(orders []Order) []Side {
+	seen := map[Side]bool{}
+	var sides []Side
 	for _, order := range orders {
 		if !order.Active() {
 			continue
@@ -142,13 +153,16 @@ func RestingUnderlyings(orders []Order) []string {
 			if !parsed {
 				continue
 			}
-			name := contract.Symbol[:len(contract.Symbol)-15]
-			if !seen[name] {
-				seen[name] = true
-				names = append(names, name)
+			side := Side{
+				Underlying: contract.Symbol[:len(contract.Symbol)-15],
+				Type:       contract.Type,
+			}
+			if !seen[side] {
+				seen[side] = true
+				sides = append(sides, side)
 			}
 		}
 	}
 
-	return names
+	return sides
 }

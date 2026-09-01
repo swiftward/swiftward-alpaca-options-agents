@@ -61,13 +61,13 @@ type restingUnderlyings struct {
 	shown  int
 }
 
-func (r restingUnderlyings) RestingUnderlyings(ctx context.Context) ([]string, error) {
+func (r restingUnderlyings) RestingSides(ctx context.Context) ([]marketdata.Side, error) {
 	orders, err := r.broker.Orders(ctx, r.shown)
 	if err != nil {
 		return nil, err
 	}
 
-	return marketdata.RestingUnderlyings(orders), nil
+	return marketdata.RestingSides(orders), nil
 }
 
 func main() {

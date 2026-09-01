@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/screener"
 )
@@ -109,24 +110,25 @@ func TestAListTheScreenerStoppedRefreshingIsNotFresh(t *testing.T) {
 }
 
 type restingDouble struct {
-	names  []string
+	sides  []marketdata.Side
 	broken error
 }
 
-func (r *restingDouble) RestingUnderlyings(context.Context) ([]string, error) {
-	return r.names, r.broken
+func (r *restingDouble) RestingSides(context.Context) ([]marketdata.Side, error) {
+	return r.sides, r.broken
 }
 
-// An underlying this account already has an order working on is not offered
-// again, and the list says which ones it left out.
+// A side this account already has an order working on is not offered again, and
+// the list says which sides it left out.
 //
 // The session cannot see its own resting orders in this list. Offered the same
-// underlying twice it sizes the second position against an account that does not
-// yet hold the first, and the broker refused exactly that pair twice on
-// 28 August. Withheld rather than silently dropped: a session that asked for
-// three and got one is entitled to know whether the market was thin or we were
-// already in.
-func TestAnUnderlyingWeAreAlreadyInIsWithheld(t *testing.T) {
+// side twice it sizes the second position against an account that does not yet
+// hold the first, and the broker refused exactly that pair twice on 28 August.
+// The OTHER side of the same name stays on the list: both cannot lose at once,
+// and the broker holds collateral on the worse of the two rather than on their
+// sum. Withheld rather than silently dropped: a session that asked for three and
+// got one is entitled to know whether the market was thin or we were already in.
+func TestASideWeAreAlreadyInIsWithheld(t *testing.T) {
 	now := time.Date(2026, 8, 26, 19, 10, 0, 0, time.UTC)
 	shortlist := &shortlistDouble{
 		found: []screener.Candidate{
@@ -137,15 +139,17 @@ func TestAnUnderlyingWeAreAlreadyInIsWithheld(t *testing.T) {
 		takenAt: now,
 	}
 
-	session := candidateSessionResting(t, shortlist, now, &restingDouble{names: []string{"QQQ"}})
+	session := candidateSessionResting(t, shortlist, now,
+		&restingDouble{sides: []marketdata.Side{{Underlying: "QQQ", Type: "put"}}})
 	out, err := session.CallTool(context.Background(),
 		&mcp.CallToolParams{Name: "read_candidates", Arguments: map[string]any{}})
 	require.NoError(t, err)
 	require.False(t, out.IsError)
 
 	answer := readCandidates(t, out)
-	require.Len(t, answer["candidates"], 1, "both QQQ rows go, whatever their case")
-	assert.Equal(t, []any{"QQQ"}, answer["withheld"], "and the reader is told which underlying went")
+	require.Len(t, answer["candidates"], 2,
+		"only the QQQ PUT goes: the call side of the same name is a different position")
+	assert.Equal(t, []any{"QQQ put"}, answer["withheld"], "and the reader is told which side went")
 }
 
 // With nothing working the list is exactly what the screener priced, and nothing

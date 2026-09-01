@@ -19,6 +19,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/placement"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/screener"
@@ -263,12 +264,16 @@ type Asked interface {
 // because the check below is about that call and no other.
 const envelopeTool = "read_envelope"
 
-// Resting answers which underlyings already have an order of ours working on
-// them. A structure on one of those is not a candidate: the session cannot tell
-// its own resting order from a stranger's, would size against a position it does
-// not yet hold, and the broker refuses the pair - measured twice on 28 August.
+// Resting answers which SIDES already have an order of ours working on them. A
+// structure on one of those is not a candidate: the session cannot tell its own
+// resting order from a stranger's, would size against a position it does not yet
+// hold, and the broker refuses the pair - measured twice on 28 August.
+//
+// By side and not by underlying, because the other side of the same name is a
+// different position: both cannot lose at once, and the broker holds collateral
+// on the worse of the two rather than on their sum.
 type Resting interface {
-	RestingUnderlyings(ctx context.Context) ([]string, error)
+	RestingSides(ctx context.Context) ([]marketdata.Side, error)
 }
 
 // Shortlist is the last sweep of the universe, richest first.
@@ -675,7 +680,7 @@ type candidatesAnswer struct {
 	// ours is already working on them. Named rather than silently dropped: a
 	// session that asked for ten and got seven is entitled to know whether the
 	// market was thin or we were already in.
-	Withheld []string `json:"withheld,omitempty" jsonschema:"underlyings left out because this account already has an order working on them"`
+	Withheld []string `json:"withheld,omitempty" jsonschema:"sides left out because this account already has an order working on them, as \"SPY call\"; the other side of the same underlying is not withheld"`
 }
 
 // withoutWhatIsAlreadyWorking drops the structures whose underlying already has
@@ -689,7 +694,7 @@ func (t Tools) withoutWhatIsAlreadyWorking(ctx context.Context, found []screener
 	if t.Resting == nil || len(found) == 0 {
 		return found, nil, nil
 	}
-	working, err := t.Resting.RestingUnderlyings(ctx)
+	working, err := t.Resting.RestingSides(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -698,15 +703,15 @@ func (t Tools) withoutWhatIsAlreadyWorking(ctx context.Context, found []screener
 	}
 
 	busy := make(map[string]bool, len(working))
-	for _, underlying := range working {
-		busy[strings.ToUpper(underlying)] = true
+	for _, side := range working {
+		busy[key(side.Underlying, side.Type)] = true
 	}
 
 	kept := make([]screener.Candidate, 0, len(found))
 	var withheld []string
 	seen := map[string]bool{}
 	for _, candidate := range found {
-		name := strings.ToUpper(candidate.Underlying)
+		name := key(candidate.Underlying, candidate.Type)
 		if !busy[name] {
 			kept = append(kept, candidate)
 
@@ -719,6 +724,11 @@ func (t Tools) withoutWhatIsAlreadyWorking(ctx context.Context, found []screener
 	}
 
 	return kept, withheld, nil
+}
+
+// key names one side of one underlying, in the words a session reads: "SPY call".
+func key(underlying, kind string) string {
+	return strings.ToUpper(underlying) + " " + strings.ToLower(kind)
 }
 
 // fresh answers whether the list is being kept up to date.
