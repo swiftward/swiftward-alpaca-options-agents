@@ -685,11 +685,13 @@ func run(log *zap.Logger) error {
 			log.Info("the day's fuse is enforced, not only asked of the session",
 				zap.String("from", "daily_fuse_percent in the declaration"))
 
-			// No check at startup yet, unlike the fuse above. Until the declaration
-			// carries min_edge_points as a bare number this cannot be read, and a
-			// process that refuses to start over it would take both accounts down
-			// mid-session. It says so on every pass instead, and the startup check
-			// arrives with the declaration that makes it readable.
+			// Read once here for the same reason the fuse is: a worst price nobody
+			// checks is the defect this closes, and a gate you learn about from an
+			// error line on every pass is not a gate. The declaration carries the
+			// number since 1 September, so this can refuse rather than warn.
+			if _, err := minEdgePoints(declared); err != nil {
+				return fmt.Errorf("the ladder cannot hold a worst price to the entry rule: %w", err)
+			}
 			ladder.MinEdgePoints = func() (float64, error) { return minEdgePoints(declared) }
 			log.Info("a worst price is held to the same edge the session enters on",
 				zap.String("from", "min_edge_points in the declaration"))
