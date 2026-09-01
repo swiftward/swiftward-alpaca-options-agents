@@ -421,18 +421,13 @@ sessions:
         separately.
         Open up to SIX new positions per window, each on its own filters. If you did
         not find six, there are none right now, and that is a normal answer.
-      - A second position on the same underlying, side and expiry is allowed, at
-        DIFFERENT strikes. What bounds it is the envelope's
-        `same_direction_max_loss`, which adds up everything betting the same way
-        and stops at its limit; that number is measured and this one was not.
-        Until 1 September a rule here barred the second position outright. It stood
-        from the first commit, nothing ever measured it, and on 1 September it
-        refused the best row on the screen in fourteen windows on each account -
-        almost always SPY, the only name paying anything that day. It also bought
-        no safety: it barred one expiry, so the same bet simply accumulated on the
-        other expiries, which is what both accounts did.
-        The SAME structure is still not re-opened - identical strikes and expiry is
-        re-entering a trade the ladder may still be working, not a new one.
+      - A second position on the same underlying, side and expiry IS allowed, at
+        different strikes. What bounds one side is the envelope's
+        `same_direction_max_loss`: it adds up everything betting the same way and
+        stops at its limit, and nothing here adds a bound of its own on top of it.
+        The one structure not opened twice is the identical one - same strikes and
+        same expiry - because that is re-entering a trade the ladder may still be
+        working, not a new one.
         A put spread and a call spread on one underlying are two different positions,
         and together they are both sides of the market: both cannot lose at once,
         since price goes either up or down.
