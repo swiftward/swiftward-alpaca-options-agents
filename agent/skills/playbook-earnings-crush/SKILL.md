@@ -21,10 +21,17 @@ before anything is sent.
 `read_envelope(tool="place_option_order")` in this turn. Then the account, the
 positions, and the clock.
 
-**Cancel what is resting first.** A working order holds buying power at the full
-width of its structure, with no credit netted against it - measured on this account.
-Three forgotten orders can leave a bet unable to size. Cancel the ones this playbook
-did not place, or say plainly that you could not.
+**Cancel what is resting first, EXCEPT an order still being walked.** A working
+order holds buying power at the full width of its structure, with no credit netted
+against it - measured on this account - and three forgotten orders can leave a bet
+unable to size. So cancel the ones this playbook did not place, or say plainly that
+you could not.
+
+An order placed within the last ten minutes is not forgotten: the harness is
+walking its price toward the book and it is about to fill or about to be cancelled
+on its own patience. Cancelling it spends an entry window that was still live, and
+to free a bet worth 3% of equity at its worst it would throw away a structure
+risking nine. Leave it, and say in one line that you did.
 
 ## The measurement that decides the side
 

@@ -318,8 +318,8 @@ sessions:
         opened later cannot be defended EVEN ONCE, and that is not about the size of
         the risk but about the machinery not reaching it. Work the time out yourself
         from the broker's clock.
-      - **The edge must be ABOVE ZERO. The best in the list is not the same as
-        acceptable.** The list is ranked, and its first row stands first even when
+      - **The edge must clear `min_edge_points`, which stands at the head of this
+        declaration. The best in the list is not the same as acceptable.** The list is ranked, and its first row stands first even when
         the whole list is negative: then the right move is not to enter. A negative
         edge means the market pays LESS than the risk is worth by that same market's
         own reckoning - that is a slow loss rather than a risk.
@@ -340,9 +340,14 @@ sessions:
         power.** A set's maximum loss is the WIDTH between strikes times a hundred
         less the credit received; the number of sets is the envelope's limit divided
         by that loss, rounded down.
-      - **Re-quote no more than THREE structures per turn.** Take the best three by
+      - **Re-quote no more than SIX structures per turn.** Take the best six by
         `edge_points`, check those, and take the best that clears; if none clears,
         say so in one line and end the turn.
+        Three until 1 September, which made the ceiling of six below unreachable
+        and cost the window its second chance: on 31 August the top candidate's
+        edge routinely collapsed on the fresh quote - +3.94 screened became -4.36
+        live in one measured case - and 61 windows produced 8 orders. Six is what
+        the window is allowed to open, so six is what it may check.
         The three are counted among candidates you COULD open: a name you already
         hold on the same side and expiry cannot be opened at all, so skip it before
         you count.

@@ -3,19 +3,24 @@ name: alpaca-agent-2
 version: "1"
 timezone: America/New_York
 
-# The same engine, one difference: we sell CLOSER to the money.
+# The same engine and the same numbers as alpaca-agent-1.yaml.
 #
-# The experiment answers one question, and it is also the main complaint against
-# the first account - its trades collect pennies. A sold leg at a delta near 0.15
-# sits far from price, loses rarely and pays almost nothing. A leg at a delta near
-# 0.30 sits twice as close: it pays several times more and loses noticeably more
-# often. Which of the two is better is not settled by argument - it is settled by
-# two accounts on the same day.
+# This account was opened to answer one question - whether selling CLOSER to the
+# money earns more - and that question has been answered against, so the
+# difference is gone: both declarations sell at no more than 0.30 of delta. The
+# backtest of 27 August decided it over 646 trading days and 289,459 structures:
+# the 0.25-0.45 band pays 40.9% of risk against 14.3% below it AND loses
+# proportionally more, and across the whole history the wider delta is worse
+# everywhere. A measurement of one afternoon lost to a measurement of two and a
+# half years.
 #
-# Everything else matches alpaca-agent-1.yaml on purpose: size from the loss, the
-# portfolio limit as a sum of maximum losses, the execution ladder, an intent
-# recorded before the order. EXACTLY ONE thing may differ, or there is nothing to
-# compare.
+# What the two accounts are FOR now is different and smaller: they are two draws
+# from one distribution, and the one standing higher at Thursday's close is the
+# one submitted. On 31 August they ran the same rules and ended 1,864 apart,
+# which is what that looks like.
+#
+# The one difference left is deliberate: this declaration does not carry the
+# convexity layer. Agent 1 does.
 
 
 # Which techniques this agent receives at all. The name is what stands at the head
@@ -313,8 +318,8 @@ sessions:
         opened later cannot be defended EVEN ONCE, and that is not about the size of
         the risk but about the machinery not reaching it. Work the time out yourself
         from the broker's clock.
-      - **The edge must be ABOVE ZERO. The best in the list is not the same as
-        acceptable.** The list is ranked, and its first row stands first even when
+      - **The edge must clear `min_edge_points`, which stands at the head of this
+        declaration. The best in the list is not the same as acceptable.** The list is ranked, and its first row stands first even when
         the whole list is negative: then the right move is not to enter. A negative
         edge means the market pays LESS than the risk is worth by that same market's
         own reckoning - that is a slow loss rather than a risk.
@@ -335,9 +340,14 @@ sessions:
         power.** A set's maximum loss is the WIDTH between strikes times a hundred
         less the credit received; the number of sets is the envelope's limit divided
         by that loss, rounded down.
-      - **Re-quote no more than THREE structures per turn.** Take the best three by
+      - **Re-quote no more than SIX structures per turn.** Take the best six by
         `edge_points`, check those, and take the best that clears; if none clears,
         say so in one line and end the turn.
+        Three until 1 September, which made the ceiling of six below unreachable
+        and cost the window its second chance: on 31 August the top candidate's
+        edge routinely collapsed on the fresh quote - +3.94 screened became -4.36
+        live in one measured case - and 61 windows produced 8 orders. Six is what
+        the window is allowed to open, so six is what it may check.
         The three are counted among candidates you COULD open: a name you already
         hold on the same side and expiry cannot be opened at all, so skip it before
         you count.
