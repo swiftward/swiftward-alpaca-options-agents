@@ -551,11 +551,8 @@ services:
     <<: *agent-service
     environment:
       <<: *agent-environment
-      # The step sized to arrive by the time patience ends. It has arithmetic
-      # behind it and, until this day closes, no live day - so it runs here, on
-      # the account standing LOWER, while agent 2 keeps the tick we have been
-      # running. Whichever ends higher on Thursday is the one submitted, so the
-      # comparison costs nothing and answers by Wednesday morning.
+      # The step sized to arrive by the time patience ends. See agent 2 for why
+      # both accounts carry it rather than one each.
       EXECUTION_STRIDE: arrive
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       # The broker's tools, reached through the policy gateway. The session sends
@@ -649,10 +646,14 @@ services:
     <<: *agent-service
     environment:
       <<: *agent-environment
-      # One tick a step: what this ladder has always done, kept here on purpose.
-      # It is the control, and it is on the account that stands higher, so the
-      # unproven tactic is never the one carrying the lead.
-      EXECUTION_STRIDE: tick
+      # Both accounts walk to arrive. The tick was kept here for one evening as a
+      # control and then dropped, because the objective is profit and not a clean
+      # comparison: the walk cannot end at a worse price than the tick does - both
+      # stop at the floor the session named - so what it changes is only how many
+      # orders reach a fill at all, and two thirds of them died unfilled on 31
+      # August. `tick` remains a value the ladder accepts, so going back is one
+      # edit here and a restart.
+      EXECUTION_STRIDE: arrive
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
       # The agent reaches the outside through the internet gateway and presents it
       # the SAME key it presents to the broker and the model. The key travels as
