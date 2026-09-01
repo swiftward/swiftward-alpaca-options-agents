@@ -1311,3 +1311,40 @@ func TestAWalkWithTimeToSpareStillMovesOneTick(t *testing.T) {
 	replaced, _ := broker.seen()
 	assert.InDelta(t, -0.11, replaced["o-1"], 1e-9)
 }
+
+// The tactic is declared, and the one we have been running is still available.
+//
+// The proportional step has arithmetic behind it and no live day behind it. The
+// account that is submitted is whichever of the two stands higher, so the honest
+// way to try it is on ONE account while the other keeps what we know - the
+// comparison costs nothing and answers by Wednesday.
+func TestTheStrideIsDeclaredAndTheOldOneStillWalksATick(t *testing.T) {
+	at := time.Date(2026, 9, 1, 15, 0, 0, 0, time.UTC)
+	placed := at.Add(-6 * time.Minute)
+
+	walk := func(t *testing.T, stride string) float64 {
+		t.Helper()
+		broker := &brokerDouble{
+			orders: []marketdata.Order{spread("o-1", -0.30, "new", placed)},
+			quotes: map[string]marketdata.Quote{
+				"QQQ260826P00701000": quote(0.71, 0.76),
+				"QQQ260826P00700000": quote(0.65, 0.70),
+			},
+		}
+		rung := ladder(broker, at, t)
+		rung.Every = time.Minute
+		rung.Patience = 10 * time.Minute
+		rung.Stride = stride
+		rung.step(context.Background())
+		replaced, _ := broker.seen()
+
+		return replaced["o-1"]
+	}
+
+	assert.InDelta(t, -0.29, walk(t, StrideByTick), 1e-9,
+		"one tick a step, whatever the distance - what this ladder did until 1 September")
+	assert.InDelta(t, -0.23, walk(t, StrideToArrive), 1e-9,
+		"twenty-nine cents over the four steps patience still allows")
+	assert.InDelta(t, -0.23, walk(t, ""), 1e-9,
+		"empty is the arriving one, so a deployment that names nothing gets the measured fix")
+}

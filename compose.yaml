@@ -123,6 +123,9 @@ x-agent-environment: &agent-environment
   EXECUTION_EVERY: ${EXECUTION_EVERY}
   EXECUTION_STEP: ${EXECUTION_STEP}
   EXECUTION_PATIENCE: ${EXECUTION_PATIENCE}
+  # How far one step travels. Set per agent below, because the two accounts are
+  # what lets an execution tactic be tried without betting the week on it.
+  EXECUTION_STRIDE: ${EXECUTION_STRIDE}
   # The whole policy directory is mounted, never the single file inside it. A
   # one-file bind mount holds the file's inode, so anything that REPLACES the
   # file rather than rewriting it - git checkout, a rebase, an editor that writes
@@ -548,6 +551,12 @@ services:
     <<: *agent-service
     environment:
       <<: *agent-environment
+      # The step sized to arrive by the time patience ends. It has arithmetic
+      # behind it and, until this day closes, no live day - so it runs here, on
+      # the account standing LOWER, while agent 2 keeps the tick we have been
+      # running. Whichever ends higher on Thursday is the one submitted, so the
+      # comparison costs nothing and answers by Wednesday morning.
+      EXECUTION_STRIDE: arrive
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       # The broker's tools, reached through the policy gateway. The session sends
       # its own credential, so the record names WHICH agent made each call and one
@@ -640,6 +649,10 @@ services:
     <<: *agent-service
     environment:
       <<: *agent-environment
+      # One tick a step: what this ladder has always done, kept here on purpose.
+      # It is the control, and it is on the account that stands higher, so the
+      # unproven tactic is never the one carrying the lead.
+      EXECUTION_STRIDE: tick
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/agents_near?sslmode=disable
       # The agent reaches the outside through the internet gateway and presents it
       # the SAME key it presents to the broker and the model. The key travels as

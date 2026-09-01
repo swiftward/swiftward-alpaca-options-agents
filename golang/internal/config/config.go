@@ -12,6 +12,7 @@ import (
 	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/v2"
 
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/execution"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 )
 
@@ -100,7 +101,14 @@ type Config struct {
 	ExecutionEvery    time.Duration
 	ExecutionStep     float64
 	ExecutionPatience time.Duration
-	TakeProfitEvery   time.Duration
+	// ExecutionStride is how far one step of the ladder moves the limit price.
+	// The two agents can be given different ones on purpose: the account that is
+	// submitted is whichever stands higher, so an execution tactic with no live
+	// evidence behind it is tried on ONE account and measured against the other.
+	//
+	// execution.StrideByTick or execution.StrideToArrive.
+	ExecutionStride string
+	TakeProfitEvery time.Duration
 	// AccountEvery is how often the account's value is written down. Zero means
 	// no history is kept here.
 	AccountEvery time.Duration
@@ -310,6 +318,20 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
+	// Refused rather than defaulted. A misspelt tactic that quietly became the
+	// other one would be measured as the tactic it was not, and the whole point of
+	// setting it per agent is to know which account ran which.
+	executionStride := strings.TrimSpace(k.String("execution_stride"))
+	switch executionStride {
+	case "":
+		executionStride = execution.StrideToArrive
+	case execution.StrideByTick, execution.StrideToArrive:
+	default:
+		return Config{}, fmt.Errorf(
+			"EXECUTION_STRIDE is %q; it is %q or %q",
+			executionStride, execution.StrideByTick, execution.StrideToArrive)
+	}
+
 	// Half a minute by default. The point of the watch is to be there when the
 	// number crosses the line; thirty-minute defence windows have already missed it.
 	takeProfitEvery := 30 * time.Second
@@ -399,6 +421,7 @@ func Load() (Config, error) {
 		AccountEvery:          accountEvery,
 		ExecutionEvery:        executionEvery,
 		ExecutionStep:         k.Float64("execution_step"),
+		ExecutionStride:       executionStride,
 		ExecutionPatience:     executionPatience,
 		TakeProfitEvery:       takeProfitEvery,
 		OrdersShown:           ordersShown,

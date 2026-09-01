@@ -519,8 +519,11 @@ func run(log *zap.Logger) error {
 		}
 		ladder := &execution.Ladder{
 			Broker: broker, Every: cfg.ExecutionEvery, Step: step, Record: state,
+			Stride:   cfg.ExecutionStride,
 			Patience: cfg.ExecutionPatience, Now: time.Now, Log: log.Named("execution"),
 		}
+		log.Info("the ladder walks", zap.String("stride", cfg.ExecutionStride),
+			zap.Duration("every", cfg.ExecutionEvery), zap.Duration("patience", cfg.ExecutionPatience))
 		// What one position may lose, in dollars, from the SAME ruleset the
 		// envelope serves and the account the broker reports. The session is told
 		// to size by this number and can get it wrong; here it stops being advice.

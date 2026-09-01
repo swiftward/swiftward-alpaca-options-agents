@@ -54,6 +54,9 @@ type Ladder struct {
 	// Step is one move of the limit price, in dollars per share. A tick on these
 	// contracts is a cent.
 	Step float64
+	// Stride chooses how far one step travels: StrideByTick or StrideToArrive.
+	// Empty is StrideToArrive.
+	Stride string
 	// Patience is how long an order may live unfilled. Past it the order is
 	// cancelled: a structure the book will not take at the worst price its session
 	// allowed is not a structure worth chasing further.
@@ -487,6 +490,20 @@ func whatDidNotHappen(orders []marketdata.Order) string {
 }
 
 // walk moves one order one step toward what the book is showing.
+// How far one step of the ladder moves the limit price. Declared per agent so an
+// execution tactic with no live evidence behind it runs on ONE account while the
+// other keeps the one we have been running - the account submitted is whichever
+// stands higher, so the comparison costs nothing and answers by Wednesday.
+const (
+	// StrideByTick moves one tick a step, whatever the distance. It is what this
+	// ladder did from the beginning; the table in docs/execution.md is what it
+	// produced.
+	StrideByTick = "tick"
+	// StrideToArrive divides the distance still to travel by the steps left
+	// before patience ends, so the walk arrives while the offer still stands.
+	StrideToArrive = "arrive"
+)
+
 // stride is how far one step moves the limit: the distance still to travel,
 // divided by the steps left before patience ends. Never less than one tick.
 //
@@ -505,6 +522,9 @@ func whatDidNotHappen(orders []marketdata.Order) string {
 // price the session accepted, so a faster walk gives up no more in the end than a
 // slower one, it just gets there while the offer still stands.
 func (l *Ladder) stride(order marketdata.Order, target float64) float64 {
+	if l.Stride == StrideByTick {
+		return l.Step
+	}
 	distance := math.Abs(target - order.LimitPrice)
 	left := l.Patience - l.Now().Sub(l.lifeOf(order).placed)
 	steps := int(left / l.Every)
