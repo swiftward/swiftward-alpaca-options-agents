@@ -70,11 +70,21 @@ type scheduleOutput struct {
 
 type volatilityInput struct {
 	Underlying string `json:"underlying" jsonschema:"the symbol whose option volatility to look at, for example SPY"`
-	Days       int    `json:"days,omitempty" jsonschema:"how many days back to look; the whole recorded history if left out"`
+	Days       int    `json:"days,omitempty" jsonschema:"how many days back to look; the last 30 days if left out"`
 }
 
 // defaultVolatilityDays is how far back the history is read when the session did
-// not say. The record starts on kickoff day, so this is the whole of it.
+// not say.
+//
+// The field's own description said "the whole recorded history if left out",
+// which the code has never done - it has always taken thirty days. Today the two
+// agree by accident: the record starts on kickoff day and is four days old. They
+// would part on the day it turns a month, which is not a day this competition
+// has, and a teammate's arena caught it before then.
+//
+// It matters more than an ordinary comment because a session READS this
+// description and plans on it: a model told it is looking at the whole history
+// will not think to ask how long that is.
 const defaultVolatilityDays = 30
 
 // scorePlacementsInput is deliberately without defaults for the two distances.
