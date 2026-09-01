@@ -33,6 +33,26 @@ func OnlyCloses(order marketdata.Order) bool {
 	return true
 }
 
+// OnlyOpens reports whether every leg of an order says it OPENS. It is not the
+// negation of OnlyCloses: a leg whose intent is absent is neither, and the two
+// answer different questions, so both refuse the absent case rather than one of
+// them inheriting the other's guess.
+//
+// A rule that may cost a fill asks this one. A rule that may cost SAFETY asks
+// OnlyCloses. The difference is which way an unlabelled leg should fall.
+func OnlyOpens(order marketdata.Order) bool {
+	if len(order.Legs) == 0 {
+		return false
+	}
+	for _, leg := range order.Legs {
+		if !strings.HasSuffix(leg.PositionIntent, "_to_open") {
+			return false
+		}
+	}
+
+	return true
+}
+
 // Unbounded reports whether an order's loss has no floor at all: a structure
 // left net SHORT calls loses more the higher the underlying goes, and there is no
 // price at which that stops.

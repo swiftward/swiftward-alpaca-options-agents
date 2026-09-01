@@ -663,7 +663,7 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order, now time.Time
 		return nil
 	}
 
-	if l.refusesTheFloor(order, floor) {
+	if l.refusesTheFloor(order, floor, quotes) {
 		return nil
 	}
 
@@ -923,34 +923,35 @@ func (l *Ladder) tooBig(ctx context.Context, order marketdata.Order, ceiling flo
 	return true
 }
 
-// refusesTheFloor answers whether the worst price this order names is one the
-// session's own entry rule would have refused.
+// refusesTheFloor answers whether a fill at the worst price this order names
+// would pay less above its risk than the declaration demands.
 //
 // The ladder walks toward the floor and stops there, so the floor is the price
-// this order can actually be filled at. If the edge there is below what the
-// declaration demands, the walk is an offer to buy what the entry rule refuses -
-// which is what happened on 1 September: entered on +3, floor named at +2.53,
-// walked to it in forty-five seconds.
+// this order can actually be filled at. On 1 September a session entered on
+// "edge at least +3" and named a floor whose edge was +2.53; the ladder walked to
+// it in forty-five seconds and was saved only by a book eight cents away.
+//
+// The number is COMPUTED here, from the quotes this pass has already read, and
+// not taken from anything the session wrote. A number written at placement is
+// what the market said then; by the time the ladder would concede to it, the
+// delta has moved. This is also why nothing new has to be written into an order's
+// name: the ladder holds the whole structure already - the legs carry the strikes
+// and their quotes carry the delta.
 //
 // It never cancels. The price the order was PLACED at cleared the rule, so the
 // order is still worth leaving in the book; only the concession is refused.
-func (l *Ladder) refusesTheFloor(order marketdata.Order, floor float64) bool {
+func (l *Ladder) refusesTheFloor(order marketdata.Order, floor float64, quotes map[string]marketdata.Quote) bool {
 	if l.MinEdgePoints == nil {
 		return false
 	}
-	// An exit is never held to an entry rule. A closing order has no edge to
-	// measure - it is leaving a position, not taking one - so a session that
-	// writes any edge on one would have the ladder strand its exit and patience
-	// cancel it. This is the rule that must never be what stops a position being
-	// left, for the same reason the envelope is not one.
-	if OnlyCloses(order) {
+	// Only an order that plainly OPENS is held to an entry rule. An exit has no
+	// edge to measure, and an unlabelled leg falls the same way: a rule that can
+	// cost a fill judges nothing it is unsure of.
+	if !OnlyOpens(order) {
 		return false
 	}
-	edge, stated := EdgeAt(order)
-	if !stated {
-		l.Log.Info("walking an order whose name states no edge at its worst price",
-			zap.String("order", order.ID), zap.String("name", order.ClientID))
-
+	edge, measurable := EdgeAt(order, floor, quotes)
+	if !measurable {
 		return false
 	}
 	least, err := l.MinEdgePoints()
@@ -965,11 +966,59 @@ func (l *Ladder) refusesTheFloor(order marketdata.Order, floor float64) bool {
 	if edge >= least {
 		return false
 	}
-	l.Log.Warn("left an order alone: its worst price pays less than the entry rule demands",
+	l.Log.Warn("left an order alone: at its worst price it pays less than the entry rule demands",
 		zap.String("order", order.ID),
 		zap.Float64("floor", floor),
 		zap.Float64("edge_at_floor", edge),
 		zap.Float64("min_edge_points", least))
 
 	return true
+}
+
+// EdgeAt is what a fill at the given price would pay above what the structure
+// must survive, in percentage points of the width - the same measure the screener
+// ranks by, so a session and the ladder cannot mean different things by it.
+//
+// Only a two-legged structure at one set per leg is measured. A backspread is a
+// different shape whose risk is not the width between two strikes, and the answer
+// for it is that there is no answer: false, and the caller judges nothing.
+func EdgeAt(order marketdata.Order, price float64, quotes map[string]marketdata.Quote) (float64, bool) {
+	if len(order.Legs) != 2 || price >= 0 {
+		return 0, false
+	}
+	var short, long marketdata.Order
+	for _, leg := range order.Legs {
+		ratio := leg.Ratio
+		if ratio <= 0 {
+			ratio = leg.Quantity
+		}
+		if ratio != 1 {
+			return 0, false
+		}
+		if leg.Side == "sell" {
+			short = leg
+		} else {
+			long = leg
+		}
+	}
+	if short.Symbol == "" || long.Symbol == "" {
+		return 0, false
+	}
+
+	sold, soldKnown := marketdata.ContractFrom(short.Symbol)
+	bought, boughtKnown := marketdata.ContractFrom(long.Symbol)
+	if !soldKnown || !boughtKnown {
+		return 0, false
+	}
+	width := math.Abs(sold.Strike - bought.Strike)
+	if width <= 0 {
+		return 0, false
+	}
+
+	quote, answered := quotes[short.Symbol]
+	if !answered || quote.Delta == nil {
+		return 0, false
+	}
+
+	return 100*math.Abs(price)/width - 100*math.Abs(*quote.Delta), true
 }

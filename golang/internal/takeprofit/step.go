@@ -10,6 +10,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/execution"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 )
@@ -173,8 +174,16 @@ func (w *Watch) consider(ctx context.Context, s Structure, walking map[string]bo
 	// broker never filled one: every close the watch sent, twelve of them across
 	// two days, was cancelled at a price that asked to be PAID for closing. The
 	// watch looked like it was working, in the log and in the record both.
+	// The name states the worst price this close accepts, or the ladder cannot
+	// walk it and the comment above is a lie: `Reservation` finds no floor and
+	// leaves the order exactly where it was sent, until patience cancels it. Every
+	// close this watch has ever sent was in that state.
+	//
+	// The bound is the price that made it close. Above it the buy-back costs more
+	// than the share of the credit this structure was being closed to keep, and it
+	// is no longer taking a profit.
 	sent, err := w.Broker.CloseStructure(ctx, legs, s.Sets, cost,
-		fmt.Sprintf("tp-%s-%d", name, w.Now().Unix()))
+		fmt.Sprintf("%s;tp-%s-%d", execution.NameFor(s.Credit*share), name, w.Now().Unix()))
 	if err != nil {
 		w.Log.Error("the close was refused", zap.String("structure", name), zap.Error(err))
 		return

@@ -370,7 +370,11 @@ func (t Tools) Handler() http.Handler {
 			// Measured 1 September: the envelope was unreadable for one pass on both
 			// accounts, and a position needing to leave in that window could not
 			// have. The row says it was not checked and says it was a close.
-			checked := t.Asked != nil && !in.Closing
+			// False until the check is actually made. A deployment that cannot make
+			// it, and a turn this tool cannot name, both leave the same absence, and
+			// a row saying the envelope was read when nobody looked is worse than a
+			// row saying nothing was checked.
+			checked := false
 			if t.Asked != nil && turn != "" {
 				asked, err := t.Asked.AskedInTurn(ctx, turn, envelopeTool)
 				if err != nil {

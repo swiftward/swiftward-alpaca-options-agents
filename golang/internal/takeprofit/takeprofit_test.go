@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/execution"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 )
@@ -27,6 +28,11 @@ type closed struct {
 	legs  []marketdata.Leg
 	sets  int
 	limit float64
+	// name is kept because it is what the ladder reads afterwards. A double that
+	// threw it away is why a close went out for two days with no floor in it and
+	// no test could see: the ladder found nothing to walk and left every one of
+	// them where it was sent.
+	name string
 }
 
 func (b *brokerDouble) Positions(context.Context) ([]marketdata.Position, error) { return b.held, nil }
@@ -38,11 +44,11 @@ func (b *brokerDouble) Quotes(_ context.Context, _ []string) (map[string]marketd
 // The broker answers a close with the new order's id, and the double does the
 // same: one that answered with an empty string would let a watch that never
 // writes the order down pass every test here.
-func (b *brokerDouble) CloseStructure(_ context.Context, legs []marketdata.Leg, sets int, limit float64, _ string) (string, error) {
+func (b *brokerDouble) CloseStructure(_ context.Context, legs []marketdata.Leg, sets int, limit float64, name string) (string, error) {
 	if b.fail != nil {
 		return "", b.fail
 	}
-	b.sent = append(b.sent, closed{legs: legs, sets: sets, limit: limit})
+	b.sent = append(b.sent, closed{legs: legs, sets: sets, limit: limit, name: name})
 	return fmt.Sprintf("order-%d", len(b.sent)), nil
 }
 
@@ -234,6 +240,14 @@ func TestItClosesWhenEnoughOfTheCreditIsBack(t *testing.T) {
 		assert.Equal(t, l.Symbol == "QQQ260828C00725000", l.Buy,
 			"the sold leg is bought back, the bought leg is sold")
 	}
+
+	// The ladder walks this order if the book moves away, and it can only do that
+	// through a floor in the name. Without one it finds nothing to obey and leaves
+	// the close where it was sent until patience cancels it.
+	floor, named := execution.Reservation(marketdata.Order{ClientID: sent.name})
+	require.True(t, named, "a close the ladder cannot read is a close it cannot walk")
+	assert.InDelta(t, 0.10, floor, 1e-9,
+		"the bound is the price that made it close - 0.19 at a share of 0.5 - at the cent the broker quotes in")
 }
 
 func TestItLeavesAStructureThatHasNotGivenEnoughBack(t *testing.T) {
