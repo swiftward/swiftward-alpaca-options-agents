@@ -184,18 +184,28 @@ func (l *Ladder) carried(from, to string) {
 	l.ages[to] = life
 }
 
-// forgetAllBut drops the chains of orders the broker no longer shows, so a day of
-// filled and cancelled orders does not accumulate here.
-func (l *Ladder) forgetAllBut(shown []marketdata.Order) {
-	if len(l.ages) == 0 {
-		return
-	}
-	live := make(map[string]bool, len(shown))
+// forgetWhatIsDone drops the chains of orders that are over, so a day of filled
+// and cancelled orders does not accumulate here.
+//
+// It drops on a POSITIVE signal only: an order the broker shows as no longer
+// working, or one older than any order of ours can still be. Dropping on absence
+// from the list would be wrong, and the reviewer caught it: the broker read is
+// bounded by Reads and returns the newest, so a working order can be missing from
+// one pass. Its chain would be rebuilt from the replacement's own submission time
+// on the next pass - which restarts patience, and an order whose patience keeps
+// restarting is never cancelled and holds its underlying out of the entry list
+// for as long as it lives.
+func (l *Ladder) forgetWhatIsDone(shown []marketdata.Order) {
 	for _, order := range shown {
-		live[order.ID] = true
+		if !working(order) {
+			delete(l.ages, order.ID)
+		}
 	}
-	for id := range l.ages {
-		if !live[id] {
+	// Past patience the ladder has either cancelled it or the broker has taken it
+	// away, and one interval of slack covers the pass that does the cancelling.
+	stale := l.Now().Add(-(l.Patience + l.Every))
+	for id, life := range l.ages {
+		if life.placed.Before(stale) {
 			delete(l.ages, id)
 		}
 	}
@@ -301,11 +311,7 @@ func (l *Ladder) step(ctx context.Context) {
 		}
 	}
 
-	// Filled and cancelled orders stop being shown, and their chains go with them.
-	// An order that falls outside the bound on how many are read loses its chain
-	// too and is taken at the broker's word next pass, which gives it more time
-	// rather than less.
-	l.forgetAllBut(orders)
+	l.forgetWhatIsDone(orders)
 
 	for _, order := range orders {
 		if order.Status == "filled" || order.FilledQuantity > 0 {
@@ -324,6 +330,7 @@ func (l *Ladder) step(ctx context.Context) {
 					zap.String("order", order.ID), zap.Error(err))
 				continue
 			}
+			delete(l.ages, order.ID)
 			l.Log.Warn("cancelled an opening order: the day's fuse has blown",
 				zap.String("order", order.ID), zap.String("said", fuseSaid))
 			l.wroteDown(ctx, record.ExecutionStep{
@@ -371,6 +378,7 @@ func (l *Ladder) step(ctx context.Context) {
 					zap.String("order", order.ID), zap.Error(err))
 				continue
 			}
+			delete(l.ages, order.ID)
 			l.Log.Info("cancelled an order the book would not take",
 				zap.String("order", order.ID), zap.Duration("waited", age))
 			l.wroteDown(ctx, record.ExecutionStep{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -45,10 +46,18 @@ func (b *brokerDouble) Positions(context.Context) ([]marketdata.Position, error)
 	return append([]marketdata.Position(nil), b.positions...), nil
 }
 
-func (b *brokerDouble) Orders(context.Context, int) ([]marketdata.Order, error) {
+// The broker answers with the NEWEST orders up to the limit it is given, so a
+// working order can be missing from a pass. A double that ignored the limit
+// could not show what the ladder does when one is.
+func (b *brokerDouble) Orders(_ context.Context, reads int) ([]marketdata.Order, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return append([]marketdata.Order(nil), b.orders...), nil
+	shown := append([]marketdata.Order(nil), b.orders...)
+	if reads > 0 && len(shown) > reads {
+		shown = shown[len(shown)-reads:]
+	}
+
+	return shown, nil
 }
 
 func (b *brokerDouble) Quotes(_ context.Context, symbols []string) (map[string]marketdata.Quote, error) {
@@ -1347,4 +1356,107 @@ func TestTheStrideIsDeclaredAndTheOldOneStillWalksATick(t *testing.T) {
 		"twenty-nine cents over the four steps patience still allows")
 	assert.InDelta(t, -0.23, walk(t, ""), 1e-9,
 		"empty is the arriving one, so a deployment that names nothing gets the measured fix")
+}
+
+// The chain is followed to its end: it stops AT the floor the session named, and
+// it is cancelled when patience runs out.
+//
+// The earlier tests asserted the first replacement only, which is a test that the
+// step happened rather than that the walk ended where it should. A large stride
+// makes the difference matter: it is the step that could overshoot.
+func TestAnArrivingWalkStopsAtTheFloorAndIsThenCancelled(t *testing.T) {
+	at := time.Date(2026, 9, 1, 15, 0, 0, 0, time.UTC)
+	clock := at
+
+	// The floor is 0.20 of credit and the book pays only 0.01, so the walk runs
+	// out of room at the floor rather than at the book.
+	order := spread("o-1", -0.30, "new", at)
+	order.ClientID = NameFor(-0.20)
+	broker := &brokerDouble{
+		orders: []marketdata.Order{order},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.65, 0.70),
+		},
+	}
+	broker.now = func() time.Time { return clock.Add(10 * time.Millisecond) }
+
+	rung := ladder(broker, at, t)
+	rung.Every = time.Minute
+	rung.Patience = 5 * time.Minute
+	rung.Now = func() time.Time { return clock }
+
+	for tick := 1; tick <= 8; tick++ {
+		clock = at.Add(time.Duration(tick) * time.Minute)
+		rung.step(context.Background())
+	}
+
+	replaced, cancelled := broker.seen()
+	require.NotEmpty(t, replaced, "the walk has to have happened for its end to mean anything")
+	worst := math.Inf(-1)
+	for _, price := range replaced {
+		worst = math.Max(worst, price)
+	}
+	assert.InDelta(t, -0.20, worst, 1e-9,
+		"it ends AT the floor the session named and never past it, however large a step it takes")
+	assert.NotEmpty(t, cancelled, "and patience ends an order the book never took")
+}
+
+// A working order missing from one bounded read still ages out.
+//
+// The ladder keeps chain ages in memory, and the first version dropped a chain
+// whenever the order was absent from the broker's answer. That answer is bounded
+// by Reads and returns the newest, so a working order can be missing from a pass.
+// Its chain would then be rebuilt from the REPLACEMENT's submission time - fresh,
+// because the ladder had already walked it - patience would restart, and an order
+// whose patience keeps restarting is never cancelled. It also holds its underlying
+// out of the entry list for as long as it lives, which on 31 August was what
+// emptied twenty-six entry windows across the two accounts.
+func TestAnOrderMissedByOneBoundedReadStillAgesOut(t *testing.T) {
+	at := time.Date(2026, 9, 1, 15, 0, 0, 0, time.UTC)
+	clock := at
+
+	broker := &brokerDouble{
+		orders: []marketdata.Order{spread("o-old", -0.30, "new", at)},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.65, 0.70),
+		},
+	}
+	broker.now = func() time.Time { return clock.Add(10 * time.Millisecond) }
+
+	rung := ladder(broker, at, t)
+	rung.Every = time.Minute
+	rung.Patience = 3 * time.Minute
+	rung.Reads = 1
+	rung.Now = func() time.Time { return clock }
+
+	// One pass alone, so the order is WALKED and the broker stamps its
+	// replacement with a fresh submission time. That fresh stamp is the thing a
+	// rebuilt chain would take patience from.
+	clock = at.Add(time.Minute)
+	rung.step(context.Background())
+	replaced, _ := broker.seen()
+	require.NotEmpty(t, replaced, "the order has to have been walked for this to test anything")
+
+	// A newer order now hides it: the broker shows the newest one only.
+	broker.mu.Lock()
+	broker.orders = append(broker.orders, spread("o-new", -0.30, "new", clock))
+	broker.mu.Unlock()
+	for tick := 2; tick <= 3; tick++ {
+		clock = at.Add(time.Duration(tick) * time.Minute)
+		rung.step(context.Background())
+	}
+
+	// The newer one is gone and the older is visible again, four minutes after it
+	// was placed and one minute past its patience.
+	broker.mu.Lock()
+	broker.orders = broker.orders[:1]
+	broker.mu.Unlock()
+	clock = at.Add(4 * time.Minute)
+	rung.step(context.Background())
+
+	_, cancelled := broker.seen()
+	assert.NotEmpty(t, cancelled,
+		"placed four minutes ago against three minutes of patience: cancelled, not handed a fresh life by the replacement's own timestamp")
 }
