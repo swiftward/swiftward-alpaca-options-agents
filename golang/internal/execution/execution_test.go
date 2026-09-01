@@ -1460,3 +1460,74 @@ func TestAnOrderMissedByOneBoundedReadStillAgesOut(t *testing.T) {
 	assert.NotEmpty(t, cancelled,
 		"placed four minutes ago against three minutes of patience: cancelled, not handed a fresh life by the replacement's own timestamp")
 }
+
+// drifting is a clock that MOVES, the way the wall clock does. Every read is a
+// little later than the one before it.
+//
+// The frozen clock the other cases use is what hid this defect: a pass that reads
+// it twice gets the same instant both times, so a timestamp written mid-pass looks
+// exactly like the tick that started the pass. On the real clock it is later, and
+// the interval measured on the next tick comes out SHORTER than the tick period -
+// so the order is skipped, every other pass, for ever.
+type drifting struct {
+	at    time.Time
+	reads int
+}
+
+func (c *drifting) Now() time.Time {
+	c.reads++
+
+	return c.at.Add(time.Duration(c.reads) * 7 * time.Millisecond)
+}
+
+// tick moves the clock to the next interval. The drift starts again from there,
+// because it is the drift WITHIN one pass that hides the defect - carried across
+// passes it only swamps the difference it is meant to expose, which is what a
+// first version of this test did and why it passed against the broken code.
+func (c *drifting) tick(to time.Time) {
+	c.at, c.reads = to, 0
+}
+
+// An order steps on EVERY tick when the clock moves while the pass runs.
+//
+// Measured against the real market on 31 August: 90 seconds between one order's
+// steps at `EXECUTION_EVERY=45s`. Fixed by keeping the age in our own memory
+// instead of the broker's timestamp - and a teammate's arena measured 90 seconds
+// again on the fixed code, five steps in a row, and said why: the source was never
+// the flaw. The pass read the clock twice, and the second read was later than the
+// tick, so "has it rested a full interval" was asked with a moment that had
+// already moved on.
+func TestAnOrderStepsOnEveryTickWhenTheClockMovesDuringThePass(t *testing.T) {
+	at := time.Date(2026, 9, 1, 15, 0, 0, 0, time.UTC)
+	clock := &drifting{at: at}
+
+	broker := &brokerDouble{
+		orders: []marketdata.Order{spread("o-1", -0.30, "new", at)},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.10, 0.80),
+			"QQQ260826P00700000": quote(0.05, 0.70),
+		},
+	}
+	broker.now = clock.Now
+
+	rung := ladder(broker, at, t)
+	rung.Every = time.Minute
+	rung.Patience = time.Hour
+	rung.Stride = StrideByTick
+	rung.Now = clock.Now
+
+	steps := 0
+	for tick := 1; tick <= 6; tick++ {
+		clock.tick(at.Add(time.Duration(tick) * time.Minute))
+		before, _ := broker.seen()
+		was := len(before)
+		rung.step(context.Background())
+		after, _ := broker.seen()
+		if len(after) > was {
+			steps++
+		}
+	}
+
+	assert.Equal(t, 6, steps,
+		"six ticks, six steps - the pass must ask its question with ONE moment, not with a clock that moved under it")
+}

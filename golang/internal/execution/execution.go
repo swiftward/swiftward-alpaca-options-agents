@@ -151,11 +151,11 @@ type orderAge struct {
 // lifeOf is when this order's chain was placed and when it last moved. An order
 // this ladder has not seen before is taken at the broker's word: its own
 // submission time is both.
-func (l *Ladder) lifeOf(order marketdata.Order) orderAge {
+func (l *Ladder) lifeOf(order marketdata.Order, now time.Time) orderAge {
 	if known, found := l.ages[order.ID]; found {
 		return known
 	}
-	life := orderAge{placed: l.Now(), moved: l.Now()}
+	life := orderAge{placed: now, moved: now}
 	if order.SubmittedAt != nil {
 		life = orderAge{placed: *order.SubmittedAt, moved: *order.SubmittedAt}
 	}
@@ -169,7 +169,7 @@ func (l *Ladder) lifeOf(order marketdata.Order) orderAge {
 
 // carried moves a chain's life onto the id the replacement was given. The old id
 // is gone from the broker, so keeping it would only grow the map.
-func (l *Ladder) carried(from, to string) {
+func (l *Ladder) carried(from, to string, now time.Time) {
 	life := l.ages[from]
 	delete(l.ages, from)
 	if to == "" {
@@ -177,7 +177,7 @@ func (l *Ladder) carried(from, to string) {
 		// onto; the next pass takes the order at its word again.
 		return
 	}
-	life.moved = l.Now()
+	life.moved = now
 	if l.ages == nil {
 		l.ages = map[string]orderAge{}
 	}
@@ -195,7 +195,7 @@ func (l *Ladder) carried(from, to string) {
 // on the next pass - which restarts patience, and an order whose patience keeps
 // restarting is never cancelled and holds its underlying out of the entry list
 // for as long as it lives.
-func (l *Ladder) forgetWhatIsDone(shown []marketdata.Order) {
+func (l *Ladder) forgetWhatIsDone(shown []marketdata.Order, now time.Time) {
 	for _, order := range shown {
 		if !working(order) {
 			delete(l.ages, order.ID)
@@ -203,7 +203,7 @@ func (l *Ladder) forgetWhatIsDone(shown []marketdata.Order) {
 	}
 	// Past patience the ladder has either cancelled it or the broker has taken it
 	// away, and one interval of slack covers the pass that does the cancelling.
-	stale := l.Now().Add(-(l.Patience + l.Every))
+	stale := now.Add(-(l.Patience + l.Every))
 	for id, life := range l.ages {
 		if life.placed.Before(stale) {
 			delete(l.ages, id)
@@ -248,6 +248,21 @@ func (l *Ladder) Run(ctx context.Context) error {
 const defaultReads = 50
 
 func (l *Ladder) step(ctx context.Context) {
+	// ONE moment for the whole pass, and the cadence depends on it.
+	//
+	// The ticker fires every `Every` and an order may step when it has rested that
+	// long. Reading the clock again while the pass runs makes "now" a few
+	// milliseconds LATER than the tick that started it, so the interval measured
+	// on the next tick is `Every` minus however long this pass took - strictly
+	// less, every time, and the order is skipped. That is a step every OTHER tick,
+	// which is what the record showed: 90 seconds against a configured 45.
+	//
+	// Fixed once already by moving where the timestamp came from, which changed
+	// nothing, because the flaw was never the source: it was reading the clock
+	// twice. A teammate's arena measured the same 90 seconds on the fixed code and
+	// said so.
+	now := l.Now()
+
 	orders, err := l.Broker.Orders(ctx, l.Reads)
 	if err != nil {
 		l.Log.Error("could not read the orders", zap.Error(err))
@@ -311,11 +326,11 @@ func (l *Ladder) step(ctx context.Context) {
 		}
 	}
 
-	l.forgetWhatIsDone(orders)
+	l.forgetWhatIsDone(orders, now)
 
 	for _, order := range orders {
 		if order.Status == "filled" || order.FilledQuantity > 0 {
-			l.report(ctx, order)
+			l.report(ctx, order, now)
 		}
 		if !working(order) {
 			continue
@@ -334,15 +349,15 @@ func (l *Ladder) step(ctx context.Context) {
 			l.Log.Warn("cancelled an opening order: the day's fuse has blown",
 				zap.String("order", order.ID), zap.String("said", fuseSaid))
 			l.wroteDown(ctx, record.ExecutionStep{
-				OrderRef: order.ID, At: l.Now(), Action: "cancelled", Was: order.LimitPrice,
+				OrderRef: order.ID, At: now, Action: "cancelled", Was: order.LimitPrice,
 			})
 			cancelled = append(cancelled, order)
 			continue
 		}
-		if !closing && l.unbounded(ctx, order) {
+		if !closing && l.unbounded(ctx, order, now) {
 			continue
 		}
-		if hasCeiling && !closing && l.tooBig(ctx, order, ceiling) {
+		if hasCeiling && !closing && l.tooBig(ctx, order, ceiling, now) {
 			continue
 		}
 		if hasBook && !closing {
@@ -359,7 +374,7 @@ func (l *Ladder) step(ctx context.Context) {
 				// judged in full, because the session cannot take less of it and
 				// the rounding this forgives does not exist there.
 				if over > 0 && (resting <= 1 || over >= -worst/resting) {
-					l.overBook(ctx, order, atRisk, -worst, book)
+					l.overBook(ctx, order, atRisk, -worst, book, now)
 					continue
 				}
 				// Orders in one pass add up. Judged against the book as it stands,
@@ -367,11 +382,11 @@ func (l *Ladder) step(ctx context.Context) {
 				atRisk -= worst
 			}
 		}
-		life := l.lifeOf(order)
-		if l.Now().Sub(life.moved) < l.Every {
+		life := l.lifeOf(order, now)
+		if now.Sub(life.moved) < l.Every {
 			continue
 		}
-		age := l.Now().Sub(life.placed)
+		age := now.Sub(life.placed)
 		if age > l.Patience {
 			if err := l.Broker.CancelOrder(ctx, order.ID); err != nil {
 				l.Log.Error("could not cancel an order the book would not take",
@@ -382,13 +397,13 @@ func (l *Ladder) step(ctx context.Context) {
 			l.Log.Info("cancelled an order the book would not take",
 				zap.String("order", order.ID), zap.Duration("waited", age))
 			l.wroteDown(ctx, record.ExecutionStep{
-				OrderRef: order.ID, At: l.Now(), Action: "cancelled", Was: order.LimitPrice,
+				OrderRef: order.ID, At: now, Action: "cancelled", Was: order.LimitPrice,
 			})
 			cancelled = append(cancelled, order)
 			continue
 		}
 
-		if err := l.walk(ctx, order); err != nil {
+		if err := l.walk(ctx, order, now); err != nil {
 			l.Log.Error("could not walk an order's price",
 				zap.String("order", order.ID), zap.Error(err))
 		}
@@ -404,14 +419,14 @@ func (l *Ladder) step(ctx context.Context) {
 // report says a fill once. What makes it once is the record, not this process:
 // the ladder meets the same filled order on every pass and forgets everything it
 // held in memory when it restarts.
-func (l *Ladder) report(ctx context.Context, order marketdata.Order) {
+func (l *Ladder) report(ctx context.Context, order marketdata.Order, now time.Time) {
 	if l.Record == nil {
 		return
 	}
 
 	price, quantity := order.FilledPrice, order.FilledQuantity
 	first, err := l.Record.NoteFill(ctx, record.ExecutionStep{
-		OrderRef: order.ID, At: l.Now(), Action: "filled",
+		OrderRef: order.ID, At: now, Action: "filled",
 		Was: order.LimitPrice, Became: &price, Quantity: &quantity,
 	})
 	if err != nil {
@@ -529,12 +544,12 @@ const (
 // floor is untouched and still bounds everything: `target` never passes the worst
 // price the session accepted, so a faster walk gives up no more in the end than a
 // slower one, it just gets there while the offer still stands.
-func (l *Ladder) stride(order marketdata.Order, target float64) float64 {
+func (l *Ladder) stride(order marketdata.Order, target float64, now time.Time) float64 {
 	if l.Stride == StrideByTick {
 		return l.Step
 	}
 	distance := math.Abs(target - order.LimitPrice)
-	left := l.Patience - l.Now().Sub(l.lifeOf(order).placed)
+	left := l.Patience - now.Sub(l.lifeOf(order, now).placed)
 	steps := int(left / l.Every)
 	if steps < 1 {
 		steps = 1
@@ -546,7 +561,7 @@ func (l *Ladder) stride(order marketdata.Order, target float64) float64 {
 	return l.Step
 }
 
-func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
+func (l *Ladder) walk(ctx context.Context, order marketdata.Order, now time.Time) error {
 	symbols := make([]string, 0, len(order.Legs))
 	for _, leg := range order.Legs {
 		symbols = append(symbols, leg.Symbol)
@@ -596,7 +611,7 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 		target = floor
 	}
 
-	next := Toward(order.LimitPrice, target, l.stride(order, target))
+	next := Toward(order.LimitPrice, target, l.stride(order, target, now))
 	if next == order.LimitPrice {
 		l.Log.Info("left an order alone: it already stands at the price it walks toward",
 			zap.String("order", order.ID), zap.Float64("limit", order.LimitPrice),
@@ -607,11 +622,11 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 	// The floor travels with the order: a replacement the broker names itself would
 	// drop it, and the next step would find nothing to obey. The name is rebuilt
 	// rather than copied, because the broker refuses a name it has already seen.
-	replacement, err := l.Broker.ReplaceOrder(ctx, order.ID, next, NameCarrying(floor, l.Now()))
+	replacement, err := l.Broker.ReplaceOrder(ctx, order.ID, next, NameCarrying(floor, now))
 	if err != nil {
 		return err
 	}
-	l.carried(order.ID, replacement)
+	l.carried(order.ID, replacement, now)
 	l.Log.Info("walked an order toward the book",
 		zap.String("order", order.ID),
 		zap.String("became", replacement),
@@ -620,7 +635,7 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 		zap.Float64("showing", showing),
 		zap.Float64("floor", floor))
 	step := record.ExecutionStep{
-		OrderRef: order.ID, At: l.Now(), Action: "walked",
+		OrderRef: order.ID, At: now, Action: "walked",
 		Was: order.LimitPrice, Became: &next, Showing: &showing, Floor: &floor,
 	}
 	// Absent rather than empty: a broker that answered without an id leaves the
@@ -720,7 +735,7 @@ func round(price float64) float64 {
 // overBook cancels a resting order that would take the whole account past what it
 // may have at risk at once, and tells the session why in the words it needs to
 // act on: the book is full, not this order too large.
-func (l *Ladder) overBook(ctx context.Context, order marketdata.Order, held, adds, allowed float64) {
+func (l *Ladder) overBook(ctx context.Context, order marketdata.Order, held, adds, allowed float64, now time.Time) {
 	l.Log.Warn("cancelling a resting order that would take the book past its limit",
 		zap.String("order", order.ID),
 		zap.Float64("already_at_risk", held),
@@ -733,7 +748,7 @@ func (l *Ladder) overBook(ctx context.Context, order marketdata.Order, held, add
 		return
 	}
 	l.wroteDown(ctx, record.ExecutionStep{
-		OrderRef: order.ID, At: l.Now(), Action: "cancelled", Was: order.LimitPrice,
+		OrderRef: order.ID, At: now, Action: "cancelled", Was: order.LimitPrice,
 	})
 
 	if l.Wake != nil {
@@ -751,7 +766,7 @@ func (l *Ladder) overBook(ctx context.Context, order marketdata.Order, held, add
 // more the higher the underlying goes, so there is no number it fits under. It is
 // checked before the ceiling because the ceiling would otherwise compare against
 // a sampled figure that means nothing here.
-func (l *Ladder) unbounded(ctx context.Context, order marketdata.Order) bool {
+func (l *Ladder) unbounded(ctx context.Context, order marketdata.Order, now time.Time) bool {
 	if !Unbounded(order) {
 		return false
 	}
@@ -767,7 +782,7 @@ func (l *Ladder) unbounded(ctx context.Context, order marketdata.Order) bool {
 		return false
 	}
 	l.wroteDown(ctx, record.ExecutionStep{
-		OrderRef: order.ID, At: l.Now(), Action: "cancelled", Was: order.LimitPrice,
+		OrderRef: order.ID, At: now, Action: "cancelled", Was: order.LimitPrice,
 	})
 
 	if l.Wake != nil {
@@ -789,7 +804,7 @@ func (l *Ladder) unbounded(ctx context.Context, order marketdata.Order) bool {
 // An order it cannot read is LEFT ALONE rather than cancelled: unknown is not
 // the same as too large, and cancelling on a symbol this code failed to parse
 // would take out a sound structure for a reason that is ours.
-func (l *Ladder) tooBig(ctx context.Context, order marketdata.Order, ceiling float64) bool {
+func (l *Ladder) tooBig(ctx context.Context, order marketdata.Order, ceiling float64, now time.Time) bool {
 	worst, known := WorstCase(order)
 	if !known || -worst <= ceiling {
 		return false
@@ -833,7 +848,7 @@ func (l *Ladder) tooBig(ctx context.Context, order marketdata.Order, ceiling flo
 		return false
 	}
 	l.wroteDown(ctx, record.ExecutionStep{
-		OrderRef: order.ID, At: l.Now(), Action: "cancelled", Was: order.LimitPrice,
+		OrderRef: order.ID, At: now, Action: "cancelled", Was: order.LimitPrice,
 	})
 
 	if l.Wake != nil {
