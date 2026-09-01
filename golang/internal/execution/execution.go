@@ -572,8 +572,8 @@ func whatDidNotHappen(orders []marketdata.Order) string {
 // walk moves one order one step toward what the book is showing.
 // How far one step of the ladder moves the limit price. Declared per agent so an
 // execution tactic with no live evidence behind it runs on ONE account while the
-// other keeps the one we have been running - the account submitted is whichever
-// stands higher, so the comparison costs nothing and answers by Wednesday.
+// other keeps the one we have been running: the comparison costs nothing and
+// answers in a day.
 const (
 	// StrideByTick moves one tick a step, whatever the distance. It is what this
 	// ladder did from the beginning; the table in docs/execution.md is what it

@@ -1323,10 +1323,9 @@ func TestAWalkWithTimeToSpareStillMovesOneTick(t *testing.T) {
 
 // The tactic is declared, and the one we have been running is still available.
 //
-// The proportional step has arithmetic behind it and no live day behind it. The
-// account that is submitted is whichever of the two stands higher, so the honest
-// way to try it is on ONE account while the other keeps what we know - the
-// comparison costs nothing and answers by Wednesday.
+// The proportional step has arithmetic behind it and no live day behind it, so
+// the honest way to try it is on ONE account while the other keeps what we know:
+// the comparison costs nothing and answers in a day.
 func TestTheStrideIsDeclaredAndTheOldOneStillWalksATick(t *testing.T) {
 	at := time.Date(2026, 9, 1, 15, 0, 0, 0, time.UTC)
 	placed := at.Add(-6 * time.Minute)

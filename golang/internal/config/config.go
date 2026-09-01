@@ -108,9 +108,9 @@ type Config struct {
 	ExecutionStep     float64
 	ExecutionPatience time.Duration
 	// ExecutionStride is how far one step of the ladder moves the limit price.
-	// The two agents can be given different ones on purpose: the account that is
-	// submitted is whichever stands higher, so an execution tactic with no live
-	// evidence behind it is tried on ONE account and measured against the other.
+	// The two agents can be given different ones on purpose: an execution tactic
+	// with no live evidence behind it is tried on ONE account and measured against
+	// the other, which is the cheapest honest comparison available.
 	//
 	// execution.StrideByTick or execution.StrideToArrive.
 	ExecutionStride string

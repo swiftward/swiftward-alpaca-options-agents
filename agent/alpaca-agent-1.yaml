@@ -134,7 +134,7 @@ parameters:
   # Measured over the minute-by-minute path of 553 trades across 646 days: held
   # to expiry the rule returns 2,287 dollars with 26% losing trades, closed here
   # it returns 6,292 with 9%. The close is charged the full width of the book and
-  # the fee, twice - `research/threshold.py` in the team's own repository.
+  # the fee, twice.
   #
   # It lives here rather than in the deployment because it is a TRADING decision,
   # and every other one is here. Until 29 August it was TAKE_PROFIT_AT in the
@@ -221,12 +221,9 @@ sessions:
   # at +7.5 and a few minutes later, on fresh quotes, gave -7.2. A twenty-minute
   # window meant the session never saw six or seven versions of the list at all,
   # and met the one it did see already stale.
-  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
-  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
-  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
-  # that Friday cannot reach the first number at all, and has four hours to hurt
-  # the second one. The rules and both dates are in `docs/rules.md` of the team's
-  # own repository.
+  # NO FRIDAY 4 September: the account's result is settled by Thursday's close, so
+  # a position opened on the Friday cannot earn its keep and has only hours in
+  # which to lose. Nothing is opened that day.
   - name: entry
     cause: "trying an entry: see whether a structure clears and what the broker answers"
     every: 10m
@@ -479,12 +476,9 @@ sessions:
         equity now, and how much credit the open positions hold. Do not report this in
         a turn of its own - it costs more than it tells.
 
-  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
-  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
-  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
-  # that Friday cannot reach the first number at all, and has four hours to hurt
-  # the second one. The rules and both dates are in `docs/rules.md` of the team's
-  # own repository.
+  # NO FRIDAY 4 September: the account's result is settled by Thursday's close, so
+  # a position opened on the Friday cannot earn its keep and has only hours in
+  # which to lose. Nothing is opened that day.
   - name: entry-call
     cause: "trying the other side: selling a call spread above the money"
     every: 10m
@@ -545,12 +539,9 @@ sessions:
   # A link to remember: with no take_profit_at declared, winners are not closed AT ALL,
   # because there is nobody else to do it.
 
-  # NO FRIDAY, and it is the event's arithmetic rather than a preference. Alpaca
-  # takes the account's equity at the END OF THURSDAY 3 September; LabLab counts
-  # at 15:00 UTC on Friday, which is 11:00 in New York. So a position opened on
-  # that Friday cannot reach the first number at all, and has four hours to hurt
-  # the second one. The rules and both dates are in `docs/rules.md` of the team's
-  # own repository.
+  # NO FRIDAY 4 September: the account's result is settled by Thursday's close, so
+  # a position opened on the Friday cannot earn its keep and has only hours in
+  # which to lose. Nothing is opened that day.
   - name: convexity
     cause: "the convexity layer: a cheap bet on a large move, bounded and known"
     every: 2h
