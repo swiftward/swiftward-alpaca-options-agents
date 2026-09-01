@@ -38,10 +38,10 @@ func NewPostgres(pool *pgxpool.Pool, shows int) (*Postgres, error) {
 // the same instant as the intent it caused.
 func (p *Postgres) AppendIntent(ctx context.Context, intent Intent) error {
 	_, err := p.pool.Exec(ctx,
-		`INSERT INTO intents (recorded_at, turn_ref, cause_id, answers, thesis, structure, max_loss, underlying_price, envelope_checked)
+		`INSERT INTO intents (recorded_at, turn_ref, cause_id, answers, thesis, structure, max_loss, underlying_price, envelope_checked, is_closing)
 		 VALUES (@at, @turn,
 		         COALESCE(@cause_id, (SELECT max(id) FROM turn_causes WHERE turn_ref = @turn)),
-		         @answers, @thesis, @structure, @max_loss, @underlying_price, @envelope_checked)`,
+		         @answers, @thesis, @structure, @max_loss, @underlying_price, @envelope_checked, @is_closing)`,
 		pgx.NamedArgs{
 			"at": intent.At, "turn": nullable(intent.TurnRef),
 			"cause_id": intent.CauseID, "answers": intent.Answers,
@@ -53,6 +53,7 @@ func (p *Postgres) AppendIntent(ctx context.Context, intent Intent) error {
 			// system asks it to make before every order.
 			"underlying_price": nullable(intent.UnderlyingPrice),
 			"envelope_checked": intent.EnvelopeChecked,
+			"is_closing":       intent.IsClosing,
 		})
 	if err != nil {
 		return fmt.Errorf("record the intent: %w", err)
@@ -396,7 +397,7 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 
 	intents, err := p.pool.Query(ctx,
 		`SELECT recorded_at, turn_ref, cause_id, answers, thesis, structure, max_loss,
-		        underlying_price, envelope_checked
+		        underlying_price, envelope_checked, is_closing
 		   FROM intents ORDER BY recorded_at DESC LIMIT @shows`,
 		pgx.NamedArgs{"shows": p.shows})
 	if err != nil {
@@ -410,7 +411,7 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 		var price *string
 		if err := intents.Scan(&intent.At, &turn, &intent.CauseID, &intent.Answers,
 			&intent.Thesis, &intent.Structure, &intent.MaxLoss, &price,
-			&intent.EnvelopeChecked); err != nil {
+			&intent.EnvelopeChecked, &intent.IsClosing); err != nil {
 			return State{}, fmt.Errorf("read an intent: %w", err)
 		}
 		if turn != nil {

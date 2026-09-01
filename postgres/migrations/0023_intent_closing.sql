@@ -1,0 +1,15 @@
+-- Whether an intent is to REDUCE a position rather than open one.
+--
+-- Opening and closing are held to different rules and the record could not tell
+-- them apart. An intent is refused unless the envelope was read successfully in
+-- the same turn (`status <> 'failed'`), and the session's own rule forbids an
+-- order without an intent - so an envelope the session cannot read stops it
+-- CLOSING a position, which is the one thing a failing limit service must never
+-- do. Measured 1 September: `policy/envelope.yaml` was unreadable for one pass on
+-- both accounts, and had a position needed leaving in that window, nothing could
+-- have left it.
+--
+-- Written by the session, and it is the session's claim rather than a fact the
+-- record can confirm. A row marked closing whose orders opened something is
+-- visible precisely because the claim is stored.
+ALTER TABLE intents ADD COLUMN IF NOT EXISTS is_closing BOOLEAN NOT NULL DEFAULT FALSE;

@@ -48,6 +48,11 @@ type recordIntentInput struct {
 	// it evidence. A name that was never put in front of this turn is refused, so
 	// the field cannot become somewhere to type a story.
 	Answers string `json:"answers,omitempty" jsonschema:"optional: which of the causes given to this turn this intent answers, by name"`
+	// A close is held to fewer rules than an opening, and only the session knows
+	// which it is about to send. The two refusals it lifts are named where they
+	// are made; both exist to keep an OPENING honest, and neither is worth a
+	// position that cannot be left.
+	Closing bool `json:"closing,omitempty" jsonschema:"true when this intent is to close or reduce a position rather than open one"`
 }
 
 type recordIntentOutput struct {
@@ -355,8 +360,15 @@ func (t Tools) Handler() http.Handler {
 			// that cannot make the check records intents anyway - refusing every
 			// one is worse - and a reader is entitled to know which of the two
 			// kinds of row they are looking at.
-			checked := t.Asked != nil
-			if t.Asked != nil && turn != "" {
+			// A close does not wait for the limits. The envelope says how much may
+			// be RISKED, and leaving a position risks nothing it was not already
+			// risking; a session that cannot record an intent cannot order at all,
+			// by its own rule, so an unreadable envelope would hold a position open.
+			// Measured 1 September: the envelope was unreadable for one pass on both
+			// accounts, and a position needing to leave in that window could not
+			// have. The row says it was not checked and says it was a close.
+			checked := t.Asked != nil && !in.Closing
+			if t.Asked != nil && turn != "" && !in.Closing {
 				asked, err := t.Asked.AskedInTurn(ctx, turn, envelopeTool)
 				if err != nil {
 					return nil, recordIntentOutput{}, err
@@ -370,8 +382,10 @@ func (t Tools) Handler() http.Handler {
 
 			// The same structure stated twice in one turn is one decision written
 			// down twice, and a judge reads it as two. The session is told, so it
-			// orders rather than restating.
-			if turn != "" {
+			// orders rather than restating. A close is exempt: opening a structure
+			// and then leaving it in the same turn is two decisions about one
+			// structure, and refusing the second refuses the exit.
+			if turn != "" && !in.Closing {
 				current, err := state.Read(ctx)
 				if err != nil {
 					return nil, recordIntentOutput{}, err
@@ -394,6 +408,7 @@ func (t Tools) Handler() http.Handler {
 
 				UnderlyingPrice: in.UnderlyingPrice,
 				EnvelopeChecked: &checked,
+				IsClosing:       in.Closing,
 			}); err != nil {
 				return nil, recordIntentOutput{}, err
 			}

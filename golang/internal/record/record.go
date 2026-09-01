@@ -41,8 +41,13 @@ type Intent struct {
 	UnderlyingPrice string `json:"underlying_price"`
 	// EnvelopeChecked says whether this intent was checked against an envelope
 	// read in the same turn. Absent where the row predates the column; false
-	// where the deployment cannot make the check - see the migration.
+	// where the deployment cannot make the check, and false on every close, which
+	// is not held to it - IsClosing separates the two.
 	EnvelopeChecked *bool `json:"envelope_checked,omitempty"`
+	// IsClosing says the session stated this intent to REDUCE a position rather
+	// than open one. Closing is held to fewer rules, because a limit service that
+	// cannot answer must never be what stops a position being left.
+	IsClosing bool `json:"is_closing"`
 }
 
 // Turn is one run of the agent: when it ran, who woke it and why.
