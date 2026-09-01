@@ -1258,3 +1258,56 @@ func TestAnOrderStepsEveryIntervalAndAgesFromItsFirstPlacement(t *testing.T) {
 			"an order that keeps stepping still ages out, because it is the same order")
 	})
 }
+
+// The walk arrives by the time patience ends, however far the book has gone.
+//
+// A fixed tick per step is a walk that loses ground. Measured on the live market
+// on 31 August, following one order through its life: our price and the book were
+// 0.18 apart, the ladder conceded a cent at each step, and nine steps later they
+// were 0.32 apart - it had given up nine cents, ended further from a fill than it
+// started, and died on patience. The book moves several cents in an interval.
+func TestTheWalkClosesTheDistanceItStillHasTimeFor(t *testing.T) {
+	at := time.Date(2026, 9, 1, 15, 0, 0, 0, time.UTC)
+	placed := at.Add(-6 * time.Minute)
+
+	// The book pays 0.01 for the structure - 0.71 bid on the leg we sell against
+	// 0.70 asked for the one we buy - and the order still asks 0.30: a gap of
+	// twenty-nine cents. Patience is ten minutes and four remain, so four steps.
+	broker := &brokerDouble{
+		orders: []marketdata.Order{spread("o-1", -0.30, "new", placed)},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.65, 0.70),
+		},
+	}
+
+	rung := ladder(broker, at, t)
+	rung.Every = time.Minute
+	rung.Patience = 10 * time.Minute
+	rung.step(context.Background())
+
+	replaced, cancelled := broker.seen()
+	require.Empty(t, cancelled)
+	// Twenty-nine cents over four steps is seven cents a step, not one.
+	assert.InDelta(t, -0.23, replaced["o-1"], 1e-9,
+		"a cent a step would leave this order twenty-five cents away when patience ends")
+}
+
+// A walk that is comfortably on schedule still moves one tick, because the
+// distance divided by the steps left is smaller than a tick and a price cannot
+// move by less than one.
+func TestAWalkWithTimeToSpareStillMovesOneTick(t *testing.T) {
+	at := time.Date(2026, 9, 1, 15, 0, 0, 0, time.UTC)
+	broker := &brokerDouble{
+		orders: []marketdata.Order{spread("o-1", -0.12, "new", at.Add(-2*time.Minute))},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.71, 0.76),
+			"QQQ260826P00700000": quote(0.61, 0.65),
+		},
+	}
+
+	ladder(broker, at, t).step(context.Background())
+
+	replaced, _ := broker.seen()
+	assert.InDelta(t, -0.11, replaced["o-1"], 1e-9)
+}

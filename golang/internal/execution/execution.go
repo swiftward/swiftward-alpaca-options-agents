@@ -487,6 +487,37 @@ func whatDidNotHappen(orders []marketdata.Order) string {
 }
 
 // walk moves one order one step toward what the book is showing.
+// stride is how far one step moves the limit: the distance still to travel,
+// divided by the steps left before patience ends. Never less than one tick.
+//
+// A fixed tick per step is a walk that loses ground. Measured on the live market
+// on 31 August: at each step the median distance between our price and the book
+// was ten cents on one account and six on the other, and following one order
+// through its whole life, the distance GREW from 0.18 to 0.32 across nine steps
+// while the ladder conceded one cent at each. It conceded nine cents and ended
+// further from a fill than it started, then died on patience. The book moves
+// several cents in an interval; a cent an interval cannot follow it.
+//
+// Dividing what is left by the intervals that are left makes the walk arrive by
+// the time patience ends, whatever the book does in between, and it needs no
+// number of its own - patience and the interval are both already declared. The
+// floor is untouched and still bounds everything: `target` never passes the worst
+// price the session accepted, so a faster walk gives up no more in the end than a
+// slower one, it just gets there while the offer still stands.
+func (l *Ladder) stride(order marketdata.Order, target float64) float64 {
+	distance := math.Abs(target - order.LimitPrice)
+	left := l.Patience - l.Now().Sub(l.lifeOf(order).placed)
+	steps := int(left / l.Every)
+	if steps < 1 {
+		steps = 1
+	}
+	if stride := distance / float64(steps); stride > l.Step {
+		return stride
+	}
+
+	return l.Step
+}
+
 func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 	symbols := make([]string, 0, len(order.Legs))
 	for _, leg := range order.Legs {
@@ -537,7 +568,7 @@ func (l *Ladder) walk(ctx context.Context, order marketdata.Order) error {
 		target = floor
 	}
 
-	next := Toward(order.LimitPrice, target, l.Step)
+	next := Toward(order.LimitPrice, target, l.stride(order, target))
 	if next == order.LimitPrice {
 		l.Log.Info("left an order alone: it already stands at the price it walks toward",
 			zap.String("order", order.ID), zap.Float64("limit", order.LimitPrice),
