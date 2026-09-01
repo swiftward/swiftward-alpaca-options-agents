@@ -1634,3 +1634,58 @@ func TestAMissedPassCostsADelayAndNotTheCancellation(t *testing.T) {
 	assert.NotEmpty(t, cancelled,
 		"a missed pass may delay the cancellation; it must not hand the order a new life")
 }
+
+// A resting order left net short calls is cancelled by the ladder, and the
+// cancellation is written down.
+//
+// The guard existed and only its NEGATIVE was under test: a backspread must not
+// be mistaken for unbounded risk. Nothing asserted that it fires. A teammate's
+// arena aimed a trap at exactly this and could not reach it either - the session
+// refused the structure before any order was sent, so the guard is what happens
+// when the session does NOT refuse, and that is the case nobody had exercised.
+//
+// It matters more than an ordinary uncovered branch. Every other limit here
+// bounds a number; this one bounds a loss that has no floor at all, and it is the
+// last thing between a session's mistake and the market.
+func TestTheLadderCancelsARestingOrderWhoseLossHasNoFloor(t *testing.T) {
+	at := time.Date(2026, 9, 1, 15, 0, 0, 0, time.UTC)
+
+	// Two calls sold against one bought: above the higher strike the loss grows
+	// with the price and never stops.
+	naked := spread("o-1", -1.20, "new", at.Add(-2*time.Minute))
+	naked.Legs = []marketdata.Order{
+		{Symbol: "QQQ260904C00710000", Side: "sell", Quantity: 2},
+		{Symbol: "QQQ260904C00715000", Side: "buy", Quantity: 1},
+	}
+
+	kept := record.NewMemory()
+	broker := &brokerDouble{
+		orders: []marketdata.Order{naked},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260904C00710000": quote(1.40, 1.50),
+			"QQQ260904C00715000": quote(0.20, 0.30),
+		},
+	}
+
+	rung := ladder(broker, at, t)
+	rung.Record = kept
+	rung.step(context.Background())
+
+	_, cancelled := broker.seen()
+	require.Equal(t, []string{"o-1"}, cancelled,
+		"the loss above the sold strike has no floor, and this is the last thing before the market")
+
+	replaced, _ := broker.seen()
+	assert.Empty(t, replaced, "and it is not walked toward a better price first")
+
+	// Written down, or the record says the order simply vanished.
+	state, err := kept.Read(context.Background())
+	require.NoError(t, err)
+	var noted bool
+	for _, step := range state.Steps {
+		if step.OrderRef == "o-1" && step.Action == "cancelled" {
+			noted = true
+		}
+	}
+	assert.True(t, noted, "a cancellation nobody recorded is a cancellation nobody can check")
+}
