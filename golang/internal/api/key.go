@@ -50,7 +50,11 @@ func guarded(key string, next http.Handler) http.Handler {
 				HttpOnly: true, SameSite: http.SameSiteLaxMode,
 				// Only where the connection is encrypted: set on plain HTTP the
 				// browser drops the cookie and the visit ends at the first click.
-				Secure: req.TLS != nil,
+				// From submission day the page is published through a Funnel, which
+				// ends the TLS itself and forwards plain HTTP here - so this process
+				// never sees a certificate on the request that a browser loaded over
+				// https, and asking req.TLS alone would leave that cookie unmarked.
+				Secure: encrypted(req),
 			})
 			// The key does NOT stay in the address. Left there it is written into
 			// the browser's history, into any log that records a request line, and
@@ -90,15 +94,34 @@ func same(given, key string) bool {
 	return subtle.ConstantTimeCompare([]byte(given), []byte(key)) == 1
 }
 
-// withoutKey is the same address with the key taken out of it.
+// withoutKey is the same address with the key taken out of it, and it can only
+// ever name THIS host.
+//
+// The obvious version - hand back the request's own URI - is an open redirect,
+// which is what the review caught: a link to `//somewhere.else/?key=...` parses
+// with that host sitting in the PATH, and a Location beginning with two slashes
+// is read by every browser as an address on that other host. So the path is
+// rebuilt with exactly one leading slash and nothing that could be read as a
+// host survives. The key never travelled there and the cookie is bound to this
+// host, so what it cost was a redirect anyone could aim, which is enough.
 func withoutKey(from *url.URL) string {
-	stripped := *from
-	query := stripped.Query()
+	query := from.Query()
 	query.Del(keyQuery)
-	stripped.RawQuery = query.Encode()
-	if stripped.Path == "" {
-		stripped.Path = "/"
+
+	local := "/" + strings.TrimLeft(from.EscapedPath(), "/")
+	if asked := query.Encode(); asked != "" {
+		return local + "?" + asked
 	}
 
-	return stripped.RequestURI()
+	return local
+}
+
+// encrypted reports whether the reader's connection is over TLS, including where
+// something in front of us ended it and said so.
+func encrypted(req *http.Request) bool {
+	if req.TLS != nil {
+		return true
+	}
+
+	return strings.EqualFold(req.Header.Get("X-Forwarded-Proto"), "https")
 }

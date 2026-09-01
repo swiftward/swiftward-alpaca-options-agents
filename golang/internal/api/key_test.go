@@ -4,10 +4,16 @@ import (
 	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/record"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 // Nobody reads the account without the key, and the ways in are exactly three.
@@ -107,4 +113,88 @@ func TestAReadSideWithNoKeyRefusesToStart(t *testing.T) {
 	_, err := Read{WebDir: "", Log: nil}.Handler()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "PAGE_KEY")
+}
+
+// The redirect can only ever name this host.
+//
+// Found by review: handing back the request's own URI is an open redirect. A
+// link to `//somewhere.else/?key=...` parses with that host sitting in the PATH,
+// and a Location that begins with two slashes is read by every browser as an
+// address on that other host. The key never travels there and the cookie is bound
+// to this host, so what it cost was a redirect anyone could aim - which is enough
+// to matter and enough for a scanner to report.
+func TestTheRedirectCannotBeAimedAtAnotherHost(t *testing.T) {
+	const key = "a-long-random-string"
+	gate := guarded(key, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+
+	for _, target := range []string{
+		"//attacker.example/?key=" + key,
+		"///attacker.example/?key=" + key,
+		"//attacker.example/path?key=" + key + "&kept=yes",
+	} {
+		t.Run(target, func(t *testing.T) {
+			answer := httptest.NewRecorder()
+			gate.ServeHTTP(answer, httptest.NewRequest(http.MethodGet, target, nil))
+			require.Equal(t, http.StatusSeeOther, answer.Code)
+
+			sent := answer.Header().Get("Location")
+			assert.False(t, strings.HasPrefix(sent, "//"),
+				"a Location beginning with two slashes is an address on somebody else's host: %q", sent)
+
+			// The name may survive as a PATH segment and that is harmless. What
+			// must not survive is a host: parsed, this names none.
+			where, err := url.Parse(sent)
+			require.NoError(t, err)
+			assert.Empty(t, where.Host, "the redirect names a host: %q", sent)
+			assert.Empty(t, where.Scheme)
+			assert.True(t, strings.HasPrefix(where.Path, "/"))
+			assert.NotContains(t, sent, key)
+		})
+	}
+}
+
+// The cookie is marked secure behind something that ended the TLS for us. From
+// submission day the page is published through a Funnel, which does exactly that
+// and forwards plain HTTP here - so req.TLS is nil on a request the browser
+// loaded over https, and asking it alone would leave the cookie unmarked on the
+// only day the page is public.
+func TestTheCookieIsSecureBehindSomethingThatEndedTheTLS(t *testing.T) {
+	const key = "a-long-random-string"
+	gate := guarded(key, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+
+	answer := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/?key="+key, nil)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	gate.ServeHTTP(answer, req)
+
+	cookies := answer.Result().Cookies()
+	require.Len(t, cookies, 1)
+	assert.True(t, cookies[0].Secure)
+}
+
+// Every route the read side serves is behind the gate, not only the ones a test
+// remembered to name. The review's point: a test that drives `guarded` directly
+// proves the wrapper and says nothing about what got wrapped.
+func TestEveryRouteOfTheReadSideIsBehindTheGate(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>the page</html>"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "app.js"), []byte("// the built page"), 0o600))
+
+	handler, err := Read{Record: record.NewMemory(), WebDir: dir, Key: testKey, Log: zaptest.NewLogger(t)}.Handler()
+	require.NoError(t, err)
+
+	for _, route := range []string{
+		"/", "/app.js", "/index.html", "/api/state", "/api/money", "/api/equity",
+		"/api/limits", "/api/sweep", "/healthz/", "/HEALTHZ", "/nothing-here",
+	} {
+		answer := httptest.NewRecorder()
+		handler.ServeHTTP(answer, httptest.NewRequest(http.MethodGet, route, nil))
+		assert.Equal(t, http.StatusUnauthorized, answer.Code, "%s answered without the key", route)
+		assert.NotContains(t, answer.Body.String(), "the page", "%s served the page itself", route)
+	}
+
+	// And the one deliberate exemption still answers, or nothing checks liveness.
+	alive := httptest.NewRecorder()
+	handler.ServeHTTP(alive, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	assert.Equal(t, http.StatusOK, alive.Code)
 }
