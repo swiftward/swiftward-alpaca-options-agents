@@ -1,7 +1,9 @@
 package api
 
 import (
+	"crypto/subtle"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -39,24 +41,32 @@ func guarded(key string, next http.Handler) http.Handler {
 		}
 
 		if fromQuery := req.URL.Query().Get(keyQuery); fromQuery != "" {
-			if fromQuery != key {
+			if !same(fromQuery, key) {
 				refuse(w)
 				return
 			}
 			http.SetCookie(w, &http.Cookie{
 				Name: keyCookie, Value: key, Path: "/",
 				HttpOnly: true, SameSite: http.SameSiteLaxMode,
+				// Only where the connection is encrypted: set on plain HTTP the
+				// browser drops the cookie and the visit ends at the first click.
+				Secure: req.TLS != nil,
 			})
-			next.ServeHTTP(w, req)
+			// The key does NOT stay in the address. Left there it is written into
+			// the browser's history, into any log that records a request line, and
+			// into the Referer header of every link the page leads to. The cookie
+			// is set and the reader is sent to the same place without it - which is
+			// also why `?key=` is for a PERSON arriving and a tool uses the header.
+			http.Redirect(w, req, withoutKey(req.URL), http.StatusSeeOther)
 
 			return
 		}
 
-		if strings.TrimSpace(req.Header.Get(keyHeader)) == key {
+		if same(strings.TrimSpace(req.Header.Get(keyHeader)), key) {
 			next.ServeHTTP(w, req)
 			return
 		}
-		if cookie, err := req.Cookie(keyCookie); err == nil && cookie.Value == key {
+		if cookie, err := req.Cookie(keyCookie); err == nil && same(cookie.Value, key) {
 			next.ServeHTTP(w, req)
 			return
 		}
@@ -71,4 +81,24 @@ func refuse(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusUnauthorized)
 	_, _ = w.Write([]byte("this page is read with a key\n"))
+}
+
+// same compares in constant time. A plain comparison returns sooner the earlier
+// it finds a difference, and a secret compared that way can be read a character
+// at a time by anyone patient enough to measure.
+func same(given, key string) bool {
+	return subtle.ConstantTimeCompare([]byte(given), []byte(key)) == 1
+}
+
+// withoutKey is the same address with the key taken out of it.
+func withoutKey(from *url.URL) string {
+	stripped := *from
+	query := stripped.Query()
+	query.Del(keyQuery)
+	stripped.RawQuery = query.Encode()
+	if stripped.Path == "" {
+		stripped.Path = "/"
+	}
+
+	return stripped.RequestURI()
 }
