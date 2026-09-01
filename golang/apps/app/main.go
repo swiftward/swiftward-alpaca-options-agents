@@ -92,6 +92,28 @@ func main() {
 	}
 }
 
+// fusePercent is how far the account may fall from yesterday's close before the
+// day is over, from the declaration in force.
+//
+// Parsed strictly. The parameters are prose for a model, so this one can be
+// written in a way no program can read - and a fuse that quietly took zero from
+// "three percent" would cancel every opening order on a flat day.
+func fusePercent(declared *declaration.Watcher) (float64, error) {
+	written, ok := declared.Current().Parameters["daily_fuse_percent"]
+	if !ok {
+		return 0, errors.New("the declaration names no daily_fuse_percent")
+	}
+	percent, err := strconv.ParseFloat(strings.TrimSpace(written), 64)
+	if err != nil {
+		return 0, fmt.Errorf("daily_fuse_percent %q is not a number", written)
+	}
+	if percent <= 0 {
+		return 0, fmt.Errorf("daily_fuse_percent is %v, which fuses nothing", percent)
+	}
+
+	return percent, nil
+}
+
 // whyStopped prefers the error that CANCELLED the run over the error that merely
 // noticed it. The workers start before the last of the startup steps, so one
 // worker refusing its configuration cancels the group and every step after it
@@ -589,21 +611,30 @@ func run(log *zap.Logger) error {
 		// one at 14:18 on the same two figures. It is the session's rule and now
 		// also a backstop under it, in the last place our code holds an order.
 		if declared != nil {
+			// Read ONCE here, and refuse to start without it.
+			//
+			// The number was read only inside the closure below, on every pass. So
+			// a declaration that named no `daily_fuse_percent` came up reporting
+			// "the day's fuse is enforced" and then wrote "could not tell whether
+			// the day's fuse has blown" on every pass afterwards - a guard the
+			// summary said was standing and that could not answer. A teammate's
+			// stand ran exactly that this morning.
+			//
+			// The comparison that settles how to treat it is our own: a record
+			// that cannot say which account it belongs to refuses to start. A
+			// missing account name and a missing fuse are the same kind of
+			// absence, and a fuse you learn about from an error line on every pass
+			// is not different from no fuse, except for the noise.
+			//
+			// The lazy re-read stays. It is what lets the number be lowered while
+			// the day runs, which is the same reason the envelope is re-read.
+			if _, err := fusePercent(declared); err != nil {
+				return fmt.Errorf("the ladder cannot enforce the day's fuse: %w", err)
+			}
 			ladder.Fuse = func(ctx context.Context) (bool, string, error) {
-				written, ok := declared.Current().Parameters["daily_fuse_percent"]
-				if !ok {
-					return false, "", errors.New("the declaration names no daily_fuse_percent")
-				}
-				// Parsed strictly. The parameters are prose for a model, so this
-				// one can be written in a way no program can read - and a fuse
-				// that quietly reads zero from "three percent" would cancel every
-				// opening order on a flat day.
-				percent, err := strconv.ParseFloat(strings.TrimSpace(written), 64)
+				percent, err := fusePercent(declared)
 				if err != nil {
-					return false, "", fmt.Errorf("daily_fuse_percent %q is not a number", written)
-				}
-				if percent <= 0 {
-					return false, "", fmt.Errorf("daily_fuse_percent is %v, which fuses nothing", percent)
+					return false, "", err
 				}
 				account, err := broker.Account(ctx)
 				if err != nil {
