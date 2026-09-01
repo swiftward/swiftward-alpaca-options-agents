@@ -365,9 +365,10 @@ sessions:
         edge routinely collapsed on the fresh quote - +3.94 screened became -4.36
         live in one measured case - and 61 windows produced 8 orders. Six is what
         the window is allowed to open, so six is what it may check.
-        The six are counted among candidates you COULD open: a name you already
-        hold on the same side and expiry cannot be opened at all, so skip it before
-        you count.
+        The six are counted among candidates you COULD open: a structure you
+        already hold at the SAME strikes and expiry cannot be opened again, so skip
+        that one before you count. A different strike on an expiry you hold is a
+        candidate like any other.
         Turns run ONE AT A TIME, and a long turn takes the queue from the short ones.
         Measured 28 August: two entry windows ate 58% of the day's turn time, hit the
         six-minute turn limit three times running, and the defence window did not
@@ -420,8 +421,18 @@ sessions:
         separately.
         Open up to SIX new positions per window, each on its own filters. If you did
         not find six, there are none right now, and that is a normal answer.
-      - Do not open a second position on the SAME SIDE of the same underlying with
-        the same expiry.
+      - A second position on the same underlying, side and expiry is allowed, at
+        DIFFERENT strikes. What bounds it is the envelope's
+        `same_direction_max_loss`, which adds up everything betting the same way
+        and stops at its limit; that number is measured and this one was not.
+        Until 1 September a rule here barred the second position outright. It stood
+        from the first commit, nothing ever measured it, and on 1 September it
+        refused the best row on the screen in fourteen windows on each account -
+        almost always SPY, the only name paying anything that day. It also bought
+        no safety: it barred one expiry, so the same bet simply accumulated on the
+        other expiries, which is what both accounts did.
+        The SAME structure is still not re-opened - identical strikes and expiry is
+        re-entering a trade the ladder may still be working, not a new one.
         A put spread and a call spread on one underlying are two different positions,
         and together they are both sides of the market: both cannot lose at once,
         since price goes either up or down.
