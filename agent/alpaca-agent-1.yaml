@@ -510,6 +510,11 @@ sessions:
       - Size: a position's maximum loss no larger than what the envelope named in
         `position_max_loss`; the number of contracts rounds down. No more than one
         such position per underlying with one expiry.
+      - **Re-quote no more than SIX structures per turn.** The skill says three;
+        this window may open six, so it may check six. Corrected on 1 September:
+        the entry window was raised to six overnight and this one was left on the
+        skill's three, so two windows that do the same thing checked different
+        numbers of candidates for no reason.
       - Open up to SIX new positions per window. If you did not find six, there are
         none today, and that is a normal answer.
       - Record the intent (record_intent) before the order and send it as ONE order,
