@@ -68,6 +68,11 @@ services:
       ROLES: api
       ADDR: ":8080"
       WEB_DIR: /srv/web
+      # Without this the page refuses to start, which is the point of it: the port
+      # is open to the internet and what it serves is the account. `compose.yaml`
+      # carries the same line for every page it runs; this file was missed, so a
+      # deployment of that change took the stand's page down until it was added.
+      PAGE_KEY: ${PAGE_KEY}
       # The page serves the limits from the SAME file, through the same call that
       # answers the agent. Otherwise it would show a retelling, and one day the
       # retelling differs from what is actually traded, and a judge is shown a
