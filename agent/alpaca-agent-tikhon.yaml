@@ -611,8 +611,19 @@ sessions:
     days: [mon, tue, wed, thu, fri]
     cannot_wait: true
     task: |
-      Close the options expiring TODAY whose short strike sits within fifty cents
-      of the underlying's price: those are the ones at risk of assignment.
+      Close the options expiring TODAY whose short strike sits within HALF THE GAP
+      BETWEEN STRIKES of that chain from the underlying's price: those are the ones
+      at risk of assignment. Read the gap off the chain you are holding - the
+      distance between one strike and the next - and halve it. Where the chain is
+      too sparse to read a gap from, fall back to fifty cents.
+
+      It used to be fifty cents flat, and fifty cents is a distance, not a risk. On
+      SPY, where strikes stand a dollar apart, half a gap IS about fifty cents and
+      nothing changes. On 31 August the rule met META at 571.96 against a sold 570
+      with strikes 2.50 apart: 1.96 away, so the rule would have left it to expire,
+      and 1.96 is a distance that stock covers in minutes. Forty contracts assigned
+      is four thousand shares held overnight. The gap is what says how far "near"
+      is on a given name; a fixed number only says it for the name it was chosen on.
       Let the rest of today's expire - buying back a one-cent spread costs more
       than it saves.
       Leave later expirations alone: they were opened yesterday or today and live
