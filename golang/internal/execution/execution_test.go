@@ -1591,3 +1591,46 @@ func TestSchedulerJitterDoesNotDecideWhetherAnOrderSteps(t *testing.T) {
 	assert.Equal(t, len(delays), steps,
 		"a pass that ran a few milliseconds earlier than the last one must not cost the order its step")
 }
+
+// An order that keeps walking is cancelled on patience, even if a pass is missed
+// in the one interval where it could have been.
+//
+// Measured by a teammate's arena on the live shape: placed 09:02:28, patience out
+// at 09:10:28, fifteen steps, no cancellation, filled at 09:21:37 - nineteen
+// minutes against eight. The window in which an order can be cancelled is one
+// interval wide, from `Patience` to `Patience + Every`. Miss one pass inside it
+// and the chain was swept on age; the next pass rebuilt it from the order's own
+// submitted_at, which is FRESH because every step is a replacement, so patience
+// began again and the order never died. It also held its underlying out of the
+// entry list for as long as it lived.
+func TestAMissedPassCostsADelayAndNotTheCancellation(t *testing.T) {
+	at := time.Date(2026, 9, 1, 15, 0, 0, 0, time.UTC)
+	clock := at
+
+	broker := &brokerDouble{
+		orders: []marketdata.Order{spread("o-1", -0.30, "new", at)},
+		quotes: map[string]marketdata.Quote{
+			"QQQ260826P00701000": quote(0.10, 0.80),
+			"QQQ260826P00700000": quote(0.05, 0.70),
+		},
+	}
+	broker.now = func() time.Time { return clock }
+
+	rung := ladder(broker, at, t)
+	rung.Every = time.Minute
+	rung.Patience = 3 * time.Minute
+	rung.Stride = StrideByTick
+	rung.Now = func() time.Time { return clock }
+
+	// Minutes 1, 2 and 3 walk it. Minute 4 is the ONLY pass at which it can be
+	// cancelled, and it is the one that does not happen - the ladder was busy, or
+	// the broker did not answer, or the process was restarting.
+	for _, minute := range []int{1, 2, 3, 5, 6} {
+		clock = at.Add(time.Duration(minute) * time.Minute)
+		rung.step(context.Background())
+	}
+
+	_, cancelled := broker.seen()
+	assert.NotEmpty(t, cancelled,
+		"a missed pass may delay the cancellation; it must not hand the order a new life")
+}

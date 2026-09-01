@@ -217,16 +217,33 @@ func (l *Ladder) carried(from, to string) {
 // restarting is never cancelled and holds its underlying out of the entry list
 // for as long as it lives.
 func (l *Ladder) forgetWhatIsDone(shown []marketdata.Order, now time.Time) {
+	alive := make(map[string]bool, len(shown))
 	for _, order := range shown {
-		if !working(order) {
-			delete(l.ages, order.ID)
+		if working(order) {
+			alive[order.ID] = true
+			continue
 		}
+		delete(l.ages, order.ID)
 	}
-	// Past patience the ladder has either cancelled it or the broker has taken it
-	// away, and one interval of slack covers the pass that does the cancelling.
+
+	// An order the broker is SHOWING as working keeps its chain however old it is.
+	//
+	// The age sweep alone made an order immortal, and a teammate's arena caught it
+	// on the live shape: placed 09:02:28, patience out at 09:10:28, fifteen steps,
+	// no cancellation, filled at 09:21:37 - nineteen minutes against eight. The
+	// window in which an order can be cancelled is one interval wide, from
+	// `Patience` to `Patience + Every`. Miss one pass inside it and the chain was
+	// swept; the next pass rebuilt it from the order's own submitted_at, which is
+	// FRESH because every step is a replacement, so patience began again. An order
+	// that never dies also holds its underlying out of the entry list for as long
+	// as it lives.
+	//
+	// So age decides nothing on its own. It only reaps what we can no longer see -
+	// the broker's answer is bounded, and an order outside that bound leaves a
+	// chain nothing would otherwise remove.
 	stale := now.Add(-(l.Patience + l.Every))
 	for id, life := range l.ages {
-		if life.placed.Before(stale) {
+		if !alive[id] && life.placed.Before(stale) {
 			delete(l.ages, id)
 		}
 	}
