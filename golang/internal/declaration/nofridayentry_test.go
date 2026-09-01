@@ -11,14 +11,11 @@ import (
 
 // Nothing we ship may OPEN a position on a Friday.
 //
-// It is the event's arithmetic rather than a preference. Alpaca takes the
-// account's equity at the end of Thursday 3 September; LabLab counts at 15:00
-// UTC on the Friday, which is 11:00 in New York. A position opened on that
-// Friday therefore cannot reach the first number at all, and has four hours in
-// which to hurt the second one.
+// The result is settled by Thursday's close, so a position opened on the Friday
+// cannot earn its keep and has only hours in which to lose.
 //
 // Until 29 August every entry window carried mon-fri, so all three declarations
-// would have gone hunting for structures on submission day. It reads as an
+// would have gone hunting for structures on that last day. It reads as an
 // ordinary weekday list, which is exactly why it needs a test rather than a
 // comment: the next person to add a window will copy the line above it.
 //
@@ -44,7 +41,7 @@ func TestNothingOpensOnTheSubmissionFriday(t *testing.T) {
 				opens++
 
 				assert.NotContains(t, session.Days, "fri",
-					"%s can open a position on the submission Friday, when Alpaca has already taken its number and LabLab's clock has four hours left",
+					"%s can open a position on the Friday, after the result is already settled",
 					session.Name)
 			}
 

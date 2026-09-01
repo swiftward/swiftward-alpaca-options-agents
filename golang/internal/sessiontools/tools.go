@@ -676,15 +676,16 @@ type candidatesAnswer struct {
 	// come at an interval, a list is routinely older than one of them, and one
 	// age tells nobody whether the screener is running.
 	Fresh bool `json:"fresh" jsonschema:"whether the screener is keeping this list up to date; false means treat it as no list at all"`
-	// Withheld names the underlyings taken out of the list because an order of
-	// ours is already working on them. Named rather than silently dropped: a
-	// session that asked for ten and got seven is entitled to know whether the
-	// market was thin or we were already in.
+	// Withheld names the SIDES taken out of the list because an order of ours is
+	// already working on them, as "SPY call". Named rather than silently dropped:
+	// a session that asked for ten and got seven is entitled to know whether the
+	// market was thin or we were already in. The other side of the same name is
+	// not withheld: it is a different position.
 	Withheld []string `json:"withheld,omitempty" jsonschema:"sides left out because this account already has an order working on them, as \"SPY call\"; the other side of the same underlying is not withheld"`
 }
 
-// withoutWhatIsAlreadyWorking drops the structures whose underlying already has
-// an order of ours in the book, and names what it dropped.
+// withoutWhatIsAlreadyWorking drops the structures whose SIDE already has an
+// order of ours in the book, and names what it dropped.
 //
 // Two of them went to the broker on 28 August and came back refused. The session
 // cannot see its own resting orders in this list, so it sizes a second position

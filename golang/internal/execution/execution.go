@@ -145,7 +145,7 @@ type Ladder struct {
 	// What that cost: the freshness check found the order younger than the
 	// interval on the tick after each step and skipped it, so an order got a step
 	// every OTHER tick. Measured on the live market that day, chaining
-	// `execution_steps` through `replaced_by` on both judged accounts, the median
+	// `execution_steps` through `replaced_by` on both accounts, the median
 	// interval between one order's steps was 90 seconds against a configured 45 -
 	// five offers to the book across eight minutes of patience instead of ten. And
 	// patience, read from the same field, measured how long the order had stood

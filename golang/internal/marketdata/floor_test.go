@@ -52,8 +52,8 @@ func TestEachExpiryIsItsOwnSeries(t *testing.T) {
 	assert.Equal(t, []string{"SPY 2026-09-04"}, without)
 }
 
-// What is already working, by underlying: one entry each, however many orders or
-// legs stand on it.
+// What is already working, by SIDE: one entry each, however many orders or legs
+// stand on it.
 //
 // A structure the screener offers on a SIDE we already have an order in is not a
 // candidate. The session cannot see its own resting order in that list, sizes a
