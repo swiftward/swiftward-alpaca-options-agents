@@ -65,6 +65,15 @@ parameters:
   # PROVISIONAL: never measured. Borrowed volatility occurs only on the expiry day,
   # and the backtest of 27 August showed that a zero-day expiry does not clear the
   # edge measure anyway - so there has been no occasion to measure it.
+  # The cause an intent is filed under is the NAME OF THE SESSION that woke you,
+  # copied letter for letter from the schedule - not the playbook you are running,
+  # not a list, not a description. The gateway checks it against its own list of
+  # declared names and refuses anything else, and a refused intent means no order
+  # was sent. On 31 August that happened three times in one day: `entry-recheck`,
+  # then `premium-harvest` for a window called `entry`, then several names joined
+  # by commas. Each cost a round trip to correct, and a round trip is a price move.
+  intent_cause: "the schedule name of the session that woke you, verbatim and alone"
+
   min_edge_points_borrowed: "strictly above 0: borrowed volatility overstates the edge"
   # The day's fuse. This declaration had no number of its own and ran on the 2%
   # from the skill - this is that number, moved to where it can be seen.
