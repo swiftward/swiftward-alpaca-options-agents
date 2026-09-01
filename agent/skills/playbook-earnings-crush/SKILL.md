@@ -27,11 +27,15 @@ against it - measured on this account - and three forgotten orders can leave a b
 unable to size. So cancel the ones this playbook did not place, or say plainly that
 you could not.
 
-An order placed within the last ten minutes is not forgotten: the harness is
-walking its price toward the book and it is about to fill or about to be cancelled
-on its own patience. Cancelling it spends an entry window that was still live, and
-to free a bet worth 3% of equity at its worst it would throw away a structure
-risking nine. Leave it, and say in one line that you did.
+An order the harness is still WALKING is not forgotten. Read its price history
+(`read_state`): an order whose limit has moved since it was placed is being walked
+toward the book and is about to fill or about to be cancelled on its own patience.
+Cancelling it spends an entry window that was still live, and to free a bet worth
+3% of equity at its worst it would throw away a structure risking nine. Leave it,
+and say in one line that you did.
+
+The condition is "has it moved", not a number of minutes: how long the harness
+walks an order is the deployment's own setting and is not written here.
 
 ## The measurement that decides the side
 

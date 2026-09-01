@@ -2265,6 +2265,11 @@ sessions:
 		assert.Contains(t, steered[0], "Buy back everything that expires today.")
 		assert.Contains(t, steered[0], `session "flatten"`,
 			"it still has to be able to say which cause it is answering")
+		// The turn it lands in belongs to another session, whose task may forbid
+		// exactly what this one asks for: at 15:35 the news window comes due a
+		// minute before the closing window and its task says to send no orders.
+		assert.Contains(t, steered[0], "This REPLACES what you were doing in this turn",
+			"a session that cannot wait says so, or the turn is left holding two operators")
 	})
 
 	// The same window without the flag waits, which is what every other session

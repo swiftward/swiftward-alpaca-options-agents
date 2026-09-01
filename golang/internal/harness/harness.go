@@ -746,7 +746,7 @@ func (h *Harness) fireDue(ctx context.Context) {
 			// is told instead. On 31 August both accounts' closing windows queued
 			// behind another session and got through only because nothing expired
 			// that day.
-			if err := h.steerInto(ctx, turnID, session.Prompt(), session.Name); err != nil {
+			if err := h.steerInto(ctx, turnID, session.PromptDisplacing(), session.Name); err != nil {
 				// The turn ended between the check and the call. Left unmarked, so the
 				// next tick starts it as a turn of its own.
 				h.Log.Info("could not say the due session into the running turn; it stays due",

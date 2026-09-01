@@ -251,6 +251,24 @@ func (s *Session) Prompt() string {
 	return fmt.Sprintf("Woken by the schedule, session %q: %s\n%s", s.Name, s.Cause, s.Task)
 }
 
+// PromptDisplacing is what a session that CANNOT WAIT is told when it is said
+// into a turn another session already holds.
+//
+// The plain prompt is not enough there, and the review caught it before the
+// market did: at 15:35 the news window comes due a minute before the closing
+// window, and its task says to send no orders. Delivered into that turn, the
+// close arrives as a second instruction beside one that forbids exactly what it
+// asks for - and the session is left to guess which of its own operators meant
+// it. So the precedence is stated where the two meet, and it is stated by the
+// harness rather than written into every such task, because it is a property of
+// HOW the session was woken and not of what it was asked to do.
+func (s *Session) PromptDisplacing() string {
+	return "This REPLACES what you were doing in this turn. Whatever the task above it " +
+		"told you to do or not to do, this comes first and its limits are the ones that " +
+		"apply; finish it before anything else, and say in one line what you set aside.\n" +
+		s.Prompt()
+}
+
 // Numbers is what this agent runs its skills with, written the way a session
 // reads it. Empty when the declaration gives none.
 //

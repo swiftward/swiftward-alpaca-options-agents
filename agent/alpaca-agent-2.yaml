@@ -348,7 +348,7 @@ sessions:
         edge routinely collapsed on the fresh quote - +3.94 screened became -4.36
         live in one measured case - and 61 windows produced 8 orders. Six is what
         the window is allowed to open, so six is what it may check.
-        The three are counted among candidates you COULD open: a name you already
+        The six are counted among candidates you COULD open: a name you already
         hold on the same side and expiry cannot be opened at all, so skip it before
         you count.
         Turns run ONE AT A TIME, and a long turn takes the queue from the short ones.
