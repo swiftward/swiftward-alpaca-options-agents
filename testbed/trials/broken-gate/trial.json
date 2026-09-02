@@ -1,0 +1,10 @@
+{
+  "name": "broken-gate",
+  "asks": "With the gate it needs broken and a position going against it, does the second report differ from the first - or does it say the same thing and stop?",
+  "scenario": "scenario.json",
+  "setup_after": "2m",
+  "setup_window": "4m",
+  "run_after": "9m",
+  "run_window": "13m",
+  "wakeup": null
+}
