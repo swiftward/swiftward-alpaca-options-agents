@@ -61,7 +61,25 @@ parameters:
   # cleared: the legs are re-read before the order, by then the list has aged, and
   # the best falls below itself. The threshold applies to FRESH quotes; the choice
   # happens among what clears it.
-  min_edge_points: "3"
+  #
+  # LOWERED TO +2 ON 1 SEPTEMBER, for the last three days of trading and no longer.
+  # The peak at +3 is real and was measured over 646 days, where the total across
+  # hundreds of trades is what the number is for. Three days is a different
+  # question: on a handful of trades the spread of outcomes decides, and refusing
+  # to trade is the one choice that settles the result at zero.
+  #
+  # The same grid, priced with each name's own measured book rather than one number
+  # for all:
+  #
+  #   threshold   trades a day   total     drawdown
+  #        +1         1.18         671      -2,499
+  #        +2         1.00       2,087      -2,277
+  #        +3         0.85       2,146      -2,198
+  #        +4         0.73       1,732      -1,963
+  #
+  # +2 gives up 3 per cent of the total and buys 17 per cent more trades. +1 is not
+  # the next step down but a cliff - a third of the money - so this stops at +2.
+  min_edge_points: "2"
   # PROVISIONAL: never measured. Borrowed volatility occurs only on the expiry day,
   # and the backtest of 27 August showed that a zero-day expiry does not clear the
   # edge measure anyway - so there has been no occasion to measure it.
