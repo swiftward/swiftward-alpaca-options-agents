@@ -286,6 +286,23 @@ sessions:
       finish.
       The midday entry window. Run premium-harvest.
 
+      **Work the fresh edge the way the screener works it, or the threshold means
+      nothing.** Take the credit at the fresh quotes, subtract HALF the bid-ask
+      spread of the two legs together - the same half `credit_after_cost` is built
+      from - and compute the edge from that. Do NOT charge a full round trip in and
+      out before comparing with the threshold: that is a different quantity, and the
+      number you would be holding it against was not measured on it.
+
+      This is not a preference. The threshold was found by replaying 646 days with
+      the edge computed on half the crossing, precisely so the number could be
+      compared with the screener's. Charge the round trip and the same structure
+      reads about twelve points worse at a width of one dollar - on 2 September the
+      QQQ 717/718 call measured +3.70 in the list and -8.25 on a round-trip charge,
+      and the window closed empty on a structure that cleared.
+
+      The full crossing is real and is paid; it belongs in what the position earns,
+      not in the bar it has to clear.
+
       **Re-price SIX candidates, not the skill's three.** Take the best six by
       `edge_points`, check them on fresh quotes, and take the best that clears. On
       1 September all three windows ended empty, and each for the same reason: the
@@ -337,6 +354,23 @@ sessions:
       no more than one underlying in this window.
       If none clears it, say in one line what each of them paid and finish.
 
+      **Work the fresh edge the way the screener works it, or the threshold means
+      nothing.** Take the credit at the fresh quotes, subtract HALF the bid-ask
+      spread of the two legs together - the same half `credit_after_cost` is built
+      from - and compute the edge from that. Do NOT charge a full round trip in and
+      out before comparing with the threshold: that is a different quantity, and the
+      number you would be holding it against was not measured on it.
+
+      This is not a preference. The threshold was found by replaying 646 days with
+      the edge computed on half the crossing, precisely so the number could be
+      compared with the screener's. Charge the round trip and the same structure
+      reads about twelve points worse at a width of one dollar - on 2 September the
+      QQQ 717/718 call measured +3.70 in the list and -8.25 on a round-trip charge,
+      and the window closed empty on a structure that cleared.
+
+      The full crossing is real and is paid; it belongs in what the position earns,
+      not in the bar it has to clear.
+
       **Re-price SIX candidates, not the skill's three.** Take the best six by
       `edge_points`, check them on fresh quotes, and take the best that clears. On
       1 September all three windows ended empty, and each for the same reason: the
@@ -378,6 +412,23 @@ sessions:
       There is no other reading: a date that does not match is NOT a reason to
       finish.
       The main entry window of the day. Run premium-harvest.
+
+      **Work the fresh edge the way the screener works it, or the threshold means
+      nothing.** Take the credit at the fresh quotes, subtract HALF the bid-ask
+      spread of the two legs together - the same half `credit_after_cost` is built
+      from - and compute the edge from that. Do NOT charge a full round trip in and
+      out before comparing with the threshold: that is a different quantity, and the
+      number you would be holding it against was not measured on it.
+
+      This is not a preference. The threshold was found by replaying 646 days with
+      the edge computed on half the crossing, precisely so the number could be
+      compared with the screener's. Charge the round trip and the same structure
+      reads about twelve points worse at a width of one dollar - on 2 September the
+      QQQ 717/718 call measured +3.70 in the list and -8.25 on a round-trip charge,
+      and the window closed empty on a structure that cleared.
+
+      The full crossing is real and is paid; it belongs in what the position earns,
+      not in the bar it has to clear.
 
       **Re-price SIX candidates, not the skill's three.** Take the best six by
       `edge_points`, check them on fresh quotes, and take the best that clears. On
