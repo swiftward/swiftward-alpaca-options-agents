@@ -4,9 +4,9 @@ A judge should not have to believe a table. This runs the measurements behind th
 claims in `docs/write-up.md` and the declarations, from data committed to this
 repository, and prints each one PASS or FAIL against the value we publish.
 
-It needs no Alpaca key and reaches no network: `data/candidates_bt.parquet` is
-the structures the rule could have seen, built once from history and committed so
-that this command works for anyone.
+It needs no Alpaca key and reaches no network. Everything it reads is committed:
+`data/candidates_bt.parquet`, the structures the rule could have seen, and the
+15-minute paths and entry-window leg prices behind the defence numbers.
 
 A claim that fails here is a claim we must correct, not a test to relax.
 """
@@ -14,6 +14,7 @@ import sys
 
 import pandas as pd
 
+import exit_rules
 from grid import prepare, pick, BOOK, FEE, SLIP
 
 STRUCTURES = "data/candidates_bt.parquet"
@@ -68,6 +69,26 @@ def main() -> None:
         means[name] = prepare(pd.read_parquet(STRUCTURES), slip=slip).pnl.mean()
     claim("the crossing costs more than the strategy earns without it",
           means["no crossing"] > means["the full book"] * 5, True)
+
+    # The defence numbers. These cost about a minute - every trade's path is walked
+    # bar by bar and every exit repriced - and they are here because they are the
+    # numbers a rule was REMOVED on, which is the kind a reader should be able to
+    # check rather than take.
+    picked, trades, paths, ivs = exit_rules.population(loud=False)
+    claim("the defence measurement covers 672 trades", len(trades), 672, 0)
+    means = {
+        "holding to expiry pays 2.94 a trade": (exit_rules.run_rule(trades, paths, ivs, "hold"), 2.94),
+        "closing on the touch pays 2.32 a trade": (exit_rules.run_rule(trades, paths, ivs, "touch", 0.0), 2.32),
+        "closing a width past the strike pays 3.46 a trade": (exit_rules.run_rule(trades, paths, ivs, "touch", 1.0), 3.46),
+    }
+    def a_trade(outs):
+        return float(pd.Series([o["pnl"] for o in outs]).mean())
+
+    for what, (outs, published) in means.items():
+        claim(what, round(a_trade(outs), 2), published, 0.01)
+    claim("closing on the touch is worse than holding",
+          a_trade(means["closing on the touch pays 2.32 a trade"][0])
+          < a_trade(means["holding to expiry pays 2.94 a trade"][0]), True)
 
     width = 60
     print(f"{'':<6}{'claim':<{width}}{'computed':>14}  {'published':>10}")

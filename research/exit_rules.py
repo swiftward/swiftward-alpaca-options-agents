@@ -259,7 +259,13 @@ def summarize(name, outs, trades, base=None):
     return row
 
 
-def main():
+def population(loud=True):
+    """The trades every exit rule is run over, with their paths and volatilities.
+
+    Separate from `main` because `claims.py` checks the published exit numbers and
+    must build the same population from the same code rather than from a copy.
+    """
+    say = print if loud else (lambda *a, **k: None)
     frame = pd.read_parquet(DATA / "candidates_bt.parquet")
     prepared = grid.prepare(frame)
     picked = grid.pick(prepared, DELTA_CAP, EDGE_MIN).sort_values(["day", "underlying"])
@@ -268,16 +274,16 @@ def main():
     # selection quietly shrunk reads afterwards as the whole population.
     outside = picked[~picked["underlying"].isin(DIV)]
     if len(outside):
-        print(f"dropped {len(outside)} trades on {sorted(outside['underlying'].unique())}: "
+        say(f"dropped {len(outside)} trades on {sorted(outside['underlying'].unique())}: "
               f"no dividend yield measured for them")
         picked = picked[picked["underlying"].isin(DIV)]
-    print(f"selection: delta ceiling {DELTA_CAP}, edge threshold {EDGE_MIN:+.0f}, "
+    say(f"selection: delta ceiling {DELTA_CAP}, edge threshold {EDGE_MIN:+.0f}, "
           f"width 1-5 strikes")
-    print(f"trades {len(picked)}, trading days with at least one {picked['day'].nunique()}, "
+    say(f"trades {len(picked)}, trading days with at least one {picked['day'].nunique()}, "
           f"period {picked['day'].min()} .. {picked['day'].max()}")
-    print(f"underlyings: {dict(picked.groupby('underlying').size())}, "
+    say(f"underlyings: {dict(picked.groupby('underlying').size())}, "
           f"width in dollars: {sorted(picked['width'].unique())}")
-    print(f"cost: book {grid.SLIP} + fees {grid.FEE} = {EXIT_COST:.0f} usd "
+    say(f"cost: book {grid.SLIP} + fees {grid.FEE} = {EXIT_COST:.0f} usd "
           f"for one crossing of the book per spread\n")
 
     paths = {s: load_paths(s) for s in picked["underlying"].unique()}
@@ -303,7 +309,7 @@ def main():
                 iv_l = iv_s
         trades.append(t)
         ivs[i] = (iv_s, iv_l)
-    print(f"volatility of the long leg: no price found for {no_long}, "
+    say(f"volatility of the long leg: no price found for {no_long}, "
           f"not recovered for {no_iv} - there the short leg's volatility is used")
 
     # a check on the model: at entry the repricing must return the market credit
@@ -313,12 +319,18 @@ def main():
         spot = float(picked.loc[t["key"], "spot"])
         err.append(spread_value(t, spot, at, *ivs[t["key"]]) - t["credit"])
     err = np.array(err)
-    print(f"model agreement at entry: median |error| {np.median(np.abs(err)):.4f} usd, "
+    say(f"model agreement at entry: median |error| {np.median(np.abs(err)):.4f} usd, "
           f"worst {np.abs(err).max():.4f} usd\n")
 
-    print(f"spread width in dollars: median {picked['width'].median():.2f}, "
+    say(f"spread width in dollars: median {picked['width'].median():.2f}, "
           f"three quarters below {picked['width'].quantile(0.75):.2f} - a share of the width "
           f"is a SMALL shift of the level, so shares above one are taken too\n")
+
+    return picked, trades, paths, ivs
+
+
+def main():
+    picked, trades, paths, ivs = population()
 
     FRACTIONS = (0.25, 0.5, 1.0, 1.5, 2.0)
     base = run_rule(trades, paths, ivs, "hold")

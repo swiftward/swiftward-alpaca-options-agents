@@ -584,12 +584,12 @@ sessions:
       Do not deal with entry orders: the harness leads them.
       If no positions are open, say so in one line and end.
       **A vertical is not closed because price passed its sold strike.** Measured
-      over 638 trades and two and a half years: closing on a touch of the sold strike
-      returns -$0.33 a trade, closing at the bought strike +$0.86, holding to expiry
-      +$2.63. The loss is bounded by the width whatever price does, while closing
-      pays the crossing on both legs and gives up the chance the underlying comes
-      back. At the sold strike the spread is already worth about 0.62 of its width,
-      and 37% of those positions finish out of the money anyway.
+      over 672 trades from January 2024 to August 2026 (`research/exit_rules.py`):
+      holding to expiry pays $2.94 a trade, closing on the touch pays $2.32 - worse
+      by $0.62. Price passed the sold strike in 42.7% of trades and only 26.6% ended
+      breached, so the defence paid 108 crossings that bought nothing. The loss is
+      bounded by the width whatever price does, while closing pays the crossing on
+      both legs and gives up the chance the underlying comes back.
       The near leg is crossed more often here than on the neighbouring account: that
       is expected and is the price of being paid more, and it is exactly why closing
       on the touch costs this account the most.

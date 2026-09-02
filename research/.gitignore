@@ -5,10 +5,14 @@
 data/*
 # and the same name as a symlink, which neither of the above matches
 data
-# The one exception, which is the point of `make claims`: the structures the rule
-# could have seen. Five megabytes, DERIVED rather than raw market data, and
-# without it every number this project publishes needs a credential to check.
+# The exceptions, which are the point of `make claims`: everything the published
+# numbers are recomputed from. Twenty-three megabytes, and without it every number
+# this project publishes needs a credential to check. `collect_exits.py` rebuilds
+# them; they are committed so that nobody has to.
 !data/candidates_bt.parquet
+!data/stock_*_15m.json
+!data/contracts_*.json
+!data/obars_*.jsonl
 .venv/
 __pycache__/
 *.pyc

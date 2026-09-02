@@ -183,7 +183,7 @@ in life, and it is printed only to show how much is left on the table.
 
 ### And one that measured a rule out of existence
 
-`exit_rules.py` — 638 trades over two and a half years, every exit rule run over
+`exit_rules.py` — 672 trades from January 2024 to August 2026, every exit rule run over
 the same trades.
 
 Closing when the short strike is touched — the defence as it stood — **loses to
@@ -198,9 +198,14 @@ in did not survive.
 uv run python grid.py
 ```
 
-The data lives in `data/` and is not committed — the paths file alone is 109 MB.
-The collectors rebuild it from Alpaca; `alpaca.py` reads the keys from the `.env`
-this repository already uses.
+What `make claims` recomputes is committed: the structures the rule could have
+seen, and the 15-minute paths and entry-window leg prices the exit rules are walked
+along. Twenty-three megabytes, and it means every published number can be checked
+without a credential. `collect_exits.py` rebuilds that part from Alpaca.
+
+The rest of `data/` is not committed — the minute-by-minute paths file alone is
+109 MB. Its collectors rebuild it; `alpaca.py` reads the market-data key from the
+`.env` this repository already uses.
 
 ## What the data does not hold
 

@@ -701,12 +701,12 @@ sessions:
       $0.61 at a loss of $1,694, on a day the underlying was rising after earnings.
 
       **A vertical is not closed because the price passed its sold strike.** Measured
-      over 638 trades and two and a half years: closing on a touch of the sold strike
-      returns -$0.33 a trade, closing at the bought strike +$0.86, holding to expiry
-      +$2.63. The loss is bounded by the width whatever the price does, while closing
-      pays the crossing on both legs and gives up the chance the underlying comes
-      back. At the sold strike the spread is already worth about 0.62 of its width,
-      and 37% of those positions finish out of the money anyway.
+      over 672 trades from January 2024 to August 2026 (`research/exit_rules.py`):
+      holding to expiry pays $2.94 a trade, closing on the touch pays $2.32 - worse
+      by $0.62. The price passed the sold strike in 42.7% of trades and only 26.6%
+      ended breached, so the defence paid 108 crossings that bought nothing. The loss
+      is bounded by the width whatever the price does, while closing pays the
+      crossing on both legs and gives up the chance the underlying comes back.
 
       So this window sends no closing order for a vertical. Name each position, its
       current result, and whether the price stands short of, between, or beyond its
