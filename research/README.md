@@ -159,8 +159,8 @@ not, and the whole rule lives in the path.
 
 | | total | trades in the red | worst |
 |---|---|---|---|
-| hold to expiry | $2,287 | 26% | −$189 |
-| **close at 35%** | **$6,292** | **9%** | **−$143** |
+| hold to expiry | $2,461 | 26% | −$189 |
+| **close at 35%** | **$6,722** | **9%** | **−$143** |
 
 Better on both counts, which is rare — usually more return is paid for with more
 risk. The peak is at 35%, the plateau runs 35–40, and it falls away after 50. Each

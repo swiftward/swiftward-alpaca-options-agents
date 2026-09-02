@@ -10,7 +10,9 @@ It needs no Alpaca key and reaches no network. Everything it reads is committed:
 
 A claim that fails here is a claim we must correct, not a test to relax.
 """
+import json
 import sys
+from pathlib import Path
 
 import pandas as pd
 
@@ -89,6 +91,31 @@ def main() -> None:
     claim("closing on the touch is worse than holding",
           a_trade(means["closing on the touch pays 2.32 a trade"][0])
           < a_trade(means["holding to expiry pays 2.94 a trade"][0]), True)
+
+    # The take-profit share. `threshold.py` reads a 114 MB path file that stays out
+    # of the repository; `reduce_paths.py` keeps the only thing the rule asks of a
+    # path - the minutes where the buy-back cost fell to a new low - and that
+    # reproduces every share exactly, in 186 KB.
+    buyback = json.loads(Path("data/buyback_lows.json").read_text())
+
+    def take_profit(share):
+        out = []
+        for x in buyback:
+            target = x["credit"] * share
+            reached = [c for c in x["lows"] if c <= target]
+            out.append(x["pnl_hold"] if not reached
+                       else (x["credit"] - reached[0]) * 100 - (BOOK * 100 + FEE) * 2)
+        return pd.Series(out)
+
+    held = pd.Series([x["pnl_hold"] for x in buyback])
+    claim("the take-profit measurement covers 597 trades", len(buyback), 597, 0)
+    claim("holding those to expiry returns 2461", round(held.sum()), 2461, 0)
+    claim("a quarter of them end in the red", round(float((held < 0).mean()), 2), 0.26, 0.005)
+    at_share = take_profit(0.35)
+    claim("closing at 0.35 of the credit returns 6722", round(at_share.sum()), 6722, 0)
+    claim("closing at 0.35 leaves 9 percent in the red",
+          round(float((at_share < 0).mean()), 2), 0.09, 0.005)
+    claim("closing at 0.35 beats holding", float(at_share.sum()) > float(held.sum()), True)
 
     width = 60
     print(f"{'':<6}{'claim':<{width}}{'computed':>14}  {'published':>10}")

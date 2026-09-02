@@ -13,6 +13,7 @@ data
 !data/stock_*_15m.json
 !data/contracts_*.json
 !data/obars_*.jsonl
+!data/buyback_lows.json
 .venv/
 __pycache__/
 *.pyc

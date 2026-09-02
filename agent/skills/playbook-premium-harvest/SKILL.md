@@ -204,7 +204,7 @@ Two things follow for you:
 This exists because for the first two days of this account nothing closed a
 winner at all. On 28 August a QQQ 725/726 spread had given back three quarters of
 its credit with no rule that could see it, holding $13,770 of tail for the last
-$170. Measured over the 553 trades this playbook picked in 646 days: held to
-expiry they make $2,287 with a quarter of them in the red; bought back at the
-measured share they make $6,292 with a tenth. Better on both counts, which is
+$170. Measured over the 597 trades this playbook picked in 646 days: held to
+expiry they make $2,461 with a quarter of them in the red; bought back at the
+measured share they make $6,722 with a tenth. Better on both counts, which is
 rare enough to be worth saying.

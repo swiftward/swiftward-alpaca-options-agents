@@ -120,9 +120,9 @@ parameters:
   crush_implied_over_realized: "sell at 1.3 or above; at 0.8 or below buy the move instead of selling; in between take nothing. AVGO has moved a median of 8.0% net of the market on its last 14 reports, so this is 10.4% to sell and 6.4% to buy"
 
   # When a winner is bought back, as a share of the credit it was opened for.
-  # Measured over the minute-by-minute path of 553 trades across 646 days: held
-  # to expiry the rule returns 2,287 dollars with 26% losing trades, closed here
-  # it returns 6,292 with 9%. The close is charged the full width of the book and
+  # Measured over the minute-by-minute path of 597 trades across 646 days: held
+  # to expiry the rule returns 2,461 dollars with 26% losing trades, closed here
+  # it returns 6,722 with 9%. The close is charged the full width of the book and
   # the fee, twice.
   #
   # It lives here rather than in the deployment because it is a TRADING decision,
