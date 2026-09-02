@@ -220,7 +220,27 @@ parameters:
   # the sweep kept 171 rows whose average structure cannot clear its own
   # break-even. The entry threshold of +3 refuses them anyway, so no trade was
   # ever at stake; they simply took room in a list a session reads.
-  screener_dearest: "100"
+  #
+  # LOWERED TO 40 ON 2 SEPTEMBER, on the fills rather than on the expectancy.
+  # The measurement above is about what a structure EARNS. This is about whether
+  # it can be bought at all, which is a different question and the one that has
+  # cost us both days.
+  #
+  # What the crossing eats of the credit, by name, over the day's own sweeps:
+  #
+  #   SOXL 82%   BRK.B 74%   DIA 69%   GLD 68%   SMH 66%   AMD 48%
+  #   PEP 43%    META 33%    MU 30%    IWM 23%   QQQ 18%   SPY 18%
+  #
+  # At 100 a structure whose crossing eats two thirds of its premium reaches the
+  # top of the list on edge alone - SMH showed 4.87 today and took both entry
+  # attempts. Neither filled: the book paid 0.70 against our 0.76, then 0.14
+  # against our 0.20. On a book that wide the price that clears our threshold and
+  # the price the book pays are simply different prices.
+  #
+  # 40 keeps every name that has ever filled for us - META at 33, MU at 30, IWM at
+  # 23, QQQ and SPY at 18 - and drops every one that has not. It costs candidates
+  # we could not have bought.
+  screener_dearest: "40"
   # 0.30, not 0.45, and the two numbers were fighting each other. The rule tells
   # the session "no more than 0.30" while this told the screener to OFFER up to
   # 0.45 - so the list handed to a session contained structures its own rule would
