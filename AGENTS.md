@@ -18,6 +18,13 @@ Do not lean on anything that runs after the push. The language check in particul
 
 No client of ours is named in this repository, and nothing is copied here out of a client's repository or folder - code, styles, documents, data. This repository is published whole, and what is committed stays in the history after it is deleted. Write our own.
 
+## People
+
+Nobody on the team is named here either, and a record of something going wrong
+names the behaviour rather than whose agent produced it. A trial that caught a
+session repeating itself is worth keeping; who was at the keyboard is not part of
+the finding, and to a reader who does not know us it reads as blame.
+
 ## What is here
 
 `agent/` - the declarations the trading session runs from, and `agent/AGENTS.md`, which is the session's own instruction, not this one.
