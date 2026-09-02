@@ -285,6 +285,21 @@ sessions:
       There is no other reading: a date that does not match is NOT a reason to
       finish.
       The midday entry window. Run premium-harvest.
+
+      **Re-price SIX candidates, not the skill's three.** Take the best six by
+      `edge_points`, check them on fresh quotes, and take the best that clears. On
+      1 September all three windows ended empty, and each for the same reason: the
+      top candidate's edge collapsed when its legs were re-read, and there was
+      nothing left to fall back on. Three checks are enough where the list predicts
+      the fresh quote; here it does not.
+
+      The skill holds this at three for a measured reason - turns run one at a
+      time, and on 28 August two entry windows took 58 per cent of the day's turn
+      time and left the defence 38 minutes late while four structures sat in its
+      closing zone. That cost is bounded here: this declaration opens three entry
+      windows a day, not one every ten minutes, so at most three turns a day grow
+      longer. If the turn is running long, stop checking and take the best that has
+      cleared so far rather than spending the defence's place in the queue.
       The rule lives in the skill in full and is not repeated here. Your limits -
       what one position and the whole book may lose, which underlyings, which
       expirations - come from the envelope (read_envelope). They are not in this
@@ -322,6 +337,21 @@ sessions:
       no more than one underlying in this window.
       If none clears it, say in one line what each of them paid and finish.
 
+      **Re-price SIX candidates, not the skill's three.** Take the best six by
+      `edge_points`, check them on fresh quotes, and take the best that clears. On
+      1 September all three windows ended empty, and each for the same reason: the
+      top candidate's edge collapsed when its legs were re-read, and there was
+      nothing left to fall back on. Three checks are enough where the list predicts
+      the fresh quote; here it does not.
+
+      The skill holds this at three for a measured reason - turns run one at a
+      time, and on 28 August two entry windows took 58 per cent of the day's turn
+      time and left the defence 38 minutes late while four structures sat in its
+      closing zone. That cost is bounded here: this declaration opens three entry
+      windows a day, not one every ten minutes, so at most three turns a day grow
+      longer. If the turn is running long, stop checking and take the best that has
+      cleared so far rather than spending the defence's place in the queue.
+
   # NO FRIDAY 4 September: the account's result is settled by Thursday's close, so
   # a position opened on the Friday cannot earn its keep and has only hours in
   # which to lose. Nothing is opened that day.
@@ -348,6 +378,21 @@ sessions:
       There is no other reading: a date that does not match is NOT a reason to
       finish.
       The main entry window of the day. Run premium-harvest.
+
+      **Re-price SIX candidates, not the skill's three.** Take the best six by
+      `edge_points`, check them on fresh quotes, and take the best that clears. On
+      1 September all three windows ended empty, and each for the same reason: the
+      top candidate's edge collapsed when its legs were re-read, and there was
+      nothing left to fall back on. Three checks are enough where the list predicts
+      the fresh quote; here it does not.
+
+      The skill holds this at three for a measured reason - turns run one at a
+      time, and on 28 August two entry windows took 58 per cent of the day's turn
+      time and left the defence 38 minutes late while four structures sat in its
+      closing zone. That cost is bounded here: this declaration opens three entry
+      windows a day, not one every ten minutes, so at most three turns a day grow
+      longer. If the turn is running long, stop checking and take the best that has
+      cleared so far rather than spending the defence's place in the queue.
 
   # NO FRIDAY 4 September: the account's result is settled by Thursday's close, so
   # a position opened on the Friday cannot earn its keep and has only hours in
