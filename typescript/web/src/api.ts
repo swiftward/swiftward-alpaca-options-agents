@@ -11,7 +11,10 @@ const readSide = import.meta.env.VITE_STATE_URL ?? ''
 
 export type Account = {
   equity: number
-  last_equity: number
+  // Optional because the broker does not always answer with it, and a change
+  // measured against a missing yesterday is NaN on the page rather than an error
+  // anyone would see.
+  equity_yesterday?: number
   cash: number
   buying_power: number
   status: string

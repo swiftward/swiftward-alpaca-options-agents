@@ -161,8 +161,9 @@ function Page({ all }: { all: Everything }) {
 }
 
 function Account({ money, line }: { money: Money; line?: Snapshot[] }) {
-  const day = money.account.equity - money.account.last_equity
-  const dayShare = money.account.last_equity === 0 ? 0 : day / money.account.last_equity
+  const yesterday = money.account.equity_yesterday
+  const day = yesterday === undefined ? undefined : money.account.equity - yesterday
+  const dayShare = yesterday ? (day ?? 0) / yesterday : 0
 
   // P&L from the START, not from yesterday's close. It is the first thing the
   // work is judged by, and until now the page did not carry it at all: it showed
@@ -191,12 +192,14 @@ function Account({ money, line }: { money: Money; line?: Snapshot[] }) {
       )}
       {/* The arrow is not decoration: colour alone is unreadable to those who do
           not distinguish it, and a second cue fixes that. */}
-      <Figure
-        name="today"
-        value={`${signed(day)} (${percent(dayShare)})`}
-        tone={day > 0 ? 'gain' : day < 0 ? 'loss' : undefined}
-        icon={day > 0 ? ArrowUpRight : day < 0 ? ArrowDownRight : Minus}
-      />
+      {day === undefined ? null : (
+        <Figure
+          name="today"
+          value={`${signed(day)} (${percent(dayShare)})`}
+          tone={day > 0 ? 'gain' : day < 0 ? 'loss' : undefined}
+          icon={day > 0 ? ArrowUpRight : day < 0 ? ArrowDownRight : Minus}
+        />
+      )}
       <Figure name="cash" value={dollars(money.account.cash)} />
       <Figure name="buying power" value={dollars(money.account.buying_power)} />
     </Figures>
