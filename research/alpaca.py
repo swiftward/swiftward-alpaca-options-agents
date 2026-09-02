@@ -37,9 +37,11 @@ def _env(name: str) -> str:
 
 
 def headers() -> dict[str, str]:
+    # The market-data credential, not an account's. Each account has its own keys in
+    # the same file and they can trade; nothing here may reach for one.
     return {
-        "APCA-API-KEY-ID": _env("ALPACA_API_KEY_ID"),
-        "APCA-API-SECRET-KEY": _env("ALPACA_API_SECRET_KEY"),
+        "APCA-API-KEY-ID": _env("ALPACA_DATA_KEY_ID"),
+        "APCA-API-SECRET-KEY": _env("ALPACA_DATA_SECRET_KEY"),
     }
 
 
