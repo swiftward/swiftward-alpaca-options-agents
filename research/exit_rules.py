@@ -263,6 +263,14 @@ def main():
     frame = pd.read_parquet(DATA / "candidates_bt.parquet")
     prepared = grid.prepare(frame)
     picked = grid.pick(prepared, DELTA_CAP, EDGE_MIN).sort_values(["day", "underlying"])
+    # Pricing an exit needs the underlying's dividend yield, and DIV holds only the
+    # names it was measured for. Dropping the rest is stated rather than silent: a
+    # selection quietly shrunk reads afterwards as the whole population.
+    outside = picked[~picked["underlying"].isin(DIV)]
+    if len(outside):
+        print(f"dropped {len(outside)} trades on {sorted(outside['underlying'].unique())}: "
+              f"no dividend yield measured for them")
+        picked = picked[picked["underlying"].isin(DIV)]
     print(f"selection: delta ceiling {DELTA_CAP}, edge threshold {EDGE_MIN:+.0f}, "
           f"width 1-5 strikes")
     print(f"trades {len(picked)}, trading days with at least one {picked['day'].nunique()}, "
