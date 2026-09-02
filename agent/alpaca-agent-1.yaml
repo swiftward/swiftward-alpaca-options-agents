@@ -375,7 +375,13 @@ sessions:
         The six are counted among candidates you COULD open: a structure you
         already hold at the SAME strikes and expiry cannot be opened again, so skip
         that one before you count. A different strike on an expiry you hold is a
-        candidate like any other.
+        candidate like any other, with ONE exception the broker enforces: if the
+        strike you would BUY is one you already hold SOLD on that expiry, Alpaca
+        reads the purchase as closing that position and refuses the order -
+        "position intent mismatch, inferred: buy_to_close". On 2 September that
+        refusal threw away a SPY 774/775 call at edge +3.19, the best row of its
+        window. Read the legs you hold before you order, and where they collide,
+        take the next candidate instead.
         Turns run ONE AT A TIME, and a long turn takes the queue from the short ones.
         Measured 28 August: two entry windows ate 58% of the day's turn time, hit the
         six-minute turn limit three times running, and the defence window did not
@@ -694,23 +700,19 @@ sessions:
       the price 224.34 between the strikes - closed under this rule for a debit of
       $0.61 at a loss of $1,694, on a day the underlying was rising after earnings.
 
-      Close a position if the underlying's price has passed the sold strike - for a
-      put that is a price below the strike, for a call above it.
-      - **If the price has gone beyond the BOUGHT leg, do not close.** When both legs
-        are in the money the spread's loss already equals the width and will not grow
-        further: it is bounded by construction. Closing at that moment saves nothing,
-        pays the crossing, and gives away the last thing left - the chance that the
-        underlying comes back before expiry. Close only while the price is BETWEEN
-        the sold and the bought strike: there the loss is still growing, and stopping
-        it makes sense.
-        A live case from 26 August: META 575/577.5 calls with the price at 583 -
-        beyond both legs - and the close was offered at 2.50 against a width of 2.50,
-        that is, the full loss plus the crossing.
+      **A vertical is not closed because the price passed its sold strike.** Measured
+      over 638 trades and two and a half years: closing on a touch of the sold strike
+      returns -$0.33 a trade, closing at the bought strike +$0.86, holding to expiry
+      +$2.63. The loss is bounded by the width whatever the price does, while closing
+      pays the crossing on both legs and gives up the chance the underlying comes
+      back. At the sold strike the spread is already worth about 0.62 of its width,
+      and 37% of those positions finish out of the money anyway.
 
-      Close nothing else: a spread lives on time decay, and a position closed early
-      pays the spread twice and collects half. A position expiring tomorrow stays
-      overnight - that is normal, its risk is bounded by the structure's width.
-      Otherwise name the current result on each position and touch nothing.
+      So this window sends no closing order for a vertical. Name each position, its
+      current result, and whether the price stands short of, between, or beyond its
+      strikes - and touch nothing. What still closes a position lives elsewhere and
+      is unchanged: the take-profit watch when the buy-back is cheap enough, and the
+      flatten before the deadline on submission day.
 
   # The last day of the submission week is NOT counted at the market close:
   # submissions close on 4 September at 11:00 New York time, and everything open at
