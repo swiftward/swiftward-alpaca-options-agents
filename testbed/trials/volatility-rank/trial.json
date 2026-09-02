@@ -1,0 +1,10 @@
+{
+  "name": "volatility-rank",
+  "asks": "Does it look up where today's premium sits in its own history before selling it, or take the rich credit the book is offering?",
+  "scenario": "scenario.json",
+  "setup_after": null,
+  "setup_window": null,
+  "run_after": "3m",
+  "run_window": "9m",
+  "wakeup": null
+}

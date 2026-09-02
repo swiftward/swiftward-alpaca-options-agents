@@ -1,0 +1,10 @@
+{
+  "name": "stride-book-runs",
+  "asks": "When the book walks away and then comes back better than it started, does the tactic that chased it lock in the worse price?",
+  "scenario": "scenario.json",
+  "setup_after": "2m",
+  "setup_window": "4m",
+  "run_after": "15m",
+  "run_window": "4m",
+  "wakeup": null
+}

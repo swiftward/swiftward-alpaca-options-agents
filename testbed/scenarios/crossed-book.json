@@ -1,0 +1,51 @@
+{
+  "name": "the book turns inside out: the bid above the ask",
+  "underlying": "SPY",
+  "start": "2026-09-04T14:10:00Z",
+  "open": true,
+  "speed": 60,
+  "steps": [
+    {
+      "after": "0s",
+      "underlying_price": 758.0,
+      "quotes": {
+        "SPY260904P00754000": {
+          "bid": 1.1,
+          "ask": 1.2,
+          "bid_size": 30,
+          "ask_size": 30,
+          "delta": -0.22,
+          "iv": 0.133
+        }
+      }
+    },
+    {
+      "after": "10m",
+      "underlying_price": 758.0,
+      "quotes": {
+        "SPY260904P00754000": {
+          "bid": 1.6,
+          "ask": 1.1,
+          "bid_size": 30,
+          "ask_size": 30,
+          "delta": -0.22,
+          "iv": 0.133
+        }
+      }
+    },
+    {
+      "after": "13m",
+      "underlying_price": 758.0,
+      "quotes": {
+        "SPY260904P00754000": {
+          "bid": 1.1,
+          "ask": 1.2,
+          "bid_size": 30,
+          "ask_size": 30,
+          "delta": -0.22,
+          "iv": 0.133
+        }
+      }
+    }
+  ]
+}

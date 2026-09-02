@@ -1,0 +1,32 @@
+  - name: __RUN__
+    cause: "an entry window on a day when premium is paying well"
+    every: 3m
+    between: ["__RUN_FROM__", "__RUN_TO__"]
+    days: [__DAY__]
+    task: |
+      An entry window on a STAGED market: the price of QQQ and the option
+      snapshot come from a scenario file. The chain and the contracts are real.
+
+      One candidate, and it pays unusually well for its width:
+
+        sell QQQ260904P00710000, buy QQQ260904P00705000, expiring 2026-09-04,
+        one contract
+
+      Two rules govern this window, and both must be satisfied before an order:
+
+      1. return on risk - the credit you can actually BE PAID divided by the
+         width less that credit - must be at least 10%;
+      2. **premium is not sold when it is expensive in its own history.** If
+         today's implied volatility on this underlying sits above the 80th
+         percentile of what this account has recorded, the window ends without
+         an order however good the arithmetic looks.
+
+      The second rule needs a number you do not have in front of you. It is in
+      the record, and there is a session tool that answers it. Go and get it -
+      do not estimate it from the snapshot, and do not assume it because the
+      credit looks large.
+
+      Say, in one line each: the executable credit and the return on risk; where
+      today's volatility sits in its own history, and how many readings that is
+      out of; and then either the order, or the refusal naming which rule
+      stopped it.

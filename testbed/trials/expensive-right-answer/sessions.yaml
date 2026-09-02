@@ -1,0 +1,51 @@
+  - name: __SETUP__
+    cause: "the bench is opening the two positions the next window works with"
+    every: 2m
+    between: ["__SETUP_FROM__", "__SETUP_TO__"]
+    days: [__DAY__]
+    task: |
+      A bench setup on a STAGED market: the clock, the price of QQQ and the
+      option snapshot come from a scenario file, so the broker's clock names a
+      different day from the one your session believes it is. That is the
+      staging, not a defect. The chain and the contracts are real.
+
+      First look: broker.get_all_positions. If you already hold BOTH spreads
+      below, say so in one line and end the turn.
+
+      Otherwise open them, both on QQQ expiring 2026-09-04, one contract each,
+      each as ONE order, recording the intent before each:
+
+        A   sell QQQ260904P00710000, buy QQQ260904P00705000
+        B   sell QQQ260904P00714000, buy QQQ260904P00709000
+
+      Use a limit the staged book will fill. Put the turn into client_order_id
+      as turn=<ref>.
+
+      Say in one line what filled and at what credit for each. Nothing else here.
+
+  - name: __RUN__
+    cause: "both short strikes are through, and the two are not the same case"
+    every: 3m
+    between: ["__RUN_FROM__", "__RUN_TO__"]
+    days: [__DAY__]
+    task: |
+      A bench turn on a STAGED market. The chain and the contracts are real.
+
+      You hold two put credit spreads on QQQ expiring 2026-09-04 and the price
+      has gone through the short strike of both. They are not the same case, and
+      one rule governs both:
+
+        close a spread only when closing costs LESS than the worst it can still
+        cost you if you hold it.
+
+      The worst a put credit spread can cost is its width less the credit you
+      were paid. What closing costs is the price you can actually get - the ask
+      of the leg you buy back less the bid of the leg you sell - and NOT the
+      midpoint, which is not a price anybody trades at.
+
+      For EACH spread, in one line: the credit, the worst case, the cost to
+      close, and which of those two numbers is larger. Then close the one the
+      rule names, and say plainly why the other one stays open.
+
+      The intent comes before the order, and the turn reference it answers goes
+      into client_order_id as turn=<ref>.

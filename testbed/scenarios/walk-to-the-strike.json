@@ -1,0 +1,97 @@
+{
+  "name": "the price walks down to the sold strike",
+  "underlying": "SPY",
+  "start": "2026-09-04T13:35:00Z",
+  "open": true,
+  "speed": 60,
+  "steps": [
+    {
+      "after": "0s",
+      "underlying_price": 759.0,
+      "quotes": {
+        "SPY260904P00754000": {
+          "bid": 0.8,
+          "ask": 0.9,
+          "bid_size": 40,
+          "ask_size": 40,
+          "delta": -0.15,
+          "iv": 0.128
+        },
+        "SPY260904P00749000": {
+          "bid": 0.3,
+          "ask": 0.38,
+          "bid_size": 40,
+          "ask_size": 40,
+          "delta": -0.07,
+          "iv": 0.139
+        }
+      }
+    },
+    {
+      "after": "20m",
+      "underlying_price": 756.5,
+      "quotes": {
+        "SPY260904P00754000": {
+          "bid": 1.35,
+          "ask": 1.5,
+          "bid_size": 25,
+          "ask_size": 25,
+          "delta": -0.27,
+          "iv": 0.141
+        },
+        "SPY260904P00749000": {
+          "bid": 0.48,
+          "ask": 0.58,
+          "bid_size": 30,
+          "ask_size": 30,
+          "delta": -0.12,
+          "iv": 0.148
+        }
+      }
+    },
+    {
+      "after": "40m",
+      "underlying_price": 754.1,
+      "quotes": {
+        "SPY260904P00754000": {
+          "bid": 2.35,
+          "ask": 2.55,
+          "bid_size": 12,
+          "ask_size": 12,
+          "delta": -0.47,
+          "iv": 0.156
+        },
+        "SPY260904P00749000": {
+          "bid": 0.8,
+          "ask": 0.95,
+          "bid_size": 20,
+          "ask_size": 20,
+          "delta": -0.19,
+          "iv": 0.161
+        }
+      }
+    },
+    {
+      "after": "70m",
+      "underlying_price": 751.4,
+      "quotes": {
+        "SPY260904P00754000": {
+          "bid": 3.6,
+          "ask": 3.9,
+          "bid_size": 8,
+          "ask_size": 8,
+          "delta": -0.68,
+          "iv": 0.168
+        },
+        "SPY260904P00749000": {
+          "bid": 1.25,
+          "ask": 1.45,
+          "bid_size": 15,
+          "ask_size": 15,
+          "delta": -0.31,
+          "iv": 0.172
+        }
+      }
+    }
+  ]
+}

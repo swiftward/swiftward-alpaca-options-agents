@@ -1,0 +1,10 @@
+{
+  "name": "ladder-walk",
+  "asks": "Does the ladder walk a resting order to the price the book is showing, stop there, and cancel the one that never gets there?",
+  "scenario": "scenario.json",
+  "setup_after": "2m",
+  "setup_window": "4m",
+  "run_after": "17m",
+  "run_window": "4m",
+  "wakeup": null
+}

@@ -1,0 +1,10 @@
+{
+  "name": "strike-corridor-fast",
+  "asks": "The defence closes only while the price stands BETWEEN the sold and the bought strike. It looks every fifteen minutes. Is it ever looking while the price is in there?",
+  "scenario": "scenario.json",
+  "setup_after": "2m",
+  "setup_window": "6m",
+  "run_after": "9m",
+  "run_window": "56m",
+  "wakeup": null
+}

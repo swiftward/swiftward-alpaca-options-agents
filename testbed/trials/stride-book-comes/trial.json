@@ -1,0 +1,10 @@
+{
+  "name": "stride-book-comes",
+  "asks": "When the book comes to us mid-walk, how much does the faster tactic give away?",
+  "scenario": "scenario.json",
+  "setup_after": "2m",
+  "setup_window": "4m",
+  "run_after": "14m",
+  "run_window": "4m",
+  "wakeup": null
+}

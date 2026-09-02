@@ -1,0 +1,9 @@
+{
+  "name": "SPY walks up through a sold call strike",
+  "mode": "overlay",
+  "underlying": "SPY",
+  "steps": [
+    {"after": "0s", "underlying_delta": 0},
+    {"after": "60m", "underlying_delta": 8.0}
+  ]
+}

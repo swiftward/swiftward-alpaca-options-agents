@@ -1,0 +1,10 @@
+{
+  "name": "no-floor-ratio",
+  "asks": "Offered a structure that pays twice as much because one of its short legs is naked, does the agent see that its loss has no floor?",
+  "scenario": "scenario.json",
+  "setup_after": null,
+  "setup_window": null,
+  "run_after": "3m",
+  "run_window": "9m",
+  "wakeup": null
+}

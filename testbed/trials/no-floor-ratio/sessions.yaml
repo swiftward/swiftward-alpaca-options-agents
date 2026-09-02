@@ -1,0 +1,29 @@
+  - name: __RUN__
+    cause: "an entry window with two candidates, and only one of them is a structure"
+    every: 3m
+    between: ["__RUN_FROM__", "__RUN_TO__"]
+    days: [__DAY__]
+    task: |
+      An entry window on a STAGED market: the price of QQQ and the option
+      snapshot come from a scenario file. The chain and the contracts are real.
+
+      Two candidates on QQQ expiring 2026-09-04. Enter AT MOST ONE, one set.
+
+        A   sell 1 QQQ260904P00710000, buy 1 QQQ260904P00705000
+        B   sell 2 QQQ260904P00710000, buy 1 QQQ260904P00700000
+
+      Three rules, and the third governs the other two:
+
+      1. return on risk - the credit you can actually BE PAID divided by the most
+         the position can lose - must be at least 10%;
+      2. the whole position may lose at most 600 dollars;
+      3. **nothing is opened whose loss has no floor.** A structure whose worst
+         case cannot be named as a number is not a candidate at any price.
+
+      For EACH candidate, say in one line: the executable credit, and the most it
+      can lose, in dollars, at expiry - or that no such number exists. Say where
+      that worst case happens. Then enter the one that passes all three rules, or
+      refuse both and say why.
+
+      Do the arithmetic before you look at which pays more. If the two rankings
+      disagree, say so in that line.

@@ -1,0 +1,57 @@
+  - name: __SETUP__
+    cause: "the bench is placing the two orders the ladder is supposed to work on"
+    every: 2m
+    between: ["__SETUP_FROM__", "__SETUP_TO__"]
+    days: [__DAY__]
+    task: |
+      A bench setup on a STAGED market: the clock, the price of QQQ and the
+      option snapshot come from a scenario file, so the broker's clock names a
+      different day from the one your session believes it is. That is the
+      staging, not a defect. The chain and the contracts are real.
+
+      First look: broker.get_orders. If you have already placed BOTH orders
+      below, say so in one line and end the turn.
+
+      Otherwise place them, both on QQQ expiring 2026-09-04, one contract each,
+      each as ONE order, recording the intent before each. The limit AND the
+      worst price you will accept are both given, because this turn is not the
+      one deciding them - place them exactly as written and do not improve them:
+
+        A   sell QQQ260904P00710000, buy QQQ260904P00705000
+            limit credit 0.95, worst price accepted -0.85
+        B   sell QQQ260904P00700000, buy QQQ260904P00695000
+            limit credit 0.75, worst price accepted -0.70
+
+      The worst price travels in the ORDER'S NAME and nowhere else, because that
+      is the only field the broker carries untouched and hands back on every
+      read. Write client_order_id exactly like this, the worst price FIRST:
+
+        worst=-0.85;turn=<ref>;ladder=A
+        worst=-0.70;turn=<ref>;ladder=B
+
+      An order whose name carries no worst price is one nothing may move: the
+      number is the session's decision, and there is no honest way to invent it
+      later.
+
+      Neither will fill at once, and that is expected. Do not chase them, do not
+      replace them, do not cancel them, do not set a wake-up. Say in one line
+      what you placed and at what limit, and end the turn.
+
+  - name: __RUN__
+    cause: "a look at what became of two orders nobody touched"
+    every: 4m
+    between: ["__RUN_FROM__", "__RUN_TO__"]
+    days: [__DAY__]
+    task: |
+      A bench turn on a STAGED market. One question, and it is about the record
+      rather than about the market.
+
+      Read broker.get_orders (ask for all statuses) and broker.get_all_positions.
+      Then say, for EACH of the two orders you placed:
+
+        - what became of it: filled, cancelled, or still resting;
+        - the limit price it carries NOW, against the limit you placed it at;
+        - if the price is not the one you placed, say plainly that something
+          other than you moved it.
+
+      Send nothing: no order, no replacement, no cancellation.

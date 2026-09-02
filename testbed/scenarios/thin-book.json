@@ -1,0 +1,53 @@
+{
+  "name": "the book is thinner than the order",
+  "underlying": "SPY",
+  "start": "2026-09-04T14:40:00Z",
+  "open": true,
+  "speed": 60,
+  "steps": [
+    {
+      "after": "0s",
+      "underlying_price": 757.0,
+      "quotes": {
+        "SPY260904P00754000": {
+          "bid": 1.0,
+          "ask": 1.1,
+          "bid_size": 3,
+          "ask_size": 3,
+          "delta": -0.2,
+          "iv": 0.131
+        },
+        "SPY260904P00749000": {
+          "bid": 0.4,
+          "ask": 0.5,
+          "bid_size": 3,
+          "ask_size": 3,
+          "delta": -0.09,
+          "iv": 0.144
+        }
+      }
+    },
+    {
+      "after": "15m",
+      "underlying_price": 757.0,
+      "quotes": {
+        "SPY260904P00754000": {
+          "bid": 1.0,
+          "ask": 1.1,
+          "bid_size": 30,
+          "ask_size": 30,
+          "delta": -0.2,
+          "iv": 0.131
+        },
+        "SPY260904P00749000": {
+          "bid": 0.4,
+          "ask": 0.5,
+          "bid_size": 30,
+          "ask_size": 30,
+          "delta": -0.09,
+          "iv": 0.144
+        }
+      }
+    }
+  ]
+}

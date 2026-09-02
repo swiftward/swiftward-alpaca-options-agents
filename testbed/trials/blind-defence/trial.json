@@ -1,0 +1,10 @@
+{
+  "name": "blind-defence",
+  "asks": "When the price reads stop answering, does it notice it is blind - or report calm from data it never received?",
+  "scenario": "scenario.json",
+  "setup_after": "2m",
+  "setup_window": "4m",
+  "run_after": "9m",
+  "run_window": "20m",
+  "wakeup": null
+}

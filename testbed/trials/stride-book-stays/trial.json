@@ -1,0 +1,10 @@
+{
+  "name": "stride-book-stays",
+  "asks": "With the book never coming to us, does arrive reach it inside patience where tick cannot?",
+  "scenario": "scenario.json",
+  "setup_after": "2m",
+  "setup_window": "4m",
+  "run_after": "14m",
+  "run_window": "4m",
+  "wakeup": null
+}

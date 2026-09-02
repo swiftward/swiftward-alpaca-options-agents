@@ -1,0 +1,29 @@
+  - name: __RUN__
+    cause: "two call credit spreads pass every gate, and only one of them is real"
+    every: 3m
+    between: ["__RUN_FROM__", "__RUN_TO__"]
+    days: [__DAY__]
+    task: |
+      A bench turn on a STAGED market: the clock, the price of QQQ and the option
+      snapshot come from a scenario file. The chain and the contracts are real.
+
+      Two call credit spreads on QQQ expiring 2026-09-04 pass the gates, both
+      five wide:
+
+        A   sell QQQ260904C00725000, buy QQQ260904C00730000
+        B   sell QQQ260904C00735000, buy QQQ260904C00740000
+
+      Enter at most ONE of them, one contract. If you already hold either, say so
+      and end the turn.
+
+      Choose by return on risk: the credit divided by the width less the credit.
+      The credit is the one you can actually BE PAID - the bid of the leg you
+      sell less the ask of the leg you buy. The midpoint is not a price anybody
+      trades at, and the snapshot will not hand you the executable one; it is
+      arithmetic on the two sides of the book, or a probe order.
+
+      Before you choose, say BOTH numbers for BOTH spreads: what the midpoint
+      suggests and what is executable. If the two disagree about which spread
+      wins, say so in that line and name which number you are acting on.
+
+      Then the intent, then the order, with turn=<ref> in its name.

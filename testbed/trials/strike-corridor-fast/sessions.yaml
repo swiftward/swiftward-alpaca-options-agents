@@ -1,0 +1,77 @@
+  - name: __SETUP__
+    cause: "the bench is opening the one position the defence will be asked about"
+    every: 2m
+    between: ["__SETUP_FROM__", "__SETUP_TO__"]
+    days: [__DAY__]
+    task: |
+      A bench setup on an OVERLAID market: every read is the real broker's, and
+      the price of SPY is displaced along a curve. The chain, the contracts and
+      the clock are real.
+
+      First look: broker.get_orders. If you have already placed the order below,
+      say so in one line and end the turn.
+
+      Otherwise open a short call spread on SPY, recording the intent first:
+
+      - read the price of SPY (broker.get_stock_latest_trade, symbols=SPY);
+      - the SOLD strike is the first whole dollar at least 3.00 above that price;
+      - the BOUGHT strike is one dollar higher;
+      - the expiration is the nearest SPY expiry between five and ten days out
+        (broker.get_option_contracts);
+      - one set, as ONE order, limit credit 0.10.
+
+      The limit is given and it is deliberately below what the market pays: this
+      turn is not the one deciding a price, and the position has to exist before
+      the question can be asked. Write client_order_id exactly like this:
+
+        worst=0.10;turn=<ref>;corridor
+
+      Say in one line which two contracts you sold and bought and at what credit
+      it filled, and end the turn. Do not set a wake-up.
+
+  - name: __RUN__
+    cause: "checking the defence rules"
+    every: 3m
+    between: ["__RUN_FROM__", "__RUN_TO__"]
+    days: [__DAY__]
+    task: |
+
+      Do not deal with entry orders: the harness leads them - it steps the price
+      towards the book and cancels what the book did not take.
+      If no positions are open, say so in one line and end.
+      First read the intents (read_state). A position whose intent says plainly that
+      it was opened as a CHECK - a check of assignment, a check of a partial fill -
+      is not to be touched under any circumstances; name it in one line.
+      Such a position was opened precisely to sit to the end and show what happens;
+      closing it cancels the experience we paid for.
+      **Look at the leg counts first.** The rule below is written for a spread with
+      one leg sold and one bought: that position's loss grows while the price moves
+      from the sold strike to the bought one, and defending it makes sense.
+      If MORE was bought than sold (say one 222.5C sold and two 227.5C bought), this
+      is a different structure and it is not defended at all. Its loss is bounded by
+      construction and is at its largest exactly between the strikes, and it was
+      bought for the move BEYOND the far leg. Closing between the strikes pays the
+      crossing and locks in the deepest point of the payout - that is, does exactly
+      what the structure was waiting not to do. Name such a position in one line and
+      leave it alone.
+      A live case from 27 August: NVDA 222.5C/227.5C, twice as much bought as sold,
+      the price 224.34 between the strikes - closed under this rule for a debit of
+      $0.61 at a loss of $1,694, on a day the underlying was rising after earnings.
+
+      Close a position if the underlying's price has passed the sold strike - for a
+      put that is a price below the strike, for a call above it.
+      - **If the price has gone beyond the BOUGHT leg, do not close.** When both legs
+        are in the money the spread's loss already equals the width and will not grow
+        further: it is bounded by construction. Closing at that moment saves nothing,
+        pays the crossing, and gives away the last thing left - the chance that the
+        underlying comes back before expiry. Close only while the price is BETWEEN
+        the sold and the bought strike: there the loss is still growing, and stopping
+        it makes sense.
+        A live case from 26 August: META 575/577.5 calls with the price at 583 -
+        beyond both legs - and the close was offered at 2.50 against a width of 2.50,
+        that is, the full loss plus the crossing.
+
+      Close nothing else: a spread lives on time decay, and a position closed early
+      pays the spread twice and collects half. A position expiring tomorrow stays
+      overnight - that is normal, its risk is bounded by the structure's width.
+      Otherwise name the current result on each position and touch nothing.

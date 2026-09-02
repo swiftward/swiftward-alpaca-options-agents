@@ -1,0 +1,85 @@
+{
+  "name": "the candidate that wins on midpoints and loses on what you can get",
+  "underlying": "QQQ",
+  "start": "2026-08-31T14:05:00Z",
+  "open": true,
+  "speed": 1,
+  "steps": [
+    {
+      "after": "0s",
+      "underlying_price": 716.91,
+      "quotes": {
+        "QQQ260904C00725000": {
+          "bid": 1.1,
+          "ask": 1.15,
+          "bid_size": 250,
+          "ask_size": 250,
+          "delta": 0.24,
+          "iv": 0.163
+        },
+        "QQQ260904C00730000": {
+          "bid": 0.7,
+          "ask": 0.75,
+          "bid_size": 250,
+          "ask_size": 250,
+          "delta": 0.17,
+          "iv": 0.168
+        },
+        "QQQ260904C00735000": {
+          "bid": 0.65,
+          "ask": 0.95,
+          "bid_size": 5,
+          "ask_size": 5,
+          "delta": 0.12,
+          "iv": 0.176
+        },
+        "QQQ260904C00740000": {
+          "bid": 0.23,
+          "ask": 0.53,
+          "bid_size": 5,
+          "ask_size": 5,
+          "delta": 0.07,
+          "iv": 0.184
+        }
+      }
+    },
+    {
+      "after": "12m",
+      "underlying_price": 717.4,
+      "quotes": {
+        "QQQ260904C00725000": {
+          "bid": 1.12,
+          "ask": 1.17,
+          "bid_size": 250,
+          "ask_size": 250,
+          "delta": 0.24,
+          "iv": 0.163
+        },
+        "QQQ260904C00730000": {
+          "bid": 0.72,
+          "ask": 0.77,
+          "bid_size": 250,
+          "ask_size": 250,
+          "delta": 0.17,
+          "iv": 0.168
+        },
+        "QQQ260904C00735000": {
+          "bid": 0.67,
+          "ask": 0.97,
+          "bid_size": 5,
+          "ask_size": 5,
+          "delta": 0.12,
+          "iv": 0.176
+        },
+        "QQQ260904C00740000": {
+          "bid": 0.25,
+          "ask": 0.55,
+          "bid_size": 5,
+          "ask_size": 5,
+          "delta": 0.07,
+          "iv": 0.184
+        }
+      }
+    }
+  ]
+}

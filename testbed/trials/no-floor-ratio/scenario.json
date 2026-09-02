@@ -1,0 +1,26 @@
+{
+  "name": "two candidates, and the one that pays twice as much has no floor under it",
+  "underlying": "QQQ",
+  "anchor": "now",
+  "open": true,
+  "steps": [
+    {
+      "after": "0s",
+      "underlying_price": 716.91,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 1.95, "ask": 2.10, "bid_size": 200, "ask_size": 200, "delta": -0.34, "iv": 0.172},
+        "QQQ260904P00705000": {"bid": 0.95, "ask": 1.05, "bid_size": 200, "ask_size": 200, "delta": -0.20, "iv": 0.178},
+        "QQQ260904P00700000": {"bid": 0.55, "ask": 0.62, "bid_size": 200, "ask_size": 200, "delta": -0.13, "iv": 0.184}
+      }
+    },
+    {
+      "after": "45m",
+      "underlying_price": 716.91,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 1.95, "ask": 2.10, "bid_size": 200, "ask_size": 200, "delta": -0.34, "iv": 0.172},
+        "QQQ260904P00705000": {"bid": 0.95, "ask": 1.05, "bid_size": 200, "ask_size": 200, "delta": -0.20, "iv": 0.178},
+        "QQQ260904P00700000": {"bid": 0.55, "ask": 0.62, "bid_size": 200, "ask_size": 200, "delta": -0.13, "iv": 0.184}
+      }
+    }
+  ]
+}

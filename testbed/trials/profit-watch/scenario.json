@@ -1,0 +1,49 @@
+{
+  "name": "a winning spread decays past the profit line while nobody is asked anything",
+  "underlying": "QQQ",
+  "start": "2026-08-31T14:05:00Z",
+  "open": true,
+  "speed": 1,
+  "steps": [
+    {
+      "after": "0s",
+      "underlying_price": 709.5,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 1.95, "ask": 2.10, "bid_size": 200, "ask_size": 200, "delta": -0.50, "iv": 0.178},
+        "QQQ260904P00705000": {"bid": 0.85, "ask": 0.95, "bid_size": 200, "ask_size": 200, "delta": -0.31, "iv": 0.186}
+      }
+    },
+    {
+      "after": "7m",
+      "underlying_price": 714.0,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 1.05, "ask": 1.15, "bid_size": 200, "ask_size": 200, "delta": -0.33, "iv": 0.172},
+        "QQQ260904P00705000": {"bid": 0.40, "ask": 0.48, "bid_size": 200, "ask_size": 200, "delta": -0.18, "iv": 0.181}
+      }
+    },
+    {
+      "after": "12m",
+      "underlying_price": 719.0,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 0.42, "ask": 0.50, "bid_size": 200, "ask_size": 200, "delta": -0.17, "iv": 0.167},
+        "QQQ260904P00705000": {"bid": 0.14, "ask": 0.18, "bid_size": 200, "ask_size": 200, "delta": -0.08, "iv": 0.177}
+      }
+    },
+    {
+      "after": "17m",
+      "underlying_price": 721.5,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 0.30, "ask": 0.36, "bid_size": 200, "ask_size": 200, "delta": -0.12, "iv": 0.164},
+        "QQQ260904P00705000": {"bid": 0.08, "ask": 0.11, "bid_size": 200, "ask_size": 200, "delta": -0.05, "iv": 0.174}
+      }
+    },
+    {
+      "after": "45m",
+      "underlying_price": 722.0,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 0.28, "ask": 0.34, "bid_size": 200, "ask_size": 200, "delta": -0.11, "iv": 0.163},
+        "QQQ260904P00705000": {"bid": 0.07, "ask": 0.10, "bid_size": 200, "ask_size": 200, "delta": -0.04, "iv": 0.173}
+      }
+    }
+  ]
+}

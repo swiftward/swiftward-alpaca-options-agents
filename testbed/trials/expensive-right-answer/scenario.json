@@ -1,0 +1,237 @@
+{
+  "name": "two spreads in trouble, and only one is worth closing",
+  "underlying": "QQQ",
+  "start": "2026-08-31T13:35:00Z",
+  "open": true,
+  "speed": 1,
+  "steps": [
+    {
+      "after": "0s",
+      "underlying_price": 716.91,
+      "quotes": {
+        "QQQ260904P00705000": {
+          "bid": 0.55,
+          "ask": 0.65,
+          "bid_size": 250,
+          "ask_size": 250,
+          "delta": -0.13,
+          "iv": 0.171
+        },
+        "QQQ260904P00709000": {
+          "bid": 0.95,
+          "ask": 1.05,
+          "bid_size": 250,
+          "ask_size": 250,
+          "delta": -0.2,
+          "iv": 0.166
+        },
+        "QQQ260904P00710000": {
+          "bid": 1.15,
+          "ask": 1.25,
+          "bid_size": 250,
+          "ask_size": 250,
+          "delta": -0.23,
+          "iv": 0.165
+        },
+        "QQQ260904P00714000": {
+          "bid": 2.25,
+          "ask": 2.4,
+          "bid_size": 40,
+          "ask_size": 40,
+          "delta": -0.36,
+          "iv": 0.159
+        }
+      }
+    },
+    {
+      "after": "6m",
+      "underlying_price": 715.2,
+      "quotes": {
+        "QQQ260904P00705000": {
+          "bid": 0.75,
+          "ask": 0.85,
+          "bid_size": 250,
+          "ask_size": 250,
+          "delta": -0.17,
+          "iv": 0.176
+        },
+        "QQQ260904P00709000": {
+          "bid": 1.25,
+          "ask": 1.4,
+          "bid_size": 250,
+          "ask_size": 250,
+          "delta": -0.26,
+          "iv": 0.171
+        },
+        "QQQ260904P00710000": {
+          "bid": 1.5,
+          "ask": 1.62,
+          "bid_size": 250,
+          "ask_size": 250,
+          "delta": -0.29,
+          "iv": 0.17
+        },
+        "QQQ260904P00714000": {
+          "bid": 2.85,
+          "ask": 3.05,
+          "bid_size": 40,
+          "ask_size": 40,
+          "delta": -0.43,
+          "iv": 0.163
+        }
+      }
+    },
+    {
+      "after": "12m",
+      "underlying_price": 712.0,
+      "quotes": {
+        "QQQ260904P00705000": {
+          "bid": 1.25,
+          "ask": 1.4,
+          "bid_size": 250,
+          "ask_size": 250,
+          "delta": -0.26,
+          "iv": 0.184
+        },
+        "QQQ260904P00709000": {
+          "bid": 2.1,
+          "ask": 2.25,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.38,
+          "iv": 0.179
+        },
+        "QQQ260904P00710000": {
+          "bid": 2.45,
+          "ask": 2.62,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.42,
+          "iv": 0.178
+        },
+        "QQQ260904P00714000": {
+          "bid": 4.2,
+          "ask": 4.45,
+          "bid_size": 30,
+          "ask_size": 30,
+          "delta": -0.58,
+          "iv": 0.17
+        }
+      }
+    },
+    {
+      "after": "16m",
+      "underlying_price": 709.5,
+      "quotes": {
+        "QQQ260904P00705000": {
+          "bid": 1.8,
+          "ask": 1.95,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.34,
+          "iv": 0.192
+        },
+        "QQQ260904P00709000": {
+          "bid": 3.15,
+          "ask": 3.35,
+          "bid_size": 150,
+          "ask_size": 150,
+          "delta": -0.49,
+          "iv": 0.187
+        },
+        "QQQ260904P00710000": {
+          "bid": 3.6,
+          "ask": 3.8,
+          "bid_size": 150,
+          "ask_size": 150,
+          "delta": -0.53,
+          "iv": 0.186
+        },
+        "QQQ260904P00714000": {
+          "bid": 5.95,
+          "ask": 6.25,
+          "bid_size": 25,
+          "ask_size": 25,
+          "delta": -0.7,
+          "iv": 0.177
+        }
+      }
+    },
+    {
+      "after": "20m",
+      "underlying_price": 706.0,
+      "quotes": {
+        "QQQ260904P00705000": {
+          "bid": 2.35,
+          "ask": 2.5,
+          "bid_size": 150,
+          "ask_size": 150,
+          "delta": -0.44,
+          "iv": 0.201
+        },
+        "QQQ260904P00709000": {
+          "bid": 4.3,
+          "ask": 4.6,
+          "bid_size": 100,
+          "ask_size": 100,
+          "delta": -0.61,
+          "iv": 0.196
+        },
+        "QQQ260904P00710000": {
+          "bid": 5.15,
+          "ask": 5.45,
+          "bid_size": 100,
+          "ask_size": 100,
+          "delta": -0.66,
+          "iv": 0.194
+        },
+        "QQQ260904P00714000": {
+          "bid": 8.3,
+          "ask": 9.05,
+          "bid_size": 15,
+          "ask_size": 15,
+          "delta": -0.82,
+          "iv": 0.185
+        }
+      }
+    },
+    {
+      "after": "40m",
+      "underlying_price": 705.9,
+      "quotes": {
+        "QQQ260904P00705000": {
+          "bid": 2.38,
+          "ask": 2.55,
+          "bid_size": 150,
+          "ask_size": 150,
+          "delta": -0.45,
+          "iv": 0.202
+        },
+        "QQQ260904P00709000": {
+          "bid": 4.35,
+          "ask": 4.65,
+          "bid_size": 100,
+          "ask_size": 100,
+          "delta": -0.62,
+          "iv": 0.197
+        },
+        "QQQ260904P00710000": {
+          "bid": 5.2,
+          "ask": 5.5,
+          "bid_size": 100,
+          "ask_size": 100,
+          "delta": -0.67,
+          "iv": 0.195
+        },
+        "QQQ260904P00714000": {
+          "bid": 8.35,
+          "ask": 9.1,
+          "bid_size": 15,
+          "ask_size": 15,
+          "delta": -0.83,
+          "iv": 0.186
+        }
+      }
+    }
+  ]
+}

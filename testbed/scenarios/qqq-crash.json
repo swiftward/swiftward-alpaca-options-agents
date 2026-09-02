@@ -1,0 +1,73 @@
+{
+  "name": "the underlying falls three percent through the sold strike",
+  "underlying": "QQQ",
+  "start": "2026-09-04T13:35:00Z",
+  "open": true,
+  "speed": 1,
+  "steps": [
+    {
+      "after": "0s",
+      "underlying_price": 716.90,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 1.05, "ask": 1.20, "bid_size": 500, "ask_size": 500, "delta": -0.30, "iv": 0.170},
+        "QQQ260904P00705000": {"bid": 0.50, "ask": 0.60, "bid_size": 500, "ask_size": 500, "delta": -0.17, "iv": 0.185}
+      }
+    },
+    {
+      "after": "8m",
+      "underlying_price": 717.30,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 0.95, "ask": 1.08, "bid_size": 500, "ask_size": 500, "delta": -0.28, "iv": 0.168},
+        "QQQ260904P00705000": {"bid": 0.45, "ask": 0.55, "bid_size": 500, "ask_size": 500, "delta": -0.16, "iv": 0.183}
+      }
+    },
+    {
+      "after": "14m",
+      "underlying_price": 716.90,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 1.05, "ask": 1.20, "bid_size": 500, "ask_size": 500, "delta": -0.30, "iv": 0.170},
+        "QQQ260904P00705000": {"bid": 0.50, "ask": 0.60, "bid_size": 500, "ask_size": 500, "delta": -0.17, "iv": 0.185}
+      }
+    },
+    {
+      "after": "17m",
+      "underlying_price": 710.40,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 3.70, "ask": 4.00, "bid_size": 400, "ask_size": 400, "delta": -0.58, "iv": 0.195},
+        "QQQ260904P00705000": {"bid": 1.90, "ask": 2.10, "bid_size": 400, "ask_size": 400, "delta": -0.38, "iv": 0.210}
+      }
+    },
+    {
+      "after": "20m",
+      "underlying_price": 705.00,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 7.00, "ask": 7.40, "bid_size": 300, "ask_size": 300, "delta": -0.76, "iv": 0.215},
+        "QQQ260904P00705000": {"bid": 3.80, "ask": 4.10, "bid_size": 300, "ask_size": 300, "delta": -0.57, "iv": 0.228}
+      }
+    },
+    {
+      "after": "22m",
+      "underlying_price": 700.20,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 10.60, "ask": 11.10, "bid_size": 250, "ask_size": 250, "delta": -0.86, "iv": 0.232},
+        "QQQ260904P00705000": {"bid": 6.50, "ask": 6.90, "bid_size": 250, "ask_size": 250, "delta": -0.70, "iv": 0.245}
+      }
+    },
+    {
+      "after": "24m",
+      "underlying_price": 695.40,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 14.90, "ask": 15.50, "bid_size": 250, "ask_size": 250, "delta": -0.94, "iv": 0.250},
+        "QQQ260904P00705000": {"bid": 10.30, "ask": 10.80, "bid_size": 250, "ask_size": 250, "delta": -0.85, "iv": 0.262}
+      }
+    },
+    {
+      "after": "45m",
+      "underlying_price": 695.20,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 15.05, "ask": 15.65, "bid_size": 250, "ask_size": 250, "delta": -0.95, "iv": 0.252},
+        "QQQ260904P00705000": {"bid": 10.45, "ask": 10.95, "bid_size": 250, "ask_size": 250, "delta": -0.86, "iv": 0.264}
+      }
+    }
+  ]
+}

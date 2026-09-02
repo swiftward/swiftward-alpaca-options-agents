@@ -1,0 +1,153 @@
+{
+  "name": "the reads stop while the market walks through the short strike",
+  "underlying": "QQQ",
+  "start": "2026-08-31T13:35:00Z",
+  "open": true,
+  "speed": 1,
+  "steps": [
+    {
+      "after": "0s",
+      "underlying_price": 716.91,
+      "quotes": {
+        "QQQ260904P00710000": {
+          "bid": 1.15,
+          "ask": 1.25,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.23,
+          "iv": 0.165
+        },
+        "QQQ260904P00705000": {
+          "bid": 0.55,
+          "ask": 0.65,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.13,
+          "iv": 0.171
+        }
+      }
+    },
+    {
+      "after": "6m",
+      "underlying_price": 714.0,
+      "quotes": {
+        "QQQ260904P00710000": {
+          "bid": 1.95,
+          "ask": 2.1,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.34,
+          "iv": 0.172
+        },
+        "QQQ260904P00705000": {
+          "bid": 0.95,
+          "ask": 1.05,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.2,
+          "iv": 0.178
+        }
+      }
+    },
+    {
+      "after": "12m",
+      "underlying_price": 710.5,
+      "quotes": {
+        "QQQ260904P00710000": {
+          "bid": 3.2,
+          "ask": 3.4,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.48,
+          "iv": 0.181
+        },
+        "QQQ260904P00705000": {
+          "bid": 1.6,
+          "ask": 1.75,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.3,
+          "iv": 0.187
+        }
+      }
+    },
+    {
+      "after": "18m",
+      "underlying_price": 707.0,
+      "quotes": {
+        "QQQ260904P00710000": {
+          "bid": 4.9,
+          "ask": 5.15,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.62,
+          "iv": 0.19
+        },
+        "QQQ260904P00705000": {
+          "bid": 2.55,
+          "ask": 2.7,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.43,
+          "iv": 0.196
+        }
+      }
+    },
+    {
+      "after": "24m",
+      "underlying_price": 704.0,
+      "quotes": {
+        "QQQ260904P00710000": {
+          "bid": 6.8,
+          "ask": 7.1,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.74,
+          "iv": 0.199
+        },
+        "QQQ260904P00705000": {
+          "bid": 3.75,
+          "ask": 3.95,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.56,
+          "iv": 0.205
+        }
+      }
+    },
+    {
+      "after": "45m",
+      "underlying_price": 703.8,
+      "quotes": {
+        "QQQ260904P00710000": {
+          "bid": 6.85,
+          "ask": 7.15,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.75,
+          "iv": 0.2
+        },
+        "QQQ260904P00705000": {
+          "bid": 3.78,
+          "ask": 3.98,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.57,
+          "iv": 0.206
+        }
+      }
+    }
+  ],
+  "faults": [
+    {
+      "after": "8m",
+      "until": "26m",
+      "tools": [
+        "get_stock_latest_trade",
+        "get_option_snapshot",
+        "get_option_chain"
+      ],
+      "message": "rate limit reached for this session's grant check; the read was not served"
+    }
+  ]
+}

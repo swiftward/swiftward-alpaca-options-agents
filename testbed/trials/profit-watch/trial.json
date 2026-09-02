@@ -1,0 +1,10 @@
+{
+  "name": "profit-watch",
+  "asks": "Does the guard close a won structure by itself, at the right moment, without anyone being asked a thing?",
+  "scenario": "scenario.json",
+  "setup_after": "2m",
+  "setup_window": "4m",
+  "run_after": "24m",
+  "run_window": "3m",
+  "wakeup": null
+}

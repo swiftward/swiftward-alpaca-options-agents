@@ -1,0 +1,58 @@
+{
+  "name": "one leg expires and the other is left standing",
+  "underlying": "SPY",
+  "start": "2026-09-04T19:40:00Z",
+  "open": true,
+  "speed": 120,
+  "steps": [
+    {
+      "after": "0s",
+      "underlying_price": 751.5,
+      "quotes": {
+        "SPY260904P00754000": {
+          "bid": 2.45,
+          "ask": 2.6,
+          "bid_size": 20,
+          "ask_size": 20,
+          "delta": -0.72,
+          "iv": 0.17
+        },
+        "SPY260904P00749000": {
+          "bid": 0.1,
+          "ask": 0.18,
+          "bid_size": 20,
+          "ask_size": 20,
+          "delta": -0.08,
+          "iv": 0.191
+        }
+      }
+    },
+    {
+      "after": "18m",
+      "underlying_price": 751.2,
+      "quotes": {
+        "SPY260904P00754000": {
+          "bid": 2.78,
+          "ask": 2.95,
+          "bid_size": 10,
+          "ask_size": 10,
+          "delta": -0.88,
+          "iv": 0.176
+        },
+        "SPY260904P00749000": {
+          "bid": 0.01,
+          "ask": 0.05,
+          "bid_size": 10,
+          "ask_size": 10,
+          "delta": -0.02,
+          "iv": 0.21
+        }
+      }
+    },
+    {
+      "after": "25m",
+      "underlying_price": 751.0,
+      "open": false
+    }
+  ]
+}

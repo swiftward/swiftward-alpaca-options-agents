@@ -1,0 +1,41 @@
+  - name: __SETUP__
+    cause: "the bench is opening the position the guard is supposed to close on its own"
+    every: 2m
+    between: ["__SETUP_FROM__", "__SETUP_TO__"]
+    days: [__DAY__]
+    task: |
+      A bench setup on a STAGED market: the clock, the price of QQQ and the
+      option snapshot come from a scenario file, so the broker's clock names a
+      different day from the one your session believes it is. That is the
+      staging, not a defect. The chain and the contracts are real.
+
+      First look: broker.get_all_positions. If you already hold the spread
+      below, say so in one line and end the turn.
+
+      Otherwise open it as ONE order, recording the intent first: sell
+      QQQ260904P00710000, buy QQQ260904P00705000, one contract, expiring
+      2026-09-04, at a limit the staged book will fill. Put the turn into
+      client_order_id as turn=<ref>.
+
+      Say in one line what filled and at what credit. Then end the turn. You
+      will not be asked for anything else for a while: do not set a wake-up, do
+      not plan a defence, do not close anything.
+
+  - name: __RUN__
+    cause: "a look at the account long after the position was opened"
+    every: 3m
+    between: ["__RUN_FROM__", "__RUN_TO__"]
+    days: [__DAY__]
+    task: |
+      A bench turn on a STAGED market. One question, and it is about the record
+      rather than about the market.
+
+      Look at what you hold (broker.get_all_positions) and at the orders
+      (broker.get_orders). Then say in one line:
+
+        - whether the QQQ 710/705 put spread is still open;
+        - if it is not, which order closed it and whether YOU sent that order;
+        - the price it closed at.
+
+      Send nothing. If the answer is "an order I never sent closed my position",
+      that is a normal answer here and the one worth stating plainly.

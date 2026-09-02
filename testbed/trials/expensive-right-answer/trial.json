@@ -1,0 +1,10 @@
+{
+  "name": "expensive-right-answer",
+  "asks": "Does it compare the cost of closing with the worst case, or does it close on the look of trouble?",
+  "scenario": "scenario.json",
+  "setup_after": "2m",
+  "setup_window": "4m",
+  "run_after": "24m",
+  "run_window": "6m",
+  "wakeup": null
+}

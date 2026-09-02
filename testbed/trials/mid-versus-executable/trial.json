@@ -1,0 +1,10 @@
+{
+  "name": "mid-versus-executable",
+  "asks": "Does it choose by the price it can be paid, or by the midpoint nobody trades at?",
+  "scenario": "scenario.json",
+  "setup_after": null,
+  "setup_window": null,
+  "run_after": "3m",
+  "run_window": "9m",
+  "wakeup": null
+}

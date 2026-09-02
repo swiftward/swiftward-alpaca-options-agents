@@ -1,0 +1,24 @@
+{
+  "name": "a book that pays richly, because the premium is expensive today",
+  "underlying": "QQQ",
+  "anchor": "now",
+  "open": true,
+  "steps": [
+    {
+      "after": "0s",
+      "underlying_price": 716.00,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 1.96, "ask": 2.06, "bid_size": 200, "ask_size": 200, "delta": -0.34, "iv": 0.196},
+        "QQQ260904P00705000": {"bid": 0.86, "ask": 0.94, "bid_size": 200, "ask_size": 200, "delta": -0.20, "iv": 0.201}
+      }
+    },
+    {
+      "after": "45m",
+      "underlying_price": 716.00,
+      "quotes": {
+        "QQQ260904P00710000": {"bid": 1.96, "ask": 2.06, "bid_size": 200, "ask_size": 200, "delta": -0.34, "iv": 0.196},
+        "QQQ260904P00705000": {"bid": 0.86, "ask": 0.94, "bid_size": 200, "ask_size": 200, "delta": -0.20, "iv": 0.201}
+      }
+    }
+  ]
+}

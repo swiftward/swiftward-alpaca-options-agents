@@ -1,0 +1,74 @@
+{
+  "name": "the book walks to the price we asked for, but only after we have been conceding for a while",
+  "underlying": "QQQ",
+  "anchor": "now",
+  "open": true,
+  "steps": [
+    {
+      "after": "0s",
+      "underlying_price": 716.91,
+      "quotes": {
+        "QQQ260904P00710000": {
+          "bid": 1.95,
+          "ask": 2.1,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.34,
+          "iv": 0.172
+        },
+        "QQQ260904P00705000": {
+          "bid": 0.95,
+          "ask": 1.05,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.2,
+          "iv": 0.178
+        }
+      }
+    },
+    {
+      "after": "8m",
+      "underlying_price": 714.8,
+      "quotes": {
+        "QQQ260904P00710000": {
+          "bid": 2.3,
+          "ask": 2.45,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.38,
+          "iv": 0.176
+        },
+        "QQQ260904P00705000": {
+          "bid": 1.02,
+          "ask": 1.1,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.22,
+          "iv": 0.182
+        }
+      }
+    },
+    {
+      "after": "45m",
+      "underlying_price": 714.8,
+      "quotes": {
+        "QQQ260904P00710000": {
+          "bid": 2.3,
+          "ask": 2.45,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.38,
+          "iv": 0.176
+        },
+        "QQQ260904P00705000": {
+          "bid": 1.02,
+          "ask": 1.1,
+          "bid_size": 200,
+          "ask_size": 200,
+          "delta": -0.22,
+          "iv": 0.182
+        }
+      }
+    }
+  ]
+}
