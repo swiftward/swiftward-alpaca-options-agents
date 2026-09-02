@@ -61,7 +61,17 @@ parameters:
   # 4.14. "Strictly above 0" stood here until 28 August and meant trading exactly
   # on the point where the sign changes. We take +3: the most per trade, the
   # fewest trades, and deliberately a different angle from the neighbour's +2.
-  min_edge_points: "3"
+  # +2 and not +3 for the last three days, and it is the HORIZON that moves it.
+  # Over 646 days the total is what a threshold is for, and there the peak is +3.
+  # Over three days the spread of outcomes decides instead, and refusing to trade
+  # is the one choice that settles the result at zero. On the grid priced with each
+  # name's own book: +2 takes 1.00 trades a day for a total of 2,087, +3 takes 0.85
+  # for 2,146. Three per cent of the total buys seventeen per cent more trades.
+  # +1 is not the next step down but a cliff - 671, a third of the money.
+  #
+  # Counted on our own two judged days as well: of 146 fresh re-quotes on this
+  # account, 9 cleared +3 and 4 more sat between +2 and +3.
+  min_edge_points: "2"
   min_edge_points_borrowed: "strictly above 0: borrowed volatility overstates the edge"
   # Three, as on the neighbour. The two accounts now run one setting, so a number
   # that differs between them is a difference nobody chose.
