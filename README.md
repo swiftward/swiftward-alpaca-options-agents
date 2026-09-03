@@ -15,7 +15,11 @@ PASS  closing at 0.35 of the credit returns 6722                 6722    6722
 25 claims, 0 failed
 ```
 
-**[`docs/capabilities.md`](docs/capabilities.md) names every capability, where it lives, and what shows it works.** Start there if you want to know what is here; the architecture and the reasons are in [`docs/architecture.md`](docs/architecture.md).
+Three places to go from here:
+
+- **[`docs/capabilities.md`](docs/capabilities.md)** - every capability, where it lives, and what shows it works. Start here.
+- **[`testbed/`](testbed/README.md)** - the stand that plays the agent conditions the market will not produce on request, the thirteen trials it has run, and what they caught.
+- **[`docs/architecture.md`](docs/architecture.md)** - how the pieces fit together and why.
 
 ## What it does
 
