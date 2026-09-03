@@ -1,6 +1,12 @@
 .env
 *.local
 golang/bin/
+# A build left beside the source. `go build` with no -o writes the binary next to
+# the package, and one of those reached the first commit at golang/reconcile:
+# 18 MB of ELF in a repository judged by people who read source.
+golang/reconcile
+golang/app
+golang/rehearse
 golang/cover/
 typescript/web/node_modules/
 typescript/web/dist/
