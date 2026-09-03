@@ -101,22 +101,23 @@ A trial whose two arms cannot differ is not a trial, and it looks like a result.
 
 ## How to run one comparison
 
+Raise the trial twice on the same market and change one value between the runs:
+
 ```
-EXECUTION_STRIDE=tick   run-trial.sh stride-book-stays 5
-  ... read out, then ...
-EXECUTION_STRIDE=arrive run-trial.sh stride-book-stays 5
+EXECUTION_STRIDE=tick     ... raise the participant, read out, put it back ...
+EXECUTION_STRIDE=arrive   ... raise it again on the same scenario ...
 ```
 
-`EXECUTION_STRIDE` has to reach the participant's process; put it in the run
-script's environment beside `EXECUTION_EVERY`, not in a shared env file, so that
-the two runs of a pair cannot silently share one value.
+`EXECUTION_STRIDE` has to reach the participant's process; put it in that
+process's own environment beside `EXECUTION_EVERY`, not in a shared env file, so
+that the two runs of a pair cannot silently share one value.
 
 Read out with `execution_steps` - the price before and after every move - and the
 book's `filled_avg`.
 
 ## What this cannot show
 
-The arena fills a resting order the moment the book crosses its limit, at that
+The testbed fills a resting order the moment the book crosses its limit, at that
 limit. A real venue can fill better than the limit, and does not promise to fill
 a spread at all merely because the quote crossed. So this measures the TACTIC -
 how far and how fast the price is conceded, and whether it arrives before

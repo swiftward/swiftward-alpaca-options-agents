@@ -7,7 +7,9 @@ cannot exist, is a position sized from what was ordered or from what was filled.
 
 Run one:
 
-    ARENA_SCENARIO=arena/scenarios/walk-to-the-strike.json arena/run-proxy.sh
+    make -C testbed build
+    ARENA_SCENARIO=testbed/scenarios/walk-to-the-strike.json \
+      testbed/bin/testbed-proxy -listen 127.0.0.1:8100
 
 The proxy says so at startup and every five minutes afterwards, and **every fill
 under a scenario is marked in the book** with the same mark a bench fill carries.
@@ -25,7 +27,7 @@ never leave for the broker under any mode.
 
 A market that misbehaves is only half of what breaks an agent. The other half is
 a tool that stops answering while the market keeps moving - and that half leaves
-no trace at all, because nothing crashes. Measured on the team's own stand on
+no trace at all, because nothing crashes. Measured on our own stand on
 31 August: a grant check refused every price read for eighteen minutes, and two
 entry windows passed before anyone looked.
 
@@ -36,12 +38,12 @@ entry windows passed before anyone looked.
     }]
 
 The named tools answer with the given message for that stretch and answer
-normally outside it. Every tool the arena serves can be faulted, reads and orders
+normally outside it. Every tool the testbed serves can be faulted, reads and orders
 alike, because the two ask different questions: a read that stops answering asks
 whether the agent notices it is deciding without data; an order that is refused
 asks whether it changes its approach or repeats the same call.
 
-Refused at load, for the same reason the rest is: a tool the arena does not
+Refused at load, for the same reason the rest is: a tool the testbed does not
 serve, a window that runs backwards, a fault with no message, a fault naming no
 tools. Each of those is a fault that would never fire while looking like a test
 that passed.
@@ -60,7 +62,7 @@ a field nobody defined. The refusal names which step and why.
 
 ## Known weakness of qqq-crash.json, named by the Swiftward side
 
-Reviewed 30 August against their own source. Three of the four numbers held up:
+Reviewed 30 August. Three of the four numbers held up:
 three percent in ten minutes happens; the 5.20 debit is legitimate because it is
 the CROSSING price (buy the 710 at the 15.50 ask, sell the 705 at the 10.30 bid,
 while the midpoints give 4.65); the depth is normal.

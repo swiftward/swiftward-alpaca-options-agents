@@ -23,6 +23,7 @@ measurement that succeeds and answers a different question. Hence the rule the
 stand now works to - every trial carries a run that could have come out the other
 way.
 
-    arena/run-trial.sh strike-corridor-fast 6
-    python3 arena/trials/read-strike-corridor.py
-    arena/run-trial.sh stop 6
+Raise it the way `testbed/trials/README.md` describes, on this folder's
+`scenario.json`, then read it out:
+
+    python3 testbed/trials/read-strike-corridor.py

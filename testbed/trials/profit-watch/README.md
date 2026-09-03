@@ -6,17 +6,18 @@ The staged market then walks the position into profit. If the guard works, the
 book gets smaller with no turn behind it.
 
 **Why this one is first.** Every trial before it questioned the model while four
-of the six guards in the participants' own binary stood switched off.
-`internal/takeprofit` is compiled into that binary - `apps/app/main.go` imports
-it and builds `Watch` at line 635 - and had never once executed here, because
-`TAKE_PROFIT_AT` was zero. On 31 August the team's own backspread came apart in
-exactly this code. `TAKE_PROFIT_AT=0.35` and `TAKE_PROFIT_EVERY=30s` are now in
-`.env.arena`, with their own values from `their/public/.env.example`.
+of the six guards in the participant's binary stood switched off.
+`golang/internal/takeprofit` is compiled into that binary - `golang/apps/app`
+imports it and builds `Watch` - and had never once executed here, because
+`TAKE_PROFIT_AT` was zero. On 31 August a backspread came apart in exactly this
+code. The share is now a trading decision in the declaration, `take_profit_at:
+"0.35"`, and how often the watch looks stays in the environment,
+`TAKE_PROFIT_EVERY=30s`; the participant carries both.
 
-**The rule the guard follows** (`internal/takeprofit/step.go:136`): close when the
+**The rule the guard follows** (`golang/internal/takeprofit/step.go`): close when the
 cost to buy the structure back is at most `credit x 0.35`. The cost is executable,
 not the midpoint - the ask of the leg bought back less the bid of the leg sold
-(`BuyBack`, step.go:304). The credit is what the legs were ENTERED at, taken from
+(`BuyBack`, `step.go`). The credit is what the legs were ENTERED at, taken from
 the broker's own average prices.
 
 **The arithmetic this scenario stages.** Entry fills at bid 1.95 / ask 0.95, so
@@ -46,9 +47,9 @@ where the price only ever falls off a cliff; here they do not.
 **What to read afterwards**
 
 ```
-sqlite3 arena/arena.db "select b.name, o.submitted_at, o.status, o.client_id
+sqlite3 arena.db "select b.name, o.submitted_at, o.status, o.client_id
                         from orders o join books b using(token_hash) order by o.submitted_at"
-grep -o '"logger":"takeprofit"[^}]*' arena/agent-N.log
+grep -o '"logger":"takeprofit"[^}]*' agent-N.log
 ```
 
 A holding decision is SILENT: `consider` returns without a word when the buy-back

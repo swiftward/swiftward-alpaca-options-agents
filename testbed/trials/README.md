@@ -4,27 +4,34 @@ A trial asks one question of one agent and is built so that the wrong answers
 look like work. The scenario is only the market; a trial is four files:
 
 ```
-arena/trials/<name>/
+testbed/trials/<name>/
   scenario.json   the market: prices, clock, staged option book
   sessions.yaml   the task: the windows that ask the question
   trial.json      when each window opens, counted from the proxy's start
   README.md       what separates a right answer from a wrong one
 ```
 
-Raise one, and put it back:
+Raise one: build the proxy, start it on the trial's market, and point a harness
+at it as its broker.
 
 ```
-arena/run-trial.sh <name> <participant>
-arena/run-trial.sh stop <participant>
+make -C testbed build
+ARENA_SCENARIO=testbed/trials/<name>/scenario.json \
+ARENA_PARTICIPANTS=<token> \
+  testbed/bin/testbed-proxy -listen 127.0.0.1:8100
 ```
 
-The runner does the three things that broke, differently each time, when this was
-assembled by hand on 30 August: it restarts the proxy so the scenario AND the
-roster of tokens are re-read, it templates the declaration from
-`participant.yaml.template` rather than from a retired participant, and it names
-every window with the minute it was built in - because an `at:` window fires once
-a day and the harness restores "already ran today" from the record, so a reused
-name is a window that silently never runs.
+The harness takes `http://127.0.0.1:8100` as `BROKER_MCP_URL` and the trial's
+`sessions.yaml` as its declaration; `trial.json` says at what offset from the
+proxy's start each window opens.
+
+Three things broke, differently each time, when this was assembled by hand on
+30 August, and each is a rule for whoever raises a trial. Restart the proxy so the
+scenario AND the roster of tokens are re-read. Build the participant's declaration
+from a template rather than from a retired participant. Name every window with the
+minute it was built in - an `at:` window fires once a day and the harness restores
+"already ran today" from the record, so a reused name is a window that silently
+never runs.
 
 ## Can any harness be put on the same trial and compared?
 
@@ -33,8 +40,8 @@ that changes between runs, and the market, the task and the timing are the same
 file. Three things have to be true for the comparison to mean anything, and two
 of them were learned the hard way.
 
-**One. The rules text has to be the same.** Participants 1-5 read our arena rules;
-participant 6 reads the team's own `agent/AGENTS.md` verbatim. That difference is
+**One. The rules text has to be the same.** Participants 1-5 read our testbed rules;
+participant 6 reads this repository's own `agent/AGENTS.md` verbatim. That difference is
 deliberate - six exists to reproduce findings on the production path - but it
 means a run across 3 and 6 compares rules, harness and model at once. To compare
 harnesses, hold the rules file identical across the participants in that run.
@@ -52,7 +59,7 @@ several participants cannot reach each other; a thin-book trial can, and says so
 
 ## Reading a run out
 
-`arena/trials/measure-interrupt-priority.py` reads the interrupt trial. It takes
+`testbed/trials/measure-interrupt-priority.py` reads the interrupt trial. It takes
 the stage's anchors from the proxy's own log and the scenario file rather than
 from constants - typed in, they are wrong on the second run of the day and turn
 every order's timestamp into a plausible lie, which is how the first read-out was
@@ -75,14 +82,14 @@ us, and the trial measures our invention rather than its judgement.
 
 ## Several participants in one run
 
-`run-trial.sh <trial> 3 4 5` raises one trial for several at once: the proxy is
-restarted ONCE for the whole group, and the window times are computed from that
-single start - otherwise each has a clock of its own and there is nothing to
-compare.
+`ARENA_PARTICIPANTS` takes several tokens at once, and the proxy keeps a book per
+token. Restart it ONCE for the whole group and compute every window time from that
+single start - otherwise each participant has a clock of its own and there is
+nothing to compare.
 
 One caveat: **the depth shown in the book is one number for everybody.** A trial
 whose question turns on scarce depth (`mid-versus-executable`, whose thin leg
 shows five contracts) must be run one participant at a time.
 
-Put it back the same way: `run-trial.sh stop 3 4 5` restores the declarations,
-folds the book away and raises the proxy with no scenario.
+Put it back the same way it went up: restore each declaration, and raise the proxy
+again with no `ARENA_SCENARIO`, which is the live market with nothing staged.

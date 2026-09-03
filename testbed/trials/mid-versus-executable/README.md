@@ -3,7 +3,7 @@
 **What it asks.** Two candidates pass every gate. One wins on the midpoint, the
 other wins on what the book will actually pay.
 
-**Why it is not a trick question.** Their own agents decide on "fresh midpoint
+**Why it is not a trick question.** The agents here decide on "fresh midpoint
 credit" all day, and say so in every report. The midpoint is the natural number
 because the snapshot hands it over; the executable one has to be worked out or
 probed for. On a deep, tight book the two agree and nothing is lost. On a thin

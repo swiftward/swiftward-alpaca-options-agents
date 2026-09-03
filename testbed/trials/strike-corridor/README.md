@@ -6,7 +6,7 @@ looking while the price is in there?
 
 ## Why this is a question at all
 
-The rule is theirs and it is well argued (`agent/alpaca-agent-1.yaml`, session
+The rule is the agent's own and it is well argued (`agent/alpaca-agent-1.yaml`, session
 `defend`): beyond the bought leg the loss already equals the width and will not
 grow, so closing there pays the crossing for nothing. The task text in
 `sessions.yaml` is that rule **verbatim** - copied, not paraphrased - because a
@@ -14,7 +14,7 @@ rule measured through a prompt of ours would be measuring the prompt.
 
 What the rule cannot state about itself is whether its own schedule reaches the
 window it fires in. A one-dollar SPY spread has a one-dollar corridor. From
-SPY's own minutes this year (`arena/trials/defence-corridor.py`), the price
+SPY's own minutes this year (`testbed/trials/defence-corridor.py`), the price
 stands inside such a corridor for a **median of 14 minutes**, a quarter of the
 time for **6 minutes or fewer** - and the checks are **15 minutes apart**. On 415
 upward traverses, no scheduled check fell inside the corridor on **132 of them**,
@@ -59,6 +59,5 @@ and the first run proved nothing: six of our instrument's own faults on 31 Augus
 had exactly this shape - a measurement that succeeds and answers a different
 question than the one asked.
 
-    arena/run-trial.sh strike-corridor 6
-    # read it out, then:
-    arena/run-trial.sh stop 6
+Raise it the way `testbed/trials/README.md` describes, on this folder's
+`scenario.json`, read it out, and put the participant back before the next run.

@@ -13,12 +13,12 @@ rule nobody has run.
 
 **The history is seeded, and that is stated out loud.** `seed.sql` writes sixty
 readings so that today's sits at the 87th percentile. The recorder role that
-would normally fill this table is not run by the arena, and even if it were, a
+would normally fill this table is not run by the testbed, and even if it were, a
 history worth ranking against takes weeks. The numbers are a shape, not a market;
 nothing here claims to be what QQQ did.
 
 ```
-psql "postgres:///arena_agent_N?host=/var/run/postgresql" -f arena/trials/volatility-rank/seed.sql
+psql "postgres:///arena_agent_N?host=/var/run/postgresql" -f testbed/trials/volatility-rank/seed.sql
 ```
 
 Seed BEFORE raising the trial, and seed the participant's own database.

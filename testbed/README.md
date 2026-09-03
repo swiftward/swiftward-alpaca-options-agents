@@ -24,6 +24,25 @@ Two ways to move a market, and the difference matters:
   everywhere else. At zero displacement the overlay equals the live market to the
   cent, which is the property the whole thing rests on.
 
+## What it has caught
+
+- A guard that decided what to close by counting LEGS - right while only verticals
+  were held, wrong from the first backspread (`trials/profit-watch`, and the test
+  that now refuses a new shape without a verdict,
+  `golang/internal/takeprofit/shapes_test.go`).
+- A defence that looks every fifteen minutes at a corridor the price stands inside
+  for a median of fourteen. On 415 traverses of SPY this year no scheduled check
+  fell inside the corridor on 132 of them (`trials/strike-corridor`,
+  `trials/defence-corridor.py`).
+- A session that reported a failed gate check twice, eleven minutes apart, and then
+  did nothing while the position stood undefended. It had already happened before
+  it was made into a trial (`trials/broken-gate`).
+- Price reads refused for eighteen minutes while the underlying walked through the
+  sold strike, with nothing crashing and two entry windows passing
+  (`trials/blind-defence`).
+- A candidate paying three times the ordinary credit because one short leg is
+  naked and its loss has no floor (`trials/no-floor-ratio`).
+
 `trials/` holds the questions that have been asked and what each one found — a
 scenario, the sessions that ask it, and a README saying what separates a right
 answer from a wrong one. `trials/defence-corridor.py` and

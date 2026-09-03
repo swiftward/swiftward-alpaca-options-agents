@@ -50,9 +50,9 @@ carries no worst price"*. The ladder was right and the trial was wrong.
 ```
 psql "postgres:///arena_agent_N?host=/var/run/postgresql" -c \
   "select at, action, was, became, order_ref from execution_steps order by at"
-sqlite3 arena/arena.db "select o.submitted_at, o.status, o.limit_price, o.filled_avg, o.client_id
+sqlite3 arena.db "select o.submitted_at, o.status, o.limit_price, o.filled_avg, o.client_id
                         from orders o join books b using(token_hash) order by o.submitted_at"
-grep -o '"logger":"execution"[^}]*' arena/agent-N.log
+grep -o '"logger":"execution"[^}]*' agent-N.log
 ```
 
 **What this trial does NOT show.** Whether walking the price is a good idea, or
