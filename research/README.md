@@ -214,7 +214,7 @@ uv run python grid.py
 What `make claims` recomputes is committed: the structures the rule could have
 seen, the daily and 15-minute bars behind them, the entry-window leg prices the
 exit rules are walked along, and the buy-back lows the take-profit share is
-measured on. Every published number can be checked without a credential.
+measured on. What can and cannot be checked from it is the three lists below.
 
 The collectors that produce it are here too: `fetch_options.py` pulls the contracts
 that existed and their price in the entry window, `build_candidates.py` turns those
@@ -247,7 +247,9 @@ the per-name figures for SPY, QQQ, IWM and GLD; the delta ceiling of 0.30 agains
 measurement over 672 trades and its three exit rules; and the take-profit
 measurement over 597 trades with its totals and its share in the red.
 
-**Reproducible, but MODELLED rather than traded.** Every early-exit result. Option
+**Reproducible, but MODELLED rather than traded.** Every early-exit result, and
+every backspread placement in `sweep_backspread.py`, which prices each structure by
+Black-Scholes at the volatility standing now and replays it over historical moves. Option
 prices through time exist in our data only in the entry window, so a spread closed
 before expiry is repriced by Black-Scholes at the volatility it was entered on, and
 the crossing is charged at an assigned 0.10 with a 0.05 fee. Holding to expiry is
@@ -264,6 +266,9 @@ a model into a fill.
 | "+2 takes 1.00 trades a day for 2,087, +3 takes 0.85 for 2,146" | a grid priced with each name's own book; the cost file behind it is not committed |
 | The four observations about this account tier - greeks only on `get_option_snapshot`, no greeks on SPXW, `feed=indicative`, one order for a vertical | measured against the broker on our own account |
 | `entry_windows.py` | needs `data/intraday.jsonl`, which is not committed; the entry-window finding stands on the run recorded above rather than on a rerun |
+| `gap_bet_analyze.py`, and the event-bet sizing and exit-time results above | needs `data/gap_raw/`, which is not committed |
+| The ten-minute non-fill in `docs/architecture.md`, and "every judged order went to Alpaca's own MCP server" in `docs/write-up.md` | our own record and the broker's order list |
+| The 34 fills of 26 August and the fee measured from them (`grid.py`) | our own account, watched while cash moved |
 
 ## What the data does not hold
 

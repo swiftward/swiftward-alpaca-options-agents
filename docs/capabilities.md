@@ -138,6 +138,7 @@ Eleven tables. Everything the agent was told, said, called and got back.
 | The research behind each threshold | 646 trading days of option prices, and a script per question: entry windows, exit rules, the take-profit share, the cost of crossing the book | `research/` | `research/README.md`, `make claims` |
 | `make day` | The three numbers a trading day is judged by, per account, straight from the record | `postgres/the-day.sql` | run it against a live record |
 | `make rehearse` | Sends a trading day's reads from every agent at once and prints what was refused, so a limit sized for one caller and met by four is found before Monday | `golang/apps/rehearse` | run it on a Sunday |
+| `make account-claims` | Reads the page a judge already has open - no credential, no broker key - and checks the trading against what these documents say: every order a structure rather than a naked leg, every leg declaring whether it opens or closes, one server behind every order, and no intent recorded knowing its limits had not been read | `tools/account-claims.py` | run it against the deployment |
 | `make reconcile` | Answers, for every call left `unknown` that named its order, whether the order reached the broker. One that never carried a name stays `unknown`, because the record does not guess | `golang/apps/reconcile` | `TestAnOrderThatNeverLandedIsSaidSo`, `TestAnOrderWithoutANameStaysUnknown` |
 
 ## The test stand

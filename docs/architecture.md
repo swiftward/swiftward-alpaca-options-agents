@@ -28,9 +28,13 @@ need a running deployment.
 | An order the gateway refuses never reaches Alpaca, and the refusal names the rule | the refusals in `tool_calls`, shown on the page beside the call that was refused |
 | A limit tightened while the agent runs reaches the next turn | change it and watch `GET /api/limits` and the next intent |
 | The whole read path holds under four callers at once | `make rehearse`, which prints what was refused |
+| The account traded the way these documents describe | `make account-claims PAGE=...`, which reads the page and needs nothing of ours |
 
-Nothing here asks a reader to take the gateway on trust: it asks them to read the
-record it wrote, which is the same record the page serves.
+What the second table asks for is a reading of the record the gateway wrote, which
+is the same record the page serves. That is evidence rather than assertion, and it
+is still not proof: the refusals in it were written by the service that made them,
+and nothing committed here can show that an order refused there never reached
+Alpaca. The broker's own order list can, which is what `make reconcile` reads.
 
 ## One agent is one chain
 

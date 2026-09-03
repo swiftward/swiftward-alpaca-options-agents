@@ -105,7 +105,7 @@ $ make claims
 25 claims, 0 failed
 ```
 
-`make claims` recomputes every number this write-up publishes from data committed to the repository, with no credentials and no network. `docs/capabilities.md` names every capability, where it lives, and what shows it works.
+`make claims` recomputes twenty-five of the numbers above from data committed to the repository, with no credentials and no network. It does not recompute the 3 September incident, the grid priced with each name's own book, or anything measured against the account - `research/README.md` lists what falls in each of the three groups, so that no number here has to be guessed at. `docs/capabilities.md` names every capability, where it lives, and what shows it works.
 
 The page shows the account, the equity line, open positions, every order with its legs, every tool call with its arguments and outcome, the intents and the turns. It is a read side: it decides nothing and can only read.
 

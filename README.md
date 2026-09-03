@@ -4,7 +4,7 @@ An autonomous options trading agent that reads its own limits before it hits the
 
 Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026. Everything runs against Alpaca's paper trading environment: simulated funds, real market data, no real money.
 
-Every number this project publishes recomputes from data committed here, with no credentials and no network:
+Twenty-five of the numbers this project publishes recompute from data committed here, with no credentials and no network. Which twenty-five, and which numbers are modelled or come from our own account record instead, is listed in `research/README.md`:
 
 ```
 $ make claims
@@ -16,8 +16,14 @@ PASS  closing at 0.35 of the credit returns 6722                 6722    6722
 ```
 
 **Watch it work:** the five-minute video and the slides are linked from the
-submission on lablab.ai. The page the agent writes to is at
-`typescript/web` - what it did, what it meant to do, and where it was stopped.
+submission on lablab.ai. The page the agent writes to is at `typescript/web` - what
+it did, what it meant to do, and where it was stopped. Point a second command at
+that page and it checks the trading against what these documents say, with no
+credential of ours:
+
+```
+make account-claims PAGE=<the page's address>
+```
 
 Three places to go from here:
 
