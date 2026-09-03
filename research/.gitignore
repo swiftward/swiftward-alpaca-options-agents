@@ -17,6 +17,7 @@ data
 # tracked; the lines are here to say which files belong in the repository.
 !data/candidates_bt.parquet
 !data/stock_*_15m.json
+!data/stock_*_day.json
 !data/contracts_*.json
 !data/obars_*.jsonl
 !data/buyback_lows.json

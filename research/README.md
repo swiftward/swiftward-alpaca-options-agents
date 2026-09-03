@@ -136,24 +136,36 @@ fewer trades means the result leans harder on which ones they happen to be.
 ### Where the legs of a backspread go: sold no nearer than 1.5 sigma, the valley no nearer than 2.5
 
 `sweep_backspread.py` — every placement, priced by Black-Scholes at the volatility
-standing now, replayed over 466 SPY windows from comparable volatility regimes.
+standing now, replayed over 464 SPY windows from comparable volatility regimes.
 
 A backspread's worst case sits in the MIDDLE, at the bought strike, at expiration —
-the valley. **Every placement with the valley inside two sigma has a negative
-expectation.** On 28 August the agent, choosing by eye, sold at 0.57 sigma with the
-valley at 1.25 and was down about seventy dollars a trade the moment the order was
-sent. The declaration had said nothing about strikes; now it does.
+the valley. **The gap between the sold leg and the bought ones is what decides, and
+the number to read is the median rather than the mean.** A gap of a quarter sigma
+ends in the red in 75 to 98 per cent of windows — a median of −$621 with the valley
+at 0.5 sigma, −$147 at 1.25 — while half or more of its average comes from the best
+one per cent of windows. Widen the gap to half a sigma and the median turns
+positive. On 28 August the agent, choosing by eye, sold at 0.57 sigma with the
+valley at 1.25, which is in the first group. The declaration had said nothing about
+strikes; now it does.
+
+**This number was wrong until 4 September and the correction is worth stating.** The
+sweep selected "windows in a regime like today's" with a rolling volatility whose
+own window covered the same three days it was measuring — it chose the sample
+knowing the answer. Aligned to what a trader holds when the window opens, the
+finding changes shape: those placements do not have a negative expectation, they
+have a positive mean that is almost entirely tail. The rule the number argues for
+did not change.
 
 ### The convexity layer's share of equity: 2%
 
 `sweep_backspread.py`, the same sweep. It was 3%, which let the layer hold one and
-a half structures at once. At an expectation of +14 dollars a trade and a worst
-case of −1,825 there is nothing to pay a second simultaneous bet with: it doubles
-the tail without doubling the expectation.
+a half structures at once. Against a worst case near −$1,800 on the placements the
+rule allows, there is nothing to pay a second simultaneous bet with: it doubles the
+tail without doubling what the tail is being paid for.
 
 ### The share of a credit at which a winning spread is bought back: 35%
 
-`collect_paths.py` then `threshold.py` — the minute-by-minute path of all 553
+`collect_paths.py` then `threshold.py` — the minute-by-minute path of all 597
 trades the rule picked across 646 days. This is the one number that could not be
 measured from outcomes alone: the outcome at expiry was on hand, the path to it was
 not, and the whole rule lives in the path.
@@ -200,9 +212,25 @@ uv run python grid.py
 ```
 
 What `make claims` recomputes is committed: the structures the rule could have
-seen, and the 15-minute paths and entry-window leg prices the exit rules are walked
-along. Twenty-three megabytes, and it means every published number can be checked
-without a credential. `collect_exits.py` rebuilds that part from Alpaca.
+seen, the daily and 15-minute bars behind them, the entry-window leg prices the
+exit rules are walked along, and the buy-back lows the take-profit share is
+measured on. Every published number can be checked without a credential.
+
+The collectors that produce it are here too: `fetch_options.py` pulls the contracts
+that existed and their price in the entry window, `build_candidates.py` turns those
+into every structure the rule could have seen, and `collect_exits.py` and
+`collect_paths.py` walk the outcomes. They read the market-data key from the `.env`
+this repository already uses.
+
+**A rebuild does not land on the committed dataset, and that is why it is
+committed.** Run on 4 September against the bars we hold, `build_candidates.py`
+produced 323,255 structures over 641 trading days where the committed file has
+327,634 over 646 - about one per cent short, and enough to move the per-expiry
+means by up to a dollar a trade. An option-bar pull is bounded by dates and by what
+Alpaca still lists, and neither is frozen. So the artefact the numbers are computed
+from is in the repository, the code that made it is beside it, and `make claims`
+checks the numbers against the artefact rather than against a pull nobody can
+repeat.
 
 The rest of `data/` is not committed — the minute-by-minute paths file alone is
 109 MB. Its collectors rebuild it; `alpaca.py` reads the market-data key from the

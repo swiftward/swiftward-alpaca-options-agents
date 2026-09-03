@@ -15,6 +15,10 @@ PASS  closing at 0.35 of the credit returns 6722                 6722    6722
 25 claims, 0 failed
 ```
 
+**Watch it work:** the five-minute video and the slides are linked from the
+submission on lablab.ai. The page the agent writes to is at
+`typescript/web` - what it did, what it meant to do, and where it was stopped.
+
 Three places to go from here:
 
 - **[`docs/capabilities.md`](docs/capabilities.md)** - every capability, where it lives, and what shows it works. Start here.
