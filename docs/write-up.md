@@ -40,7 +40,7 @@ The volatility history is ours: the broker answers what an option costs now, and
 ## Risk gates
 
 - **Defined risk only.** Every position is a spread whose largest possible loss is known before it is opened. No naked short options.
-- **Size comes from the envelope, not from the prompt.** The agent asks what one position may lose (`position_max_loss`, 10% of equity today), what everything staked on one side of the market may lose together (`same_direction_max_loss`, 35%), and what the whole book may lose (`portfolio_max_loss`, 80%). It sizes to nine tenths of the position ceiling, because the ceiling is a share of equity and equity moves while the order rests in the book.
+- **Size comes from the envelope, not from the prompt.** The agent asks what one position may lose (`position_max_loss`, 10% of equity today), what everything staked on one side of the market may lose together (`same_direction_max_loss`, 35%), and what the whole book may lose (`portfolio_max_loss`, 80%). None of the three is in the declaration, and the declaration says so where a number would otherwise go: they come from the envelope, and the page reads them live at `GET /api/limits` (`golang/internal/api/limits_test.go`). The working numbers that ARE the agent's own - the delta ceiling, the edge threshold, the day's fuse - are `parameters:` in `agent/alpaca-agent-2.yaml`, each carrying where it came from, and `golang/internal/declaration/provenance_test.go` fails on one that does not. It sizes to nine tenths of the position ceiling, because the ceiling is a share of equity and equity moves while the order rests in the book.
 - **And the ceiling holds an order, not a fill - which is the case for putting it in the engine.** `execution.WorstCase` prices an order's payoff at every strike parsed from its contracts, and the ladder cancels one that may lose more than a position is allowed. It can only cancel what is still resting. On 3 September a session read a two-wide spread as one wide, sized 119 sets against a $9,298 ceiling at a true worst case of $20,349, and the order filled at once: there was nothing left to cancel. Both halves of our own arithmetic were right and neither was in the path. A limit that lives with the caller is advice however carefully it is computed; the refusal has to belong to the thing the order passes through.
 - **Intent before order.** The agent calls `record_intent` with the thesis, the structure and the maximum loss before it orders, and the record carries both, so what was declared can be checked against what was done. It is a rule the agent follows and the record exposes, not a lock on the broker: the order goes to a different server, and an order that skipped the intent would show as a fill with nothing behind it.
 - **A vertical is not defended by closing it, and that is a measurement rather than a preference.** `research/exit_rules.py`, 672 trades from January 2024 to August 2026: holding to expiry pays **$2.94 a trade**, and closing the moment the price touches the sold strike pays **$2.32** - that is **$0.62 a trade worse**. The reason is in the breakdown the script prints. The price passed the sold strike in 42.7% of trades, but only 26.6% ended breached, so the defence pays 108 crossings that bought nothing: -$1.13 a trade in fees and spread, against +$0.51 a trade of genuinely better outcomes. When it fires, the spread is already worth a median 0.55 of its width, and 38% of the firings happen at the opening bar of a later day, after an overnight gap - closing after the fact rather than ahead of it. Every fifteen minutes the agent still counts the legs of what it holds and names where the price stands against each pair of strikes; it sends no closing order. A rule that fires on some crossings and misses others is worse than either policy, because the account pays for both and collects neither.
@@ -74,11 +74,21 @@ What we measured on the account rather than read in a document:
 
 Every rule that can refuse a trade carries a test that FAILS when the rule is removed. That is the property worth having: a suite that stays green when a gate is deleted has measured nothing. Each gate above was checked that way - the rule disabled, the test watched to go red, the rule restored.
 
-Beside the code there is a test stand that replays market conditions and failures against the agent - the ones a real market will not produce on demand - and measures what the agent does in response. It is not a backtest and not a trading simulator. This week it found two defects the suite had passed green: an execution cadence measuring 45.002 and 89.999 seconds where 45 was declared, and an order that lived nineteen minutes against a patience of eight.
+Beside the code there is a test stand that replays market conditions and failures against the agent - the ones a real market will not produce on demand - and measures what the agent does in response. It is not a backtest and not a trading simulator. What it has caught, and the thirteen trials behind it, are in `testbed/README.md`.
+
+Two defects the suite had passed green were found this week by running this repository's binary against a stand outside it: an execution cadence measuring 45.002 and 89.999 seconds where 45 was declared, and an order that lived nineteen minutes against a patience of eight. Both are now held by tests that go red without the fix - `TestSchedulerJitterDoesNotDecideWhetherAnOrderSteps` and `TestAMissedPassCostsADelayAndNotTheCancellation` in `golang/internal/execution`.
 
 No judged order has ever passed through it. Every order on the submitted account went to Alpaca's own MCP server.
 
 ## How to check any of this
+
+```
+$ make claims
+...
+25 claims, 0 failed
+```
+
+`make claims` recomputes every number this write-up publishes from data committed to the repository, with no credentials and no network. `docs/capabilities.md` names every capability, where it lives, and what shows it works.
 
 The page shows the account, the equity line, open positions, every order with its legs, every tool call with its arguments and outcome, the intents and the turns. It is a read side: it decides nothing and can only read.
 

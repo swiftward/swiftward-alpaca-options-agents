@@ -2,7 +2,7 @@
 
 Prompts and skills for the trading session. Nothing here holds a credential, and nothing here carries a limit.
 
-Where its orders go is not decided here either. Today the session reaches the broker's own server directly, over `BROKER_MCP_URL`, on the development account: the policy gateway is not yet in front of it. When it is, an address changes and this directory does not - the session holds no broker key either way. `docs/architecture.md` keeps the current state of that.
+Where its orders go is not decided here either. `BROKER_MCP_URL` is the policy gateway, which stands in front of the broker's own server and is the only thing that can refuse an order and record that it happened. The session holds a gateway token and no broker key. `docs/architecture.md` keeps the current state of that.
 
 ## Skills
 

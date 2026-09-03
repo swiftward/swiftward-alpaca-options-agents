@@ -1,8 +1,9 @@
 # Where the numbers come from
 
 The agent trades on numbers. Every one of them is stated in the declarations under `agent/`,
-and every one carries a marker saying where it came from: **measured**, **from the
-rules**, or **assigned**. A test refuses to build if a number carries none.
+and every one carries a mark saying where it came from: `MEASURED`, `FROM THE RULES`
+or `PROVISIONAL`. `golang/internal/declaration/provenance_test.go` fails on a number
+that carries none.
 
 This directory is what stands behind the measured ones. It is not the product and
 nothing here trades: these scripts read Alpaca, replay history, and print tables.
@@ -19,17 +20,17 @@ the structures it reads - `research/data/candidates_bt.parquet`, the 327,634
 spreads the rule could have seen over 646 trading days - are committed here for
 exactly that reason. A claim that fails there is a claim we have to correct.
 
-The honest summary first, because it is the part that is easy to leave out:
+The honest summary first, because it is the part that is easy to leave out. Count it
+yourself:
 
-| | how many |
-|---|---|
-| measured | 7 |
-| from the platform's rules | 1 |
-| **assigned, not yet measured** | **8** |
+```
+grep -c MEASURED agent/*.yaml
+grep -c PROVISIONAL agent/*.yaml
+```
 
-The eight assigned numbers are marked as such in the declaration, in the open. We
-would rather ship a number we can name as a guess than one that looks measured and
-is not.
+A number nobody has measured is marked `PROVISIONAL` in the declaration, in the
+open. We would rather ship a number we can name as a guess than one that looks
+measured and is not.
 
 ## What was measured, and what came out
 

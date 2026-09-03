@@ -1,10 +1,11 @@
 // Package envelope answers one question for the trading session: what am I
 // allowed to do right now, and by which version of the rules.
 //
-// The answer belongs to the policy gateway, which is not yet in front of the
-// broker. Until it is, this package stands in its place: it serves the same tool
-// under the same server name, so the session cannot tell the difference and does
-// not have to be rewritten when the gateway arrives.
+// The answer belongs to the policy gateway, which stands in front of the broker
+// and enforces these limits but does not yet disclose them. Until it does, this
+// package stands in its place: it serves the same tool under the same server
+// name, so the session cannot tell the difference and does not have to be
+// rewritten when the gateway answers for itself.
 //
 // What it does NOT do is as important as what it does. It does not judge orders,
 // it does not refuse anything and it does not rewrite what the broker advertises.
