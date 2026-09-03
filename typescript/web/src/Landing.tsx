@@ -160,7 +160,7 @@ const REQUIRED: [string, string][] = [
   ],
   [
     'options only',
-    'Vertical spreads and backspreads. Never a naked short option: the largest possible loss is known before the order is sent, and the limit service refuses one that is too large.',
+    'Vertical spreads and backspreads. Never a naked short option: the largest possible loss is known before the order is sent, and the gateway the order passes through refuses one that is too large.',
   ],
 ]
 
