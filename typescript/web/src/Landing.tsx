@@ -1,29 +1,32 @@
 import { ArrowRight, Eye, GitBranch, Ruler } from 'lucide-react'
 import { Link } from 'react-router'
 
-import { Card, Chip, Eyebrow, Section, Table } from './parts'
+import { Card, Chip, Eyebrow, Figure, Figures, Section, Table } from './parts'
 
 // The landing page: what this is, how it differs, and where to go and look.
 //
-// The three claims were not chosen for their looks. They are the only things we
-// have that the neighbouring teams almost certainly will not: limits that arrive
-// by discovery; numbers measured on the history; and reasoning that is visible.
+// It is ordered for a reader who arrives and leaves, not for one who is walked
+// through: the claim, then the four numbers that support it, then the way to
+// check them. The architecture comes after, because nobody stays for the
+// architecture of a thing they do not yet believe in.
 //
-// Everything below them is written for a reader who has to decide quickly whether
-// the thing is real - so it shows the command, the declaration and one trade
-// worked through, rather than describing any of the three.
+// The three claims were not chosen for their looks. They are the only things we
+// have that the neighbouring teams almost certainly will not: limits the agent
+// cannot reach; numbers measured on the history, including one that deleted a
+// rule we liked; and reasoning that is visible.
 export function Landing() {
   return (
     <main className="mx-auto max-w-[1100px] px-6 pb-32 pt-20">
       <Eyebrow>[ live · alpaca paper trading ]</Eyebrow>
 
-      <h1 className="mt-6 max-w-[16ch] text-[56px] font-medium leading-[1.05] tracking-[-0.024em] text-primary sm:text-[72px]">
-        An options agent that shows its reasoning.
+      <h1 className="mt-6 max-w-[18ch] text-[56px] font-medium leading-[1.05] tracking-[-0.024em] text-primary sm:text-[72px]">
+        An options agent that cannot edit what stops it.
       </h1>
 
-      <p className="mt-7 max-w-[46ch] text-[22px] font-medium leading-[1.25] tracking-[-0.01em] text-secondary">
-        It wakes on a schedule, reads what the market offers, states what it means to do — and
-        only then sends an order. Every number it trades on was measured, not guessed.
+      <p className="mt-7 max-w-[52ch] text-[22px] font-medium leading-[1.25] tracking-[-0.01em] text-secondary">
+        It is declared in a file, held by limits that live in another service, and every number it
+        trades on was measured over two and a half years of option prices — including the rule the
+        measurement told us to delete.
       </p>
 
       <div className="mt-10 flex flex-wrap items-center gap-4">
@@ -39,44 +42,59 @@ export function Landing() {
         </span>
       </div>
 
-      <div className="mt-20 mb-16 grid gap-4 sm:grid-cols-3">
+      {/* The four numbers the rest of the page has to earn. The zero is the one
+          worth stopping on: risk limits in an agent's prompt are a request, and
+          this agent is given none of them to read or rewrite. */}
+      <div className="mt-14">
+        <Figures>
+          <Figure name="published numbers that recompute" value="25 / 25" />
+          <Figure name="trading days measured" value="646" />
+          <Figure name="risk limits in the prompt" value="0" />
+          <Figure name="trials that attack the agent" value="12" />
+        </Figures>
+      </div>
+
+      <div className="mt-16 mb-16 grid gap-4 sm:grid-cols-3">
         <Claim
           icon={Ruler}
-          title="Limits it discovered"
-          says="Nothing about risk is written into its instructions. It asks what it is allowed to do while it works, and the page shows the same answer it gets — including the rule that admits it exists and withholds its number."
+          title="Limits it does not own"
+          says="Nothing about risk is written into its instructions. A separate service refuses the order, and the agent has nothing to edit. It asks what it may do while it works — and is sometimes told only that a rule is there, without the number, so there is nothing to route around."
         />
         <Claim
           icon={GitBranch}
           title="Numbers that were measured"
-          says="Two and a half years of option prices decided the thresholds. The first version of the rule lost money by construction; the measurement is what found that, and the comment beside every number names the script that produced it."
+          says="Two and a half years of option prices decided the thresholds. The first version of the entry rule lost money by construction; the measurement is what found that. Every number carries the script that produced it, and a test refuses to build if one carries none."
         />
         <Claim
           icon={Eye}
           title="Reasoning you can read"
-          says="Each run shows what woke it, what it asked the broker, and what it concluded — in its own words. Including the runs where it looked and decided to do nothing."
+          says="Each run shows what woke it, what it asked the broker, and what it concluded — in its own words. Including the runs where it looked at six candidates, refused all six, and said why."
         />
       </div>
 
       <Section
-        title="Check the numbers yourself"
-        explains="Every figure this project publishes about its own measurements is recomputed by one command, from data committed to the repository. It reaches no network and needs no key of ours."
+        title="We deleted our own defence rule"
+        explains="It closed a spread the moment the price touched the sold strike. It felt prudent for four months. Then it was measured against 672 trades, and the history said it loses to doing nothing."
       >
         <Card>
-          <p className="font-mono text-sm text-primary">$ make claims</p>
-          <div className="mt-5 overflow-x-auto">
-            <Table
-              head={['claim', 'computed', 'published']}
-              rows={CLAIMS.map(([what, value]) => [
-                what,
-                <span className="font-mono tabular-nums">{value}</span>,
-                <span className="font-mono tabular-nums">{value}</span>,
-              ])}
-              empty="nothing to check"
-            />
-          </div>
+          <Table
+            head={['exit rule', 'a trade']}
+            rows={EXITS.map(([rule, value, note]) => [
+              <span className={note ? 'text-primary' : ''}>
+                {rule}
+                {note ? <span className="ml-3 font-mono text-[13px] text-loss">{note}</span> : null}
+              </span>,
+              <span className="font-mono tabular-nums">{value}</span>,
+            ])}
+            empty="nothing to compare"
+          />
           <p className="mt-5 text-[15px] leading-relaxed text-secondary">
-            Twenty-five claims, none failing. Five of them are shown; the rest cover the expiry
-            gradient, the per-underlying returns and the cost of crossing the book.
+            The price passed the sold strike in 42.7% of trades and only 26.6% ended breached. The
+            rule was paying for 108 crossings that bought nothing. It is gone, and what replaced it
+            is on the page above in the agent's own words.
+          </p>
+          <p className="mt-4 text-[15px] leading-relaxed text-primary">
+            A measurement that only ever agrees with you is not a measurement.
           </p>
         </Card>
       </Section>
@@ -100,12 +118,44 @@ export function Landing() {
             <span className="text-primary">defined risk</span> means, and it is the only kind of
             structure this agent is allowed to open.
           </p>
+          <p className="mt-4 text-[15px] leading-relaxed text-primary">
+            A stop-loss is a hope: it fills where the market lets it. A bought leg is a contract.
+          </p>
+        </Card>
+      </Section>
+
+      <Section
+        title="Check the numbers yourself"
+        explains="Every figure this project publishes about its own measurements is recomputed by one command, from data committed to the repository. It reaches no network and needs no key of ours."
+      >
+        <Card>
+          <p className="font-mono text-sm text-primary">$ make claims</p>
+          <div className="mt-5 overflow-x-auto">
+            <Table
+              head={['claim', 'computed', 'published']}
+              rows={CLAIMS.map(([what, value]) => [
+                what,
+                <span className="font-mono tabular-nums">{value}</span>,
+                <span className="font-mono tabular-nums">{value}</span>,
+              ])}
+              empty="nothing to check"
+            />
+          </div>
+          <p className="mt-5 text-[15px] leading-relaxed text-secondary">
+            Twenty-five claims, none failing. Five of them are shown; the rest cover the expiry
+            gradient, the per-underlying returns and the cost of crossing the book.
+          </p>
+          <p className="mt-4 text-[15px] leading-relaxed text-secondary">
+            Beside them run twelve trials that attack the agent rather than confirm it: the limits
+            service answers with a broken payload — does the agent stop, or invent a number? One of
+            the twelve failed, and the rule it broke is the one deleted above.
+          </p>
         </Card>
       </Section>
 
       <Section
         title="When it wakes, and why"
-        explains="The schedule is a declaration rather than code. It says when a session starts and what question it is being asked; it never says what to trade — that is the session's own decision, which is what makes the agent autonomous rather than driven."
+        explains="The schedule is a declaration rather than code. It says when a session starts and what question it is being asked; it never says what to trade — that is the session's own decision, which is what makes the agent autonomous rather than driven. We edited this file while the market was open, and the next session read the new rule. No restart, no deploy."
       >
         <Card>
           <pre className="overflow-x-auto font-mono text-[13px] leading-relaxed text-secondary">
@@ -127,6 +177,14 @@ export function Landing() {
     </main>
   )
 }
+
+// The exit rules, side by side, on the 672 trades the history holds. The middle
+// one is what we shipped for four months and then removed.
+const EXITS: [string, string, string?][] = [
+  ['hold to expiry', '$2.94'],
+  ['close when the sold strike is touched', '$2.32', '← removed'],
+  ['close a full width past the sold strike', '$3.46'],
+]
 
 // Five of the twenty-five, chosen because each one decided a rule. Computed and
 // published are one value here because the check passes; the command prints them
