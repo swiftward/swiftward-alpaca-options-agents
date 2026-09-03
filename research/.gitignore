@@ -6,14 +6,21 @@ data/*
 # and the same name as a symlink, which neither of the above matches
 data
 # The exceptions, which are the point of `make claims`: everything the published
-# numbers are recomputed from. Twenty-three megabytes, and without it every number
-# this project publishes needs a credential to check. `collect_exits.py` rebuilds
-# them; they are committed so that nobody has to.
+# numbers are recomputed from. Without it every number this project publishes needs
+# a credential to check. `collect_exits.py` rebuilds them; they are committed so
+# that nobody has to.
+#
+# The negations below do NOT work on their own, and one file was missing from the
+# repository for days because of it: `data` above excludes the directory itself,
+# git does not descend into an excluded directory, and a negation for a file inside
+# one can never re-include it. Each of these was added with `git add -f` and is
+# tracked; the lines are here to say which files belong in the repository.
 !data/candidates_bt.parquet
 !data/stock_*_15m.json
 !data/contracts_*.json
 !data/obars_*.jsonl
 !data/buyback_lows.json
+!data/daily.parquet
 .venv/
 __pycache__/
 *.pyc

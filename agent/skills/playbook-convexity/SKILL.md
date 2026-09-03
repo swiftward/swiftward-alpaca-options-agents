@@ -84,10 +84,22 @@ than the row below it. Say which row you took and which number decided it.
 
 The valley is where the worst case sits: at the bought strike, at expiration. Put
 it where the market arrives on an ordinary move and it eats everything the
-structure earns the rest of the time. Measured over 466 windows: every placement
-with the valley inside two sigma has a NEGATIVE expectation, and on 28 August a
-structure sold at 0.57 sigma with the valley at 1.25 lost money by construction
-before the market did anything.
+structure earns the rest of the time.
+
+Measured over 464 three-day windows of SPY in a volatility regime like today's
+(`research/sweep_backspread.py`), and read on the MEDIAN rather than the mean,
+because on these placements the mean is a tail: a gap of a quarter sigma between
+the sold leg and the bought ones ends in the red in 75 to 98 per cent of windows,
+with a median of -621 dollars at a valley of 0.5 sigma and -147 at 1.25, while
+half or more of its average comes from the best one per cent of windows. Widen the
+gap to half a sigma and the same underlying, the same regime and the same ceiling
+give a positive median. The structure sent on 28 August - sold at 0.57 sigma, the
+valley at 1.25 - sits in the first group.
+
+So the number to read is the median beside `losing_share_percent`, and the gap is
+what moves it. An earlier version of this paragraph said every placement inside two
+sigma had a negative EXPECTATION; that was measured with the regime filter reading
+the same three days it was selecting, and it is not what the corrected run says.
 
 **If the chain offers no strikes that satisfy both, open nothing and say why.** A
 backspread placed closer than this is not a cheap bet on a large move; it is a

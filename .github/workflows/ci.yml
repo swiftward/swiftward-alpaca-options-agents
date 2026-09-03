@@ -31,6 +31,20 @@ jobs:
       - run: go test -race -count=1 ./...
         working-directory: golang
 
+  # The test stand is a separate Go module, deliberately outside go.work so that a
+  # stand for questioning the agent never shares a build with the agent. That also
+  # puts it outside every step above, so it gets a job of its own: the proxy that
+  # serves every trial could otherwise be broken while ci stayed green.
+  testbed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+      - run: make -C testbed lint
+      - run: make -C testbed test
+
   web:
     runs-on: ubuntu-latest
     steps:

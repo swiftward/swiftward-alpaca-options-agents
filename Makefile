@@ -45,6 +45,11 @@ check: ## Every gate a push must pass: style, language, tests, the race detector
 	$(MAKE) test
 	$(MAKE) -C golang test-race
 	$(MAKE) build
+	# The test stand is a module of its own, outside go.work on purpose, so
+	# nothing above reaches it. Without these two lines the proxy that serves
+	# every trial could be broken while this gate stayed green.
+	$(MAKE) -C testbed lint
+	$(MAKE) -C testbed test
 
 claims: ## Recompute every number this project publishes, from data in the repository, with no credentials
 	cd research && uv run claims.py

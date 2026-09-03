@@ -39,7 +39,7 @@ The volatility history is ours: the broker answers what an option costs now, and
 
 ## Risk gates
 
-- **Defined risk only.** Every position is a spread whose largest possible loss is known before it is opened. No naked short options.
+- **Defined risk only.** Every position's largest possible loss is known before it is opened: a credit spread is bounded by its width less the credit, and an option bought outright by the premium paid. No naked short option is ever opened, and `execution.Unbounded` cancels an order whose loss has no floor before it can rest in the book. Three shapes exist in `golang/internal/structures`, and the guards enumerate all three rather than counting legs: a credit vertical, a backspread (sell one, buy two - net long, and its worst case sits at the bought strike) and a ratio spread. `agent/alpaca-agent-1.yaml` also carries `playbook-convexity`, which buys backspreads; `alpaca-agent-2.yaml` sells credit spreads only.
 - **Size comes from the envelope, not from the prompt.** The agent asks what one position may lose (`position_max_loss`, 10% of equity today), what everything staked on one side of the market may lose together (`same_direction_max_loss`, 35%), and what the whole book may lose (`portfolio_max_loss`, 80%). None of the three is in the declaration, and the declaration says so where a number would otherwise go: they come from the envelope, and the page reads them live at `GET /api/limits` (`golang/internal/api/limits_test.go`). The working numbers that ARE the agent's own - the delta ceiling, the edge threshold, the day's fuse - are `parameters:` in `agent/alpaca-agent-2.yaml`, each carrying where it came from, and `golang/internal/declaration/provenance_test.go` fails on one that does not. It sizes to nine tenths of the position ceiling, because the ceiling is a share of equity and equity moves while the order rests in the book.
 - **And the ceiling holds an order, not a fill - which is the case for putting it in the engine.** `execution.WorstCase` prices an order's payoff at every strike parsed from its contracts, and the ladder cancels one that may lose more than a position is allowed. It can only cancel what is still resting. On 3 September a session read a two-wide spread as one wide, sized 119 sets against a $9,298 ceiling at a true worst case of $20,349, and the order filled at once: there was nothing left to cancel. Both halves of our own arithmetic were right and neither was in the path. A limit that lives with the caller is advice however carefully it is computed; the refusal has to belong to the thing the order passes through.
 - **Intent before order.** The agent calls `record_intent` with the thesis, the structure and the maximum loss before it orders, and the record carries both, so what was declared can be checked against what was done. It is a rule the agent follows and the record exposes, not a lock on the broker: the order goes to a different server, and an order that skipped the intent would show as a fill with nothing behind it.
@@ -59,7 +59,9 @@ The agent states the structure, the size and the price it wants. A separate modu
 
 ## Alpaca's infrastructure
 
-Orders and market data go through Alpaca's own MCP server - the released `alpaca-mcp-server` package, pinned, unmodified - and it holds the only copy of the account keys. Nothing here reimplements it or calls Alpaca's REST in its place.
+Orders and market data go through Alpaca's own MCP server - the released `alpaca-mcp-server` package, pinned, unmodified - and it holds the only copy of the account keys. Nothing on the trading path reimplements it or calls Alpaca's REST in its place.
+
+One thing does call REST, and it is not the agent: `research/alpaca.py` pulls historical bars and option snapshots for the measurements under `research/`. It places no order, holds no position and is never imported by the Go binary - the market data API is what serves years of history, and the measurements are what the thresholds rest on.
 
 The policy gateway stands in FRONT of that server, not instead of it: the agent calls the gateway, the gateway decides and records, and the call it forwards is an MCP call to Alpaca's own server. One process per account, because that server reads its keys from its own environment and therefore serves exactly one.
 
@@ -69,6 +71,21 @@ What we measured on the account rather than read in a document:
 - index options (SPXW) carry neither on this account tier, while ETF options (SPY, QQQ, IWM) carry both - which is why the agent trades ETF options;
 - `get_option_chain` needs `feed=indicative` on this tier;
 - a vertical spread is **one** order: `place_option_order` with `order_class=mleg` and a negative limit price for a credit. The agent never sends two orders and never risks half a structure.
+
+## Where the research and the account deliberately differ
+
+The measurements above take the edge threshold that maximises the TOTAL over 646
+days, which is `+3`. The judged accounts run `+2`, and the declaration says why
+where the number stands (`agent/alpaca-agent-2.yaml`, `min_edge_points`): over 646
+days the total is what a threshold is for, and there the peak is +3; over the three
+days that are actually scored, the spread of outcomes decides instead, and refusing
+to trade settles the result at zero. On the grid priced with each name's own book,
++2 takes 1.00 trades a day for a total of 2,087 and +3 takes 0.85 for 2,146 - three
+per cent of the money for seventeen per cent more trades.
+
+So the published expectancy is the expectancy of the threshold we measured, not of
+the threshold the account is running this week. Both numbers are in the repository
+and the difference is a decision, not an oversight.
 
 ## How it is tested
 

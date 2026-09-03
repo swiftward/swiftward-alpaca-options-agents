@@ -197,6 +197,10 @@ services:
     working_dir: /src
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${TEST_DATABASE}?sslmode=disable
+      # Alpaca's own server and NOT the gateway, which is right here and nowhere
+      # else: `make test-broker` exists to check the shapes that server answers
+      # in, so a gateway between would be testing the gateway. Nothing in this
+      # service places an order.
       BROKER_MCP_URL: http://alpaca-mcp-agent-1:8000/mcp
       GOFLAGS: -buildvcs=false
       # This network has no route out, so every module must already be in the
@@ -676,7 +680,10 @@ services:
       # everywhere else.
       HTTP_PROXY: ${AGENT_2_OUTBOUND_PROXY:-http://agent:${AGENT_2_BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
       HTTPS_PROXY: ${AGENT_2_OUTBOUND_PROXY:-http://agent:${AGENT_2_BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
-      BROKER_MCP_URL: ${AGENT_2_BROKER_MCP_URL:-http://alpaca-mcp-agent-2:8000/mcp}
+      # No default, deliberately. A fallback here would send this agent's orders
+      # straight to the broker with nothing able to refuse them, and it would do it
+      # silently - which is worse than the stack refusing to start.
+      BROKER_MCP_URL: "${AGENT_2_BROKER_MCP_URL:?the policy gateway, and there is no default}"
       BROKER_MCP_TOKEN: ${AGENT_2_BROKER_MCP_TOKEN}
       USER_TOKEN: ${USER_TOKEN:-}
       USER_HEADER_NAME: ${USER_HEADER_NAME:-}
