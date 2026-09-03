@@ -4,6 +4,19 @@ An autonomous options trading agent that reads its own limits before it hits the
 
 Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026. Everything runs against Alpaca's paper trading environment: simulated funds, real market data, no real money.
 
+Every number this project publishes recomputes from data committed here, with no credentials and no network:
+
+```
+$ make claims
+PASS  the history covers 646 trading days                        646     646
+PASS  1 days to expiry pays 10.72 a trade                      10.72   10.72
+PASS  closing at 0.35 of the credit returns 6722                 6722    6722
+...
+25 claims, 0 failed
+```
+
+**[`docs/capabilities.md`](docs/capabilities.md) names every capability, where it lives, and what shows it works.** Start there if you want to know what is here; the architecture and the reasons are in [`docs/architecture.md`](docs/architecture.md).
+
 ## What it does
 
 The agent trades defined-risk options structures on Alpaca. Every broker call passes through a policy gateway that does three things a prompt cannot:
@@ -22,7 +35,7 @@ The agent trades defined-risk options structures on Alpaca. Every broker call pa
 | `docker` | one Dockerfile per service, including the egress proxy and its allowlist |
 | `postgres/migrations` | schema, applied by the `migrate` service before anything reads it |
 | `agent` | what the agent itself reads: its instructions, its skills and the declaration of when it wakes |
-| `docs` | the submission write-up (`write-up.md`), the architecture and how the stack is deployed |
+| `docs` | the capability index (`capabilities.md`), the submission write-up (`write-up.md`), the architecture and how the stack is deployed |
 | `AGENTS.md` | how work is done in this repository, for a person or an agent editing it |
 
 ## Running it

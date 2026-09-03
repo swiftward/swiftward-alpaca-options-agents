@@ -1,0 +1,163 @@
+# What this system does
+
+One page naming every capability in the repository, where it lives, and what
+shows it works. Follow a pointer and you land on the code or on the test that
+holds the claim up. Why the pieces are shaped this way is in
+`architecture.md`; this page is the map, not the explanation.
+
+The fastest single check is `make claims`: it recomputes every number this
+project publishes from data committed here, with no credentials and no network.
+
+## The agent is a declaration
+
+One file per agent under `agent/`. It says when the agent wakes, why, what it
+may load and the numbers it works from. Nothing in it says what to trade.
+
+| Capability | What it does | Where it lives | What shows it works |
+|---|---|---|---|
+| A session with a cause | Each session carries a task in words and the reason it was woken; the model decides what to do with it | `agent/alpaca-agent-2.yaml`, `sessions:` | `golang/internal/declaration/declaration_test.go` |
+| Time in five forms | `at:` a clock time, `within:` a window it may still start in, `every:` a stride, `between:` the hours it is allowed, `cannot_wait:` for a session that must not be queued behind another | `golang/internal/declaration` | `cannotwait_test.go`, `lateststart_test.go`, `nofridayentry_test.go` |
+| Hot reload | An edit to the declaration reaches a running agent without a restart | `golang/internal/declaration`, `watch.go` | `watch_test.go` |
+| Skills placed where the agent looks | Which instructions a session may load is declared, not baked into the image; the harness writes them into the agent's working directory where it looks for them | `golang/internal/skills`, `agent/skills/` | `skills_test.go`, `shipped_test.go` |
+| The numbers live in the declaration | Ceilings, widths and shares are `parameters:` in the agent's own file | `agent/alpaca-agent-2.yaml`, `parameters:` | `golang/internal/api/limits_test.go` |
+| Several agents at once | One chain per broker account: harness, gateway endpoint, MCP server, database, page, credential | `compose.yaml`, `architecture.md` | `golang/internal/config/composekeys_test.go` |
+| Provenance of every number | Every parameter in a declaration is marked `MEASURED`, `FROM THE RULES` or `PROVISIONAL`, and an unmarked one fails the test, so a number that cost a day of computing is told apart from one that cost a minute of taste | `agent/alpaca-agent-2.yaml`, `parameters:` | `golang/internal/declaration/provenance_test.go` |
+
+## The harness runs the agent
+
+The clock and the room. It decides when a session works and says why it woke it.
+It never decides what to trade, and the autonomy requirement rests on that line.
+
+| Capability | What it does | Where it lives | What shows it works |
+|---|---|---|---|
+| The clock | Fires each declared session when it is due, and records which cause fired it | `golang/internal/harness` | `harness_test.go` |
+| A turn that produced nothing is a failure | A session that ended having said and called nothing is recorded as a failure rather than counted as a run, so its window is not lost | `golang/internal/harness`, `emptyTurns` | `harness_test.go` |
+| Wake-ups a session sets for itself | "Wake me at 15:45", or "wake me when SPY trades under 760". Kept on disk, so a restart does not forget a promise | `golang/internal/wakeup` | `wakeup_test.go` |
+| Steering a running turn | A session that is due while another turn is in flight is steered into it rather than dropped, when the declaration says it cannot wait | `golang/internal/harness`, `golang/internal/agent` | `cannotwait_test.go`, `protocol_test.go` |
+| A person in the loop | Everything the session says is posted to a room, and what a person writes back reaches the session. The agent holds no channel credential | `golang/internal/telegram`, `golang/internal/mailbox` | `telegram_test.go`, `mailbox_test.go` |
+| Crash recovery for orders | After a crash, a call left `unknown` is resolved against the broker: an order that reached it is not sent twice | `golang/internal/reconcile`, `make reconcile` | `reconcile_test.go` |
+
+## Limits live outside the model
+
+A limit is disclosed to the agent and enforced on the path to the broker.
+Neither is anything a session can talk its way out of.
+
+| Capability | What it does | Where it lives | What shows it works |
+|---|---|---|---|
+| Enforcement off the model's path | Every broker call goes through the policy gateway at `BROKER_MCP_URL` under the agent's own credential; a refused order never reaches Alpaca | `architecture.md`, `compose.yaml` | `golang/internal/config/config_test.go` |
+| The limit is in the tool description | The agent reads the boundary before it plans, so it builds an order it is allowed to place | `golang/internal/envelope/tools.go` | `tools_test.go` |
+| A refusal names the boundary | The refusal is structured enough for a program to act on: the agent adjusts rather than retries | `golang/internal/envelope` | `envelope_test.go` |
+| A ceiling changed while the agent runs | An operator tightens a limit and the live session sees the new one without a restart | `golang/internal/envelope` | `percent_test.go`, `shipped_test.go` |
+| One identity per agent | Which limits a caller gets is decided by the token it was started with; neither agent can ask for the other's | `golang/internal/envelope` | `envelope_test.go` |
+| No broker key in the agent | The agent holds a gateway token only; the broker keys are the environment of the MCP server and reach nothing else | `compose.yaml`, `golang/internal/config` | `envexample_test.go` |
+
+## The agent asks what it is allowed to do
+
+| Capability | What it does | Where it lives | What shows it works |
+|---|---|---|---|
+| `read_envelope` | The session asks what applies to it, and by which version of the rules, before it sizes anything. No number it works with is written in its prompt | `golang/internal/envelope`, `agent/skills/read-my-envelope` | `envelope_test.go`, `tools_test.go` |
+| The answer names its own version | A limit read at 09:35 and a limit read at 14:00 are distinguishable, so a session can tell that the rules moved | `golang/internal/envelope` | `shipped_test.go` |
+
+## Execution
+
+The session decides what to sell, how large, and the worst price it accepts.
+Walking the price is arithmetic on a clock, and it belongs in code.
+
+| Capability | What it does | Where it lives | What shows it works |
+|---|---|---|---|
+| The ladder | Walks a decided order a cent at a time toward the worst price the session named, and stops there | `golang/internal/execution` | `execution_test.go`, `worstprice_test.go` |
+| The re-check on every concession | A step that would break the rule the entry was made on is refused, so a walk cannot spend its way out of the reason it opened | `golang/internal/execution/execution.go` | `ratio_test.go` |
+| The per-position ceiling | A resting order that would take the position past its ceiling is cut back | `golang/internal/execution/toobig.go` | `toobig_test.go` |
+| The fuse | A day in which the account has fallen by the share the declaration names is over: the fuse refuses further entries | `golang/internal/execution/execution.go`, `Fuse` | `fuse_test.go` |
+| One fill, once | A restart in the middle of a walk does not double a fill | `postgres/migrations/0009_fill_once.sql`, `golang/internal/record` | `record_test.go` |
+
+## Getting out
+
+| Capability | What it does | Where it lives | What shows it works |
+|---|---|---|---|
+| The profit watch | Buys a structure back at a declared share of the credit it was opened for, checked every thirty seconds, with no model in the loop | `golang/internal/takeprofit` | `takeprofit_test.go`, `step_test.go` |
+| A guard that knows the shapes | Every structure a declaration can open has a verdict from the watch; adding a shape fails the test until somebody says what the watch does with it | `golang/internal/structures`, `golang/internal/takeprofit` | `shapes_test.go` |
+| Closing windows | `flatten` and `flatten-before-the-deadline` are declared sessions marked `cannot_wait`, so they are not queued behind an entry | `agent/alpaca-agent-2.yaml`, `sessions:` | `cannotwait_test.go` |
+| Defence that reports rather than closes | The defence pass measures and deliberately leaves a vertical open; the measurement that decided it is in the testbed | `agent/alpaca-agent-2.yaml`, `testbed/trials/defence-corridor.py` | `testbed/trials/strike-corridor/README.md` |
+| Expiry handled explicitly | Same-day expiry, one leg left, and assignment between the legs are cases with their own answers | `golang/internal/marketdata` | `expiryday_test.go`, `expirywatch_test.go`, `sameday_test.go` |
+
+## Finding what to trade
+
+| Capability | What it does | Where it lives | What shows it works |
+|---|---|---|---|
+| The sweep | Walks the permitted universe in parallel and prices every permitted pairing at the sides of the book a real order would cross | `golang/internal/screener`, `golang/internal/placement` | `sweep_test.go`, `parallel_test.go`, `placement_test.go` |
+| One measure to rank by | Candidates are ranked by a survival measure rather than by premium, so a rich structure that rarely survives loses to a thinner one that does | `golang/internal/screener/survival.go` | `survival_test.go` |
+| Refusals are counted | A caller told "nothing qualifies" is told out of how many; the counts reach the page | `golang/internal/placement`, `GET /api/sweep` | `review_test.go`, `golang/internal/api/api_test.go` |
+| Thresholds from measurement | What a structure must clear to be offered at all is read from the declaration in force, and the numbers in it come from the research scripts | `golang/internal/screener/sweep.go`, `Thresholds` | `thresholds_test.go`, `research/threshold.py` |
+| Volatility history | A series kept in Postgres because it is worth what its length is | `golang/internal/volatility` | `volatility_test.go`, `postgres_test.go` |
+| Account value over time | The line the week is judged on, kept snapshot by snapshot | `golang/internal/account` | `golang/internal/db/account_test.go` |
+
+## The record
+
+Eleven tables. Everything the agent was told, said, called and got back.
+
+| Capability | What it does | Where it lives | What shows it works |
+|---|---|---|---|
+| Turns and their causes | Every turn, and what woke it | `turns`, `turn_causes` | `golang/internal/record/record_test.go` |
+| Intents | What the session meant to do before it did it, with the underlying's price at the moment it decided | `intents` | `postgres/migrations/0018_intent_underlying_price.sql`, `record_test.go` |
+| The agent's own words | What the session said, kept beside what it did | `said` | `postgres/migrations/0017_said.sql` |
+| Every tool call | Arguments and answer, in the broker's own words, refusals included | `tool_calls` | `postgres/migrations/0008_tool_call_answer.sql`, `record_test.go` |
+| Execution steps | Each rung of a ladder, and what replaced it | `execution_steps` | `postgres/migrations/0019_execution_steps_replaced_by.sql` |
+| Candidates | What the sweep found, with the edge it was ranked on and where that edge came from | `candidates` | `postgres/migrations/0015_candidate_edge_from.sql` |
+| Account snapshots | The equity line | `account_snapshots` | `golang/internal/db/account_test.go` |
+| One record, one account | The record names the account it belongs to, because a process pointed at the wrong database served another account's numbers | `record_account`, `golang/internal/db` | `account_test.go` |
+| Reading the record back | The session can ask what it did; the answers are shaped for the protocol rather than copied from the tables | `golang/internal/sessiontools` | `stateanswer_test.go`, `candidates_test.go` |
+
+## The page
+
+| Capability | What it does | Where it lives | What shows it works |
+|---|---|---|---|
+| What the agent did | Turns, intents, the agent's words and the calls behind them | `typescript/web/src/Live.tsx`, `GET /api/state` | `golang/internal/api/api_test.go` |
+| Where it was stopped | Refusals shown beside the order that was refused | `typescript/web/src/Boundary.tsx` | `api_test.go` |
+| The money | Equity over time and the day's result | `typescript/web/src/Equity.tsx`, `GET /api/money`, `GET /api/equity` | `api_test.go` |
+| The limits in force | What the agent is allowed to do, read live | `GET /api/limits` | `limits_test.go` |
+| The read side decides nothing | It serves the record and orders nothing | `golang/internal/api` | `api_test.go` |
+| A public page or a key, never neither | The page refuses to start on an empty key unless it was told to be public, and refuses a key set together with public | `golang/internal/api/key.go` | `key_test.go` |
+
+## Proof
+
+| Capability | What it does | Where it lives | What shows it works |
+|---|---|---|---|
+| `make claims` | Recomputes 25 published numbers from data in the repository. No credentials, no network | `research/claims.py` | run it |
+| The research behind each threshold | 646 trading days of option prices, and a script per question: entry windows, exit rules, the take-profit share, the cost of crossing the book | `research/` | `research/README.md`, `make claims` |
+| `make day` | The three numbers a trading day is judged by, per account, straight from the record | `postgres/the-day.sql` | run it against a live record |
+| `make rehearse` | Sends a trading day's reads from every agent at once and prints what was refused, so a limit sized for one caller and met by four is found before Monday | `golang/apps/rehearse` | run it on a Sunday |
+| `make reconcile` | Answers, for every call left `unknown`, whether the order reached the broker | `golang/apps/reconcile` | `golang/internal/reconcile/reconcile_test.go` |
+
+## The test stand
+
+A stand that plays the agent conditions the market will not produce on request.
+It holds no broker credential and sits beside the trading path, never on it.
+
+| Capability | What it does | Where it lives | What shows it works |
+|---|---|---|---|
+| A staged market | Prices, clock and option book come from a file: the price reaching a sold strike, one leg left, a tool that stops answering mid-session | `testbed/scenarios/` | `testbed/proxy/scenario_test.go` |
+| An overlay on the real book | Every read goes to the real broker and one number is moved along a curve; each contract is repriced from its own live implied volatility. At zero displacement the overlay equals the live market to the cent | `testbed/proxy/overlay.go` | `overlay_test.go` |
+| Thirteen recorded trials, and five measurements beside them | Each one asks a single question and says what separates a right answer from a wrong one | `testbed/trials/` | `testbed/trials/*/README.md` |
+| Two trials that need no agent | Arithmetic on the declaration and on the market's own record | `testbed/trials/defence-corridor.py`, `testbed/trials/hold-or-close.py` | run them |
+| Kept out of the agent's build | The stand is a separate Go module, deliberately outside `go.work` | `testbed/Makefile` | `make -C testbed test` |
+
+## The gate
+
+| Capability | What it does | Where it lives | What shows it works |
+|---|---|---|---|
+| `make check` | Style, the language check, the tests, the race detector and both builds, in one command | `Makefile` | run it |
+| The English-only check | The repository opens with its whole history, so a line in another language is caught before it is committed | `make english` | run it |
+| Tests against a real Postgres | The record's tests run against the database it actually uses | `make test-db` | run it |
+| Tests against the broker | The shapes the broker answers in are held up against the real server | `make test-broker`, `golang/internal/marketdata/broker_test.go` | run it |
+| Continuous integration | The gate on every push, the deploy, and the published images | `.github/workflows/ci.yml`, `deploy.yml`, `publish.yml` | the workflow runs |
+
+## What it runs on
+
+| Capability | What it does | Where it lives | What shows it works |
+|---|---|---|---|
+| One binary, four roles | `harness` holds the clock, `api` serves the read side and the page, `mcp` carries the session's own tools, `envelope` answers what a caller may do | `golang/apps/app` | `make build` |
+| One chain per account | Harness, gateway endpoint, MCP server, database, page and credential all carry the same agent name, so a row in the record and a container in `docker ps` read as the same agent | `compose.yaml`, `architecture.md` | `golang/internal/config/composekeys_test.go` |
+| The egress allowlist | A forward proxy that refuses and logs any host nobody declared | `docker/egress/filter.txt`, `tinyproxy.conf` | the refusals in its log |
+| Migrations before anything reads | The schema is applied by the `migrate` service before a reader starts | `postgres/migrations/`, `compose.yaml` | `make migrate` |
+| The same stack from published images | `make prod-up` runs what `make local-up` builds | `compose.prod.yaml` | `deploy.md` |
