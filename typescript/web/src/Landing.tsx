@@ -1,9 +1,9 @@
-import { ArrowRight, Eye, EyeOff, FileCode, Ruler } from 'lucide-react'
+import { ArrowDown, Eye, EyeOff, FileCode, Ruler } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router'
 
 import { Boundary } from './Boundary'
 import { Card, Chip, Eyebrow, Figure, Figures } from './parts'
+import { ACCOUNT, COUNTS, SAID, TAKEN_AT } from './snapshot'
 
 // The landing page: what this is, how it differs, and where to go and look.
 //
@@ -19,29 +19,20 @@ import { Card, Chip, Eyebrow, Figure, Figures } from './parts'
 export function Landing() {
   return (
     <main className="mx-auto max-w-[1100px] px-6 pb-32 pt-20">
-      <Eyebrow>[ live · alpaca paper trading ]</Eyebrow>
+      <Eyebrow>[ Swiftward Alpaca · Live ]</Eyebrow>
 
-      <h1 className="mt-6 max-w-[17ch] text-[56px] font-medium leading-[1.05] tracking-[-0.024em] text-primary sm:text-[72px]">
-        A model decides every trade. A file decides when it is asked.
+      <h1 className="mt-6 max-w-[19ch] text-[56px] font-medium leading-[1.05] tracking-[-0.024em] text-primary sm:text-[72px]">
+        It trades options for profit, and it is held to what it may lose.
       </h1>
 
-      <p className="mt-7 max-w-[52ch] text-[22px] font-medium leading-[1.25] tracking-[-0.01em] text-secondary">
-        Thirteen windows, written in plain words, say when a session wakes and what it is asked. It
-        reaches for the playbooks it needs, reads 284 names, and either trades or says why it will
-        not.
+      <p className="mt-7 max-w-[54ch] text-[22px] font-medium leading-[1.25] tracking-[-0.01em] text-secondary">
+        A harness that puts intent, a model and policy on one line — so that what the agent means
+        to do is written down, what it decides is its own, and what it may lose is not its to
+        change.
       </p>
 
-      <div className="mt-10 flex flex-wrap items-center gap-4">
-        <Link
-          to="/live"
-          className="inline-flex items-center gap-2 rounded-md bg-accent-ink px-5 py-3 font-mono text-sm uppercase tracking-[0.02em] text-inverse transition-opacity hover:opacity-90"
-        >
-          Watch it trade
-          <ArrowRight className="size-4" aria-hidden />
-        </Link>
-        <span className="font-mono text-xs uppercase tracking-[0.04em] text-muted">
-          updates every 15 seconds
-        </span>
+      <div className="mt-12">
+        <Flow />
       </div>
 
       {/* Four numbers in the order the page argues them: what the session does,
@@ -144,6 +135,51 @@ export function Landing() {
         </Card>
       </Block>
 
+
+      <Block
+        label="07 · the account"
+        title="One account, live on Alpaca paper since the kickoff."
+        explains={`Opened at $100,000 on the kickoff day and never reset. These figures were taken from it on ${TAKEN_AT}; the page that moves is at /live, and it reads the broker through the same process the agent does.`}
+      >
+        <Card>
+          {/* Two rows rather than one: what the account is worth and what it made
+              are the numbers being claimed, and in a single row the counts wrap
+              and leave the last one standing alone under them. */}
+          <Figures>
+            <Figure name="equity" value={money(ACCOUNT.equity)} hero />
+            <Figure
+              name="since the kickoff"
+              value={`${change(ACCOUNT.profit)} · ${ACCOUNT.percent}%`}
+              tone="gain"
+              hero
+            />
+          </Figures>
+          <div className="mt-4">
+            <Figures>
+              {COUNTS.map(([name, value]) => (
+                <Figure key={name} name={name} value={value} />
+              ))}
+            </Figures>
+          </div>
+
+          <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+            what it said, unedited
+          </p>
+          <ul className="m-0 mt-4 list-none space-y-px p-0">
+            {SAID.map((line) => (
+              <li key={line.at} className="rounded-md bg-surface-sunk px-4 py-3">
+                <p className="font-mono text-[11px] text-muted">{line.at}</p>
+                <p className="mt-1.5 text-[15px] leading-relaxed text-secondary">{line.text}</p>
+              </li>
+            ))}
+          </ul>
+          <Pull>
+            Three of those six are the session deciding not to trade. That is the proportion the
+            week actually had.
+          </Pull>
+        </Card>
+      </Block>
+
       <Block label="06 · the brief" title="What the hackathon asked for.">
         <div className="grid gap-4 sm:grid-cols-3">
           {REQUIRED.map(([asked, met]) => (
@@ -158,6 +194,17 @@ export function Landing() {
   )
 }
 
+// An AMOUNT and a CHANGE are written differently, and confusing them is how a
+// balance ends up wearing a plus sign it did not earn. What the account holds
+// takes no sign; what it made since the kickoff takes one.
+function money(amount: number) {
+  return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function change(amount: number) {
+  return `${amount < 0 ? '-' : '+'}${money(Math.abs(amount))}`
+}
+
 // ============================================================
 // The pictures.
 //
@@ -168,6 +215,58 @@ export function Landing() {
 // no scale to parse. Each takes its colour from the page's roles, so none of them
 // carries an opinion about which theme it is in.
 // ============================================================
+
+// The four things that stand between a window opening and an order existing, and
+// what each of them answers. Drawn rather than listed because the argument is the
+// ORDER of them: the model decides in the middle, with something written down
+// before it and something it cannot reach after it. A list of four bullets says
+// the same words and loses the sequence, which is the whole claim.
+function Flow() {
+  const steps: [string, string, string][] = [
+    ['intent', 'what it means to do, and why', 'written first'],
+    ['the model', 'reads the book, picks the structure, sizes it', 'decides'],
+    ['policy', 'refuses what breaks the envelope', 'holds'],
+    ['the order', 'walked to the book, or cancelled on patience', 'sent'],
+  ]
+
+  return (
+    <figure className="m-0 max-w-[720px]">
+      <div className="rounded-xl border border-line bg-surface-raised p-6">
+        <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+          one window, from waking to an order
+        </p>
+        <ul className="m-0 mt-5 list-none p-0">
+          {steps.map(([name, does, state], index) => (
+            <li
+              key={name}
+              className={`flex flex-wrap items-center justify-between gap-x-6 gap-y-1 py-4 ${
+                index === 0 ? '' : 'border-t border-line'
+              }`}
+            >
+              <span className="flex items-baseline gap-3">
+                <span className="font-mono text-[13px] text-muted">0{index + 1}</span>
+                <span className="text-[17px] font-medium text-primary">{name}</span>
+                <span className="text-[15px] text-secondary">{does}</span>
+              </span>
+              <Chip tone={index === 1 ? 'strong' : undefined}>{state}</Chip>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="flex justify-center py-3 text-muted" aria-hidden>
+        <ArrowDown className="size-5" />
+      </div>
+      <div className="rounded-xl border border-line bg-surface-raised px-6 py-5 text-center">
+        <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-gain">
+          what the account keeps
+        </p>
+        <p className="mt-2 text-[19px] font-medium text-primary">
+          The credit, less what the loss was allowed to be
+        </p>
+      </div>
+    </figure>
+  )
+}
 
 // The trading day and what the file puts in it. Three entries open the account;
 // what keeps it repeats too often to draw and is said in a line instead.
