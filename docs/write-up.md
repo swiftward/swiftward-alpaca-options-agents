@@ -89,7 +89,7 @@ and the difference is a decision, not an oversight.
 
 ## How it is tested
 
-Every rule that can refuse a trade carries a test that FAILS when the rule is removed. That is the property worth having: a suite that stays green when a gate is deleted has measured nothing. Each gate above was checked that way - the rule disabled, the test watched to go red, the rule restored.
+Every rule IN THIS REPOSITORY that can refuse a trade carries a test that FAILS when the rule is removed - the ladder's cancellations, the worst-price re-check, the profit watch's guard on structure shapes. The gateway's own refusals are tested where the gateway lives, which is not here. That is the property worth having: a suite that stays green when a gate is deleted has measured nothing. Each gate above was checked that way - the rule disabled, the test watched to go red, the rule restored.
 
 Beside the code there is a test stand that replays market conditions and failures against the agent - the ones a real market will not produce on demand - and measures what the agent does in response. It is not a backtest and not a trading simulator. What it has caught, and the thirteen trials behind it, are in `testbed/README.md`.
 

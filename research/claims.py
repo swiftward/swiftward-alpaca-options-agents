@@ -1,12 +1,19 @@
-"""Every number this project publishes, recomputed and checked, with no credentials.
+"""The twenty-five numbers that CAN be recomputed here, checked with no credentials.
 
 A judge should not have to believe a table. This runs the measurements behind the
-claims in `docs/write-up.md` and the declarations, from data committed to this
-repository, and prints each one PASS or FAIL against the value we publish.
+thresholds in the declarations and the results in `docs/write-up.md`, from data
+committed to this repository, and prints each one PASS or FAIL against the value we
+publish.
 
 It needs no Alpaca key and reaches no network. Everything it reads is committed:
 `data/candidates_bt.parquet`, the structures the rule could have seen, and the
-15-minute paths and entry-window leg prices behind the defence numbers.
+entry-window leg prices and buy-back lows behind the exit numbers.
+
+What it does NOT cover is listed in `README.md` beside it, name by name: numbers
+whose exit price is modelled rather than traded, and numbers that come from our own
+account record, which is not published. Reading this as "every number in the
+repository" would be the wrong reading, and the list exists so that nobody has to
+guess which is which.
 
 A claim that fails here is a claim we must correct, not a test to relax.
 """

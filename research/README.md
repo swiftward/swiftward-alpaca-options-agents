@@ -236,6 +236,35 @@ The rest of `data/` is not committed — the minute-by-minute paths file alone i
 109 MB. Its collectors rebuild it; `alpaca.py` reads the market-data key from the
 `.env` this repository already uses.
 
+## What `make claims` covers, and what it does not
+
+Three lists, so that nobody has to work out which kind of number they are reading.
+
+**Checked by `make claims`, from data committed here.** The twenty-five it prints:
+the history's length; the expiry gradient and the figure for each day to expiry;
+the per-name figures for SPY, QQQ, IWM and GLD; the delta ceiling of 0.30 against
+0.45; that the crossing costs more than the strategy earns without it; the defence
+measurement over 672 trades and its three exit rules; and the take-profit
+measurement over 597 trades with its totals and its share in the red.
+
+**Reproducible, but MODELLED rather than traded.** Every early-exit result. Option
+prices through time exist in our data only in the entry window, so a spread closed
+before expiry is repriced by Black-Scholes at the volatility it was entered on, and
+the crossing is charged at an assigned 0.10 with a 0.05 fee. Holding to expiry is
+the one arm that settles on real closes. The numbers concerned: the 2.32 of closing
+on the touch, the 3.46 of closing a width past the strike, and the paths behind the
+take-profit share. `make claims` proves the arithmetic reproduces; it does not turn
+a model into a fill.
+
+**Neither, and named so that they are not mistaken for either.**
+
+| Number | Where it comes from |
+|---|---|
+| The 3 September incident in `docs/write-up.md`: 119 sets against a $9,298 ceiling at a true worst case of $20,349 | our own record of the judged account, which is not published |
+| "+2 takes 1.00 trades a day for 2,087, +3 takes 0.85 for 2,146" | a grid priced with each name's own book; the cost file behind it is not committed |
+| The four observations about this account tier - greeks only on `get_option_snapshot`, no greeks on SPXW, `feed=indicative`, one order for a vertical | measured against the broker on our own account |
+| `entry_windows.py` | needs `data/intraday.jsonl`, which is not committed; the entry-window finding stands on the run recorded above rather than on a rerun |
+
 ## What the data does not hold
 
 Each script says this at its top, and it is worth repeating here because it bounds
