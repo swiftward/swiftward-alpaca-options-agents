@@ -172,8 +172,10 @@ export function Landing() {
 // The trading day and what the file puts in it. Three entries open the account;
 // what keeps it repeats too often to draw and is said in a line instead.
 function Day() {
+  // The three windows that may open the account, and the one that empties it.
+  // `open-check` at 10:00 was here and is not: twenty minutes from the first
+  // entry, its label ran into the next one and the two read as one word.
   const marks: [number, string][] = [
-    [10.0, 'open-check'],
     [10.33, 'entry'],
     [12.5, 'entry'],
     [14.33, 'entry'],
