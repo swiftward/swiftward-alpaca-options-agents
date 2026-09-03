@@ -199,6 +199,11 @@ type Harness struct {
 	// asks the watcher rather than the harness.
 	declared *declaration.Declaration
 	lastRun  map[string]time.Time
+	// emptyTurns carries the name of a session whose turn ended having said and
+	// called nothing, from the turn's goroutine to the clock's. It exists because
+	// lastRun belongs to the clock goroutine alone, and clearing it from the turn
+	// would be a race on the one map the schedule reads every tick.
+	emptyTurns chan string
 	// lastPricePoll is when prices were last read, and lastReread is when the
 	// declaration was last brought level with the disk. Both are touched only by
 	// the clock goroutine, so they need no lock - and taking one would say the
@@ -230,6 +235,14 @@ func (h *Harness) Run(ctx context.Context) error {
 	h.declared = h.Declaration
 	h.mu.Unlock()
 	h.lastRun = h.whatAlreadyRanToday(ctx, h.Declaration)
+	// Room for every session to report one empty turn between two ticks. A
+	// harness with no declaration wakes nobody on a clock, so one slot is spare
+	// capacity rather than a size.
+	slots := 1
+	if h.Declaration != nil {
+		slots = len(h.Declaration.Sessions) + 1
+	}
+	h.emptyTurns = make(chan string, slots)
 
 	// Followed whether or not anybody is watching the chat: this is the loop that
 	// closes a turn in the record, and the record is read long after the room.
@@ -727,6 +740,7 @@ func (h *Harness) fireDue(ctx context.Context) {
 		return
 	}
 	now := h.Now().In(declared.Location())
+	h.forgetEmptyTurns(declared)
 
 	for i := range declared.Sessions {
 		session := &declared.Sessions[i]
@@ -771,6 +785,37 @@ func (h *Harness) fireDue(ctx context.Context) {
 			return
 		}
 		h.lastRun[session.Name] = now
+	}
+}
+
+// forgetEmptyTurns un-marks a once-a-day window whose turn produced nothing, so
+// the next tick starts it again inside the lateness the window itself allows.
+//
+// A turn that ends having said and called nothing did not do the work: on
+// 3 September OpenAI refused every request for thirty-four minutes, and every
+// window that fired in them was recorded as run. A window with `at:` gets one
+// chance a day, so a refusal landing in the minute of the closing window would
+// have left the book open with no retry.
+//
+// Only a window with `at:`. One with `every:` comes round again on its own, and
+// clearing its mark would start it on the very next tick instead - a retry every
+// few seconds for as long as the provider is down.
+func (h *Harness) forgetEmptyTurns(declared *declaration.Declaration) {
+	for {
+		select {
+		case name := <-h.emptyTurns:
+			for i := range declared.Sessions {
+				session := &declared.Sessions[i]
+				if session.Name != name || session.At == "" {
+					continue
+				}
+				delete(h.lastRun, name)
+				h.Log.Info("a window produced nothing and stays due",
+					zap.String("session", name))
+			}
+		default:
+			return
+		}
 	}
 }
 
@@ -1208,6 +1253,16 @@ func (h *Harness) finishTurn(ctx context.Context, turnID string) {
 		failure = record.SilentFailure
 		h.Log.Error("the agent ended a turn without saying or calling anything",
 			zap.String("turn_id", turnID), zap.String("session", who))
+		// The clock decides whether this window may run again; it is told here.
+		// A full channel means the clock has not caught up, and a window it has
+		// not read yet is still marked run - which is the state before this
+		// existed, so dropping the name loses nothing that was ever held.
+		if who != "" && h.emptyTurns != nil {
+			select {
+			case h.emptyTurns <- who:
+			default:
+			}
+		}
 	}
 
 	if acted {

@@ -2283,3 +2283,95 @@ sessions:
 		assert.Empty(t, steered, "a session that may wait waits")
 	})
 }
+
+// A once-a-day window whose turn produced nothing runs again inside the lateness
+// it declares. On 3 September OpenAI refused every request for thirty-four
+// minutes; every window that fired in them started a turn, said nothing, called
+// nothing, and was recorded as run. A window with `at:` has one chance a day, so
+// a refusal in the minute of the closing window would have left the book open.
+func TestAWindowThatProducedNothingRunsAgain(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+kind: trading-agent
+name: alpaca-agent-1
+version: v1
+timezone: UTC
+sessions:
+  - name: flatten
+    cause: "close everything before the day ends"
+    task: "Close all positions."
+    at: "15:50"
+    within: 20m
+`), 0o600))
+
+	declared, err := declaration.Load(path)
+	require.NoError(t, err)
+
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: conversation,
+		Declaration:  declared,
+		CallTimeout:  2 * time.Second,
+		Now:          func() time.Time { return time.Date(2026, 8, 24, 15, 50, 0, 0, time.UTC) },
+		TickEvery:    20 * time.Millisecond,
+		Log:          zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	// The turn ends having said and called nothing: no text, no tool call, just
+	// done. That is what the refusal looked like from here.
+	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
+
+	// And the window comes round again, still inside its twenty minutes.
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) >= 2 })
+}
+
+// A window with `every:` is NOT un-marked: it comes round on its own, and
+// clearing its mark would start it on the very next tick - a retry every few
+// seconds for as long as the provider is down.
+func TestARepeatingWindowIsNotRetriedEarly(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "agent.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+kind: trading-agent
+name: alpaca-agent-1
+version: v1
+timezone: UTC
+sessions:
+  - name: watch
+    cause: "look at the book"
+    task: "Look."
+    between: ["09:30", "16:00"]
+    every: 1h
+`), 0o600))
+
+	declared, err := declaration.Load(path)
+	require.NoError(t, err)
+
+	conversation := newConversationSpy()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	h := &Harness{
+		Conversation: conversation,
+		Declaration:  declared,
+		CallTimeout:  2 * time.Second,
+		Now:          func() time.Time { return time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC) },
+		TickEvery:    20 * time.Millisecond,
+		Log:          zaptest.NewLogger(t),
+	}
+	go func() { _ = h.Run(ctx) }()
+
+	waitFor(t, func() bool { turns, _, _ := conversation.seen(); return len(turns) == 1 })
+
+	conversation.events <- agent.Event{Kind: agent.KindTurnDone, TurnID: "tu-1"}
+
+	// The hour has not passed, so nothing starts again however many ticks run.
+	time.Sleep(300 * time.Millisecond)
+	turns, _, _ := conversation.seen()
+	assert.Len(t, turns, 1, "a repeating window must wait for its interval, not retry at once")
+}
