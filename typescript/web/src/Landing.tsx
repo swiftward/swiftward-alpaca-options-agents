@@ -1,32 +1,29 @@
-import { ArrowRight, Eye, GitBranch, Ruler } from 'lucide-react'
+import { ArrowRight, Eye, FileCode, Ruler } from 'lucide-react'
 import { Link } from 'react-router'
 
 import { Card, Chip, Eyebrow, Figure, Figures, Section, Table } from './parts'
 
 // The landing page: what this is, how it differs, and where to go and look.
 //
-// It is ordered for a reader who arrives and leaves, not for one who is walked
-// through: the claim, then the four numbers that support it, then the way to
-// check them. The architecture comes after, because nobody stays for the
-// architecture of a thing they do not yet believe in.
-//
-// The three claims were not chosen for their looks. They are the only things we
-// have that the neighbouring teams almost certainly will not: limits the agent
-// cannot reach; numbers measured on the history, including one that deleted a
-// rule we liked; and reasoning that is visible.
+// Ordered for a reader who arrives and leaves, not for one who is walked through
+// in order. What the session DOES comes first, because a reader who cannot see
+// the model working will read everything after it as a backtest with a chat
+// window attached. The limits come second and the measurements third: they are
+// what the deciding is held to and what its numbers rest on, and neither is the
+// thing being sold.
 export function Landing() {
   return (
     <main className="mx-auto max-w-[1100px] px-6 pb-32 pt-20">
       <Eyebrow>[ live · alpaca paper trading ]</Eyebrow>
 
-      <h1 className="mt-6 max-w-[18ch] text-[56px] font-medium leading-[1.05] tracking-[-0.024em] text-primary sm:text-[72px]">
-        An options agent that cannot edit what stops it.
+      <h1 className="mt-6 max-w-[17ch] text-[56px] font-medium leading-[1.05] tracking-[-0.024em] text-primary sm:text-[72px]">
+        A model decides every trade. A file decides when it is asked.
       </h1>
 
       <p className="mt-7 max-w-[52ch] text-[22px] font-medium leading-[1.25] tracking-[-0.01em] text-secondary">
-        It is declared in a file, held by limits that live in another service, and every number it
-        trades on was measured over two and a half years of option prices — including the rule the
-        measurement told us to delete.
+        Thirteen windows, written in plain words, say when a session wakes and what question it is
+        put. The session reaches for the playbooks it needs, reads 284 names, works out what the
+        book will actually pay, and either trades or says why it will not.
       </p>
 
       <div className="mt-10 flex flex-wrap items-center gap-4">
@@ -42,59 +39,49 @@ export function Landing() {
         </span>
       </div>
 
-      {/* The four numbers the rest of the page has to earn. The zero is the one
-          worth stopping on: risk limits in an agent's prompt are a request, and
-          this agent is given none of them to read or rewrite. */}
+      {/* Four numbers, in the order the page argues them: what the session does,
+          then what holds it, then what its numbers rest on. The zero is worth
+          stopping on - risk limits written into a prompt are a request, and this
+          session is given none of them to read or rewrite. */}
       <div className="mt-14">
         <Figures>
-          <Figure name="published numbers that recompute" value="25 / 25" />
-          <Figure name="trading days measured" value="646" />
+          <Figure name="windows the file declares" value="13" />
+          <Figure name="names read on every pass" value="284" />
           <Figure name="risk limits in the prompt" value="0" />
-          <Figure name="trials that attack the agent" value="12" />
+          <Figure name="published numbers that recompute" value="25 / 25" />
         </Figures>
       </div>
 
       <div className="mt-16 mb-16 grid gap-4 sm:grid-cols-3">
         <Claim
-          icon={Ruler}
-          title="Limits it does not own"
-          says="Nothing about risk is written into its instructions. A separate service refuses the order, and the agent has nothing to edit. It asks what it may do while it works — and is sometimes told only that a rule is there, without the number, so there is nothing to route around."
+          icon={FileCode}
+          title="The agent is written, not coded"
+          says="A declaration says when a session wakes and what it is asked; five playbooks say how each technique is run. All of it is prose the session reads at the moment it acts, so changing what the agent does is editing a file. We edited one while the market was open and the next session read the new rule."
         />
         <Claim
-          icon={GitBranch}
-          title="Numbers that were measured"
-          says="Two and a half years of option prices decided the thresholds. The first version of the entry rule lost money by construction; the measurement is what found that. Every number carries the script that produced it, and a test refuses to build if one carries none."
+          icon={Ruler}
+          title="Limits it cannot reach"
+          says="Nothing about risk is written into its instructions. An order is refused before it reaches the broker, and there is nothing in the session's reach to edit. It asks what it may do while it works — and is sometimes told only that a rule is there, without the number, so there is nothing to route around."
         />
         <Claim
           icon={Eye}
           title="Reasoning you can read"
-          says="Each run shows what woke it, what it asked the broker, and what it concluded — in its own words. Including the runs where it looked at six candidates, refused all six, and said why."
+          says="Each run shows what woke it, what it asked the broker, and what it concluded — in its own words. Including the runs where it priced six candidates, refused all six, and said what each one paid."
         />
       </div>
 
       <Section
-        title="We deleted our own defence rule"
-        explains="It closed a spread the moment the price touched the sold strike. It felt prudent for four months. Then it was measured against 672 trades, and the history said it loses to doing nothing."
+        title="The file is the agent"
+        explains="A window says when a session starts and what question it is being asked. It never says what to trade — that is the session's own decision, which is what makes this an agent rather than a script with a model in it. One engine runs several accounts from several files, and the difference between the files is the whole experiment."
       >
         <Card>
-          <Table
-            head={['exit rule', 'a trade']}
-            rows={EXITS.map(([rule, value, note]) => [
-              <span className={note ? 'text-primary' : ''}>
-                {rule}
-                {note ? <span className="ml-3 font-mono text-[13px] text-loss">{note}</span> : null}
-              </span>,
-              <span className="font-mono tabular-nums">{value}</span>,
-            ])}
-            empty="nothing to compare"
-          />
+          <pre className="overflow-x-auto font-mono text-[13px] leading-relaxed text-secondary">
+            {SCHEDULE}
+          </pre>
           <p className="mt-5 text-[15px] leading-relaxed text-secondary">
-            The price passed the sold strike in 42.7% of trades and only 26.6% ended breached. The
-            rule was paying for 108 crossings that bought nothing. It is gone, and what replaced it
-            is on the page above in the agent's own words.
-          </p>
-          <p className="mt-4 text-[15px] leading-relaxed text-primary">
-            A measurement that only ever agrees with you is not a measurement.
+            Thirteen of these run the day: three entry windows, a defence every fifteen minutes, a
+            news watch on a cheaper model, and a flatten before the bell. The session sets its own
+            wake-ups on top of them — on a clock, or on a price it wants to hear about.
           </p>
         </Card>
       </Section>
@@ -125,6 +112,33 @@ export function Landing() {
       </Section>
 
       <Section
+        title="We deleted our own defence rule"
+        explains="It closed a spread the moment the price touched the sold strike. It felt prudent for four months. Then it was measured against 672 trades, and the history said it loses to doing nothing."
+      >
+        <Card>
+          <Table
+            head={['exit rule', 'a trade']}
+            rows={EXITS.map(([rule, value, note]) => [
+              <span className={note ? 'text-primary' : ''}>
+                {rule}
+                {note ? <span className="ml-3 font-mono text-[13px] text-loss">{note}</span> : null}
+              </span>,
+              <span className="font-mono tabular-nums">{value}</span>,
+            ])}
+            empty="nothing to compare"
+          />
+          <p className="mt-5 text-[15px] leading-relaxed text-secondary">
+            The price passed the sold strike in 42.7% of trades and only 26.6% ended breached. The
+            rule was paying for 108 crossings that bought nothing. It is gone: a spread is now left
+            alone until the price passes the leg that caps the loss.
+          </p>
+          <p className="mt-4 text-[15px] leading-relaxed text-primary">
+            A measurement that only ever agrees with you is not a measurement.
+          </p>
+        </Card>
+      </Section>
+
+      <Section
         title="Check the numbers yourself"
         explains="Every figure this project publishes about its own measurements is recomputed by one command, from data committed to the repository. It reaches no network and needs no key of ours."
       >
@@ -150,17 +164,6 @@ export function Landing() {
             service answers with a broken payload — does the agent stop, or invent a number? One of
             the twelve failed, and the rule it broke is the one deleted above.
           </p>
-        </Card>
-      </Section>
-
-      <Section
-        title="When it wakes, and why"
-        explains="The schedule is a declaration rather than code. It says when a session starts and what question it is being asked; it never says what to trade — that is the session's own decision, which is what makes the agent autonomous rather than driven. We edited this file while the market was open, and the next session read the new rule. No restart, no deploy."
-      >
-        <Card>
-          <pre className="overflow-x-auto font-mono text-[13px] leading-relaxed text-secondary">
-            {SCHEDULE}
-          </pre>
         </Card>
       </Section>
 
