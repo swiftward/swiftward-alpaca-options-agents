@@ -2,6 +2,36 @@
 
 Two networks, one binary with four roles, and one chain repeated per account. The shape exists to make one property true: **the agent reaches nothing except the services beside it and the hosts the proxy allows.**
 
+## What can be checked here, and what cannot
+
+The distinguishing part of this system - a policy gateway that refuses an order
+before the broker sees it - is a network service, and it is not in this repository.
+That is worth stating at the top rather than leaving a reader to discover it three
+sections down, because it decides which claims can be settled by reading and which
+need a running deployment.
+
+**Settled by reading this repository, and by tests that go red without the rule:**
+
+| Claim | Where |
+|---|---|
+| The agent holds no broker key: a gateway address and a token, and nothing else | `golang/internal/config`, `envexample_test.go` |
+| The one order the machinery places itself can only reduce the book | `marketdata.CloseStructure`, `TestEveryLegOfAClosingOrderSaysItCloses` |
+| The ladder cancels an order too large for one position, and one whose loss has no floor | `execution.WorstCase`, `execution.Unbounded`, `toobig_test.go` |
+| A concession that breaks the rule the entry was made on is refused | `TestAWorstPriceBelowTheEntryRuleIsNotWalkedTo` |
+| The session is told its limits at runtime, and which limits depend on the token it was started with | `golang/internal/envelope`, `envelope_test.go` |
+| Every published number that can be recomputed, recomputes | `make claims` |
+
+**Settled only against a running deployment:**
+
+| Claim | How |
+|---|---|
+| An order the gateway refuses never reaches Alpaca, and the refusal names the rule | the refusals in `tool_calls`, shown on the page beside the call that was refused |
+| A limit tightened while the agent runs reaches the next turn | change it and watch `GET /api/limits` and the next intent |
+| The whole read path holds under four callers at once | `make rehearse`, which prints what was refused |
+
+Nothing here asks a reader to take the gateway on trust: it asks them to read the
+record it wrote, which is the same record the page serves.
+
 ## One agent is one chain
 
 Every link belongs to exactly one account and carries that account's name:

@@ -5,8 +5,13 @@ shows it works. Follow a pointer and you land on the code or on the test that
 holds the claim up. Why the pieces are shaped this way is in
 `architecture.md`; this page is the map, not the explanation.
 
-The fastest single check is `make claims`: it recomputes every number this
-project publishes from data committed here, with no credentials and no network.
+The fastest single check is `make claims`: it recomputes twenty-five published
+numbers from data committed here, with no credentials and no network.
+
+Two rows below belong to the policy gateway, which is a network service and is not
+in this repository. `docs/architecture.md` opens with the line between what a reader
+can settle here and what needs a running deployment, and this table keeps that line
+in the "Where it lives" column rather than blurring it.
 
 ## The agent is a declaration
 
