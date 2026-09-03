@@ -70,7 +70,13 @@ type Read struct {
 	// open to the internet, serving the account with no key at all, is the state
 	// this exists to end - so it is not a state this can be started in.
 	Key string
-	Log *zap.Logger
+	// Public serves the page to anyone who reaches it, with no key at all. The
+	// platform requires an address a judge opens by hand, and a judge carries no
+	// key. It is a separate value rather than an empty Key so that a page can
+	// never become open by a setting somebody forgot: absence keeps the key
+	// required, and only this says otherwise.
+	Public bool
+	Log    *zap.Logger
 }
 
 // money is what the page shows above everything else.
@@ -94,8 +100,12 @@ type money struct {
 
 // Handler builds the read-side routes.
 func (r Read) Handler() (http.Handler, error) {
-	if strings.TrimSpace(r.Key) == "" {
-		return nil, errors.New("PAGE_KEY is empty: this serves the account's positions and the agent's own words, and it will not do that to whoever reaches the port")
+	key := strings.TrimSpace(r.Key)
+	switch {
+	case r.Public && key != "":
+		return nil, errors.New("PAGE_PUBLIC is set and so is PAGE_KEY: one of them is a mistake, and guessing which would either publish the account or lock out a judge")
+	case !r.Public && key == "":
+		return nil, errors.New("PAGE_KEY is empty: this serves the account's positions and the agent's own words, and it will not do that to whoever reaches the port. Set PAGE_PUBLIC where that is the intention")
 	}
 
 	mux := http.NewServeMux()
@@ -185,7 +195,7 @@ func (r Read) Handler() (http.Handler, error) {
 
 	if r.WebDir == "" {
 		r.Log.Info("no WEB_DIR set: serving JSON only")
-		return guarded(r.Key, mux), nil
+		return r.gate(mux), nil
 	}
 	if _, err := os.Stat(r.WebDir); err != nil {
 		return nil, err
@@ -197,7 +207,7 @@ func (r Read) Handler() (http.Handler, error) {
 	mux.Handle("GET /", spa(r.WebDir))
 	r.Log.Info("serving the built page", zap.String("web_dir", r.WebDir))
 
-	return guarded(r.Key, mux), nil
+	return r.gate(mux), nil
 }
 
 // money asks the broker its three questions. One failure fails the answer: a

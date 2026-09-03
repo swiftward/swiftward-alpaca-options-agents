@@ -198,3 +198,47 @@ func TestEveryRouteOfTheReadSideIsBehindTheGate(t *testing.T) {
 	handler.ServeHTTP(alive, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 	assert.Equal(t, http.StatusOK, alive.Code)
 }
+
+// The address a judge opens by hand carries no key, so the state has to be
+// reachable - and reachable only by saying so. The test beside it,
+// TestEveryRouteOfTheReadSideIsBehindTheGate, is the same routes refused: without
+// that pair this one proves the routes answer, not that the switch is what makes
+// them.
+func TestAPublicPageAnswersEveryRouteWithNoKey(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>the page</html>"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "app.js"), []byte("// the built page"), 0o600))
+
+	handler, err := Read{
+		Record: record.NewMemory(), WebDir: dir, Public: true, Log: zaptest.NewLogger(t),
+	}.Handler()
+	require.NoError(t, err)
+
+	for _, route := range []string{"/", "/app.js", "/index.html", "/api/state", "/healthz"} {
+		answer := httptest.NewRecorder()
+		handler.ServeHTTP(answer, httptest.NewRequest(http.MethodGet, route, nil))
+		assert.NotEqual(t, http.StatusUnauthorized, answer.Code, "%s asked for a key", route)
+	}
+
+	page := httptest.NewRecorder()
+	handler.ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/", nil))
+	assert.Equal(t, http.StatusOK, page.Code)
+	assert.Contains(t, page.Body.String(), "the page")
+}
+
+// Both together say two different things about who may read the account, and
+// there is no reading of them that is safe to guess.
+func TestAPageThatIsBothPublicAndKeyedRefusesToStart(t *testing.T) {
+	_, err := Read{Public: true, Key: testKey, Log: zaptest.NewLogger(t)}.Handler()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "PAGE_PUBLIC")
+	assert.Contains(t, err.Error(), "PAGE_KEY")
+}
+
+// Whitespace is not a key. Without this, PAGE_KEY=" " starts a page that demands
+// a key nobody can type, and the deployment looks configured.
+func TestAKeyOfWhitespaceIsNoKey(t *testing.T) {
+	_, err := Read{Key: "   ", Log: zaptest.NewLogger(t)}.Handler()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "PAGE_KEY")
+}

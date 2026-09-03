@@ -96,6 +96,11 @@ type Config struct {
 	// read it is a decision, and an empty value is refused rather than defaulted
 	// to open. internal/api/key.go says how it arrives.
 	PageKey string
+	// PagePublic serves the page with no key at all. The platform requires an
+	// address a judge opens by hand and a judge carries no key, so the state has to
+	// be reachable - but only by saying so. internal/api/api.go refuses an empty
+	// PageKey unless this is set, and refuses both together.
+	PagePublic bool
 
 	// UserHeader is the header the endpoint was declared to read the person from.
 	// It comes from the same value the declaration uses, so the client writes
@@ -408,6 +413,7 @@ func Load() (Config, error) {
 		BrokerMCPURL:          k.String("broker_mcp_url"),
 		UserToken:             k.String("user_token"),
 		PageKey:               k.String("page_key"),
+		PagePublic:            k.Bool("page_public"),
 		UserHeader:            k.String("user_header_name"),
 		BrokerMCPToken:        k.String("broker_mcp_token"),
 		TickEvery:             tickEvery,

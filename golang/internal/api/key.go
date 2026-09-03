@@ -91,6 +91,14 @@ func refuse(w http.ResponseWriter) {
 // it finds a difference, and a secret compared that way can be read a character
 // at a time by anyone patient enough to measure.
 func same(given, key string) bool {
+	// An empty key matches an empty request, so every reader would be admitted -
+	// which turns the whole gate into an open door with a lock drawn on it.
+	// Handler refuses to start there, and this refuses to be the reason it would
+	// not have mattered.
+	if key == "" {
+		return false
+	}
+
 	return subtle.ConstantTimeCompare([]byte(given), []byte(key)) == 1
 }
 
@@ -124,4 +132,21 @@ func encrypted(req *http.Request) bool {
 	}
 
 	return strings.EqualFold(req.Header.Get("X-Forwarded-Proto"), "https")
+}
+
+// gate wraps the routes in whatever this deployment decided about who may read
+// them. Both places that finish building the mux call this one, so the decision
+// cannot differ between serving the page and serving the JSON alone.
+//
+// Handler has already refused the two states this cannot express: no key and not
+// public, and public with a key.
+func (r Read) gate(next http.Handler) http.Handler {
+	if r.Public {
+		r.Log.Warn("PAGE_PUBLIC is set: this page is served to anyone who reaches it, " +
+			"with the account's positions, its equity, every order and the agent's own words")
+
+		return next
+	}
+
+	return guarded(strings.TrimSpace(r.Key), next)
 }

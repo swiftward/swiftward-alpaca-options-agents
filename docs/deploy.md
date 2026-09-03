@@ -114,6 +114,23 @@ were found exactly this way.
 | `AGENT_1_PAGE_MCP_TOKEN` | the page | it shows no money and answers 503 |
 | `SCREENER_KEEP` | the harness | `the screener needs how long to keep what it finds` |
 | `CODEX_AUTH_DIR` and the login | the agent | `no login at /mnt/codex/auth.json` |
+| `PAGE_KEY`, unless `PAGE_PUBLIC` is set | the page | `PAGE_KEY is empty: this serves the account's positions and the agent's own words` |
+
+### The page: a key, or deliberately public
+
+The page serves the account - its positions, its equity, every order and the
+agent's own words - so who may read it is a decision the deployment makes and not
+a default. Two values express it and exactly one of them is set.
+
+`PAGE_KEY` is a long random string; a reader arrives once at `?key=<it>`, the key
+becomes a cookie and leaves the address. This is what a page reachable by anyone
+who finds the port needs.
+
+`PAGE_PUBLIC=true` serves the page to everyone, with `PAGE_KEY` left empty. The
+platform requires an address a judge opens by hand and a judge carries no key, so
+the public address is set this way and no other. Both together refuse to start:
+they say two different things about who may read the account, and there is no
+reading of them safe to guess.
 
 The codex login is done once, on a machine with no browser, and only like this:
 
