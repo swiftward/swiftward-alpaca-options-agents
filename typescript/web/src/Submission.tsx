@@ -15,10 +15,11 @@ const REPOSITORY = 'https://github.com/swiftward/swiftward-alpaca-options-agents
 // root is four ways of saying "go and read it", and a judge with a quarter of an
 // hour reads none of them.
 const DOCS = `${REPOSITORY}/blob/main/docs`
-// The deck travels with the repository rather than on somebody's drive: it is a
-// file in the tree, so it opens when the repository does and cannot go missing
-// behind an expired share.
-const DECK = `${REPOSITORY}/blob/main/typescript/web/public/slides.pdf`
+// Served by this page's own host, from typescript/web/public. The file is in the
+// repository, so a reader of the code has it too, but the link a judge follows
+// depends on nothing outside this deployment - no drive share to expire and no
+// repository that has to be public yet.
+const DECK = '/slides.pdf'
 
 const CLAIMS_OUTPUT = `PASS  646 trading days covered          646
 PASS  one day to expiry pays          10.72
