@@ -86,10 +86,13 @@ declaration's own header means by "two accounts run the same playbook on purpose
 and the difference between them is the whole experiment". The other account on that
 declaration was started before the kickoff for testing and is not submitted.
 
-Its page is served beside the agent, on that agent's own record, so the judged page
-answers for one account on both sides: what the broker holds - the account, the
-positions and every order with its legs - and what the agent did to get there, turn
-by turn, with every intent, every call and every refusal. A page pointed at another
+In the deployment that serves it, its page stands beside that agent on that agent's
+own record, so the judged page answers for one account on both sides: what the
+broker holds - the account, the positions and every order with its legs - and what
+the agent did to get there, turn by turn, with every intent, every call and every
+refusal. The stack in THIS repository runs a page for that account without a record
+behind it, because the agent it belongs to does not run here; that page answers the
+broker's half and says so. A page pointed at another
 agent's database showed the wrong account's equity line once already, which is why
 each page is pinned to the record of the agent it stands beside.
 `make account-claims PAGE=...` reads exactly what a visitor reads.

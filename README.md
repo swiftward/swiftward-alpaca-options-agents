@@ -107,8 +107,11 @@ exactly three ways out, each of them a service that records what went through it
 the risk engine for orders and market data, the model gateway for its own thinking,
 and a forward proxy for anything else, which answers only for the hosts named in
 `docker/egress/filter.txt` and refuses and logs the rest. Widening that list is a
-change to this repository, not a decision a session can make. There is no fourth
-way, and everything it can reach is a service written down in `compose.yaml`.
+change to this repository, not a decision a session can make, and everything the
+agent can reach is a service written down in `compose.yaml` - which is what makes
+the reach enumerable rather than merely bounded. `docs/architecture.md` names what
+is on that private network beside it, and where a deployment moving real money would
+put a wall that configuration cannot.
 
 **It runs on one server, and any server will do.** The whole stack is a compose
 file - the agent, its broker server, the record, the page, the migrations, the
