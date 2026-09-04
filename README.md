@@ -27,7 +27,13 @@ submissions close on Friday at 15:00 UTC with the market open - that second numb
 not ours to state before it is taken.
 
 Neither number is a backtest and neither is a projection: open the page, or open the
-account, and it is the same book.
+account, and it is the same book. Over four sessions a return ranks draws rather
+than systems - a genuine edge beats a coin flip only about seven times in ten over
+twenty trades, and nobody here had twenty - so what is worth ranking over four days
+is what does not move with a good week: whether the worst case was computed before
+each order, whether the limits came from somewhere the model cannot edit, and
+whether the published numbers recompute on a stranger's machine. All three are
+checkable here in minutes.
 
 Twenty-five of the numbers this project publishes recompute from data committed here, with no credentials and no network. Which twenty-five, and which numbers are modelled or come from our own account record instead, is listed in `research/README.md`:
 

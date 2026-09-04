@@ -189,6 +189,20 @@ above. Every entry has the same four. What the four days settle is whether the
 machine behaves as documented, which `make account-claims` checks; what settles the
 strategy is 646 days, which `make claims` recomputes.
 
+**"Someone else returned more."** Over four sessions, almost certainly - and over
+four sessions a return ranks draws rather than systems. A handful of trades is not
+enough to separate an edge from a good week: an agent with a genuine 60% edge
+finishes ahead of a coin flip only about seven times in ten over twenty trades, and
+nobody here had twenty. That arithmetic applies to the largest number in this field
+as much as to ours, and the entry that posted it says so about its own result.
+
+What four sessions CAN rank is what is not luck: whether the worst case of every
+position was computed before the order went out, whether the limits came from
+somewhere the model could not edit, whether the published numbers recompute on a
+stranger's machine, whether the exits were chosen by measurement, and whether the
+system says which of its own numbers are modelled. Each of those is checkable here
+in minutes, and none of them moves with a good week.
+
 **"The engine that enforces the limits is not in the repository."** It is a network
 service, and this submission is MIT, so it stays one. What is here: the agent holds
 no broker key and one outward address; the limits it is given, live, at
