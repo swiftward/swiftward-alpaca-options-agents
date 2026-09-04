@@ -41,9 +41,26 @@ Alpaca. The broker's own order list can, which is what `make reconcile` reads.
 Every link belongs to exactly one account and carries that account's name:
 
 ```
-alpaca-agent-1  ->  gateway endpoint alpaca-agent-1  ->  alpaca-mcp-agent-1  ->  account 1
-alpaca-agent-2  ->  gateway endpoint alpaca-agent-2  ->  alpaca-mcp-agent-2  ->  account 2
+alpaca-agent-1      ->  gateway endpoint alpaca-agent-1      ->  alpaca-mcp-agent-1      ->  account 1
+alpaca-agent-2      ->  gateway endpoint alpaca-agent-2      ->  alpaca-mcp-agent-2      ->  account 2
+alpaca-agent-stand  ->  gateway endpoint alpaca-agent-stand  ->  alpaca-mcp-agent-stand  ->  the submitted account
 ```
+
+**The account submitted for judging is the third chain**, `alpaca-agent-stand`,
+Alpaca paper account `PA3BXFR0ZVYC`. It is the only account this repository names,
+and it is the one the page at the top of the README serves: open the page, open the
+account, and they are the same book. Its
+harness runs on the server that also serves the page, and its declaration is
+`agent/alpaca-agent-tikhon.yaml` - one declaration, two accounts, which is what the
+declaration's own header means by "two accounts run the same playbook on purpose,
+and the difference between them is the whole experiment". The other account on that
+declaration was started before the kickoff for testing and is not submitted.
+
+Its page keeps no database, deliberately: that agent's record lives where the agent
+runs, and a page pointed at the wrong database showed another account's equity line
+once already. So the judged page serves what the broker answers - the account, the
+positions and every order with its legs - and `make account-claims PAGE=...` checks
+exactly that.
 
 One harness, one endpoint at the gateway, one Alpaca MCP server, one account, one database, one page, one credential, one envelope identity. Adding an account means adding a chain rather than a setting.
 

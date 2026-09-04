@@ -32,6 +32,29 @@ runtime, and it decides. Nothing in our code decides what to trade; nothing in t
 model computes what a spread is worth. The autonomy requirement rests on the first
 half and the reliability on the second.
 
+## Four layers, and which of them the judged account runs
+
+The credit spread below is one layer of four, and a declaration says which of them
+an agent may open at all - `skills:` names the playbooks, and a playbook whose
+numbers the declaration does not supply refuses to start rather than inventing one.
+
+| Layer | What it is | What it is for |
+|---|---|---|
+| **Premium harvest** | a vertical credit spread, sold out of the money, 1-5 days to expiry | the engine of the book: many small credits, each with a known worst case |
+| **Convexity** | a backspread - sell one nearer option, buy two further out | so that the day the market moves hard is not a day this account only loses |
+| **Earnings crush** | sell the premium a company's report has inflated, on the expiration that survives the report | the one place selling into an event is allowed, and only when the measurement says the market is paying more for the move than the company has historically made |
+| **Event convexity** | buy the gap a scheduled macro number opens, outright, on the expiration that dies the same day; entered the afternoon before and sold into the open | the uncapped right tail, and the reason the rest of the book is kept modest. It burns more often than it pays, and that is the shape chosen rather than a defect |
+
+The account submitted for judging runs all four (`agent/alpaca-agent-tikhon.yaml`,
+`skills:`). The other two declarations in this repository run narrower sets - one
+adds convexity to the harvest, the other harvests and sells the crush - because two
+accounts on one playbook, differing in one number, is how a number gets settled by
+the market rather than by an argument.
+
+Everything from here to "Leaving" describes the harvest layer, which is where the
+measurements are. The other three carry their own rules in `agent/skills/`, each
+with the numbers it requires declared in its header.
+
 ## What wakes it
 
 The schedule is a declaration, one file per agent (`agent/alpaca-agent-2.yaml`),
