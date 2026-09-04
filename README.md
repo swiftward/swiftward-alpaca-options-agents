@@ -14,7 +14,7 @@ A window may name the OCCASION - a company reports on Wednesday, a macro number 
 | **the window** | 4 trading days: 31 August, 1, 2 and 3 September |
 | **check it yourself** | [alpaca.swiftward.dev](https://alpaca.swiftward.dev) reads the broker live; `make account-claims PAGE=...` checks the trading against these documents, with no credential of ours |
 | **what is here** | as much test code as code, and every rule that can refuse a trade has a test that goes red when the rule is removed; 25 of 25 published numbers recompute with no credentials and no network |
-| **the policy gateway** | the service every order passes through, called over an API: rules declared rather than coded, each carrying how much of itself it discloses; an append-only record of what it refused and why; limits changed on a running agent without a restart. [`docs/architecture.md`](docs/architecture.md) shows where it sits and what it answers |
+| **the risk engine** | the service every order passes through, called over an API: rules declared rather than coded, each carrying how much of itself it discloses; an append-only record of what it refused and why; limits changed on a running agent without a restart. [`docs/architecture.md`](docs/architecture.md) shows where it sits and what it answers |
 
 Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026. The
 account is measured twice: Alpaca at Thursday's close, above, and lablab again when
@@ -130,7 +130,7 @@ is written down, including the defects that were ours.
 
 ## What it does
 
-The agent trades defined-risk options structures on Alpaca. The session holds no broker key and one outward address - the policy gateway - and the gateway does three things a prompt cannot:
+The agent trades defined-risk options structures on Alpaca. The session holds no broker key and one outward address - the risk engine - and that engine does three things a prompt cannot:
 
 - **states the limit in the tool description** the agent reads, so the agent plans an order it will be allowed to place;
 - **refuses in a form a program can act on** - the refusal names the boundary that stopped it, so the agent adjusts instead of retrying;

@@ -8,7 +8,7 @@ holds the claim up. Why the pieces are shaped this way is in
 The fastest single check is `make claims`: it recomputes twenty-five published
 numbers from data committed here, with no credentials and no network.
 
-Two rows below belong to the policy gateway, which is a network service and is not
+Two rows below belong to the risk engine, which is a network service and is not
 in this repository. `docs/architecture.md` opens with the line between what a reader
 can settle here and what needs a running deployment, and this table keeps that line
 in the "Where it lives" column rather than blurring it.
@@ -48,7 +48,7 @@ It never decides what to trade, and the autonomy requirement rests on that line.
 
 A limit is disclosed to the agent and enforced on the path to the broker. The two
 halves live in different places, and this table separates them: everything below is
-in this repository except the last two rows, which belong to the policy gateway -
+in this repository except the last two rows, which belong to the risk engine -
 a network service the agent reaches at `BROKER_MCP_URL`, described in
 `architecture.md` and not published here.
 
@@ -58,16 +58,16 @@ a network service the agent reaches at `BROKER_MCP_URL`, described in
 | The session reads its limits at runtime | `read_envelope` answers what applies right now and by which version of the rules; no number the agent sizes with is written in its prompt | `golang/internal/envelope/tools.go` | `tools_test.go` |
 | One identity per agent | Which limits a caller gets is decided by the bearer token it was started with, and the session never sees that map; neither agent can ask for the other's | `golang/internal/envelope` | `envelope_test.go` |
 | A ceiling changed while the agent runs | An operator edits a limit and the next read returns the new one, with no restart | `golang/internal/envelope` | `percent_test.go`, `shipped_test.go` |
-| A refusal that names the boundary | The gateway refuses an order and says which rule refused it, in a form the agent acts on rather than retries | the policy gateway | `docs/architecture.md`, and the refusals in `tool_calls` |
-| The limit written into the tool description | The gateway states the boundary in the description the agent reads, so it plans an order it will be allowed to place | the policy gateway | `docs/architecture.md` |
+| A refusal that names the boundary | The gateway refuses an order and says which rule refused it, in a form the agent acts on rather than retries | the risk engine | `docs/architecture.md`, and the refusals in `tool_calls` |
+| The limit written into the tool description | The gateway states the boundary in the description the agent reads, so it plans an order it will be allowed to place | the risk engine | `docs/architecture.md` |
 
 ## The agent asks what it is allowed to do
 
 | Capability | What it does | Where it lives | What shows it works |
 |---|---|---|---|
-| The skill that tells it to ask | Reading the envelope before sizing is an instruction the agent loads, not a step in our code: the session decides, and the record shows whether it read | `agent/skills/read-my-envelope` | `golang/internal/skills/shipped_test.go` |
+| The skill that tells it to ask | Reading the risk engine before sizing is an instruction the agent loads, not a step in our code: the session decides, and the record shows whether it read | `agent/skills/read-my-envelope` | `golang/internal/skills/shipped_test.go` |
 | The answer names its own version | A limit read at 09:35 and one read at 14:00 are distinguishable, so a session can tell that the rules moved | `golang/internal/envelope` | `shipped_test.go` |
-| An intent requires the read | A closing intent is excused an envelope that could not ANSWER, never one that was never CALLED, and the record marks which | `postgres/migrations/0020_intent_envelope_checked.sql` | `golang/internal/record/record_test.go` |
+| An intent requires the read | A closing intent is excused a risk engine that could not ANSWER, never one that was never CALLED, and the record marks which | `postgres/migrations/0020_intent_envelope_checked.sql` | `golang/internal/record/record_test.go` |
 
 ## Execution
 

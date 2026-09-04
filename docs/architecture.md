@@ -2,11 +2,20 @@
 
 Two networks, one binary with four roles, and one chain repeated per account. The shape exists to make one property true: **the agent reaches nothing except the services beside it and the hosts the proxy allows.**
 
+**One name, and what it is called in the code.** The service every order passes
+through is the RISK ENGINE throughout these documents. In the source and in the
+configuration it carries its older name: the package that stands in for its
+disclosure side is `golang/internal/envelope`, the tool a session calls is
+`read_envelope`, and the address is `BROKER_MCP_URL`. Same thing, two vocabularies -
+this one because a reader who trades knows what a risk engine is, that one because
+renaming an identifier a running deployment resolves is not a thing to do on a
+deadline.
+
 ## How to check every claim in this document
 
 The system has two halves and each is verified its own way: the trading engine in
 this repository, which a reader settles by reading it and running its tests, and the
-policy gateway beside it, which a reader settles by watching what it did - the record
+risk engine beside it, which a reader settles by watching what it did - the record
 of every refusal, with the rule that made it, served on the page.
 
 **Settled by reading this repository, and by tests that go red without the rule:**
@@ -29,7 +38,7 @@ of every refusal, with the rule that made it, served on the page.
 | The whole read path holds under four callers at once | `make rehearse`, which prints what was refused |
 | The account traded the way these documents describe | `make account-claims PAGE=...`, which reads the page and needs nothing of ours |
 
-The policy gateway is a service with an API, and that is what makes the second table
+The risk engine is a service with an API, and that is what makes the second table
 possible: it stands on the path every order takes, it is the only thing that can
 refuse one, and it writes down what it refused and which rule refused it. Its rules
 are declarations rather than code, each carrying how much of itself it tells the
@@ -50,8 +59,8 @@ Every link belongs to exactly one account and carries that account's name:
 flowchart LR
   subgraph one["one chain per account, repeated"]
     H["harness<br/>the clock and the room"] --> S["model session<br/>decides what to trade"]
-    S -->|"read_envelope"| E["envelope<br/>what am I allowed to do"]
-    S -->|"place_option_order"| G["policy gateway<br/>refuses, and says which rule"]
+    S -->|"read_envelope"| E["risk engine<br/>what am I allowed to lose"]
+    S -->|"place_option_order"| G["risk engine<br/>refuses, and says which rule"]
     G --> M["Alpaca MCP server<br/>holds the only broker key"]
     M --> A["the account"]
     H --> R[("the record<br/>turns, intents, calls")]
@@ -83,13 +92,13 @@ once already. So the judged page serves what the broker answers - the account, t
 positions and every order with its legs - and `make account-claims PAGE=...` checks
 exactly that.
 
-One harness, one endpoint at the gateway, one Alpaca MCP server, one account, one database, one page, one credential, one envelope identity. Adding an account means adding a chain rather than a setting.
+One harness, one endpoint at the gateway, one Alpaca MCP server, one account, one database, one page, one credential, one risk-engine identity. Adding an account means adding a chain rather than a setting.
 
 Two things stand outside the chain and are shared on purpose: the Postgres server, which gives each agent a database of its own, and the `envelope` service, which holds no credential and answers each caller only what that caller's identity is granted.
 
 The reason is not symmetry. Alpaca's server reads its keys from its own environment, so a process serves exactly one account and no request can name another; the gateway applies limits to whoever asked, so two agents behind one credential would be one agent to the rules; and a shared database would let one agent's restart close the other's open turns. The name is the same at every link so that a row in the record, a refusal at the gateway and a container in `docker ps` can be read as the same agent without a table.
 
-Every call it makes to the broker goes through the policy gateway, at `BROKER_MCP_URL`, carrying the agent's own credential. The gateway is what decides whether a tool may be called at all, and by which agent. An order the gateway refuses never reaches Alpaca, and the refusal says which rule refused it.
+Every call it makes to the broker goes through the risk engine, at `BROKER_MCP_URL`, carrying the agent's own credential. The gateway is what decides whether a tool may be called at all, and by which agent. An order the gateway refuses never reaches Alpaca, and the refusal says which rule refused it.
 
 What holds that route in place is the agent's configuration and its credential, not the network: on this stack the agent and Alpaca's own MCP server share the `internal` network, so a session that decided to address that server directly could. The separation is one network apart - the broker's server on a network the agent is not on - and it is not made here, because this stack is a demonstration and the account it trades is paper. Anywhere real money moved, that separation would come first.
 
@@ -99,23 +108,23 @@ Its calls to the model go the same way, at `MODEL_GATEWAY_URL`, under a path tha
 
 That is true of a stack whose gateway sits on the same machine. A stack run elsewhere reaches the gateway over the internet for the BROKER only: the model and internet gateways are not published, because neither can require a credential yet. So "everything through the gateway" describes this deployment, and a second deployment records its broker calls and nothing else.
 
-Its limits come from outside it too. The session asks `read_envelope` before it builds anything and is told what applies to it and by which version of the rules; no number it sizes with is written anywhere in its prompt. That answer comes from the `envelope` service beside it, under the same server name - so a limit is **disclosed** there and **enforced** at the gateway, and neither is anything the session can talk its way out of.
+Its limits come from outside it too. The session asks `read_envelope` before it builds anything and is told what applies to it and by which version of the rules; no number it sizes with is written anywhere in its prompt. That answer comes from the risk engine's disclosure side beside it, under the same server name - so a limit is **disclosed** there and **enforced** on the order path, and neither is anything the session can talk its way out of.
 
 ## Services
 
 | Service | What it is | Where it can go |
 |---|---|---|
-| `alpaca-agent-1`, `alpaca-agent-2` | our binary holding the clock, the volatility history and the session's tools, and the agent it starts | the broker's server, the envelope, Postgres, and the egress proxy |
+| `alpaca-agent-1`, `alpaca-agent-2` | our binary holding the clock, the volatility history and the session's tools, and the agent it starts | the broker's server, the risk engine, Postgres, and the egress proxy |
 | `envelope` | the same binary answering what one caller may do on one tool, from `policy/envelope.yaml` | nowhere: it reads a file |
 | `page-agent-1`, `page-agent-2` | the same binary serving the read side and the built page | Postgres, and the broker for the money it shows |
 | `migrate` | applies `postgres/migrations` in name order, then exits | Postgres |
 | `alpaca-mcp-agent-1`, `alpaca-mcp-agent-2` | Alpaca's own MCP server (`alpaca-mcp-server`, pinned release), one process per account because it reads its keys from its own environment | Alpaca |
-| `egress` | forward proxy with a host allowlist, kept for reference; outbound traffic now goes through the policy gateway | the hosts it allows |
+| `egress` | forward proxy with a host allowlist, kept for reference; outbound traffic now goes through the risk engine | the hosts it allows |
 | `postgres` | state | nowhere |
 
-The policy gateway is not in this stack. It is a network service addressed by `GATEWAY_URL`, the same way Alpaca and the model provider are.
+The risk engine is not in this stack. It is a network service addressed by `GATEWAY_URL`, the same way Alpaca and the model provider are.
 
-`envelope` stands in that address until the gateway does. It answers the envelope and nothing else: it holds no broker credential, reaches nothing, and cannot judge or refuse an order - those are the gateway's, and a stand-in that grew them would be a second engine nobody agreed to run. Which limits a caller gets is decided by the bearer token it was started with, so the two agents on the stack are under different ceilings and neither can ask for the other's.
+`envelope` stands in that address until the gateway does. It answers the risk engine and nothing else: it holds no broker credential, reaches nothing, and cannot judge or refuse an order - those are the gateway's, and a stand-in that grew them would be a second engine nobody agreed to run. Which limits a caller gets is decided by the bearer token it was started with, so the two agents on the stack are under different ceilings and neither can ask for the other's.
 
 The file it reads is mounted from the checkout rather than baked into the image, because lowering a ceiling has to be one edit that a running session sees on its next question. A limit that needs a restart to change is a limit nobody can be shown changing.
 
@@ -235,9 +244,9 @@ Two more filters exist because of what the first live sweeps produced, and each 
 
 ## Where a declared limit stops being advice
 
-The envelope tells a session what it may risk; the session works its own size out from that and can get it wrong. On 26 August one did: the broker refused 17 884 sets for want of buying power, and the session came back with 906 - a maximum loss near 76 000 against a limit of 15 000. Nothing between it and the market disagreed, because a service that discloses does not enforce.
+The risk engine tells a session what it may risk; the session works its own size out from that and can get it wrong. On 26 August one did: the broker refused 17 884 sets for want of buying power, and the session came back with 906 - a maximum loss near 76 000 against a limit of 15 000. Nothing between it and the market disagreed, because a service that discloses does not enforce.
 
-The ladder is where our code last holds an order, so the limit is enforced there. It reads the same ruleset the envelope serves and the same account the broker reports, works out the worst a resting order can do, and cancels what exceeds one position's allowance - telling the session what it actually risked. The ruleset is re-read every pass, so lowering a ceiling is one edit and no restart.
+The ladder is where our code last holds an order, so the limit is enforced there. It reads the same ruleset the risk engine serves and the same account the broker reports, works out the worst a resting order can do, and cancels what exceeds one position's allowance - telling the session what it actually risked. The ruleset is re-read every pass, so lowering a ceiling is one edit and no restart.
 
 The worst case is exact rather than sampled: a spread's payoff is piecewise linear, so its minimum lies at a strike, at zero, or above the highest strike. The ratio comes off the legs themselves, or a backspread would be priced as a vertical and charged a loss it cannot have.
 

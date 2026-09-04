@@ -104,9 +104,9 @@ were found exactly this way.
 
 | variable | without it | the failure |
 |---|---|---|
-| `ENVELOPE_CALLERS` | the envelope | `the envelope role would recognise nobody` |
+| `ENVELOPE_CALLERS` | the risk engine | `the risk engine role would recognise nobody` |
 | `THREAD_RESUME_LIMIT` | the harness | a thread can only be remembered with a limit on resuming |
-| `AGENT_1_GATEWAY_TOKEN` | the envelope and the agent | the session cannot prove who it is |
+| `AGENT_1_GATEWAY_TOKEN` | the risk engine and the agent | the session cannot prove who it is |
 | `ENVELOPE_IDENTITY` | the ladder | it has nothing to enforce with: it reads that identity's limit |
 | `RECORD_DATABASES` | the migrations | nowhere to apply them |
 | `AGENT_1_ALPACA_KEY_ID` and the secret | the broker's server | restarts in a loop |
