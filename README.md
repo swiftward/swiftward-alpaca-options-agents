@@ -88,6 +88,24 @@ deliberately, because every skill's description goes into every turn's prompt.
 Adding a way to trade is writing a file and naming it; nothing is compiled and
 nothing is deployed.
 
+**How it learns is a file, not a model that drifts.** A measurement changes a
+number, the number lives in the declaration, and the declaration says where it came
+from - `MEASURED` with the script and the date, `FROM THE RULES`, or `PROVISIONAL`
+where nobody has measured it yet. The defence rule here was deleted because 672
+trades said it lost to doing nothing; the delta ceiling moved from 0.45 to 0.30 on a
+grid over 646 days; the backspread placement was rewritten when the sweep behind it
+turned out to have chosen its own sample. Every one of those is a diff you can read
+and a number you can recompute. Nothing about the agent's behaviour changes without
+a line in a file changing first, and that is on purpose: a system that improves
+itself in a way nobody can point at cannot be audited after a bad day.
+
+**It runs on one server, and any server will do.** The whole stack is a compose
+file - the agent, its broker server, the record, the page, the migrations, the
+egress proxy - so it comes up on a laptop or on the cheapest box a team already
+rents. No managed service, no vendor console, nothing to provision. `make local-up`
+builds it from this checkout; `make prod-up` runs the same stack from published
+images.
+
 **Three things wake it, and it remembers all of them.** The schedule; a person
 writing in the chat; and a wake-up the session set for itself - `wake me at 15:45`,
 `wake me when SPY trades under 760` - which survive a restart, because a promise

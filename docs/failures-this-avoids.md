@@ -142,6 +142,20 @@ records its successes. The refusals are the more useful half: what the agent tri
 what stopped it, and which rule. They are in the same table as everything else and
 on the page beside the call each one stopped (`tool_calls`).
 
+**Learning that cannot be pointed at.** A system that tunes itself between runs is
+impossible to audit after a bad day: nobody can say which change made it worse,
+because no change was written down. Here a measurement changes a number, the number
+lives in the declaration, and the declaration records where it came from - the
+script and the date for a measured one, or `PROVISIONAL` where nobody has measured
+it yet. Every change to how this agent trades is a diff, and every number in it can
+be recomputed (`agent/alpaca-agent-tikhon.yaml`, `provenance_test.go`, `make claims`).
+
+**A stack only its author can run.** A system that needs a particular cloud, a
+managed database or a vendor console is a system nobody else can check. This one is
+a compose file: agent, broker server, record, page, migrations and egress proxy come
+up on a laptop or on the cheapest rented box, from this checkout or from published
+images (`compose.yaml`, `compose.prod.yaml`, `docs/deploy.md`).
+
 ## About what a reader can do with the repository
 
 **A history that starts at the submission.** One squashed commit says nothing about
