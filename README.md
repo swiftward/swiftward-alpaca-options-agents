@@ -28,6 +28,8 @@ flowchart LR
 The session holds a risk-engine address and a token and no broker key, so the path
 above is the only one its orders have. `docs/architecture.md` walks it in full.
 
+[![The live page: equity $102,588.74, +2.59% since the $100,000 start, SPY +0.76% over the same window](docs/page.png)](https://alpaca.swiftward.dev)
+
 ## What is here
 
 - A live account, not a backtest: **$102,588.74** from $100,000, **+2.59%**, against SPY's **+0.76%** over the same four sessions.
