@@ -715,7 +715,7 @@ func TestTheStatusLineClosesWhenATurnCannotStart(t *testing.T) {
 	assert.Contains(t, chat.statusTexts()[0], "agent is not answering")
 }
 
-func TestHowLongReadsLikeRussian(t *testing.T) {
+func TestHowLongReadsAsAPersonWouldSayIt(t *testing.T) {
 	cases := map[time.Duration]string{
 		400 * time.Millisecond:               "a moment",
 		7 * time.Second:                      "7s",
