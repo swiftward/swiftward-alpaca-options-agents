@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/account"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/envelope"
@@ -110,6 +111,10 @@ func (r Read) Handler() (http.Handler, error) {
 
 	mux := http.NewServeMux()
 
+	// The broker's answer, kept for ten seconds. See recent.go for what that buys
+	// and what it deliberately does not do.
+	kept := &recent{}
+
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -129,7 +134,7 @@ func (r Read) Handler() (http.Handler, error) {
 			return
 		}
 
-		read, err := r.money(req.Context())
+		read, err := kept.read(req.Context(), r.money)
 		if err != nil {
 			r.fail(w, "the broker is unavailable", err)
 			return
@@ -195,7 +200,7 @@ func (r Read) Handler() (http.Handler, error) {
 
 	if r.WebDir == "" {
 		r.Log.Info("no WEB_DIR set: serving JSON only")
-		return r.gate(mux), nil
+		return compressed(r.gate(mux)), nil
 	}
 	if _, err := os.Stat(r.WebDir); err != nil {
 		return nil, err
@@ -207,23 +212,46 @@ func (r Read) Handler() (http.Handler, error) {
 	mux.Handle("GET /", spa(r.WebDir))
 	r.Log.Info("serving the built page", zap.String("web_dir", r.WebDir))
 
-	return r.gate(mux), nil
+	return compressed(r.gate(mux)), nil
 }
 
 // money asks the broker its three questions. One failure fails the answer: a
 // page showing an account with no positions beside it would read as an agent
 // holding nothing.
+//
+// ALL THREE AT ONCE, because they were three round trips one after another and
+// the page waited for the sum. The client keeps a single session and says so:
+// only its making and dropping are under a lock, the calls multiplex. This is the
+// half of the 1.29 seconds that no cache can help - the first reader after a
+// quiet spell pays it, and now pays it once instead of three times.
 func (r Read) money(ctx context.Context) (money, error) {
-	held, err := r.Broker.Account(ctx)
-	if err != nil {
-		return money{}, err
-	}
-	positions, err := r.Broker.Positions(ctx)
-	if err != nil {
-		return money{}, err
-	}
-	orders, err := r.Broker.Orders(ctx, r.OrdersShown)
-	if err != nil {
+	var (
+		held      marketdata.Account
+		positions []marketdata.Position
+		orders    []marketdata.Order
+	)
+
+	asking, ctx := errgroup.WithContext(ctx)
+	asking.Go(func() error {
+		var err error
+		held, err = r.Broker.Account(ctx)
+
+		return err
+	})
+	asking.Go(func() error {
+		var err error
+		positions, err = r.Broker.Positions(ctx)
+
+		return err
+	})
+	asking.Go(func() error {
+		var err error
+		orders, err = r.Broker.Orders(ctx, r.OrdersShown)
+
+		return err
+	})
+
+	if err := asking.Wait(); err != nil {
 		return money{}, err
 	}
 
@@ -255,6 +283,18 @@ func spa(dir string) http.Handler {
 	files := http.FileServer(http.Dir(dir))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// HOW LONG A FILE MAY BE KEPT, and the two answers are opposite because the
+		// two kinds of file are. The build stamps a content hash into every name
+		// under /assets, so a name that exists never changes its bytes and may be
+		// kept for a year; index.html is the one file that NAMES them, so it is
+		// asked about every time and answered with a 304 when it has not moved.
+		// Without this the page fetched its 650 KB again on every visit.
+		if strings.HasPrefix(req.URL.Path, "/assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+
 		name := filepath.Join(dir, filepath.Clean(req.URL.Path))
 		if info, err := os.Stat(name); err == nil && !info.IsDir() {
 			files.ServeHTTP(w, req)

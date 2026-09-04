@@ -1,6 +1,7 @@
 package api
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -190,4 +191,86 @@ func requestWithKey(method, target string, body io.Reader) *http.Request {
 	req.Header.Set(keyHeader, testKey)
 
 	return req
+}
+
+// The stand served 650 KB of JavaScript and 370 KB of equity history byte for
+// byte until 4 September. These four hold the fix in place.
+func TestCompressesWhatIsAsked(t *testing.T) {
+	handler, err := Read{Record: record.NewMemory(), Key: testKey, Log: zaptest.NewLogger(t)}.Handler()
+	require.NoError(t, err)
+
+	req := requestWithKey(http.MethodGet, "/api/state", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "gzip", rec.Header().Get("Content-Encoding"))
+	assert.Equal(t, "Accept-Encoding", rec.Header().Get("Vary"))
+	assert.Empty(t, rec.Header().Get("Content-Length"))
+
+	unzipped, err := gzip.NewReader(rec.Body)
+	require.NoError(t, err)
+	body, err := io.ReadAll(unzipped)
+	require.NoError(t, err)
+
+	var got record.State
+	require.NoError(t, json.Unmarshal(body, &got))
+}
+
+func TestLeavesTheAnswerAloneWhenGzipIsNotAsked(t *testing.T) {
+	handler, err := Read{Record: record.NewMemory(), Key: testKey, Log: zaptest.NewLogger(t)}.Handler()
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/api/state", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Empty(t, rec.Header().Get("Content-Encoding"))
+
+	var got record.State
+	assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+}
+
+// A range is a request for bytes at an offset of the FILE. Compressed, the
+// offsets belong to something else and the reader gets the wrong slice.
+func TestLeavesARangeUncompressed(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>the record</h1>"), 0o600))
+	// Not index.html: a file server answers that name with a redirect to the
+	// directory, and the test would be measuring the redirect.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "robots.txt"), []byte("<h1>the record</h1>"), 0o600))
+
+	handler, err := Read{Record: record.NewMemory(), WebDir: dir, Key: testKey, Log: zaptest.NewLogger(t)}.Handler()
+	require.NoError(t, err)
+
+	req := requestWithKey(http.MethodGet, "/robots.txt", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	req.Header.Set("Range", "bytes=0-3")
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusPartialContent, rec.Code)
+	assert.Empty(t, rec.Header().Get("Content-Encoding"))
+	assert.Equal(t, "<h1>", rec.Body.String())
+}
+
+// A hashed name never changes its bytes; the file that names it changes daily.
+func TestKeepsHashedFilesAndRevalidatesThePage(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "assets"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "assets", "index-abc123.js"), []byte("export {}"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>the record</h1>"), 0o600))
+
+	handler, err := Read{Record: record.NewMemory(), WebDir: dir, Key: testKey, Log: zaptest.NewLogger(t)}.Handler()
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/assets/index-abc123.js", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "public, max-age=31536000, immutable", rec.Header().Get("Cache-Control"))
+
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/live", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "no-cache", rec.Header().Get("Cache-Control"))
 }
