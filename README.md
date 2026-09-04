@@ -16,9 +16,16 @@ Neither is a backtest and neither is a projection: open the page linked below, o
 open the account, and it is the same book. `make account-claims` checks the trading
 on it against what these documents say, and needs no credential of ours.
 
+Over the same four sessions the market it trades on moved a fraction of that: SPY
+opened Monday 31 August at 767.315 and closed Thursday at 773.115, **+0.76%**
+(Alpaca's own market data, IEX feed - the same source the agent reads). The account
+returned 2.06% against it, on structures whose worst case was bounded before each
+one was opened.
+
 | | |
 |---|---|
 | the measured window | 4 trading days: 31 August, 1, 2 and 3 September |
+| what SPY did in it | +0.76%, open of the first session to close of the last |
 | Go behind it | 15,467 lines, against 19,639 lines of tests |
 | tests | 587 test functions in 90 files, and every rule that can refuse a trade has one that goes red when the rule is removed |
 | published numbers that recompute | 25 of 25, no credentials, no network |

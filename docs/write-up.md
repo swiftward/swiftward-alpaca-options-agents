@@ -110,6 +110,11 @@ two clocks, which is worth stating plainly rather than picking the flattering on
 Alpaca reads total equity at the close of Thursday 3 September. That reading is
 settled: **$102,061.24, up 2.06%** from the $100,000 the account opened with.
 
+Against the market it trades: SPY opened the first session of that window at
+767.315 and closed the last at 773.115, **+0.76%**, from Alpaca's own market data.
+The account returned 2.06% over the same four sessions, and every structure behind
+that had a worst case computed before it was opened.
+
 lablab reads it again at the moment submissions close, Friday 15:00 UTC, with the
 market open and positions still marking. That number is not ours to state before it
 is taken, and the page carries it as blank rather than as a guess in a result's
