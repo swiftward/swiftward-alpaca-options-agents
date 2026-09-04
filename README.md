@@ -97,6 +97,18 @@ rule also carries how much of itself it discloses: a boundary hands over the num
 existence says only that a rule is there. Tell a session the cap and it splits one
 order into four; tell it a rule exists and there is nothing to route around.
 
+**Declared, and then guaranteed rather than hoped for.** The rule this agent trades
+by is one configuration; anything in it can be declared differently. What does not
+change is which half of the work is code: that a window fires when due and is dead
+outside the room it was given, that two sessions never hold the account together,
+that a wake-up survives a restart, that an agent whose skill needs a number the
+declaration does not give refuses to start, that a decided order is walked and
+cancelled by the stride and patience declared, that a winner is bought back at the
+declared share every thirty seconds with no turn and no model, and that a resting
+order breaching a ceiling is cancelled. `docs/algorithm.md` sets the three columns
+side by side - what is declared, what the engine guarantees, what the session is
+trusted with.
+
 **The model decides what to trade and nothing else.** Pricing six hundred structures
 and walking a limit price a cent at a time are arithmetic on a clock - they are code.
 Reading the news, judging whether two positions are really one bet, sitting an hour

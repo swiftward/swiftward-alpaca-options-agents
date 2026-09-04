@@ -32,6 +32,31 @@ runtime, and it decides. Nothing in our code decides what to trade; nothing in t
 model computes what a spread is worth. The autonomy requirement rests on the first
 half and the reliability on the second.
 
+## What is declared, what the engine guarantees, and what the session is trusted with
+
+The rule further down is one configuration of this system, not the system. Anything
+in it can be declared differently. What does not change is which half of the work is
+guaranteed by code and which half is a model following an instruction - and that
+line is worth stating exactly, because a system that blurs it is asking to be
+believed rather than checked.
+
+| Declared | Guaranteed by the engine, with no model involved | Left to the session |
+|---|---|---|
+| when a session runs: `at`, `within`, `every`, `between`, `days` | that it fires when due, that a window missed by a restart is still due inside `within` and dead outside it, and that it is skipped on a day it does not name | what to do in it |
+| `cannot_wait` on a window | that its task is said into a turn already running rather than queued behind one | how to act on it |
+| one session at a time | that two sessions never hold the account together | - |
+| the numbers the agent trades on | that they stand at the head of every turn, whatever woke it | how to apply them |
+| which playbooks an agent may load | that exactly those are laid out, and that the agent does not start if one of them needs a number the declaration does not give | which to use, and when |
+| a wake-up the session asks for, by time or by price | that it survives a restart and fires | what to ask for |
+| `model` on a window | that the turn runs on the model named | - |
+| the execution stride, step and patience | that a decided order is walked to the book by those rules, re-priced before every concession, refused a give that breaks the entry rule, and cancelled when patience ends | the structure, the size and the worst price it accepts |
+| the take-profit share | that every open structure is checked against the book every thirty seconds and bought back at that share, with no turn and no model | - |
+| the position and portfolio ceilings | that a resting order breaching either is cancelled, and that an order whose loss has no floor is cancelled | sizing inside them |
+| the address and credential of the risk engine | that every order the session sends goes there, carrying that credential, and that the session holds no broker key | - |
+
+Read the middle column as the answer to "what if the model has a bad day". Read the
+right column as the answer to "then why use a model at all".
+
 ## Four layers, and which of them the judged account runs
 
 The credit spread below is one layer of four, and a declaration says which of them
