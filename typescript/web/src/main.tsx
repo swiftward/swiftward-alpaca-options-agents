@@ -1,30 +1,23 @@
 import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Route, Routes } from 'react-router'
+import { hydrateRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router'
 
-import { Landing } from './Landing'
-import { Live } from './Live'
-import { Nav } from './Nav'
-import { Submission } from './Submission'
+import { App } from './App'
 import './style.css'
 
 const mount = document.querySelector('#root')
 if (!mount) throw new Error('no #root: the page cannot mount')
 
-createRoot(mount).render(
+// HYDRATE, not create. Every route is rendered to HTML at build time, so what
+// arrives already reads as the finished page - to a reader on a slow connection,
+// to one who blocks scripts, and to a judge's agent, which fetches the address and
+// reads what comes back rather than running it. React takes over the markup that
+// is already there instead of throwing it away and drawing it again.
+hydrateRoot(
+  mount,
   <StrictMode>
     <BrowserRouter>
-      {/* The bar sits OUTSIDE Routes, so it is written once and every page
-          gets the same one - including the ones that do not exist yet. */}
-      <Nav />
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/live" element={<Live />} />
-        <Route path="/submission" element={<Submission />} />
-        {/* Any other path leads to the landing page rather than nowhere: a link
-            with a typo should show where you landed, not a white screen. */}
-        <Route path="*" element={<Landing />} />
-      </Routes>
+      <App />
     </BrowserRouter>
   </StrictMode>,
 )

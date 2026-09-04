@@ -10,6 +10,9 @@ golang/rehearse
 golang/cover/
 typescript/web/node_modules/
 typescript/web/dist/
+# The build's server half: the same page rendered to HTML files, thrown away
+# after `prerender.mjs` has read it.
+typescript/web/dist-ssr/
 tmp/
 
 # Local agent settings: machine-specific, never published.

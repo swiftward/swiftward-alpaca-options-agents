@@ -42,6 +42,16 @@ import {
 // and a stream costs complexity that would not pay for itself in a week.
 const refreshEvery = 15_000
 
+// The two sections the loading state stands in for, so their titles are written
+// once. What the page says about itself has to be the same whether the data has
+// arrived or not - and it is the version WITHOUT the data that a reader who does
+// not run JavaScript is served, this page having been rendered to HTML at build
+// time in exactly that state.
+const ACCOUNT_SECTION = 'The account'
+const GLANCE_SECTION = 'At a glance'
+const GLANCE_EXPLAINS =
+  'The week in numbers: what it sent, what filled, what it filed, and what it is holding now.'
+
 export function Live() {
   const [all, setAll] = useState<Everything | null>(null)
   const [readAt, setReadAt] = useState<Date | null>(null)
@@ -79,6 +89,28 @@ export function Live() {
         <p className="mt-4 max-w-[52ch] text-[20px] font-medium leading-[1.25] tracking-[-0.01em] text-secondary">
           Every run it makes, every limit it was handed, and every conclusion it reached — in
           its own words, refusals included.
+        </p>
+
+        {/* WHERE THE NUMBERS COME FROM, said on the page that shows them. Five
+            open routes, no credential, and the page calls exactly these - so a
+            reader who doubts a figure can fetch the same answer the page drew it
+            from. It also carries this page's only real content to a reader who
+            does not run JavaScript: the figures below arrive by request, and a
+            fetch of this address alone would otherwise find them missing. */}
+        <p className="mt-5 max-w-[62ch] text-[15px] leading-relaxed text-secondary">
+          Every figure here is read from five open JSON routes, the same ones this page calls:{' '}
+          {(['money', 'equity', 'state', 'limits', 'sweep'] as const).map((route, i) => (
+            <span key={route}>
+              {i > 0 ? ', ' : ''}
+              <a
+                href={`/api/${route}`}
+                className="font-mono text-[14px] text-accent underline underline-offset-4"
+              >
+                /api/{route}
+              </a>
+            </span>
+          ))}
+          . No credential, read-only.
         </p>
 
         <p className="mt-6 flex flex-wrap items-center gap-2">
@@ -134,9 +166,8 @@ function Loading() {
     <div role="status" aria-live="polite" className="motion-safe:animate-pulse">
       <span className="sr-only">Reading the account.</span>
 
-      <section className="mb-16">
-        <Bone className="h-6 w-52" />
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      <Section title={ACCOUNT_SECTION}>
+        <div className="grid gap-4 sm:grid-cols-2">
           <Card>
             <Bone className="h-3 w-20" />
             <Bone className="mt-4 h-9 w-44 sm:h-11" />
@@ -150,12 +181,10 @@ function Loading() {
         </div>
         <Bone className="mt-4 h-56 w-full rounded-xl" />
         <Bone className="mt-3 h-3 w-64" />
-      </section>
+      </Section>
 
-      <section>
-        <Bone className="h-6 w-40" />
-        <Bone className="mt-4 h-3 w-full max-w-[560px]" />
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Section title={GLANCE_SECTION} explains={GLANCE_EXPLAINS}>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
             <Card key={i}>
               <Bone className="h-3 w-24" />
@@ -164,7 +193,7 @@ function Loading() {
             </Card>
           ))}
         </div>
-      </section>
+      </Section>
     </div>
   )
 }
@@ -181,7 +210,7 @@ function Page({ all }: { all: Everything }) {
 
   return (
     <>
-      <Section title="The account">
+      <Section title={ACCOUNT_SECTION}>
         {all.money.ok ? (
           <Account money={all.money.value} line={all.equity.ok ? all.equity.value : undefined} />
         ) : (
@@ -201,8 +230,7 @@ function Page({ all }: { all: Everything }) {
       </Section>
 
       {state ? (
-        <Section title="At a glance"
-        explains="The week in numbers: what it sent, what filled, what it filed, and what it is holding now.">
+        <Section title={GLANCE_SECTION} explains={GLANCE_EXPLAINS}>
           <Counters state={state} money={money} />
         </Section>
       ) : null}

@@ -1,0 +1,48 @@
+# Swiftward Alpaca — an options agent that reads its limits while it works
+
+> An autonomous agent trades defined-risk option structures on an Alpaca paper account. A model session decides every trade; a policy engine outside the agent holds the limits and can refuse an order before it reaches the broker. The limits are not written into the agent's prompt: it asks what it may do while it works, and this page shows the same answer it gets. Entry in the Alpaca AI Trading Agents hackathon, 28 August – 4 September 2026.
+
+Everything below can be fetched. The JSON routes are what the page itself reads,
+so a number taken from them is the number on the screen, and both come from the
+broker rather than from us.
+
+## The account, and the result
+
+- Account: `PA3BXFR0ZVYC`, Alpaca paper trading. Opened at $100,000 on the kickoff day, never reset. Simulated money, real market data.
+- The judged figure: **$102,588.74, +2.59%**, the close of Thursday 3 September. The organiser's rule is "evaluation based on portfolio's total equity as of EOD Thursday Sep 3rd"; the broker records that close in the account's `last_equity` field, defined by its own API reference as "Equity as of previous trading day at 16:00:00 ET".
+- The market over the same four sessions: SPY +0.76%.
+- Four trading days cannot separate skill from a good draw. The evidence for the strategy is 646 committed trading days of option prices, and one command that recomputes what they say.
+
+## Pages
+
+- [Overview](https://alpaca.swiftward.dev/): what the agent does, how a trade is decided, and what the engine refuses — with the numbers it was measured on.
+- [For judges](https://alpaca.swiftward.dev/submission): the entry in one page — the account, what answers each scoring criterion, and where to open the evidence.
+- [Live account](https://alpaca.swiftward.dev/live): the account as the broker reports it right now, the limits the agent discovered, the screener's last pass, and every run in the agent's own words. This page draws from the routes below; fetch those for the numbers.
+
+## The data behind the page (JSON, no credential, read-only)
+
+- [/api/money](https://alpaca.swiftward.dev/api/money): the broker's answer for the account — `equity` is the account now, `equity_yesterday` is the previous close (the judged figure, read on a Friday), plus every open position and recent order.
+- [/api/equity](https://alpaca.swiftward.dev/api/equity): the recorded equity line, one reading every five minutes.
+- [/api/state](https://alpaca.swiftward.dev/api/state): every run the agent made — when it woke, what it was asked, every tool call with its arguments, and what it concluded in its own words, refusals included.
+- [/api/limits](https://alpaca.swiftward.dev/api/limits): the limits as the agent discovers them, from the same file and the same call its own question goes through. Note `disclosure`: a rule is either a `boundary`, which names its number, or `existence`, which admits the rule exists and withholds it.
+- [/api/sweep](https://alpaca.swiftward.dev/api/sweep): the screener's last pass — what was priced and what survived.
+
+## Source and documents
+
+- [Repository](https://github.com/swiftward/swiftward-alpaca-options-agents): the whole history, MIT.
+- [The write-up](https://github.com/swiftward/swiftward-alpaca-options-agents/blob/main/docs/write-up.md): agent logic, risk gates, Alpaca infrastructure, how it is tested, and every reading of the account with the rule behind each.
+- [How a trade is decided](https://github.com/swiftward/swiftward-alpaca-options-agents/blob/main/docs/algorithm.md): end to end — what wakes the agent, how a structure is found and measured, how it is sized, filled and left.
+- [Architecture](https://github.com/swiftward/swiftward-alpaca-options-agents/blob/main/docs/architecture.md): the pieces and why they are arranged that way.
+- [What it can and cannot do](https://github.com/swiftward/swiftward-alpaca-options-agents/blob/main/docs/capabilities.md): every capability, where it lives, and the command that shows it works.
+- [The failures this avoids](https://github.com/swiftward/swiftward-alpaca-options-agents/blob/main/docs/failures-this-avoids.md): the ways an options agent goes wrong, each with the file where the defence can be checked.
+- [The read API](https://github.com/swiftward/swiftward-alpaca-options-agents/blob/main/docs/api.md): the five routes above, what each answers, and the command that checks the account against them.
+- [Committed evidence](https://github.com/swiftward/swiftward-alpaca-options-agents/tree/main/docs/account-evidence): the five answers behind every number this project publishes about its own trading, downloaded and committed — checkable with no network.
+- [The deck](https://alpaca.swiftward.dev/slides.pdf) · [The video](https://youtu.be/AWgiXKl8ysI)
+
+## What is distinctive, stated plainly
+
+- **The limits are discovered, not prompted.** The agent asks the engine what it may risk before it risks it. Raising a ceiling is one edit to a file the agent cannot write, with no restart and no change to the prompt.
+- **Defined risk only.** Vertical spreads and backspreads; never a naked short option. The largest possible loss is known before the order is sent.
+- **The test stand displaces the real option book by one number** rather than replaying recorded history, so a trial exercises today's chain.
+- **Twenty-five published claims recompute from committed data** with one command, no credentials and no network: `make claims`.
+- **A measurement we published killed one of our own rules.** It is in the write-up, under how it is tested.

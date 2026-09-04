@@ -274,3 +274,28 @@ func TestKeepsHashedFilesAndRevalidatesThePage(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "no-cache", rec.Header().Get("Cache-Control"))
 }
+
+// The page ships one HTML file per route, rendered at build time. A reader who
+// does not run JavaScript - a judge's agent, most of all - must get the page they
+// asked for rather than the landing page's shell under every address.
+func TestAPrerenderedRouteServesItsOwnFile(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("the landing page"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "live"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "live", "index.html"), []byte("the live page"), 0o600))
+
+	handler, err := Read{Record: record.NewMemory(), WebDir: dir, Key: testKey, Log: zaptest.NewLogger(t)}.Handler()
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/live", nil))
+	require.Equal(t, http.StatusOK, rec.Code, "no redirect: a directory must be answered with the page inside it")
+	assert.Contains(t, rec.Body.String(), "the live page")
+
+	// A route with no file of its own still falls back to the landing page, which
+	// is what makes a mistyped link show where you landed.
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/whatever", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "the landing page")
+}

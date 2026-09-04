@@ -1,0 +1,11 @@
+# Everything here is meant to be read. The account this page reports on is a paper
+# account with simulated money, the code it describes is public under MIT, and the
+# whole point of the page is that a stranger can check the numbers on it.
+User-agent: *
+Allow: /
+
+# The JSON behind the page. It is the same data the page draws, and an agent that
+# reads it directly gets the numbers rather than a rendering of them.
+# See /llms.txt for what each route answers.
+
+Sitemap: https://alpaca.swiftward.dev/sitemap.xml

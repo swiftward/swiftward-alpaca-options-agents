@@ -302,8 +302,32 @@ func spa(dir string) http.Handler {
 			return
 		}
 
+		// A ROUTE THAT WAS RENDERED TO HTML AT BUILD TIME. The page ships one file
+		// per route - `/live` is the directory `live/` holding an `index.html` that
+		// already reads as the finished page - and this hands over that file rather
+		// than the landing page's.
+		//
+		// It matters to one reader in particular: a judge's agent fetches the
+		// address and reads what comes back rather than running the JavaScript. Sent
+		// the landing page's shell for every route, it would read one page three
+		// times and conclude the site has one.
+		//
+		// Served directly rather than through the file server, which answers a
+		// directory with a redirect to the same path with a slash.
+		if page := filepath.Join(name, "index.html"); exists(page) {
+			http.ServeFile(w, req, page)
+
+			return
+		}
+
 		http.ServeFile(w, req, filepath.Join(dir, "index.html"))
 	})
+}
+
+func exists(name string) bool {
+	info, err := os.Stat(name)
+
+	return err == nil && !info.IsDir()
 }
 
 // missing answers a route this deployment cannot serve. It is a plain refusal
