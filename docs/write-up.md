@@ -195,10 +195,13 @@ was worth.
 
 | Reading | The rule behind it | Value |
 |---|---|---|
-| **The organiser's measurement** | "evaluation based on portfolio's total equity as of EOD Thursday Sep 3rd". The broker's record of that close is the account's `last_equity` field | **$102,588.74, +2.59%** |
+| **The organiser's measurement** | "evaluation based on portfolio's total equity as of EOD Thursday Sep 3rd". The broker's record of that close is the account's `last_equity`, which the broker's own API reference defines as "Equity as of previous trading day at 16:00:00 ET" | **$102,588.74, +2.59%** |
 | The same session, read earlier | what the broker showed at 23:57 UTC that evening, before it closed its books | $102,061.24, +2.06% |
 | **lablab's measurement** | "The account's P&L is evaluated as of the submission deadline" - Friday 4 September, 15:00 UTC | taken at the cut-off |
 | The account now | no rule; the agent goes on trading | `GET /api/money`, field `equity` |
+
+Read on Friday, `last_equity` is therefore Thursday's close at 16:00 ET, which is the
+session the organiser names - two sources, one number, and neither of them ours.
 
 The first is the figure this write-up leads with, because the organiser names it.
 The video carries the second, having been cut before the broker closed its books.
