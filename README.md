@@ -2,7 +2,7 @@
 
 **The model decides what to trade. It never decides what it may lose.**
 
-The risk limits are not in its prompt. It asks a policy engine for them while it works, is refused by that same engine when it tries to exceed them, and sees a tightened limit on its next turn without a restart.
+The three ceilings that bound a loss - what one position may lose, what everything betting the same way may lose together, what the whole book may lose - are not in its prompt and not in its file. It asks a service for them while it works, is refused by that same service when it tries to exceed one, and sees a tightened ceiling on its next turn without a restart. Its own trading numbers are in its declaration, where an operator can read and change them; the ceilings are somewhere it cannot reach.
 
 A window may name the OCCASION - a company reports on Wednesday, a macro number lands on Friday - because a calendar is not a judgement. What to do about it is the session's: whether there is a trade at all, which structure, which strikes, how large, and whether to sit the window out. Nothing in the declaration says what to buy or sell.
 
@@ -13,16 +13,16 @@ A window may name the OCCASION - a company reports on Wednesday, a macro number 
 | **the market over the same window** | SPY **+0.76%**, open of 31 August to close of 3 September |
 | **the window** | 4 trading days: 31 August, 1, 2 and 3 September |
 | **check it yourself** | [alpaca.swiftward.dev](https://alpaca.swiftward.dev) reads the broker live; `make account-claims PAGE=...` checks the trading against these documents, with no credential of ours |
-| **the second clock** | lablab measures again when submissions close, Friday 15:00 UTC, market open. That number is not ours to state before it is taken |
 | **what is here** | 15,467 lines of Go against 19,639 of tests; 587 test functions in 90 files; 25 of 25 published numbers recompute with no credentials and no network; 13 trials against a stand that displaces the real option book |
 | **the risk engine** | a service the agent calls over an API: rules declared rather than coded, each carrying how much of itself it discloses; an append-only record of what it refused and why; limits changed on a running agent without a restart. [`docs/architecture.md`](docs/architecture.md) shows where it sits and what it answers |
 
-Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026.
+Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026. The
+account is measured twice: Alpaca at Thursday's close, above, and lablab again when
+submissions close on Friday at 15:00 UTC with the market open - that second number is
+not ours to state before it is taken.
 
 Neither number is a backtest and neither is a projection: open the page, or open the
-account, and it is the same book. Nor are four trading days a measurement of a strategy -
-too short to separate skill from a good draw - and the evidence for the strategy is
-the 646 trading days committed here rather than the week.
+account, and it is the same book.
 
 Twenty-five of the numbers this project publishes recompute from data committed here, with no credentials and no network. Which twenty-five, and which numbers are modelled or come from our own account record instead, is listed in `research/README.md`:
 
@@ -56,7 +56,7 @@ Three places to go from here:
 
 ## What is unusual about it
 
-Four things, and each one can be checked rather than taken on trust.
+Each of these can be checked rather than taken on trust.
 
 **The agent is a file, and changing what it does is editing that file.** One
 declaration per agent holds every session with the reason it exists, the window it
@@ -86,23 +86,29 @@ the strike you sold - is worse than doing nothing, by 0.62 a trade, and explains
 why. The agent does the counter-intuitive thing the measurement points at, and
 `make claims` recomputes the measurement on your machine in a minute.
 
-**We found an exit that beats holding, and we do not trade it.** Closing a full
-width past the sold strike pays 3.46 a trade against 2.94 for holding, and it holds
-up under a 25% volatility stress. It is not in the agent because that exit price is
-modelled rather than historical - option prices through time exist in our data only
-in the entry window - so the finding is published and not traded on. Knowing which
-of your own results you are not allowed to use is the difference between a backtest
-and a system.
+**The agent trades the exit the measurement chose, and the number behind it is
+labelled for what it is.** Of three exits measured over 672 trades, closing on a
+touch of the sold strike is the worst - 2.32 a trade against 2.94 for doing nothing
+- and closing a full width PAST the sold strike, through the bought leg where the
+loss is already capped, is the best at 3.46. The defence closes only there. And the
+3.46 is modelled rather than traded: option prices through time exist in our data
+only in the entry window, so a deep in-the-money spread is repriced by Black-Scholes
+at a volatility held constant from entry. `research/README.md` lists which of our
+published numbers are measured, which are modelled, and which come from the account,
+so nobody has to guess which kind they are reading.
 
-**Every price it acts on is a price it could actually have got.** The screener
-walks the permitted universe in parallel and prices every permitted pairing at the
-sides of the book an order would have to cross - the bid it would be paid, the ask
-it would pay - never the midpoint. That is not fastidiousness: over 646 trading
-days, the same rule priced at the midpoint and priced at the book differ by more
-than the whole strategy earns. What survives is ranked by one measure that weighs
-what a structure pays against how often it survives, and it keeps working on the
-day of expiry - where the broker computes no delta and most of the money is - by
-taking the same quantity from the price of volatility instead.
+**The crossing is charged before anything is ranked.** The screener walks the
+permitted universe in parallel, and every pairing pays the cost of getting in before
+it is compared with any other: half the bid-ask of both legs, because an order goes
+out at the midpoint and is walked toward the book, and half is what it concedes in
+expectation - 0.0229 on average over this project's own 34 fills. That is not
+fastidiousness. Over 646 trading days the same rule with and without the crossing
+charged differ by more than the whole strategy earns, and the research behind every
+threshold charges the FULL crossing, so the published expectancy is a floor rather
+than a forecast. What survives is ranked by one measure that weighs what a structure
+pays against how often it survives, and it keeps working on the day of expiry -
+where the broker computes no delta and most of the money is - by taking the same
+quantity from the price of volatility instead.
 
 **Filling it is arithmetic, and arithmetic is not the model's job.** The session
 names the structure, the size and the worst price it will accept. From there a

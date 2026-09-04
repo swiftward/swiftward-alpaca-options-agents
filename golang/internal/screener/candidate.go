@@ -311,8 +311,12 @@ func priceOneSpread(underlying, kind string, price float64,
 		return Candidate{}, false
 	}
 
-	// Sold at what a buyer pays, bought at what a seller asks: the credit the
-	// book would actually give, not the midpoint it displays.
+	// The credit at the midpoints of both legs. What the book would actually give
+	// is worse than this by the crossing, and the charge for it is taken below in
+	// `net`, which is what the edge is measured on - an order goes out at the
+	// midpoint and is walked toward the book, so half the crossing is what it
+	// concedes in expectation. Charging the whole crossing here instead would
+	// double-count it against `net`.
 	credit := (shortQuote.Bid+shortQuote.Ask)/2 - (longQuote.Bid+longQuote.Ask)/2
 	risk := width - credit
 	if credit <= 0 || risk <= 0 {

@@ -155,11 +155,12 @@ nothing, and it is measurably worse in a way that explains itself: the account p
 the crossing on every false alarm and collects on none of them. We publish the
 measurement, and the agent does the counter-intuitive thing it points at.
 
-There is one exit that beats holding - closing a full width PAST the sold strike,
-where the loss is already capped, at 3.46 a trade - and it is **not** in the agent,
-because that exit price is modelled rather than historical. The finding is
-published and not traded on. That distinction is the whole difference between a
-backtest and a system.
+The exit that beats holding is the one the agent uses: closing a full width PAST the
+sold strike, where the loss is already capped, at 3.46 a trade. Its number is
+modelled rather than traded - option prices through time exist in our data only in
+the entry window, so a deep in-the-money spread is repriced by Black-Scholes at a
+volatility held constant from entry - and it is labelled as modelled everywhere it
+appears. Holding to expiry is the one arm that settles on real closes.
 
 ## Sizing
 
@@ -194,7 +195,7 @@ nothing it is unsure of.
 - **A winner is bought back by a watch, not by a turn.** Every thirty seconds a
   process checks each open structure against the book and closes it once the
   buy-back costs no more than 0.35 of the credit. A turn costs a minute and a half
-  and the defence comes round every fifteen minutes; a number crossing a line is
+  and the defence comes round every half hour; a number crossing a line is
   arithmetic on a clock.
 - **A same-day spread is not closed early otherwise.** It lives on time decay, and
   closing it early pays the crossing twice while collecting half of what it was
@@ -267,8 +268,15 @@ small winners were funded by one loser it could not carry.
 credit. Two orders means a window in which half a structure exists, and half a
 credit spread is a naked short.
 
-**Executable prices, never the midpoint.** Every candidate is priced at the sides
-of the book an order would cross. The midpoint is the price of a trade nobody did.
+**The crossing is charged, not assumed away.** A candidate's credit is taken at the
+midpoints, and then the crossing is subtracted before anything is ranked - half of
+it, because an order goes out at the midpoint and is walked toward the book, and
+half is what it concedes in expectation. That half is measured rather than guessed:
+over this project's own 34 fills on 26 August, 0.0229 was conceded on average
+against the price first asked. The research behind the thresholds charges the FULL
+crossing instead, which is the conservative direction, so the measured expectancy is
+a floor rather than a forecast. A screen that ranks on raw midpoints is ranking
+trades nobody could have done.
 
 **The worst case before the order, not after the fill.** `execution.WorstCase`
 prices an order's payoff at every strike parsed out of its own contracts, so the
@@ -291,7 +299,7 @@ against what was done. A fill with nothing behind it is visible rather than
 deniable.
 
 **A winner is closed by a clock, not by a turn.** A model turn costs a minute and a
-half and the defence comes round every fifteen minutes; a buy-back crossing a line
+half and the defence comes round every half hour; a buy-back crossing a line
 is arithmetic, so a process checks it every thirty seconds.
 
 **Settled, not flattened, before the result is read.** The organiser measures the
