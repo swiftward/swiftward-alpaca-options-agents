@@ -136,11 +136,12 @@ No judged order has ever passed through it. Every order on the submitted account
 The account submitted for judging is `PA3BXFR0ZVYC`, and it is measured twice on
 two clocks, which is worth stating plainly rather than picking the flattering one.
 
-Alpaca reads total equity at the close of Thursday 3 September. That reading is
-settled: **$102,588.74, up 2.59%** from the $100,000 the account opened with.
+The organiser measures total equity at the close of Thursday 3 September. That
+reading is settled: **$102,588.74, up 2.59%** from the $100,000 the account opened
+with.
 
 Against the market it trades: SPY opened the first session of that window at
-767.315 and closed the last at 773.115, **+0.76%**, from Alpaca's own market data.
+767.315 and closed the last at 773.115, **+0.76%**, from the broker's own market data.
 The account returned 2.59% over the same four trading days, and every structure behind
 that had a worst case computed before it was opened.
 
@@ -188,21 +189,21 @@ A reader can reasonably mean four different things by "the result", so all four 
 here with the rule that defines them. The organiser's words are quoted rather than
 paraphrased.
 
-| Reading | What it is | Value |
+Two words are kept apart here. The **organiser** is who runs the hackathon and sets
+the rule. The **broker** is the service that holds the account and records what it
+was worth.
+
+| Reading | The rule behind it | Value |
 |---|---|---|
-| **Alpaca's official measurement** | "evaluation based on portfolio's total equity as of EOD Thursday Sep 3rd" - the broker's own stamp of that session's close, in the account's `last_equity` | **$102,588.74, +2.59%** |
-| The account at the end of Thursday, before that stamp | what the account read at 23:57 UTC on Thursday, while options still marked | $102,061.24, +2.06% |
-| **lablab's measurement** | "The account's P&L is evaluated as of the submission deadline" - Friday 4 September, 15:00 UTC, with the market open | taken at the cut-off; not ours to state before it |
-| The account now | it keeps trading after the measured window, so this keeps moving | `GET /api/money`, field `equity` |
+| **The organiser's measurement** | "evaluation based on portfolio's total equity as of EOD Thursday Sep 3rd". The broker's record of that close is the account's `last_equity` field | **$102,588.74, +2.59%** |
+| The same session, read earlier | what the broker showed at 23:57 UTC that evening, before it closed its books | $102,061.24, +2.06% |
+| **lablab's measurement** | "The account's P&L is evaluated as of the submission deadline" - Friday 4 September, 15:00 UTC | taken at the cut-off |
+| The account now | no rule; the agent goes on trading | `GET /api/money`, field `equity` |
 
-The first is the figure this write-up leads with, because it is the one the organiser
-names. The second is in the video, which was cut before the stamp landed. Both are
-in `docs/account-evidence/money.json`: `equity_yesterday` is the stamped close,
-`equity` is the account as it stands.
-
-Two clocks, and neither cancels the other: Alpaca measures the end of Thursday,
-lablab measures when submissions close. `docs/rules.md` in the team's own notes
-carries both quotations at length; the two lines above are the operative ones.
+The first is the figure this write-up leads with, because the organiser names it.
+The video carries the second, having been cut before the broker closed its books.
+Both are in `docs/account-evidence/money.json` - `equity_yesterday` is the close the
+organiser measures, `equity` is the account as it stands.
 
 ## The questions a reader asks, answered before they are asked
 
