@@ -13,21 +13,28 @@ export const TAKEN_AT = '3 September 2026'
 
 export const ACCOUNT = {
   opened: 100_000,
-  equity: 102_335.6,
+  // The close of THURSDAY 3 September, which is the figure the organiser measures:
+  // "evaluation based on portfolio's total equity as of EOD Thursday Sep 3rd".
+  // It stood at 102,335.60 at Wednesday's close, and this page carried that number
+  // until the Thursday one was in.
+  equity: 102_061.24,
   // Kept apart from equity rather than worked out in the component: what the
   // account is worth and what it earned are two claims, and one of them is the
   // one being made.
-  profit: 2_335.6,
-  percent: 2.34,
+  profit: 2_061.24,
+  percent: 2.06,
 }
 
-// The week as it ran. Counted from the record the agent writes as it goes, which
-// is the same record `/live` reads.
+// The week as it ran on the account above, counted from the BROKER's own order
+// list rather than from our record - that is the list a judge can open beside this
+// page, and the two have to agree. Sessions and intents are not here for the same
+// reason: this account's agent keeps its record where it runs, and a number we
+// cannot point at does not go on a poster.
 export const COUNTS: [string, string][] = [
-  ['sessions run', '140'],
-  ['intents filed', '13'],
-  ['orders sent', '47'],
-  ['orders filled', '9'],
+  ['orders sent', '25'],
+  ['orders filled', '4'],
+  ['days it traded', '3'],
+  ['positions still open', '4'],
 ]
 
 // Six lines the agent wrote, in its own words, taken from the record unedited.

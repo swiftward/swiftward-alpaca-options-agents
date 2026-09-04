@@ -59,8 +59,8 @@ export function Landing() {
         />
         <Claim
           icon={Eye}
-          title="Reasoning you can read"
-          says="What woke it, what it asked the broker, what it concluded — in its own words. Including the runs that priced six candidates and took none."
+          title="Its refusals, not just its trades"
+          says="What woke it, what it asked the broker, what it concluded — in its own words, including the passes that priced six candidates and took none. A page that shows only the entries is describing a different agent."
         />
       </div>
 
@@ -119,7 +119,7 @@ export function Landing() {
       <Block
         label="05 · check it yourself"
         title="One command. No credentials. No network."
-        explains="Every figure this project publishes about its own measurements is recomputed from data committed to the repository. Beside them run twelve trials that attack the agent rather than confirm it — one failed, and took the rule above with it."
+        explains="Every figure this project publishes about its own measurements is recomputed from data committed to the repository. Beside them run thirteen trials that attack the agent rather than confirm it — one failed, and took the rule above with it."
       >
         <Card>
           <div className="rounded-lg border border-line bg-surface-sunk p-5">
@@ -138,7 +138,7 @@ export function Landing() {
 
       <Block
         label="07 · the account"
-        title="One account, live on Alpaca paper since the kickoff."
+        title="One account on Alpaca paper, opened at $100,000 and never reset."
         explains={`Opened at $100,000 on the kickoff day and never reset. These figures were taken from it on ${TAKEN_AT}; the page that moves is at /live, and it reads the broker through the same process the agent does.`}
       >
         <Card>
