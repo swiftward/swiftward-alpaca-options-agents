@@ -104,10 +104,16 @@ No judged order has ever passed through it. Every order on the submitted account
 
 ## The result
 
-The account submitted for judging is `PA3BXFR0ZVYC`, and it closed the measured
-window at **$102,061.24 - up 2.06%** from the $100,000 it opened with. The
-organiser measures total equity at the close of Thursday 3 September, and that is
-that figure.
+The account submitted for judging is `PA3BXFR0ZVYC`, and it is measured twice on
+two clocks, which is worth stating plainly rather than picking the flattering one.
+
+Alpaca reads total equity at the close of Thursday 3 September. That reading is
+settled: **$102,061.24, up 2.06%** from the $100,000 the account opened with.
+
+lablab reads it again at the moment submissions close, Friday 15:00 UTC, with the
+market open and positions still marking. That number is not ours to state before it
+is taken, and the page carries it as blank rather than as a guess in a result's
+clothing.
 
 It is checkable in two ways that need nothing from us. The page -
 [alpaca.swiftward.dev](https://alpaca.swiftward.dev), and `/live` is the one that
