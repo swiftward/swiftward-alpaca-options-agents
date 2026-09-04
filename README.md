@@ -67,6 +67,7 @@ Where to go from here:
 - **[`testbed/`](testbed/README.md)** - the stand that plays the agent conditions the market will not produce on request: thirteen trials, eleven on a staged book and two that displace the real one.
 - **[`docs/architecture.md`](docs/architecture.md)** - how the pieces fit together, and how to check every claim it makes.
 - **[`research/README.md`](research/README.md)** - which published numbers recompute, which are modelled, and which come from the account.
+- **[`docs/api.md`](docs/api.md)** - the five read routes anyone can query without a credential, and what each answers.
 
 ## What it is
 

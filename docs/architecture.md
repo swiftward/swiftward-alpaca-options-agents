@@ -86,11 +86,13 @@ declaration's own header means by "two accounts run the same playbook on purpose
 and the difference between them is the whole experiment". The other account on that
 declaration was started before the kickoff for testing and is not submitted.
 
-Its page keeps no database, deliberately: that agent's record lives where the agent
-runs, and a page pointed at the wrong database showed another account's equity line
-once already. So the judged page serves what the broker answers - the account, the
-positions and every order with its legs - and `make account-claims PAGE=...` checks
-exactly that.
+Its page is served beside the agent, on that agent's own record, so the judged page
+answers for one account on both sides: what the broker holds - the account, the
+positions and every order with its legs - and what the agent did to get there, turn
+by turn, with every intent, every call and every refusal. A page pointed at another
+agent's database showed the wrong account's equity line once already, which is why
+each page is pinned to the record of the agent it stands beside.
+`make account-claims PAGE=...` reads exactly what a visitor reads.
 
 One harness, one endpoint at the gateway, one Alpaca MCP server, one account, one database, one page, one credential, one risk-engine identity. Adding an account means adding a chain rather than a setting.
 
