@@ -30,6 +30,15 @@ need a running deployment.
 | The whole read path holds under four callers at once | `make rehearse`, which prints what was refused |
 | The account traded the way these documents describe | `make account-claims PAGE=...`, which reads the page and needs nothing of ours |
 
+**Settled by neither, and named so that nobody has to discover it.** The gateway's
+own refusal logic cannot be read here at all: it is closed source, the platform
+requires the whole submission to be MIT, and so it stays a network service. What
+this repository can show is that the agent holds no broker key, that its only
+configured route out is the gateway's address, and that the refusals the gateway
+wrote are in the record. What it cannot show is the code that decided them. Any
+reader who needs that has reached the edge of what is publishable, and no
+documentation changes it.
+
 What the second table asks for is a reading of the record the gateway wrote, which
 is the same record the page serves. That is evidence rather than assertion, and it
 is still not proof: the refusals in it were written by the service that made them,
