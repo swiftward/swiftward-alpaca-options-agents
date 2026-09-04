@@ -136,6 +136,18 @@ export function Landing() {
       </Block>
 
 
+
+      <Block label="06 · the brief" title="What the hackathon asked for.">
+        <div className="grid gap-4 sm:grid-cols-3">
+          {REQUIRED.map(([asked, met]) => (
+            <Card key={asked}>
+              <Chip>{asked}</Chip>
+              <p className="mt-4 text-[15px] leading-relaxed text-secondary">{met}</p>
+            </Card>
+          ))}
+        </div>
+      </Block>
+
       <Block
         label="07 · the result"
         title="Two judges, two clocks, and both are named here."
@@ -172,17 +184,6 @@ export function Landing() {
             week actually had.
           </Pull>
         </Card>
-      </Block>
-
-      <Block label="06 · the brief" title="What the hackathon asked for.">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {REQUIRED.map(([asked, met]) => (
-            <Card key={asked}>
-              <Chip>{asked}</Chip>
-              <p className="mt-4 text-[15px] leading-relaxed text-secondary">{met}</p>
-            </Card>
-          ))}
-        </div>
       </Block>
     </main>
   )
