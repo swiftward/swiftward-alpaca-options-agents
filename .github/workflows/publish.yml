@@ -114,9 +114,17 @@ jobs:
           # Empty is a working value - the proxy then allows only what the
           # committed filter lists - and it fails in the loud direction: the agent
           # cannot reach the gateway and says so on every call. That is how
-          # 29 August went, for ten hours, on a stand that looked healthy.
+          # 29 August went, for ten hours, on a stand that looked healthy. It is
+          # also how the morning of 4 September went, for eight minutes: this read
+          # a repository VARIABLE that was never set, so every image published here
+          # shipped an empty allowlist, and the first rollout that replaced the
+          # hand-built egress took the agent off the broker.
+          #
+          # A secret rather than a variable, and the repository being public is the
+          # reason: a variable is printed in the build log, and this log is now
+          # readable by anyone. A secret is masked.
           build-args: |
-            EXTRA_ALLOWED_HOSTS=${{ vars.EXTRA_ALLOWED_HOSTS }}
+            EXTRA_ALLOWED_HOSTS=${{ secrets.EXTRA_ALLOWED_HOSTS }}
           push: true
           tags: ${{ steps.names.outputs.tags }}
           labels: ${{ steps.names.outputs.labels }}
