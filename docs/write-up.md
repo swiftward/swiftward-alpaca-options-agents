@@ -109,9 +109,10 @@ window at **$102,061.24 - up 2.06%** from the $100,000 it opened with. The
 organiser measures total equity at the close of Thursday 3 September, and that is
 that figure.
 
-It is checkable in two ways that need nothing from us. The page reads the broker
-through the same process the agent does, so the number on the screen and the number
-on the account are one answer. And `make account-claims PAGE=<the page>` turns four
+It is checkable in two ways that need nothing from us. The page -
+[alpaca.swiftward.dev](https://alpaca.swiftward.dev), and `/live` is the one that
+moves - reads the broker through the same process the agent does, so the number on
+the screen and the number on the account are one answer. And `make account-claims PAGE=<the page>` turns four
 sentences from these documents into checks against that account: every order a
 structure rather than a naked leg, every leg declaring whether it opens or closes,
 one server behind every order, and no intent recorded knowing its limits had not

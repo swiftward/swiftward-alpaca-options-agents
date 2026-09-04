@@ -19,11 +19,12 @@ PASS  closing at 0.35 of the credit returns 6722                 6722    6722
 25 claims, 0 failed
 ```
 
-**Watch it work:** the five-minute video and the slides are linked from the
-submission on lablab.ai. The page the agent writes to is at `typescript/web` - what
-it did, what it meant to do, and where it was stopped. Point a second command at
-that page and it checks the trading against what these documents say, with no
-credential of ours:
+**Watch it work: [alpaca.swiftward.dev](https://alpaca.swiftward.dev)** - the page
+the agent writes to, reading the broker through the same process the agent does.
+What it did, what it meant to do, and where it was stopped; `/live` is the one that
+moves. The five-minute video and the slides are linked from the submission on
+lablab.ai. Point a second command at that page and it checks the trading against
+what these documents say, with no credential of ours:
 
 ```
 make account-claims PAGE=<the page's address>
