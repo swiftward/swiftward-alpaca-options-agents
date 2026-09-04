@@ -32,9 +32,27 @@ What it trades: defined-risk option structures on Alpaca - credit spreads out of
 money, backspreads for the day the market moves hard, and two event bets - four
 trading days a week with nobody at a keyboard.
 
-The three ceilings that bound a loss - what one position may lose, what everything betting the same way may lose together, what the whole book may lose - are not in its prompt and not in its file. It asks for them while it works, sizes to the answer, and sees a tightened ceiling on its next turn without a restart. They live where it cannot reach them: the agent holds a risk-engine address and a token, and no broker key. The engine at that address is what refuses an order that breaches a ceiling - the refusal names the rule, and it lands in the record beside the call it stopped. What holds the route is that address and that credential rather than the network, and `docs/architecture.md` says where a deployment moving real money would put the wall instead. Its own trading numbers are in its declaration, where an operator can read and change them.
+**Three ceilings bound a loss:** what one position may lose, what everything betting
+the same way may lose together, what the whole book may lose.
 
-A window may name the OCCASION - a company reports on Wednesday, a macro number lands on Friday - because a calendar is not a judgement. What to do about it is the session's: whether there is a trade at all, which structure, which strikes, how large, and whether to sit the window out. Nothing in the declaration says what to buy or sell.
+None of the three is in the prompt or in the agent's file. It asks for them while it
+works and sizes to the answer, and a ceiling tightened mid-day reaches its next turn
+with nothing restarted.
+
+They live where it cannot reach them. The agent holds a risk-engine address and a
+token, and no broker key; the engine at that address refuses an order that breaches a
+ceiling, names the rule it broke, and the refusal lands in the record beside the call
+it stopped. What holds that route is the address and the credential rather than the
+network - `docs/architecture.md` says where a deployment moving real money would put
+the wall instead.
+
+Its own trading numbers are in its declaration, where an operator reads and changes
+them.
+
+**A window may name the occasion, never the trade.** A company reports on Wednesday,
+a macro number lands on Friday - a calendar is not a judgement. Whether there is a
+trade at all, which structure, which strikes, how large, whether to sit the window
+out: all of it is the session's. Nothing in the declaration says what to buy or sell.
 
 | | |
 |---|---|
