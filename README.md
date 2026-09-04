@@ -16,6 +16,14 @@ Neither is a backtest and neither is a projection: open the page linked below, o
 open the account, and it is the same book. `make account-claims` checks the trading
 on it against what these documents say, and needs no credential of ours.
 
+| | |
+|---|---|
+| the measured window | 4 trading days: 31 August, 1, 2 and 3 September |
+| Go behind it | 15,467 lines, against 19,639 lines of tests |
+| tests | 587 test functions in 90 files, and every rule that can refuse a trade has one that goes red when the rule is removed |
+| published numbers that recompute | 25 of 25, no credentials, no network |
+| trials that attack the agent | 13, against a stand that displaces the real option book rather than simulating one |
+
 Twenty-five of the numbers this project publishes recompute from data committed here, with no credentials and no network. Which twenty-five, and which numbers are modelled or come from our own account record instead, is listed in `research/README.md`:
 
 ```
@@ -65,6 +73,14 @@ at every entry. One result says the obvious defence - close when the price reach
 the strike you sold - is worse than doing nothing, by 0.62 a trade, and explains
 why. The agent does the counter-intuitive thing the measurement points at, and
 `make claims` recomputes the measurement on your machine in a minute.
+
+**We found an exit that beats holding, and we do not trade it.** Closing a full
+width past the sold strike pays 3.46 a trade against 2.94 for holding, and it holds
+up under a 25% volatility stress. It is not in the agent because that exit price is
+modelled rather than historical - option prices through time exist in our data only
+in the entry window - so the finding is published and not traded on. Knowing which
+of your own results you are not allowed to use is the difference between a backtest
+and a system.
 
 **The instrument that questions it is separate from it.** A stand beside the agent
 takes the REAL option book and moves one number along a curve, repricing every

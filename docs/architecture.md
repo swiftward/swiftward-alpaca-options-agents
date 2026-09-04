@@ -40,6 +40,21 @@ Alpaca. The broker's own order list can, which is what `make reconcile` reads.
 
 Every link belongs to exactly one account and carries that account's name:
 
+```mermaid
+flowchart LR
+  subgraph one["one chain per account, repeated"]
+    H["harness<br/>the clock and the room"] --> S["model session<br/>decides what to trade"]
+    S -->|"read_envelope"| E["envelope<br/>what am I allowed to do"]
+    S -->|"place_option_order"| G["policy gateway<br/>refuses, and says which rule"]
+    G --> M["Alpaca MCP server<br/>holds the only broker key"]
+    M --> A["the account"]
+    H --> R[("the record<br/>turns, intents, calls")]
+    S --> R
+    L["execution ladder<br/>walks the price, cancels"] --> G
+    R --> P["the page<br/>read-only credential"]
+  end
+```
+
 ```
 alpaca-agent-1      ->  gateway endpoint alpaca-agent-1      ->  alpaca-mcp-agent-1      ->  account 1
 alpaca-agent-2      ->  gateway endpoint alpaca-agent-2      ->  alpaca-mcp-agent-2      ->  account 2
