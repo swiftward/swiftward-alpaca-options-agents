@@ -52,6 +52,7 @@ Three places to go from here:
 
 - **[`docs/algorithm.md`](docs/algorithm.md)** - how a trade is decided, end to end, and what each control can and cannot stop. Start here.
 - **[`docs/capabilities.md`](docs/capabilities.md)** - every capability, where it lives, and what shows it works.
+- **[`docs/failures-this-avoids.md`](docs/failures-this-avoids.md)** - the ways an options agent goes wrong, and what this one does instead.
 - **[`testbed/`](testbed/README.md)** - the stand that plays the agent conditions the market will not produce on request, the thirteen trials it has run, and what they caught.
 
 ## What is unusual about it
