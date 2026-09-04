@@ -137,11 +137,11 @@ The account submitted for judging is `PA3BXFR0ZVYC`, and it is measured twice on
 two clocks, which is worth stating plainly rather than picking the flattering one.
 
 Alpaca reads total equity at the close of Thursday 3 September. That reading is
-settled: **$102,061.24, up 2.06%** from the $100,000 the account opened with.
+settled: **$102,588.74, up 2.59%** from the $100,000 the account opened with.
 
 Against the market it trades: SPY opened the first session of that window at
 767.315 and closed the last at 773.115, **+0.76%**, from Alpaca's own market data.
-The account returned 2.06% over the same four trading days, and every structure behind
+The account returned 2.59% over the same four trading days, and every structure behind
 that had a worst case computed before it was opened.
 
 lablab reads it again at the moment submissions close, Friday 15:00 UTC, with the
