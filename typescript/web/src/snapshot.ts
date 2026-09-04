@@ -30,9 +30,13 @@ export const MEASUREMENTS: Measurement[] = [
     by: 'Alpaca',
     when: 'end of Thursday, 3 September',
     rule: 'Total account equity, not cash balance. Open positions enter it at their mark.',
-    // The account stood at 102,335.60 at Wednesday's close and this page carried
-    // that figure until the Thursday one was in.
-    equity: 102_061.24,
+    // The broker's own record of that close, its `last_equity` field, which its API
+    // reference defines as "Equity as of previous trading day at 16:00:00 ET".
+    //
+    // This page carried 102,061.24 until that record landed - what the account read
+    // at 23:57 UTC that evening, while options still marked. The video was cut from
+    // the earlier figure and says so.
+    equity: 102_588.74,
   },
   {
     by: 'LabLab',

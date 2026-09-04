@@ -156,6 +156,9 @@ parameters:
   # close, and a bought option expiring the next morning has lost all its time
   # value by then. A structure that cannot be worth anything when it is counted is
   # not worth opening.
+  # FROM THE RULES: the organiser measures total equity at the close of Thursday
+  # 3 September, so that close is the last one a structure here can be worth
+  # anything on.
   convexity_horizon: "3 September 2026: anything expiring after it does not belong to this layer"
 
   # The earnings crush. The size is small on purpose: the right tail is closed by
@@ -205,6 +208,7 @@ parameters:
   # and every other one is here. Until 29 August it was TAKE_PROFIT_AT in the
   # environment, which also meant the two accounts could not differ in it without
   # differing in how they were deployed.
+  # MEASURED, `research/exit_rules.py`, 29 August 2026 - the two returns above.
   take_profit_at: "0.35"
 
   # What a structure must clear to be OFFERED at all. Seven numbers, and every one
@@ -218,9 +222,13 @@ parameters:
   # pass obeys. A number missing or unreadable stops that pass rather than
   # loosening it: a threshold quietly reading zero does not narrow the list, it
   # opens it, and every structure clears a floor of zero.
+  # PROVISIONAL: how near the money the sold leg may sit, in dollars.
   screener_nearest: "0.1"
+  # PROVISIONAL: how far from it, in dollars.
   screener_furthest: "3.0"
+  # PROVISIONAL: the least a structure may pay, in cents of credit.
   screener_least_paid: "8"
+  # PROVISIONAL: the most it may pay, in cents of credit.
   screener_most_paid: "100"
   # 100, not 150, and it is the list's density rather than the trades. Measured on
   # 3,336 real candidates from our own record: `edge_points` falls monotonically
@@ -249,6 +257,7 @@ parameters:
   # 40 keeps every name that has ever filled for us - META at 33, MU at 30, IWM at
   # 23, QQQ and SPY at 18 - and drops every one that has not. It costs candidates
   # we could not have bought.
+  # MEASURED on our own fills, 2 September 2026 - the percentages above.
   screener_dearest: "40"
   # 0.30, not 0.45, and the two numbers were fighting each other. The rule tells
   # the session "no more than 0.30" while this told the screener to OFFER up to
@@ -270,7 +279,11 @@ parameters:
   # session's own re-quote kept turning them negative. At a dollar, one tick is one
   # point and the threshold is three ticks.
   screener_least_width: "1.0"
+  # MEASURED, `research/grid.py`, 646 trading days of SPY and QQQ: 0.30 beats 0.45
+  # everywhere on the grid, and at 0.40 the expectation turns negative.
   screener_most_delta: "0.30"
+  # MEASURED, the same sweep of 31 August: three ticks of credit on a structure a
+  # dollar wide, which is where the number stops surviving a re-quote.
   screener_least_edge: "-3.0"
 
 sessions:

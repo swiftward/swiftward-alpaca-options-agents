@@ -21,12 +21,16 @@ const DOCS = `${REPOSITORY}/blob/main/docs`
 // repository that has to be public yet.
 const DECK = '/slides.pdf'
 
-const CLAIMS_OUTPUT = `PASS  646 trading days covered          646
-PASS  one day to expiry pays          10.72
-PASS  0.30 delta beats 0.45            True
-PASS  take-profit at 0.35 returns     6722
-PASS  the crossing costs              0.045
-PASS  25 of 25 recompute              True`
+// Six of the twenty-five lines `make claims` prints, copied from a run rather than
+// written: a judge who runs the command reads these back word for word.
+const CLAIMS_OUTPUT = `PASS  the history covers 646 trading days                646    646
+PASS  one day to expiry pays more than five             True   True
+PASS  the expiry gradient is monotone from 2 to 5 days  True   True
+PASS  closing on the touch is worse than holding        True   True
+PASS  closing at 0.35 of the credit returns 6722        6722   6722
+PASS  the take-profit measurement covers 597 trades     597    597
+
+25 claims, 0 failed`
 
 // The four this is scored on, each against the thing that answers it. Nothing here
 // is a plea: every row is a number, a file or a command.
@@ -124,7 +128,7 @@ export function Submission() {
       {/* THE FOUR THINGS A JUDGE OPENS, at the top where they are looked for. */}
       <div className="mt-9 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Opens to="/live" name="The account, live" says="It moves while you watch it." inside />
-        <Opens to={VIDEO} name="The video" says="Five minutes, and it runs." />
+        <Opens to={VIDEO} name="The video" says="Three minutes, and it runs." />
         <Opens to={REPOSITORY} name="The source" says="The whole history, MIT." />
         <Opens to={DECK} name="The deck" says="Thirteen pages: what it trades, what each control stops, and the account it is judged on." />
       </div>

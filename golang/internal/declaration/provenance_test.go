@@ -36,6 +36,21 @@ func TestEveryTradedNumberSaysWhereItCameFrom(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, shipped, "no declarations found: the path this test reads has moved")
 
+	// The declaration the judged account runs - `DECLARATION` in `compose.prod.yaml`.
+	// Checked against what is actually shipped BEFORE anything is read, because
+	// the rule this test enforces applies to one file by name: while the name was
+	// one no file carried, every declaration took the informational branch below
+	// and the test passed having enforced nothing.
+	const enforced = "alpaca-agent-tikhon.yaml"
+
+	names := make([]string, 0, len(shipped))
+	for _, path := range shipped {
+		names = append(names, filepath.Base(path))
+	}
+	require.Contains(t, names, enforced,
+		"the declaration this test enforces on is not shipped: rename it here too, "+
+			"or this test passes without reading it")
+
 	// A parameter line: two spaces, a name, a colon. Nested keys go deeper and
 	// are not parameters of their own.
 	parameter := regexp.MustCompile(`^ {2}([a-z_]+):`)
@@ -96,7 +111,7 @@ func TestEveryTradedNumberSaysWhereItCameFrom(t *testing.T) {
 			// Only ours is required to pass. The experiment declarations belong to
 			// whoever runs those accounts, and marking someone else's numbers is
 			// their call, not this test's - widen this once they agree.
-			if filepath.Base(path) != "agent.yaml" {
+			if filepath.Base(path) != enforced {
 				if len(bare) > 0 {
 					t.Logf("not our file, so for information only - unmarked: %s", strings.Join(bare, ", "))
 				}
