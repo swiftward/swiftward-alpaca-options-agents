@@ -54,9 +54,9 @@ check: ## Every gate a push must pass: style, language, tests, the race detector
 claims: ## Recompute every number this project publishes, from data in the repository, with no credentials
 	cd research && uv run claims.py
 
-account-claims: ## What the account did, checked against what the docs say: make account-claims PAGE=https://... [KEY=...]
-	@[ -n "$(PAGE)" ] || { echo "PAGE is required, for example: make account-claims PAGE=https://alpaca.swiftward.dev" >&2; exit 2; }
-	python3 tools/account-claims.py --page "$(PAGE)" --key "$(KEY)"
+account-claims: ## What the account did, checked against what the docs say: PAGE=https://... [KEY=...], or DIR=docs/account-evidence
+	@[ -n "$(PAGE)$(DIR)" ] || { echo "give PAGE=https://... or DIR=docs/account-evidence" >&2; exit 2; }
+	python3 tools/account-claims.py $(if $(PAGE),--page "$(PAGE)" --key "$(KEY)") $(if $(DIR),--dir "$(DIR)")
 
 day: ## The three numbers a trading day is judged by, per account, from the record
 	@for db in $$(grep -E '^RECORD_DATABASES=' .env | cut -d= -f2-); do \

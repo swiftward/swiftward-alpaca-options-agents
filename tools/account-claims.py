@@ -5,6 +5,7 @@ judge already has open - the same read side the demo serves, no credential and n
 broker key - and asks whether the trading matches the rules the repository states.
 
     make account-claims PAGE=https://alpaca.swiftward.dev
+    make account-claims DIR=docs/account-evidence     # the frozen copy, no network
 
 Every check below is a sentence somewhere in `docs/`, turned into something a
 stranger can run. A check that fails is a claim we have to correct.
@@ -14,6 +15,7 @@ import argparse
 import json
 import sys
 import urllib.request
+from pathlib import Path
 
 TIMEOUT = 60
 
@@ -48,14 +50,19 @@ class Checks:
 
 def main():
     parse = argparse.ArgumentParser(description=__doc__)
-    parse.add_argument("--page", required=True, help="the page's address, for example https://alpaca.swiftward.dev")
+    parse.add_argument("--page", default="", help="the page's address, for example https://alpaca.swiftward.dev")
     parse.add_argument("--key", default="", help="X-Page-Key, where the page asks for one")
+    parse.add_argument("--dir", default="", help="a frozen copy of those answers instead, for example docs/account-evidence")
     where = parse.parse_args()
+    if bool(where.page) == bool(where.dir):
+        parse.error("give either --page or --dir")
 
-    money = read(where.page, "money", where.key)
-    state = read(where.page, "state", where.key)
-    limits = read(where.page, "limits", where.key)
-    equity = read(where.page, "equity", where.key)
+    def answer(route):
+        if where.dir:
+            return json.loads((Path(where.dir) / f"{route}.json").read_text())
+        return read(where.page, route, where.key)
+
+    money, state, limits, equity = (answer(r) for r in ("money", "state", "limits", "equity"))
 
     checks = Checks()
     account = money["account"]

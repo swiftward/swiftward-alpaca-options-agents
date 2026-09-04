@@ -135,6 +135,7 @@ Eleven tables. Everything the agent was told, said, called and got back.
 | Capability | What it does | Where it lives | What shows it works |
 |---|---|---|---|
 | `make claims` | Recomputes 25 published numbers from data in the repository. No credentials, no network | `research/claims.py` | run it |
+| `make account-claims DIR=docs/account-evidence` | The judged account frozen as the page served it, checked against what these documents say, with no network and no credential | `docs/account-evidence/`, `tools/account-claims.py` | run it |
 | The research behind each threshold | 646 trading days of option prices, and a script per question: entry windows, exit rules, the take-profit share, the cost of crossing the book | `research/` | `research/README.md`, `make claims` |
 | `make day` | The three numbers a trading day is judged by, per account, straight from the record | `postgres/the-day.sql` | run it against a live record |
 | `make rehearse` | Sends a trading day's reads from every agent at once and prints what was refused, so a limit sized for one caller and met by four is found before Monday | `golang/apps/rehearse` | run it on a Sunday |

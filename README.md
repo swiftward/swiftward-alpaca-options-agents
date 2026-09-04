@@ -25,11 +25,40 @@ credential of ours:
 make account-claims PAGE=<the page's address>
 ```
 
-Three places to go from here:
+Four places to go from here:
 
-- **[`docs/capabilities.md`](docs/capabilities.md)** - every capability, where it lives, and what shows it works. Start here.
+- **[`docs/algorithm.md`](docs/algorithm.md)** - how a trade is decided, end to end, and what each control can and cannot stop. Start here.
+- **[`docs/capabilities.md`](docs/capabilities.md)** - every capability, where it lives, and what shows it works.
 - **[`testbed/`](testbed/README.md)** - the stand that plays the agent conditions the market will not produce on request, the thirteen trials it has run, and what they caught.
-- **[`docs/architecture.md`](docs/architecture.md)** - how the pieces fit together and why.
+- **[`docs/account-evidence/`](docs/account-evidence/README.md)** - the judged account frozen, with a command that checks it against the documents and needs nothing of ours.
+
+## What is unusual about it
+
+Four things, and each one can be checked rather than taken on trust.
+
+**The model decides what to trade and nothing else.** Pricing six hundred
+structures and walking a limit price a cent at a time are arithmetic on a clock,
+and they are code. Reading the news, judging whether two positions are really the
+same bet, sitting an hour out - those are judgement, and they are the session's.
+The line is drawn on one question, and `docs/algorithm.md` opens by naming it.
+
+**Its limits are read, not told.** No ceiling the agent sizes with is written in
+its prompt. It asks a service for them at runtime, is refused by that same service
+when it tries to exceed them, and sees a tightened limit on its next turn without a
+restart.
+
+**The thresholds are measurements, and the awkward ones are published.** 646
+trading days of option prices are committed here, priced with the crossing charged
+at every entry. One result says the obvious defence - close when the price reaches
+the strike you sold - is worse than doing nothing, by 0.62 a trade, and explains
+why. The agent does the counter-intuitive thing the measurement points at, and
+`make claims` recomputes the measurement on your machine in a minute.
+
+**The instrument that questions it is separate from it.** A stand beside the agent
+takes the REAL option book and moves one number along a curve, repricing every
+contract by its own live implied volatility - at zero displacement it equals the
+live market to the cent. Thirteen trials have gone through it, and what they caught
+is written down, including the defects that were ours.
 
 ## What it does
 
