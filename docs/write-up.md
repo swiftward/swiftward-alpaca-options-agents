@@ -2,6 +2,27 @@
 
 An autonomous agent trades defined-risk option structures on an Alpaca paper account. A schedule decides *when* it runs and tells it *why*; the agent decides *what* to trade. Everything it did and everything it meant to do is written down as it happens, and the demo page shows both.
 
+## Three contributions, and where each is proven
+
+1. **Limits the agent reads rather than is told.** No risk number the agent sizes
+   with appears in its prompt. It asks a service at runtime, is refused by that
+   same service, and sees a tightened limit on the next turn without a restart.
+   Proof: `golang/internal/envelope`, `tools_test.go` and `percent_test.go`;
+   `GET /api/limits` on the page shows what it is told, live.
+2. **Every price acted on is a price that could have been got.** Candidates are
+   priced at the sides of the book an order would cross, never the midpoint, and
+   the ladder re-prices a structure before every concession and refuses a give that
+   breaks the rule the entry was made on. Proof:
+   `golang/internal/screener/candidate.go`, and `make claims` recomputes the
+   measurement that says midpoint and book differ by more than the strategy earns.
+3. **An instrument that attacks the agent rather than confirming it.** A stand
+   beside it takes the real option book and displaces one number along a curve,
+   repricing every contract by its own live implied volatility; at zero
+   displacement it equals the live market to the cent. Thirteen trials have run
+   through it, and what they caught - including a guard of ours that counted legs
+   and was wrong from the first backspread - is written down. Proof:
+   `testbed/README.md`, `testbed/proxy/overlay.go`.
+
 ## The AI logic
 
 The agent is a model session with tools, not a script with a model in it.

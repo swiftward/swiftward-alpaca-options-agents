@@ -4,34 +4,23 @@
 
 The risk limits are not in its prompt. It asks a policy engine for them while it works, is refused by that same engine when it tries to exceed them, and sees a tightened limit on its next turn without a restart.
 
-Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026. Everything runs against Alpaca's paper trading environment: simulated funds, real market data, no real money.
-
-**The submitted account is `PA3BXFR0ZVYC`, and it is measured twice, on two clocks.**
-Alpaca reads total equity at the close of Thursday 3 September: that reading is
-settled, and it is **$102,061.24 - up 2.06%** from the $100,000 the account opened
-with. lablab reads it again when submissions close on Friday at 15:00 UTC, with the
-market open, and that number is not ours to state before it is taken.
-
-Neither is a backtest and neither is a projection: open the page linked below, or
-open the account, and it is the same book. Nor is four sessions a measurement of a
-strategy - it is too short to separate skill from a good draw, and the evidence for
-the strategy is the 646 trading days committed here rather than the week. `make account-claims` checks the trading
-on it against what these documents say, and needs no credential of ours.
-
-Over the same four sessions the market it trades on moved a fraction of that: SPY
-opened Monday 31 August at 767.315 and closed Thursday at 773.115, **+0.76%**
-(Alpaca's own market data, IEX feed - the same source the agent reads). The account
-returned 2.06% against it, on structures whose worst case was bounded before each
-one was opened.
-
 | | |
 |---|---|
-| the measured window | 4 trading days: 31 August, 1, 2 and 3 September |
-| what SPY did in it | +0.76%, open of the first session to close of the last |
-| Go behind it | 15,467 lines, against 19,639 lines of tests |
-| tests | 587 test functions in 90 files, and every rule that can refuse a trade has one that goes red when the rule is removed |
-| published numbers that recompute | 25 of 25, no credentials, no network |
-| trials that attack the agent | 13, against a stand that displaces the real option book rather than simulating one |
+| **submitted account** | `PA3BXFR0ZVYC`, Alpaca paper - simulated funds, real market data, no real money |
+| **result** | **$102,061.24, up 2.06%** from $100,000, at the close of Thursday 3 September, which is the equity Alpaca measures |
+| **the market over the same window** | SPY **+0.76%**, open of 31 August to close of 3 September |
+| **the window** | 4 trading days: 31 August, 1, 2 and 3 September |
+| **check it yourself** | [alpaca.swiftward.dev](https://alpaca.swiftward.dev) reads the broker live; `make account-claims PAGE=...` checks the trading against these documents, with no credential of ours |
+| **the second clock** | lablab measures again when submissions close, Friday 15:00 UTC, market open. That number is not ours to state before it is taken |
+| **what is here** | 15,467 lines of Go against 19,639 of tests; 587 test functions in 90 files; 25 of 25 published numbers recompute with no credentials and no network; 13 trials against a stand that displaces the real option book |
+| **what is not here** | the policy gateway that enforces the limits is a network service and closed source. [`docs/architecture.md`](docs/architecture.md) opens with the line between what you can check here and what needs a running deployment |
+
+Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026.
+
+Neither number is a backtest and neither is a projection: open the page, or open the
+account, and it is the same book. Nor is four sessions a measurement of a strategy -
+too short to separate skill from a good draw - and the evidence for the strategy is
+the 646 trading days committed here rather than the week.
 
 Twenty-five of the numbers this project publishes recompute from data committed here, with no credentials and no network. Which twenty-five, and which numbers are modelled or come from our own account record instead, is listed in `research/README.md`:
 
