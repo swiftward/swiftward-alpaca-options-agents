@@ -387,8 +387,8 @@ export function Landing() {
           until the Monday. */}
       <Block
         label="06 · the result"
-        title="Two judges, two clocks, and both are named here."
-        explains="One account, opened and funded with $100,000 on the kickoff day and never reset. Its first order went out on the Monday, when the measurement window opens. The result is then taken twice by two clocks that disagree on when the week ends, so both cut-offs are printed with the rule each uses."
+        title="One account, one reading, and the rule that names it."
+        explains="Opened and funded with $100,000 on the kickoff day and never reset. Its first order went out on the Monday, when the measurement window opens, and the result is total equity at the close of Thursday 3 September - the reading the organiser measures, printed here with its rule."
       >
         <Card>
           <ul className="m-0 list-none space-y-4 p-0">
@@ -402,9 +402,8 @@ export function Landing() {
               word `result` met a return with nothing to weigh it against and had
               to remember a number from seven screens up.
 
-              It sits under the list rather than inside a row because it belongs to
-              the settled window and not to both: the second measurement closes on
-              a different clock. */}
+              It sits under the list rather than inside the row because it belongs
+              to the window rather than to the reading. */}
           <p className="mt-6 border-t border-line pt-5 text-[15px] leading-relaxed text-secondary">
             Over the settled window — {BENCHMARK.sessions} sessions, {BENCHMARK.window} — the market
             it trades went{' '}
