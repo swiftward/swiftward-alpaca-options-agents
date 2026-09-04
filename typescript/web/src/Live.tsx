@@ -11,7 +11,6 @@ import { useEffect, useRef, useState } from 'react'
 import type {
   Everything,
   Limits,
-  Money,
   Said,
   State,
   Sweep,
@@ -22,7 +21,7 @@ import type {
 import { readEverything } from './api'
 import { MEASUREMENTS, OPENED } from './snapshot'
 import { Equity } from './Equity'
-import { ago, clock, dollars, marketOpen, percent, signed, took, trim } from './format'
+import { ago, clock, dollars, marketOpen, percent, signed, took } from './format'
 import {
   Card,
   Chip,
@@ -207,9 +206,27 @@ function Bone({ className }: { className: string }) {
   return <span className={`block rounded bg-surface-sunk ${className}`} aria-hidden />
 }
 
+// The close the organiser measures. Nothing dated after it appears on this page:
+// the reading that decides the result was taken then, and a figure from after it
+// answers a question nobody is judging.
+const MEASURED_AT = Date.parse('2026-09-03T20:00:00Z')
+
+const upTo = <T,>(rows: T[] | undefined, at: (row: T) => string | undefined): T[] =>
+  (rows ?? []).filter((row) => {
+    const when = at(row)
+
+    return when === undefined || Date.parse(when) <= MEASURED_AT
+  })
+
 function Page({ all }: { all: Everything }) {
-  const state = all.state.ok ? all.state.value : undefined
-  const money = all.money.ok ? all.money.value : undefined
+  const recorded = all.state.ok ? all.state.value : undefined
+  const state: State | undefined = recorded && {
+    turns: upTo(recorded.turns, (turn) => turn.started_at),
+    causes: upTo(recorded.causes, (cause) => cause.at),
+    calls: upTo(recorded.calls, (call) => call.started_at),
+    intents: upTo(recorded.intents, (intent) => intent.at),
+    said: upTo(recorded.said, (said) => said.at),
+  }
 
   return (
     <>
@@ -222,7 +239,7 @@ function Page({ all }: { all: Everything }) {
 
       {state ? (
         <Section title={GLANCE_SECTION} explains={GLANCE_EXPLAINS}>
-          <Counters state={state} money={money} />
+          <Counters state={state} />
         </Section>
       ) : null}
 
@@ -239,16 +256,14 @@ function Page({ all }: { all: Everything }) {
         {all.limits.ok ? <LimitsCard limits={all.limits.value} /> : <Unavailable why={all.limits.why} />}
       </Section>
 
-      <Section
-        title="What the market offers"
-        explains="The screener prices every permitted underlying, over and over. This is its last pass and how long ago it ran."
-      >
-        {all.sweep.ok ? <SweepCard sweep={all.sweep.value} /> : <Unavailable why={all.sweep.why} />}
-      </Section>
-
-      <Section title="Open positions" explains="What it is holding right now, valued by the broker.">
-        {money ? <Positions money={money} /> : <Empty says="the account is unavailable" />}
-      </Section>
+      {all.sweep.ok && Date.parse(all.sweep.value.taken_at) <= MEASURED_AT ? (
+        <Section
+          title="What the market offers"
+          explains="The screener prices every permitted underlying, over and over. This is its last pass inside the measured window."
+        >
+          <SweepCard sweep={all.sweep.value} />
+        </Section>
+      ) : null}
 
       <Section
         title="Every run"
@@ -313,6 +328,54 @@ function Measured() {
     </div>
   )
 }
+// A TABLE, because these are six rows of the same four measurements and a list
+// made a reader parse each one out of a sentence. `edge` is the column that
+// decides - the number the entry rule is read against - so it is last, where the
+// eye lands, and a negative one is coloured.
+function SweepCard({ sweep }: { sweep: Sweep }) {
+  const candidates = sweep.candidates ?? []
+  if (candidates.length === 0) return <Empty says="no sweep yet, or it found nothing" />
+
+  const shown = candidates.slice(0, 6)
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted">
+        <span className="font-medium text-primary">
+          {candidates.length} priced
+          {shown.length < candidates.length ? ` · the ${shown.length} best shown` : ''}
+        </span>
+        <Chip>swept {ago(sweep.taken_at)}</Chip>
+        {marketOpen() ? null : <Chip>market closed — the screener runs while it is open</Chip>}
+      </div>
+
+      <Table
+        head={['underlying', 'structure', 'credit', 'risk', 'edge']}
+        rows={shown.map((one) => [
+          <span className="font-medium">{one.underlying}</span>,
+          <span className="text-secondary">
+            {one.type} {one.short_strike}/{one.long_strike}
+          </span>,
+          <span className="tabular-nums">{one.credit.toFixed(2)}</span>,
+          <span className="tabular-nums">{one.risk.toFixed(2)}</span>,
+          one.edge_points === undefined ? (
+            <span className="text-muted">—</span>
+          ) : (
+            <span
+              className={`font-medium tabular-nums ${
+                one.edge_points < 0 ? 'text-loss' : 'text-primary'
+              }`}
+            >
+              {one.edge_points.toFixed(1)}
+            </span>
+          ),
+        ])}
+        empty="no sweep yet, or it found nothing"
+      />
+    </div>
+  )
+}
+
 // `runs` and `failed` used to stand here and both were wrong: they counted a list
 // the record returns with a ceiling on it, so a week of 152 runs showed as 50. The
 // four that remain are whole - three come from the broker, and the intents are
@@ -321,17 +384,14 @@ function Measured() {
 // One to a card, because a row of bare numbers makes a reader guess what each is
 // counting. `filled` used to be green: on every other page here green means money,
 // and a count of orders is not money.
-function Counters({ state, money }: { state: State; money?: Money }) {
+function Counters({ state }: { state: State }) {
+  // Counted from the record rather than from the broker, so every figure here
+  // belongs to the measured window like the rest of the page.
   const counted: [string, string, string][] = [
     [
-      'orders sent',
-      String(money?.orders?.length ?? 0),
-      'Everything the broker received, cancellations included.',
-    ],
-    [
-      'filled',
-      String(money?.orders?.filter((order) => order.status === 'filled').length ?? 0),
-      'What the book actually took.',
+      'sessions it ran',
+      String((state.turns ?? []).length),
+      'Each one woken by the schedule, a person, or a wake-up it set itself.',
     ],
     [
       'intents',
@@ -339,9 +399,14 @@ function Counters({ state, money }: { state: State; money?: Money }) {
       'Filed before an order could exist: no intent, no order.',
     ],
     [
-      'positions',
-      String(money?.positions?.length ?? 0),
-      'Open right now, valued at the broker’s own mark.',
+      'tool calls',
+      String((state.calls ?? []).length),
+      'Every one recorded with its arguments and the answer it got.',
+    ],
+    [
+      'refusals',
+      String((state.calls ?? []).filter((call) => call.status !== 'completed').length),
+      'The calls that did not go through, kept beside the ones that did.',
     ],
   ]
 
@@ -418,74 +483,6 @@ function LimitsCard({ limits }: { limits: Limits }) {
         </span>
       }
       source={asYaml(limits)}
-    />
-  )
-}
-
-// A TABLE, because these are six rows of the same four measurements and a list
-// made a reader parse each one out of a sentence. `edge` is the column that
-// decides - the number the entry rule is read against - so it is last, where the
-// eye lands, and a negative one is coloured.
-function SweepCard({ sweep }: { sweep: Sweep }) {
-  const candidates = sweep.candidates ?? []
-  if (candidates.length === 0) return <Empty says="no sweep yet, or it found nothing" />
-
-  const shown = candidates.slice(0, 6)
-
-  return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted">
-        <span className="font-medium text-primary">
-          {candidates.length} priced
-          {shown.length < candidates.length ? ` · the ${shown.length} best shown` : ''}
-        </span>
-        <Chip>swept {ago(sweep.taken_at)}</Chip>
-        {marketOpen() ? null : <Chip>market closed — the screener runs while it is open</Chip>}
-      </div>
-
-      <Table
-        head={['underlying', 'structure', 'credit', 'risk', 'edge']}
-        rows={shown.map((one) => [
-          <span className="font-medium">{one.underlying}</span>,
-          <span className="text-secondary">
-            {one.type} {one.short_strike}/{one.long_strike}
-          </span>,
-          <span className="tabular-nums">{one.credit.toFixed(2)}</span>,
-          <span className="tabular-nums">{one.risk.toFixed(2)}</span>,
-          one.edge_points === undefined ? (
-            <span className="text-muted">—</span>
-          ) : (
-            <span
-              className={`font-medium tabular-nums ${
-                one.edge_points < 0 ? 'text-loss' : 'text-primary'
-              }`}
-            >
-              {one.edge_points.toFixed(1)}
-            </span>
-          ),
-        ])}
-        empty="no sweep yet, or it found nothing"
-      />
-    </div>
-  )
-}
-
-function Positions({ money }: { money: Money }) {
-  return (
-    <Table
-      head={['symbol', 'side', 'quantity', 'entry', 'now', 'value', 'open profit']}
-      rows={(money.positions ?? []).map((position) => [
-        position.symbol,
-        position.side,
-        trim(position.quantity),
-        dollars(position.average_entry_price),
-        dollars(position.current_price),
-        dollars(position.market_value),
-        <span className={position.unrealized_pl >= 0 ? 'text-gain' : 'text-loss'}>
-          {signed(position.unrealized_pl)} ({percent(position.unrealized_pl_fraction)})
-        </span>,
-      ])}
-      empty="holding nothing right now"
     />
   )
 }

@@ -143,7 +143,7 @@ export function Submission() {
       <div className="mt-16">
         <Section
           title="The account"
-          explains="Named so it can be opened rather than taken on trust, and measured twice: the two judges' clocks disagree on when the week ends, so both cut-offs are here with the rule each uses."
+          explains="Named so it can be opened rather than taken on trust, with the reading that decides the result and the rule that defines it."
         >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Card>
