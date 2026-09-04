@@ -168,7 +168,7 @@ export function Submission() {
           <div className="mt-6 flex flex-wrap items-center gap-4">
             <LiveLink />
             <span className="text-[15px] text-secondary">
-              The figures above are frozen. The account itself is not.
+              The account has gone on working since. Watch it run.
             </span>
           </div>
         </Section>

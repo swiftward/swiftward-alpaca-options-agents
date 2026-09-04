@@ -82,11 +82,16 @@ export function Live() {
         <Eyebrow>[ live · alpaca paper trading ]</Eyebrow>
 
         <h1 className="mt-6 max-w-[20ch] text-[40px] font-medium leading-[1.05] tracking-[-0.024em] text-primary">
-          The account at the close it is judged on.
+          Live, cut to the window that is judged.
         </h1>
         <p className="mt-4 max-w-[52ch] text-[20px] font-medium leading-[1.25] tracking-[-0.01em] text-secondary">
           Every run it makes, every limit it was handed, and every conclusion it reached — in
           its own words, refusals included.
+        </p>
+        <p className="mt-4 max-w-[62ch] text-[15px] leading-relaxed text-secondary">
+          The account figures stop at the close of Thursday 3 September, because that is the
+          reading the rules judge. The stand serves this account live and the agent goes on
+          working past it; what falls outside the measured window is left out of the figures.
         </p>
 
         {/* WHERE THE NUMBERS COME FROM, said on the page that shows them. Five

@@ -415,13 +415,13 @@ export function Landing() {
           </p>
         </Card>
 
-        {/* The page ends by handing the reader off. Both figures above are frozen -
-            they have to be, a poster cannot depend on a broker answering - and the
-            honest next sentence is "the moving one is over here". */}
+        {/* The page ends by handing the reader off. The figures here are written
+            into the page - a poster cannot depend on a broker answering - and the
+            next sentence points at the one that moves. */}
         <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
           <LiveLink />
           <span className="text-[15px] text-secondary">
-            Both figures above are frozen. The account itself is not.
+            The account has gone on working since. Watch it run.
           </span>
         </div>
       </Block>
