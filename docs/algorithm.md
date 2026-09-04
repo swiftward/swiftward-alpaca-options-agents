@@ -168,6 +168,48 @@ the entry window, so a deep in-the-money spread is repriced by Black-Scholes at 
 volatility held constant from entry - and it is labelled as modelled everywhere it
 appears. Holding to expiry is the one arm that settles on real closes.
 
+## The entry rule, in one place
+
+Everything above, stated as the rule a trade has to pass. The numbers are the
+submitted account's, from `agent/alpaca-agent-tikhon.yaml`.
+
+**What may be traded at all.** The underlyings the risk engine permits - index funds,
+sector funds and large single names, listed by name in the rules it answers with -
+and an expiration between nought and five trading days out. Nothing else is even
+offered to a session.
+
+**What the screener will put in front of a session.** A vertical credit spread whose
+sold strike stands 0.1 to 3.0 per cent from the price; at least a dollar wide; paying
+between 8 and 100 per cent of what it risks; whose crossing costs no more than 40 per
+cent of the credit; whose sold leg has a delta no greater than 0.30 in absolute
+value; and whose edge - what it pays above what it must survive - is at least -3.0,
+which is deliberately loose, because the screener's job is to price and rank rather
+than to decide.
+
+**What the session may open from that list.** The delta ceiling is 0.30, and the edge
+must be at least +2 on a fresh quote, or strictly above 0 where the chance of
+surviving had to be taken from a borrowed volatility. Both legs must have a two-sided
+quote. Selection is by edge and not by credit: an expensive structure shows a low
+edge by itself, because the crossing is already inside the measure. One position per
+underlying, side and expiry; up to six opened in a window, and six is also the most
+that may be re-quoted in a turn.
+
+**What it may risk.** A position's worst case at expiry, computed from the strikes in
+its own contracts, no larger than the ceiling the risk engine gives - sized to nine
+tenths of it, because the ceiling is a share of equity and equity moves while an
+order rests. Everything betting the same way stays inside the side ceiling, and
+everything open inside the book ceiling.
+
+**When it stops.** Below the day's fuse - a declared share of yesterday's close -
+entry windows open nothing more that day, while the defence and the profit watch go
+on managing what is already there. Nothing is opened on the last day, when a position
+has hours to lose and no time to earn.
+
+**What it will not do.** No naked short option, ever. No structure whose loss has no
+floor. No closing a same-day spread early, because it lives on time decay and closing
+it pays the crossing twice for half of what it collected. No concession on a walk
+that breaks the rule the entry was made on.
+
 ## Sizing
 
 The size does not come from the model and does not come from our code. The session
