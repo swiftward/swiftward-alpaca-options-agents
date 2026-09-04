@@ -52,5 +52,6 @@ make account-claims PAGE=https://alpaca.swiftward.dev
 Six checks, no credential: every order a structure rather than a naked leg, every
 leg declaring whether it opens or closes, one server behind every order, the limits
 in force disclosed, and no intent recorded knowing its limits had not been read. The
-tool is `tools/account-claims.py`; `DIR=` reads five saved answers instead of a live
-page, for anyone who wants to keep a copy.
+tool is `tools/account-claims.py`, and `DIR=docs/account-evidence` runs the same
+checks against a copy of those five answers committed here, with no network at all -
+see `docs/account-evidence/README.md`.
