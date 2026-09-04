@@ -4,7 +4,7 @@ import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
 import { Boundary } from './Boundary'
-import { Card, Chip, Eyebrow, Figure, Figures, inline, Mark, Yaml } from './parts'
+import { Card, Chip, Eyebrow, Figure, Figures, inline, LiveLink, Mark, Yaml } from './parts'
 import { ACCOUNT, ACTIVITY, BENCHMARK, MEASUREMENTS, OPENED, type Measurement } from './snapshot'
 
 // The landing page: what this is, how it differs, and where to go and look.
@@ -1235,21 +1235,6 @@ const SETTLED = MEASUREMENTS.filter((m) => m.equity !== null).slice(-1)[0] ?? ME
 // other page: the account moving while they watch. The second is outlined
 // because it orients rather than persuades.
 // Used at the top of the page and again at the foot of it, so it is written once.
-function LiveLink() {
-  return (
-    <Link
-      to="/live"
-      className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-[15px] font-medium text-on-accent transition-opacity hover:opacity-90"
-    >
-      <span
-        className="inline-block size-1.5 rounded-full bg-on-accent motion-safe:animate-pulse"
-        aria-hidden
-      />
-      See it live
-    </Link>
-  )
-}
-
 function Actions() {
   return (
     <div className="mt-9 flex flex-wrap items-center gap-3">

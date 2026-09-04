@@ -1,6 +1,8 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { Link } from 'react-router'
+
 import { Boundary } from './Boundary'
 
 // The page's reusable parts.
@@ -388,7 +390,19 @@ function value(rest: string) {
   return <span className="text-code-fg">{rest}</span>
 }
 
-
-// One pass of the screener. The bars are to scale, because the RATIO is the point:
-// the same formula six hundred times is arithmetic and belongs to code, and what
-// reaches the session is short enough for judgement to be spent on it.
+// The way to the live page. Two pages send the reader there, and the pulsing dot is
+// the promise the page keeps: the figures around it are frozen, that one is not.
+export function LiveLink() {
+  return (
+    <Link
+      to="/live"
+      className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-[15px] font-medium text-on-accent transition-opacity hover:opacity-90"
+    >
+      <span
+        className="inline-block size-1.5 rounded-full bg-on-accent motion-safe:animate-pulse"
+        aria-hidden
+      />
+      See it live
+    </Link>
+  )
+}
