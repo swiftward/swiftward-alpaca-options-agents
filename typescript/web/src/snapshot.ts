@@ -54,7 +54,7 @@ export const MEASUREMENTS: Measurement[] = [
 export const ACCOUNT = 'PA3BXFR0ZVYC'
 
 // THE MARKET OVER THE SAME WINDOW. A return means nothing until the reader knows
-// what the market did while it was earned: "+2.06%" is a number, "+2.06% against
+// what the market did while it was earned: "+2.59%" is a number, "+2.59% against
 // +0.76%" is a result. Taken from the same market data the agent reads, on the
 // same feed, so the comparison can be checked from where it came from.
 export const BENCHMARK = {
