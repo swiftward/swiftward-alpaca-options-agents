@@ -1205,7 +1205,7 @@ function Block({
   return (
     <section className="mb-20">
       <Eyebrow>{label}</Eyebrow>
-      <h2 className="mt-3 max-w-[24ch] text-[32px] font-medium leading-[1.1] tracking-[-0.02em] text-primary sm:text-[38px]">
+      <h2 className="mt-3 max-w-[24ch] text-balance text-[32px] font-medium leading-[1.1] tracking-[-0.02em] text-primary sm:text-[38px]">
         {title}
       </h2>
       {explains ? (
