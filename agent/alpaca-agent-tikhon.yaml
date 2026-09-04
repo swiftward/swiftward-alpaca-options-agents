@@ -1,6 +1,8 @@
 # When the agent wakes and why. Hours are New York's, because the market is.
 #
-# Nothing here says what to trade: each session carries a task in words, and the
+# A window may name the OCCASION - a report, a scheduled release - because a
+# calendar is not a judgement. Nothing here says what to BUY or SELL on it: each
+# session carries a task in words, and the
 # session that reads it decides. That line is what makes the agent autonomous
 # rather than driven.
 kind: trading-agent
@@ -623,7 +625,7 @@ sessions:
       you wanted, and confirm with the broker that the position is gone.
 
   - name: deadline-flatten
-    cause: "submissions close at 11:00 New York time: by that hour the account must be flat"
+    cause: "submissions close at 11:00 New York time: by that hour every working order is cancelled and every position that can be closed at no worse than its mark is closed"
     at: "10:35"
     within: 20m
     days: [fri]
@@ -723,9 +725,9 @@ sessions:
 
       Not a vertical - say that in one line and walk past.
       **Close only when price has passed the BOUGHT strike, not the sold one.**
-      Measured: research/exit_rules.py, 638 trades over two and a half years.
-      Closing on a touch of the sold strike returns -$0.33 a trade; closing on the
-      bought strike +$0.86; holding to expiry +$2.63. The difference between the
+      Measured: research/exit_rules.py, 672 trades from January 2024 to August 2026,
+      which `make claims` recomputes. Closing on a touch of the sold strike returns
+      $2.32 a trade; holding to expiry $2.94; closing past the bought strike $3.46. The difference between the
       first two is $1.19 a trade, and it costs almost nothing: the worst run is
       four percent deeper, the worst single trade is the same.
 

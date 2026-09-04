@@ -16,7 +16,9 @@ in the "Where it lives" column rather than blurring it.
 ## The agent is a declaration
 
 One file per agent under `agent/`. It says when the agent wakes, why, what it
-may load and the numbers it works from. Nothing in it says what to trade.
+may load and the numbers it works from. A window may name the OCCASION - a company
+reporting, a scheduled macro release - because a calendar is not a judgement; what
+to do about it, and whether to do anything, is the session's.
 
 | Capability | What it does | Where it lives | What shows it works |
 |---|---|---|---|

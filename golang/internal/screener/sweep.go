@@ -31,8 +31,11 @@ type Keeper interface {
 	PurgeCandidates(ctx context.Context, before time.Time) (int64, error)
 }
 
-// pricesPerCall is how many underlyings one price request carries. Measured
-// against the running server, which answered nine symbols in one call.
+// pricesPerCall is how many underlyings one price request carries. Twenty: the
+// server answered nine in one call when this was first measured, and has taken
+// twenty since without complaint. Raise it against the running server rather than
+// on the strength of this comment - a request that comes back short is answered
+// silently, with the missing names simply absent.
 const pricesPerCall = 20
 
 // Sweep prices every underlying it is given, over and over, and leaves the best

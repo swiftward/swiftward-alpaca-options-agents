@@ -7,8 +7,10 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/marketdata"
 )
 
-// OnlyCloses reports whether every leg of an order gives back a position the
-// account already holds.
+// OnlyCloses reports whether every leg of an order DECLARES itself closing. It
+// does not read the account: what makes the declaration load-bearing is the
+// broker, which rejects an order whose position_intent does not match what is
+// held.
 //
 // It matters because the size checks price an order as if it were new exposure,
 // and a closing order read that way is judged by the structure it LOOKS like

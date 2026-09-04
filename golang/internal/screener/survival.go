@@ -6,7 +6,11 @@ import (
 )
 
 // closeAt is when an option stops trading on the day it expires: 16:00 in New
-// York, which is 20:00 UTC while the United States keeps summer time.
+// York, which is 20:00 UTC while the United States keeps summer time - and 21:00
+// once it does not. The hour is fixed rather than looked up, so from the first
+// Sunday in November this is an hour early and every expiry-day chance it feeds is
+// computed against a market that has not closed yet. Read the clock here before
+// this runs past that date.
 //
 // It matters only on expiry day, and there it decides everything: at two hours
 // left a strike half a percent away is far, and at ten minutes left it is the
