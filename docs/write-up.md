@@ -182,6 +182,28 @@ subject of that figure. The 3 September finding above happened on one of them, a
 it is published because a defect in where a limit is enforced is worth more to a
 reader than the account it was found on.
 
+## Every reading of this account, and the rule behind each
+
+A reader can reasonably mean four different things by "the result", so all four are
+here with the rule that defines them. The organiser's words are quoted rather than
+paraphrased.
+
+| Reading | What it is | Value |
+|---|---|---|
+| **Alpaca's official measurement** | "evaluation based on portfolio's total equity as of EOD Thursday Sep 3rd" - the broker's own stamp of that session's close, in the account's `last_equity` | **$102,588.74, +2.59%** |
+| The account at the end of Thursday, before that stamp | what the account read at 23:57 UTC on Thursday, while options still marked | $102,061.24, +2.06% |
+| **lablab's measurement** | "The account's P&L is evaluated as of the submission deadline" - Friday 4 September, 15:00 UTC, with the market open | taken at the cut-off; not ours to state before it |
+| The account now | it keeps trading after the measured window, so this keeps moving | `GET /api/money`, field `equity` |
+
+The first is the figure this write-up leads with, because it is the one the organiser
+names. The second is in the video, which was cut before the stamp landed. Both are
+in `docs/account-evidence/money.json`: `equity_yesterday` is the stamped close,
+`equity` is the account as it stands.
+
+Two clocks, and neither cancels the other: Alpaca measures the end of Thursday,
+lablab measures when submissions close. `docs/rules.md` in the team's own notes
+carries both quotations at length; the two lines above are the operative ones.
+
 ## The questions a reader asks, answered before they are asked
 
 **"Four days proves nothing."** Correct, and the window is the organiser's, quoted
