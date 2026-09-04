@@ -158,20 +158,59 @@ structure rather than a naked leg, every leg declaring whether it opens or close
 one server behind every order, and no intent recorded knowing its limits had not
 been read.
 
-**Four trading days do not measure a strategy, and we would rather say so than be asked.**
-A week is too short for the result to separate skill from a good draw: on twenty
-trades an agent with a real edge finishes ahead of a coin flip most of the time but
-not reliably, and nothing about four days changes that arithmetic. What four trading days CAN show is whether the machine does what its documents say - whether the
-limits were read, whether the orders were structures, whether every intent was
-recorded before its order - and that is what `make account-claims` checks. The
-evidence for the strategy itself is not the week: it is 646 trading days of option
-prices committed to this repository, priced with the crossing charged at every
-entry, which `make claims` recomputes on your machine in a minute.
+**Four trading days, and that is the contest rather than the strategy.** The
+organiser fixed the window: "Monday, August 31 at 9:30 a.m. ET to Friday, September
+4 at 9:30 a.m. ET ... evaluation based on portfolio's total equity as of EOD
+Thursday Sep 3rd." Four sessions is the most any entry could have, and every entry
+has the same four - so the number compares entries fairly and tells nobody whether a
+strategy works. On twenty trades an agent with a real edge finishes ahead of a coin
+flip most of the time but not reliably, and no amount of writing changes that
+arithmetic.
+
+What four days CAN show is whether the machine does what its documents say: whether
+the limits were read, whether every order was a structure, whether every intent was
+recorded before its order. That is what `make account-claims` checks against the
+account, needing nothing of ours.
+
+The strategy's own evidence is not the week. It is 646 trading days of option prices
+committed to this repository, priced with the crossing charged at every entry, which
+`make claims` recomputes on your machine in a minute. That is the horizon this was
+built for; four days is the horizon it was asked to show up in.
 
 The two development accounts in this repository are not submitted and are not the
 subject of that figure. The 3 September finding above happened on one of them, and
 it is published because a defect in where a limit is enforced is worth more to a
 reader than the account it was found on.
+
+## The questions a reader asks, answered before they are asked
+
+**"Four days proves nothing."** Correct, and the window is the organiser's, quoted
+above. Every entry has the same four. What the four days settle is whether the
+machine behaves as documented, which `make account-claims` checks; what settles the
+strategy is 646 days, which `make claims` recomputes.
+
+**"The engine that enforces the limits is not in the repository."** It is a network
+service, and this submission is MIT, so it stays one. What is here: the agent holds
+no broker key and one outward address; the limits it is given, live, at
+`GET /api/limits`; and every refusal that engine wrote, in `tool_calls`, beside the
+call it stopped. `docs/architecture.md` opens with which claims a reader settles by
+reading, which by watching a deployment, and which neither.
+
+**"It is a paper account."** The organiser requires one: "it is required to create a
+new paper account with a starting balance of $100,000." Real market data, simulated
+funds, and the same for every entry.
+
+**"The model could do anything."** It could decide anything - and what it decides is
+bounded by things it does not control: the ceilings come from a service it cannot
+edit, the order goes through that service, the ladder walks and cancels without it,
+and the profit watch closes without it. `docs/algorithm.md` sets out what is
+declared, what the engine guarantees, and what the session is trusted with, in three
+columns.
+
+**"Numbers in a README are free."** These are not: twenty-five of them recompute
+from data committed here with no credentials and no network, and the ones that
+cannot are named as measured, modelled, or from the account, in
+`research/README.md`.
 
 ## How to check any of this
 

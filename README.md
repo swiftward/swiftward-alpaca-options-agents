@@ -14,9 +14,9 @@ A window may name the OCCASION - a company reports on Wednesday, a macro number 
 | | |
 |---|---|
 | **submitted account** | `PA3BXFR0ZVYC`, Alpaca paper - simulated funds, real market data, no real money |
-| **result** | **$102,061.24, up 2.06%** from $100,000, at the close of Thursday 3 September, which is the equity Alpaca measures. Four trading days are not a measurement of a strategy - too short to separate skill from a good draw - and the evidence for the strategy is the 646 trading days committed here |
+| **result** | **$102,061.24, up 2.06%** from $100,000, at the close of Thursday 3 September, which is the equity the organiser measures. Four trading days can compare entries fairly - everyone has the same four - and cannot tell anyone whether a strategy works. For that there are 646 trading days of option prices committed here, and one command that recomputes what they say |
 | **the market over the same window** | SPY **+0.76%**, open of 31 August to close of 3 September |
-| **the window** | 4 trading days: 31 August, 1, 2 and 3 September |
+| **the window** | 4 trading days: 31 August, 1, 2 and 3 September. Not our choice and not our limit - it is the organiser's measurement window, verbatim: "Monday, August 31 at 9:30 a.m. ET to Friday, September 4 at 9:30 a.m. ET ... evaluation based on portfolio's total equity as of EOD Thursday Sep 3rd". Every entry in this hackathon has the same four days |
 | **check it yourself** | [alpaca.swiftward.dev](https://alpaca.swiftward.dev) reads the broker live; `make account-claims PAGE=...` checks the trading against these documents, with no credential of ours |
 | **what is here** | as much test code as code, and every rule in this repository that can refuse a trade has a test that goes red when the rule is removed; 25 of 25 published numbers recompute with no credentials and no network |
 | **the risk engine** | a service of its own, called over an API, standing on the path every order takes. Its rules are declarations rather than code, each carrying how much of itself it tells the agent, and an operator changes one while the agent runs. It is what refuses an order, and the refusals it wrote are in this repository's record beside the calls they stopped - the engine itself is not, and [`docs/architecture.md`](docs/architecture.md) opens with what that means for each claim here |
