@@ -581,7 +581,10 @@ services:
       # everywhere else.
       HTTP_PROXY: ${AGENT_1_OUTBOUND_PROXY:-http://agent:${AGENT_1_BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
       HTTPS_PROXY: ${AGENT_1_OUTBOUND_PROXY:-http://agent:${AGENT_1_BROKER_MCP_TOKEN}@swiftward-hackathon-server:8097}
-      BROKER_MCP_URL: ${AGENT_1_BROKER_MCP_URL}
+      # No default, deliberately, and for the same reason as the agent below: a
+      # fallback here would send this agent's orders straight to the broker with
+      # nothing able to refuse them, and it would do it silently.
+      BROKER_MCP_URL: "${AGENT_1_BROKER_MCP_URL:?the policy gateway, and there is no default}"
       # Where the harness's READS go - prices, the clock, the account, chains. An
       # empty value means "the same place the orders go". They can be separated
       # because the line above also lands in the session's own configuration as
