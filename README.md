@@ -25,12 +25,11 @@ credential of ours:
 make account-claims PAGE=<the page's address>
 ```
 
-Four places to go from here:
+Three places to go from here:
 
 - **[`docs/algorithm.md`](docs/algorithm.md)** - how a trade is decided, end to end, and what each control can and cannot stop. Start here.
 - **[`docs/capabilities.md`](docs/capabilities.md)** - every capability, where it lives, and what shows it works.
 - **[`testbed/`](testbed/README.md)** - the stand that plays the agent conditions the market will not produce on request, the thirteen trials it has run, and what they caught.
-- **[`docs/account-evidence/`](docs/account-evidence/README.md)** - the judged account frozen, with a command that checks it against the documents and needs nothing of ours.
 
 ## What is unusual about it
 

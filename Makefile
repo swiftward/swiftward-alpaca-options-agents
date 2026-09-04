@@ -54,8 +54,8 @@ check: ## Every gate a push must pass: style, language, tests, the race detector
 claims: ## Recompute every number this project publishes, from data in the repository, with no credentials
 	cd research && uv run claims.py
 
-account-claims: ## What the account did, checked against what the docs say: PAGE=https://... [KEY=...], or DIR=docs/account-evidence
-	@[ -n "$(PAGE)$(DIR)" ] || { echo "give PAGE=https://... or DIR=docs/account-evidence" >&2; exit 2; }
+account-claims: ## What the account did, checked against what the docs say: PAGE=https://... [KEY=...], or DIR=<saved answers>
+	@[ -n "$(PAGE)$(DIR)" ] || { echo "give PAGE=https://... or DIR=<a directory holding the five answers>" >&2; exit 2; }
 	python3 tools/account-claims.py $(if $(PAGE),--page "$(PAGE)" --key "$(KEY)") $(if $(DIR),--dir "$(DIR)")
 
 day: ## The three numbers a trading day is judged by, per account, from the record

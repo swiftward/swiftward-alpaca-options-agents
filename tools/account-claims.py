@@ -5,7 +5,7 @@ judge already has open - the same read side the demo serves, no credential and n
 broker key - and asks whether the trading matches the rules the repository states.
 
     make account-claims PAGE=https://alpaca.swiftward.dev
-    make account-claims DIR=docs/account-evidence     # the frozen copy, no network
+    make account-claims DIR=<a directory holding those five answers>
 
 Every check below is a sentence somewhere in `docs/`, turned into something a
 stranger can run. A check that fails is a claim we have to correct.
@@ -52,7 +52,7 @@ def main():
     parse = argparse.ArgumentParser(description=__doc__)
     parse.add_argument("--page", default="", help="the page's address, for example https://alpaca.swiftward.dev")
     parse.add_argument("--key", default="", help="X-Page-Key, where the page asks for one")
-    parse.add_argument("--dir", default="", help="a frozen copy of those answers instead, for example docs/account-evidence")
+    parse.add_argument("--dir", default="", help="a directory holding those five answers instead of a live page")
     where = parse.parse_args()
     if bool(where.page) == bool(where.dir):
         parse.error("give either --page or --dir")
