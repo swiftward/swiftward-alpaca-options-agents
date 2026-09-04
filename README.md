@@ -89,6 +89,27 @@ in the entry window - so the finding is published and not traded on. Knowing whi
 of your own results you are not allowed to use is the difference between a backtest
 and a system.
 
+**Every price it acts on is a price it could actually have got.** The screener
+walks the permitted universe in parallel and prices every permitted pairing at the
+sides of the book an order would have to cross - the bid it would be paid, the ask
+it would pay - never the midpoint. That is not fastidiousness: over 646 trading
+days, the same rule priced at the midpoint and priced at the book differ by more
+than the whole strategy earns. What survives is ranked by one measure that weighs
+what a structure pays against how often it survives, and it keeps working on the
+day of expiry - where the broker computes no delta and most of the money is - by
+taking the same quantity from the price of volatility instead.
+
+**Filling it is arithmetic, and arithmetic is not the model's job.** The session
+names the structure, the size and the worst price it will accept. From there a
+ladder walks the limit toward the book - a cent a step, or the distance left
+divided by the steps before patience ends - stops at the price the session named,
+and cancels what the book will not take. Before every concession it re-prices the
+structure from that pass's own quotes and refuses the give if it falls below the
+rule the entry was made on: the order keeps the price that cleared the rule, and
+only the concession is refused. A turn of the agent costs a minute and a half; a
+limit price moving by a cent has to happen in seconds; each is done by the thing
+that is good at it.
+
 **The instrument that questions it is separate from it.** A stand beside the agent
 takes the REAL option book and moves one number along a curve, repricing every
 contract by its own live implied volatility - at zero displacement it equals the
