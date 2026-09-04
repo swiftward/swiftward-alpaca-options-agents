@@ -41,14 +41,14 @@ above is the only one its orders have. `docs/architecture.md` walks it in full.
 
 ## Mistakes this avoids
 
-- A backtest presented where a live result belongs.
-- A number the reader has no way to recompute.
-- A return with no market beside it.
-- Risk limits living in the agent's prompt, enforced by its attention.
-- Sizing from the premium collected rather than from the loss at expiry.
-- A naked short leg, from sending a structure as two orders.
-- A guard that can only cancel after the fill.
-- A safety story with nothing in it that ever fired.
+- **A backtest where a live result belongs.** Here: a figure on a named account, whose id is published so anyone can open it.
+- **A number the reader cannot recompute.** Here: `make claims` recomputes 25 of 25, with no credentials and no network.
+- **A return with no market beside it.** Here: SPY over the same four sessions, from the same feed the agent reads.
+- **Risk limits in the prompt, enforced by the model's attention.** Here: the agent asks a service for them while it works, and that service refuses the order.
+- **Sizing from the premium collected.** Here: size comes from the worst case at expiry, computed from the strikes in the order's own contracts.
+- **A naked short leg, from sending a structure as two orders.** Here: one `place_option_order` with `order_class=mleg`, and a test that goes red if a leg stops declaring whether it opens or closes.
+- **A guard that only observes.** Here: the engine refuses the order and names the rule, and the execution ladder re-checks what is resting in the book.
+- **A safety story with nothing in it that ever fired.** Here: the refusals are published, each beside the call it stopped.
 
 Thirty-four of them, each with what this does instead and the file to check, are in
 [`docs/failures-this-avoids.md`](docs/failures-this-avoids.md).
