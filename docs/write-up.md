@@ -87,6 +87,9 @@ The agent states the structure, the size and the price it wants. A separate modu
 
 ## Alpaca's infrastructure
 
+The organiser's requirement is one line: "MCP or CLI - projects must utilize either
+Alpaca's MCP server or its CLI tools". This is what satisfying it looks like here.
+
 Orders and market data go through Alpaca's own MCP server - the released `alpaca-mcp-server` package, pinned, unmodified - and it holds the only copy of the account keys. Nothing on the trading path reimplements it or calls Alpaca's REST in its place.
 
 One thing does call REST, and it is not the agent: `research/alpaca.py` pulls historical bars and option snapshots for the measurements under `research/`. It places no order, holds no position and is never imported by the Go binary - the market data API is what serves years of history, and the measurements are what the thresholds rest on.
