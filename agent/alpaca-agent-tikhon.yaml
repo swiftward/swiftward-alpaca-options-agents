@@ -637,6 +637,40 @@ sessions:
       The book is wide in the first minutes: name the price you GOT, not the one
       you wanted, and confirm with the broker that the position is gone.
 
+  # THE SAME WINDOW AGAIN, under a name of its own, and the reason is worth
+  # writing down because the mechanism that lost it will outlive today.
+  #
+  # On the morning of 4 September the 09:35 window fired into a conversation that
+  # had opened while the egress proxy was refusing the policy gateway. A tool list
+  # is loaded once, when the conversation opens; that one loaded without the
+  # broker's tools. The session said so plainly - "the required broker tools are
+  # not present in this session's tool set... I will not infer the position state
+  # or route around the broker" - and scheduled itself a 10:00 follow-up. The
+  # restart that gave the agent its tools back took that wake-up with it: wake-ups
+  # live in the harness's memory, not in the record.
+  #
+  # A window that has run does not run again, and the run is remembered by NAME.
+  # So the work is asked for again under a new one, inside the hours the exit rule
+  # already allows: not before 10:00 and not after 10:30.
+  - name: event-convexity-exit-again
+    cause: "the first attempt at this exit ran without the broker's tools and closed nothing"
+    at: "10:00"
+    within: 30m
+    days: [fri]
+    task: |
+      **Check the date first.** This session is written for the morning of
+      4 September 2026. Ask the clock. If today is not 4 September, say so in one
+      line and finish. If the event layer holds no position, say that and finish.
+      **Check your tools before anything else.** If you cannot see the broker -
+      no clock, no positions, no order tool - say exactly that in one line and
+      finish. Do not infer the position state and do not route around the broker.
+      Then take the exit exactly as event-convexity states it, and it is not open
+      to argument: if the gap falls short of break-even, close - but not in the
+      first minutes, the skill says when and why; if the gap is there, sell in
+      pieces as it moves. Everything is closed by the appointed hour.
+      The book is wide in the first minutes: name the price you GOT, not the one
+      you wanted, and confirm with the broker that the position is gone.
+
   - name: deadline-flatten
     cause: "submissions close at 11:00 New York time: by that hour every working order is cancelled and every position that can be closed at no worse than its mark is closed"
     at: "10:35"
