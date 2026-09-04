@@ -32,14 +32,15 @@ above is the only one its orders have. `docs/architecture.md` walks it in full.
 
 ## What is here
 
-- A live account, not a backtest: **$102,588.74** from $100,000, **+2.59%**, against SPY's **+0.76%** over the same four sessions.
-- Limits fetched while it works, never in the prompt. The engine refuses and names the rule it refused by.
-- One order per structure, never two legs raced against each other, and the worst case computed from the strikes before it goes.
-- Behaviour in a declaration: changing how it trades is a diff, not a deploy.
-- 25 published numbers recompute from one command, with no credentials and no network.
-- Refusals kept beside the calls they stopped, and the intent recorded before each order.
-- A test stand that displaces the real option book by one number instead of replaying history.
-- Every rule that can refuse a trade has a test that goes red when the rule is removed.
+- **A live account, not a simulation.** **$102,588.74** from $100,000 over the organiser's four sessions, **+2.59%** against SPY's **+0.76%**, on the published account `PA3BXFR0ZVYC`.
+- **Limits the agent discovers.** It calls `read_envelope` while it works and sizes to what comes back; a ceiling tightened mid-day reaches its next turn with nothing restarted.
+- **A risk engine it cannot edit.** Its orders go through a service that allows or refuses and names the rule it refused by, and the refusal lands in the record beside the call it stopped.
+- **Behaviour in a declaration, not in code.** The windows it wakes in, the playbooks it may load and every number it trades on are one file the harness executes, and a test refuses a number that does not say where it came from.
+- **646 trading days behind the thresholds.** The delta ceiling, the exit and the crossing cap each come from a measurement over committed option prices - and one of those measurements deleted a rule we had been trading.
+- **25 published numbers recompute from one command**, with no credentials and no network.
+- **A stand that displaces the real book.** It takes the live option chain, moves one number along the curve and reprices every contract by its own implied volatility, so the agent meets a fall that never happened at prices that are otherwise real.
+- **Every rule that can refuse a trade has a test that goes red when the rule is removed** - each one checked that way, rule disabled and test watched to fail.
+- **Defined-risk structures only.** One multi-leg order per structure, with the worst case computed from its own strikes before it is sent.
 
 ## Mistakes this avoids
 
