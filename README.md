@@ -73,6 +73,15 @@ deploy, no image. Nothing in it says what to buy or sell; a window may name the
 occasion - a company reporting, a macro release - because a calendar is not a
 judgement.
 
+**A new technique is a file, not a release.** A playbook is a `SKILL.md` with a
+front matter naming the numbers it needs; a declaration grants it to an agent by
+name. The agent lays out exactly the skills its declaration names and refuses to
+start when one of them asks for a number the declaration does not give - so a
+technique cannot arrive half-configured, and the set an agent carries is narrowed
+deliberately, because every skill's description goes into every turn's prompt.
+Adding a way to trade is writing a file and naming it; nothing is compiled and
+nothing is deployed.
+
 **Three things wake it, and it remembers all of them.** The schedule; a person
 writing in the chat; and a wake-up the session set for itself - `wake me at 15:45`,
 `wake me when SPY trades under 760` - which survive a restart, because a promise
