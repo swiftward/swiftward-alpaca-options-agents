@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest"
 
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/agent"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/declaration"
@@ -23,6 +22,48 @@ import (
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/telegram"
 	"github.com/disciplinedware/swiftward-alpaca-options-agents/internal/wakeup"
 )
+
+// The logger these tests hand the harness.
+//
+// It is not `logger(t)`, and the reason is a defect the race detector
+// reported on CI: this harness keeps goroutines that outlive a test ON PURPOSE - a
+// turn is opening while the assertion runs, and the clock is still holding it - and
+// zaptest's writer calls `t.Logf`, which after the test has returned is a race on
+// the testing package's own state rather than on ours. So the writer stops
+// forwarding when the test ends, and a line written after that is dropped instead
+// of reaching a `*testing.T` that has finished with it.
+func logger(t *testing.T, options ...zap.Option) *zap.Logger {
+	w := &afterTest{t: t}
+	t.Cleanup(w.stop)
+
+	return zap.New(zapcore.NewCore(
+		zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()),
+		zapcore.AddSync(w),
+		zapcore.DebugLevel,
+	), options...)
+}
+
+type afterTest struct {
+	mu   sync.Mutex
+	t    *testing.T
+	done bool
+}
+
+func (w *afterTest) Write(line []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if !w.done {
+		w.t.Logf("%s", line)
+	}
+
+	return len(line), nil
+}
+
+func (w *afterTest) stop() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.done = true
+}
 
 // chatDouble accepts what production accepts and refuses what production
 // refuses: an empty message reaches Telegram from neither.
@@ -247,7 +288,7 @@ func start(t *testing.T) (*Harness, *chatDouble, *conversationSpy) {
 	// record, and a fixture without one would check only the other half.
 	h := &Harness{
 		Chat: chat, Conversation: conversation, Record: record.NewMemory(),
-		CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t),
+		CallTimeout: 2 * time.Second, Now: time.Now, Log: logger(t),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -260,7 +301,7 @@ func start(t *testing.T) (*Harness, *chatDouble, *conversationSpy) {
 // The loop that reads the chat is the loop that talks to the agent, so a call
 // with no bound takes the room down with a session that stopped answering.
 func TestRefusesWithoutACallBound(t *testing.T) {
-	h := &Harness{Chat: newChatDouble(), Conversation: newConversationSpy(), Now: time.Now, Log: zaptest.NewLogger(t)}
+	h := &Harness{Chat: newChatDouble(), Conversation: newConversationSpy(), Now: time.Now, Log: logger(t)}
 	err := h.Run(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "AGENT_CALL_TIMEOUT")
@@ -275,7 +316,7 @@ func TestAHungAgentDoesNotWedgeTheRoom(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	h := &Harness{Chat: chat, Conversation: conversation, CallTimeout: 300 * time.Millisecond, Now: time.Now, Log: zaptest.NewLogger(t)}
+	h := &Harness{Chat: chat, Conversation: conversation, CallTimeout: 300 * time.Millisecond, Now: time.Now, Log: logger(t)}
 	go func() { _ = h.Run(ctx) }()
 
 	chat.inbound <- telegram.Message{Text: "start something", UserID: 42, Username: "joker"}
@@ -286,7 +327,7 @@ func TestAHungAgentDoesNotWedgeTheRoom(t *testing.T) {
 }
 
 func TestRefusesWithoutAnyCause(t *testing.T) {
-	h := &Harness{Log: zaptest.NewLogger(t)}
+	h := &Harness{Log: logger(t)}
 	err := h.Run(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no cause to wake a session")
@@ -321,7 +362,7 @@ sessions:
 		Declaration:  declared,
 		CallTimeout:  2 * time.Second,
 		Now:          func() time.Time { return time.Date(2026, 8, 24, 15, 50, 0, 0, time.UTC) },
-		Log:          zaptest.NewLogger(t),
+		Log:          logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -362,7 +403,7 @@ sessions:
 		Declaration:  declared,
 		CallTimeout:  2 * time.Second,
 		Now:          func() time.Time { return time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC) },
-		Log:          zaptest.NewLogger(t),
+		Log:          logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -575,7 +616,7 @@ func TestTheSessionIsWokenForItsOwnReason(t *testing.T) {
 		Wakeups:      standing,
 		CallTimeout:  2 * time.Second,
 		Now:          func() time.Time { return now },
-		Log:          zaptest.NewLogger(t),
+		Log:          logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -608,7 +649,7 @@ func TestAPriceWakeUpFiresOnAReading(t *testing.T) {
 		Prices:       prices,
 		CallTimeout:  2 * time.Second,
 		Now:          func() time.Time { return now },
-		Log:          zaptest.NewLogger(t),
+		Log:          logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -640,7 +681,7 @@ func TestNoPriceIsReadWhenNothingWatchesOne(t *testing.T) {
 		// Fast enough that the wait below is over ticks the harness really took.
 		TickEvery: 10 * time.Millisecond,
 		Now:       func() time.Time { return now },
-		Log:       zaptest.NewLogger(t),
+		Log:       logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -664,7 +705,7 @@ func TestTheStatusLineClosesWhenATurnCannotStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	h := &Harness{Chat: chat, Conversation: conversation, CallTimeout: time.Second, Now: time.Now, Log: zaptest.NewLogger(t)}
+	h := &Harness{Chat: chat, Conversation: conversation, CallTimeout: time.Second, Now: time.Now, Log: logger(t)}
 	go func() { _ = h.Run(ctx) }()
 
 	chat.inbound <- telegram.Message{Text: "go", UserID: 42, Username: "joker"}
@@ -720,7 +761,7 @@ sessions:
 		Record:       kept,
 		CallTimeout:  2 * time.Second,
 		Now:          func() time.Time { return time.Date(2026, 8, 24, 15, 50, 0, 0, time.UTC) },
-		Log:          zaptest.NewLogger(t),
+		Log:          logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -754,7 +795,7 @@ func TestATurnRecordsTheModelItRanOn(t *testing.T) {
 	h := &Harness{
 		Chat: chat, Conversation: conversation, Record: kept,
 		DefaultModel: "gpt-5.6-terra", CallTimeout: 2 * time.Second,
-		Now: time.Now, Log: zaptest.NewLogger(t),
+		Now: time.Now, Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -790,7 +831,7 @@ func TestAWakeUpDuringATurnGoesIntoIt(t *testing.T) {
 	h := &Harness{
 		Chat: chat, Conversation: conversation, Record: kept, Wakeups: store,
 		CallTimeout: 2 * time.Second, Now: func() time.Time { return at },
-		Log: zaptest.NewLogger(t),
+		Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -846,7 +887,7 @@ sessions:
 	h := &Harness{
 		Conversation: conversation, Declaration: declared, Record: kept,
 		CallTimeout: 2 * time.Second, Now: func() time.Time { return at },
-		Log: zaptest.NewLogger(t),
+		Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -884,7 +925,7 @@ sessions:
 		Conversation: conversation, Declaration: declared, Record: record.NewMemory(),
 		CallTimeout: 2 * time.Second,
 		Now:         func() time.Time { return time.Date(2026, 8, 25, 14, 40, 0, 0, time.UTC) },
-		Log:         zaptest.NewLogger(t),
+		Log:         logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -923,7 +964,7 @@ sessions:
 	h := &Harness{
 		Conversation: conversation, Declaration: declared, Record: kept,
 		CallTimeout: 2 * time.Second, Now: func() time.Time { return at },
-		Log: zaptest.NewLogger(t),
+		Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -973,7 +1014,7 @@ func TestWhenTheWinnerFailsToStartTheLoserStillGetsATurn(t *testing.T) {
 
 	h := &Harness{
 		Chat: chat, Conversation: conversation, Record: record.NewMemory(),
-		CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t),
+		CallTimeout: 2 * time.Second, Now: time.Now, Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -1018,7 +1059,7 @@ func said(turns, steered []string, want string) bool {
 // every window behind it for the rest of the day.
 func TestAHarnessWithNoTurnLimitSaysSo(t *testing.T) {
 	spoken := make(chan string, 8)
-	log := zaptest.NewLogger(t, zaptest.WrapOptions(zap.Hooks(func(e zapcore.Entry) error {
+	log := logger(t, zap.Hooks(func(e zapcore.Entry) error {
 		if e.Level == zapcore.WarnLevel {
 			select {
 			case spoken <- e.Message:
@@ -1027,7 +1068,7 @@ func TestAHarnessWithNoTurnLimitSaysSo(t *testing.T) {
 		}
 
 		return nil
-	})))
+	}))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1066,7 +1107,7 @@ func TestATurnThatEndsBeforeItsNameArrivesIsStillFinished(t *testing.T) {
 
 	h := &Harness{
 		Chat: chat, Conversation: conversation, Record: kept,
-		CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t),
+		CallTimeout: 2 * time.Second, Now: time.Now, Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -1175,7 +1216,7 @@ func TestTwoCausesArrivingTogetherStartOneTurn(t *testing.T) {
 		Chat: chat, Conversation: conversation, Record: record.NewMemory(),
 		CallTimeout: 2 * time.Second,
 		Now:         func() time.Time { return at },
-		Log:         zaptest.NewLogger(t),
+		Log:         logger(t),
 	}
 
 	// The clock's cause and the room's cause, together.
@@ -1210,7 +1251,7 @@ func TestATurnThatOutlivesItsLimitIsInterrupted(t *testing.T) {
 	h := &Harness{
 		Chat: chat, Conversation: conversation, Record: kept,
 		TurnLimit: 5 * time.Minute, CallTimeout: 2 * time.Second,
-		Now: clock.Now, Log: zaptest.NewLogger(t),
+		Now: clock.Now, Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -1251,7 +1292,7 @@ func TestATurnThatEndedBeforeTheInterruptIsClosedAnyway(t *testing.T) {
 	h := &Harness{
 		Chat: chat, Conversation: conversation, Record: kept,
 		TurnLimit: 5 * time.Minute, CallTimeout: 2 * time.Second,
-		Now: clock.Now, Log: zaptest.NewLogger(t),
+		Now: clock.Now, Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -1284,7 +1325,7 @@ func TestATurnInsideItsLimitIsLeftAlone(t *testing.T) {
 	h := &Harness{
 		Chat: chat, Conversation: conversation, Record: record.NewMemory(),
 		TurnLimit: 5 * time.Minute, CallTimeout: 2 * time.Second,
-		Now: clock.Now, Log: zaptest.NewLogger(t),
+		Now: clock.Now, Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -1313,7 +1354,7 @@ func TestChatterIsThinnedAndTheLastWordSurvives(t *testing.T) {
 	h := &Harness{
 		Chat: chat, Conversation: conversation, Record: record.NewMemory(),
 		SayEvery: 20 * time.Second, CallTimeout: 2 * time.Second,
-		Now: func() time.Time { return now }, Log: zaptest.NewLogger(t),
+		Now: func() time.Time { return now }, Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -1358,7 +1399,7 @@ func TestALostRoomDoesNotStopTheWork(t *testing.T) {
 
 	h := &Harness{
 		Chat: chat, Conversation: newConversationSpy(),
-		CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t),
+		CallTimeout: 2 * time.Second, Now: time.Now, Log: logger(t),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1406,15 +1447,16 @@ func TestARefusedInterruptEndsTheProcessRatherThanWaitingForever(t *testing.T) {
 	// waits on - so the escalation is proven, not described.
 	gaveUp := make(chan struct{})
 	var once sync.Once
-	log := zaptest.NewLogger(t, zaptest.WrapOptions(
+	log := logger(t,
 		zap.WithFatalHook(zapcore.WriteThenGoexit),
 		zap.Hooks(func(e zapcore.Entry) error {
 			if e.Level == zapcore.FatalLevel {
 				once.Do(func() { close(gaveUp) })
 			}
+
 			return nil
 		}),
-	))
+	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1499,7 +1541,7 @@ sessions:
 	ctx := context.Background()
 	h := &Harness{
 		Declaration: before, Record: kept, CallTimeout: time.Second,
-		Now: func() time.Time { return now }, Log: zaptest.NewLogger(t),
+		Now: func() time.Time { return now }, Log: logger(t),
 		Reread: func() (*declaration.Declaration, error) { return after, nil },
 	}
 	h.declared = before
@@ -1550,7 +1592,7 @@ sessions:
 	ctx := context.Background()
 	h := &Harness{
 		Declaration: before, Record: kept, CallTimeout: time.Second,
-		Now: func() time.Time { return now }, Log: zaptest.NewLogger(t),
+		Now: func() time.Time { return now }, Log: logger(t),
 		Reread: func() (*declaration.Declaration, error) { return after, nil },
 	}
 	h.declared = before
@@ -1580,7 +1622,7 @@ sessions:
 	h := &Harness{
 		Declaration: declared, CallTimeout: time.Second,
 		Now: func() time.Time { return time.Date(2026, 8, 25, 14, 40, 0, 0, time.UTC) },
-		Log: zaptest.NewLogger(t),
+		Log: logger(t),
 		Reread: func() (*declaration.Declaration, error) {
 			return declared, errors.New("the file on disk is half-saved")
 		},
@@ -1643,7 +1685,7 @@ sessions:
 		// Saturday: nothing is due, so this test measures the re-reading and
 		// nothing else.
 		Now: func() time.Time { return time.Date(2026, 8, 29, 14, 40, 0, 0, time.UTC) },
-		Log: zaptest.NewLogger(t),
+		Log: logger(t),
 		Reread: func() (*declaration.Declaration, error) {
 			mu.Lock()
 			defer mu.Unlock()
@@ -1697,7 +1739,7 @@ sessions:
 		Record: record.NewMemory(), CallTimeout: 2 * time.Second,
 		// Saturday, outside every window: nothing the clock does interferes.
 		Now: func() time.Time { return time.Date(2026, 8, 29, 11, 0, 0, 0, time.UTC) },
-		Log: zaptest.NewLogger(t),
+		Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -1753,7 +1795,7 @@ sessions:
 		Conversation: conversation, Declaration: declared, Record: kept,
 		CallTimeout: 2 * time.Second, TickEvery: 20 * time.Millisecond,
 		Now: func() time.Time { return time.Date(2026, 8, 24, 15, 50, 0, 0, time.UTC) },
-		Log: zaptest.NewLogger(t),
+		Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -1792,7 +1834,7 @@ func TestASilentTurnIsRecordedAsAFailure(t *testing.T) {
 
 	h := &Harness{
 		Chat: chat, Conversation: conversation, Record: kept,
-		CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t),
+		CallTimeout: 2 * time.Second, Now: time.Now, Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -1826,7 +1868,7 @@ func TestATurnThatSpokeIsNotMarkedFailed(t *testing.T) {
 
 	h := &Harness{
 		Chat: chat, Conversation: conversation, Record: kept,
-		CallTimeout: 2 * time.Second, Now: time.Now, Log: zaptest.NewLogger(t),
+		CallTimeout: 2 * time.Second, Now: time.Now, Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -2017,7 +2059,7 @@ func TestThePriceIsReadOnItsOwnCadenceNotOnEveryTick(t *testing.T) {
 		PriceEvery:   30 * time.Second,
 		CallTimeout:  2 * time.Second,
 		Now:          func() time.Time { return clock },
-		Log:          zaptest.NewLogger(t),
+		Log:          logger(t),
 	}
 
 	// Seven ticks ten seconds apart: 0, 10, 20, 30, 40, 50, 60.
@@ -2054,7 +2096,7 @@ func TestATimeWakeupFiresOnATickThatReadsNoPrice(t *testing.T) {
 		PriceEvery:   time.Hour,
 		CallTimeout:  2 * time.Second,
 		Now:          func() time.Time { return clock },
-		Log:          zaptest.NewLogger(t),
+		Log:          logger(t),
 	}
 
 	h.fireWakeups(t.Context())
@@ -2086,7 +2128,7 @@ func TestTheDeclarationIsRereadOnItsOwnCadenceNotOnEveryTick(t *testing.T) {
 		RereadEvery: 30 * time.Second,
 		CallTimeout: 2 * time.Second,
 		Now:         func() time.Time { return clock },
-		Log:         zaptest.NewLogger(t),
+		Log:         logger(t),
 	}
 
 	// Seven ticks ten seconds apart: 0, 10, 20, 30, 40, 50, 60.
@@ -2160,7 +2202,7 @@ sessions:
 		Record: kept, CallTimeout: 2 * time.Second,
 		// Saturday, outside every window: nothing the clock does interferes.
 		Now: func() time.Time { return time.Date(2026, 8, 29, 11, 0, 0, 0, time.UTC) },
-		Log: zaptest.NewLogger(t),
+		Log: logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -2241,7 +2283,7 @@ sessions:
 			Chat: chat, Conversation: conversation, Declaration: declared,
 			Record: record.NewMemory(), CallTimeout: 2 * time.Second,
 			TurnLimit: time.Hour, TickEvery: 20 * time.Millisecond,
-			Now: clock.Now, Log: zaptest.NewLogger(t),
+			Now: clock.Now, Log: logger(t),
 		}
 		go func() { _ = h.Run(ctx) }()
 
@@ -2317,7 +2359,7 @@ sessions:
 		CallTimeout:  2 * time.Second,
 		Now:          func() time.Time { return time.Date(2026, 8, 24, 15, 50, 0, 0, time.UTC) },
 		TickEvery:    20 * time.Millisecond,
-		Log:          zaptest.NewLogger(t),
+		Log:          logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
@@ -2362,7 +2404,7 @@ sessions:
 		CallTimeout:  2 * time.Second,
 		Now:          func() time.Time { return time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC) },
 		TickEvery:    20 * time.Millisecond,
-		Log:          zaptest.NewLogger(t),
+		Log:          logger(t),
 	}
 	go func() { _ = h.Run(ctx) }()
 
