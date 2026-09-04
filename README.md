@@ -13,7 +13,7 @@ A window may name the OCCASION - a company reports on Wednesday, a macro number 
 | **the market over the same window** | SPY **+0.76%**, open of 31 August to close of 3 September |
 | **the window** | 4 trading days: 31 August, 1, 2 and 3 September |
 | **check it yourself** | [alpaca.swiftward.dev](https://alpaca.swiftward.dev) reads the broker live; `make account-claims PAGE=...` checks the trading against these documents, with no credential of ours |
-| **what is here** | 15,480 lines of Go and 16,947 lines of tests across 501 test functions; the stand that questions it adds 2,692 more and 86 more; 25 of 25 published numbers recompute with no credentials and no network |
+| **what is here** | as much test code as code, and every rule that can refuse a trade has a test that goes red when the rule is removed; 25 of 25 published numbers recompute with no credentials and no network |
 | **the policy gateway** | the service every order passes through, called over an API: rules declared rather than coded, each carrying how much of itself it discloses; an append-only record of what it refused and why; limits changed on a running agent without a restart. [`docs/architecture.md`](docs/architecture.md) shows where it sits and what it answers |
 
 Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026. The
@@ -166,10 +166,11 @@ and `make test-broker` holds the shapes Alpaca answers in against the real serve
 Three GitHub workflows carry it - the gate on every push, the deploy, the published
 images.
 
-**Tests as an instrument rather than a decoration.** 587 test functions across 90
-files, 19,639 lines of them against 15,467 lines of Go. Every rule that can refuse a
-trade has a test that goes red when the rule is removed, and that was checked by
-removing each rule and watching it fail. The test stand is a separate Go module,
+**Tests as an instrument rather than a decoration.** There is as much test code
+here as code. That is not the point of it: every rule that can refuse a trade has a
+test that goes red when the rule is removed, and each was checked that way - the
+rule disabled, the test watched to fail, the rule restored. A suite that stays green
+when a gate is deleted has measured nothing. The test stand is a separate Go module,
 deliberately outside the workspace so it can never share a build with the thing it
 questions, and it runs inside the same gate.
 
