@@ -28,6 +28,33 @@ flowchart LR
 The session holds a risk-engine address and a token and no broker key, so the path
 above is the only one its orders have. `docs/architecture.md` walks it in full.
 
+## What is here
+
+- A live account, not a backtest: **$102,588.74** from $100,000, **+2.59%**, against SPY's **+0.76%** over the same four sessions.
+- Limits fetched while it works, never in the prompt. The engine refuses and names the rule it refused by.
+- One order per structure, never two legs raced against each other, and the worst case computed from the strikes before it goes.
+- Behaviour in a declaration: changing how it trades is a diff, not a deploy.
+- 25 published numbers recompute from one command, with no credentials and no network.
+- Refusals kept beside the calls they stopped, and the intent recorded before each order.
+- A test stand that displaces the real option book by one number instead of replaying history.
+- Every rule that can refuse a trade has a test that goes red when the rule is removed.
+
+## Mistakes this avoids
+
+- A backtest presented where a live result belongs.
+- A number the reader has no way to recompute.
+- A return with no market beside it.
+- Risk limits living in the agent's prompt, enforced by its attention.
+- Sizing from the premium collected rather than from the loss at expiry.
+- A naked short leg, from sending a structure as two orders.
+- A guard that can only cancel after the fill.
+- A safety story with nothing in it that ever fired.
+
+Thirty-four of them, each with what this does instead and the file to check, are in
+[`docs/failures-this-avoids.md`](docs/failures-this-avoids.md).
+
+## How it works
+
 What it trades: defined-risk option structures on Alpaca - credit spreads out of the
 money, backspreads for the day the market moves hard, and two event bets - four
 trading days a week with nobody at a keyboard.

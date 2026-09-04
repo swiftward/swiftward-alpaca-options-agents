@@ -16,6 +16,31 @@ traded, and what comes from the account and cannot be recomputed at all
 (`research/README.md`). The result on the first screen is total equity on a named
 account, and the account's id is published so it can be opened.
 
+**No number at all.** A page can describe an architecture completely and leave a
+reader unable to say whether a single trade ever fired. It is the easiest thing to
+write and the least falsifiable, and it costs nothing until somebody asks what the
+account did. The first screen here carries a figure on a named account, the account's
+id is published, and the five answers behind every number are committed in
+`docs/account-evidence/`.
+
+**A claim with no artefact behind it.** "Zero slippage", "self-improving",
+"human-like learning" - each is a sentence that cannot be opened. Every claim on this
+page ends in a file, a command or a route: the crossing is measured from this
+project's own fills, the limits arrive in `read_envelope` answers kept in the
+evidence bundle, and what the agent learns from is the record it reads through
+`read_state`.
+
+**A limit named without its number.** "Exposure caps" and "risk controls" describe a
+category rather than a boundary, and a reader cannot tell a 2% fuse from a 40% one.
+Every ceiling here is a number in a document or an answer the page serves live at
+`GET /api/limits` - and where a rule is deliberately disclosed without its value, the
+answer says so in the same field.
+
+**A safety story with nothing that ever fired.** A description of what a control
+prevents is written before the control has been tried; what it did on the day it
+mattered is written afterwards, and only one of the two is evidence. This repository
+publishes the refusals, and the record keeps the call each one stopped.
+
 **A number with no way to check it.** Publishing a figure and its method is not the
 same as publishing a figure anyone can reproduce. `make claims` recomputes
 twenty-five of them from data committed to this repository, with no credentials and
