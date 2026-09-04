@@ -108,6 +108,13 @@ const POSTS: { on: string; at: string; about: string; to: string }[] = [
     about: 'A price alert cut into a turn, and the agent closed a spread mid-thought.',
     to: 'https://x.com/KTrunin/status/2094218911520555093',
   },
+  {
+    on: 'X',
+    at: '4 September',
+    about:
+      'The week closed: four trading days, one paper account, nobody trading it by hand, and the repository opened.',
+    to: 'https://x.com/KTrunin/status/2095856013874171965',
+  },
 ]
 
 export function Submission() {
@@ -227,11 +234,11 @@ export function Submission() {
 
         <Section
           title="Built in public"
-          explains="Five posts, published as the week ran rather than written up after it. Each tells a different story."
+          explains="Six posts, published as the week ran rather than written up after it. Each tells a different story."
         >
           {/* A TIMELINE RATHER THAN A GRID, because the order is the point: these
-              went out as the week ran, and a grid of five cards says only that
-              there were five. The dates sit on the line, the posts alternate
+              went out as the week ran, and a grid of cards says only how many
+              there were. The dates sit on the line, the posts alternate
               across it; below the small breakpoint it folds to one column with
               the line down the left, where there is no room for two. */}
           <div className="relative mt-2">

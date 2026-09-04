@@ -86,29 +86,24 @@ out: all of it is the session's. Nothing in the declaration says what to buy or 
 | | |
 |---|---|
 | **submitted account** | `PA3BXFR0ZVYC`, Alpaca paper - simulated funds, real market data, no real money |
-| **result** | **$102,588.74, up 2.59%** from $100,000, at the close of Thursday 3 September, which is the equity the organiser measures. Four trading days can compare entries fairly - everyone has the same four - and cannot tell anyone whether a strategy works. For that there are 646 trading days of option prices committed here, and one command that recomputes what they say |
+| **result** | **$102,588.74, up 2.59%** from $100,000, at the close of Thursday 3 September - the equity the organiser measures. Behind the strategy itself: 646 trading days of option prices committed here, and one command that recomputes what they say |
 | **the market over the same window** | SPY **+0.76%**, open of 31 August to close of 3 September |
 | **the rule this is measured by** | the organiser: "evaluation based on portfolio's total equity as of EOD Thursday Sep 3rd". The broker keeps that close in `last_equity`, its own reference defining the field as "Equity as of previous trading day at 16:00:00 ET". Read on Friday, that is Thursday: $102,588.74. All four readings of this account, each with the rule behind it, are in `docs/write-up.md` |
-| **the window** | 4 trading days: 31 August, 1, 2 and 3 September. Not our choice and not our limit - it is the organiser's measurement window, verbatim: "Monday, August 31 at 9:30 a.m. ET to Friday, September 4 at 9:30 a.m. ET ... evaluation based on portfolio's total equity as of EOD Thursday Sep 3rd". Every entry in this hackathon has the same four days |
-| **check it yourself** | the figure is settled at the broker, not here: open the account by the id above, or [alpaca.swiftward.dev](https://alpaca.swiftward.dev), which reads it live through the same process the agent trades through. The account goes on trading after the measured window closes, so the live page moves past the figure above - that is the point of it, and the page names which reading is settled. `make account-claims PAGE=...` then checks the trading against these documents, with no credential of ours |
+| **the window** | 4 trading days: 31 August, 1, 2 and 3 September. The organiser's window, and every entry has the same four: "Monday, August 31 at 9:30 a.m. ET to Friday, September 4 at 9:30 a.m. ET" |
+| **check it yourself** | the figure is settled at the broker: open the account by the id above, or [alpaca.swiftward.dev](https://alpaca.swiftward.dev), which reads it live through the same process the agent trades through. The account keeps trading past the measured window, so the live figure moves and the page says which reading is settled. `make account-claims PAGE=...` checks the trading against these documents, with no credential of ours |
 | **what is here** | as much test code as code, and every rule in this repository that can refuse a trade has a test that goes red when the rule is removed; 25 of 25 published numbers recompute with no credentials and no network |
-| **the risk engine** | a service of its own, called over an API, standing on the path every order takes. Its rules are declarations rather than code, each carrying how much of itself it tells the agent, and an operator changes one while the agent runs. It is what refuses an order, and the refusals it wrote are in this repository's record beside the calls they stopped - the engine itself is not, and [`docs/architecture.md`](docs/architecture.md) opens with what that means for each claim here |
+| **the risk engine** | a service of its own on the path every order takes. Its rules are declarations, each carrying how much of itself it tells the agent, and an operator changes one while the agent runs. It is what refuses an order, and every refusal it wrote is in this repository's record beside the call it stopped ([`docs/architecture.md`](docs/architecture.md)) |
 
 Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026. The
-account is measured twice: the organiser at Thursday's close, above, and lablab when
-submissions close on Friday at 15:00 UTC with the market open - that second number is
-not ours to state before it is taken.
+figure is neither a backtest nor a projection: open the page, or open the account,
+and it is the same book.
 
-Neither number is a backtest and neither is a projection: open the page, or open the
-account, and it is the same book.
+Beside the result stands what does not move with a good week - the worst case
+computed before each order, limits arriving from somewhere the model cannot edit, and
+published numbers recomputing on a stranger's machine. All three are checkable here
+in minutes.
 
-Four sessions is the window the organiser set, and every entry in this hackathon has
-the same four. Beside the result, this repository publishes what does not move with a
-good week: the worst case computed before each order, the limits arriving from
-somewhere the model cannot edit, and the published numbers recomputing on a
-stranger's machine. All three are checkable here in minutes.
-
-Twenty-five of the numbers this project publishes recompute from data committed here, with no credentials and no network. Which twenty-five, and which numbers are modelled or come from our own account record instead, is listed in `research/README.md`:
+Twenty-five published numbers recompute from data committed here, with no credentials and no network. Which twenty-five, and which are modelled or come from the account record instead, is in `research/README.md`:
 
 ```
 $ make claims
