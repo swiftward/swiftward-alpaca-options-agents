@@ -1,6 +1,8 @@
 # swiftward-alpaca-options-agents
 
-An autonomous options trading agent that reads its own limits before it hits them.
+**The model decides what to trade. It never decides what it may lose.**
+
+The risk limits are not in its prompt. It asks a policy engine for them while it works, is refused by that same engine when it tries to exceed them, and sees a tightened limit on its next turn without a restart.
 
 Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026. Everything runs against Alpaca's paper trading environment: simulated funds, real market data, no real money.
 
