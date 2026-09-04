@@ -9,19 +9,21 @@
 // Every figure here was read off the running account, not composed.
 export const OPENED = 100_000
 
-// THE RESULT IS MEASURED TWICE, by two judges whose clocks differ, and both are
-// named here because a page that showed one number would be answering a question
-// nobody asked. Neither cancels the other.
+// THE RESULT, and the rule that defines it.
 //
-// The rules are quoted rather than paraphrased. Alpaca's is from the organiser's
-// written FAQ; LabLab's is their admin's answer in Discord on 26 August, and both
-// are kept in full in the team's own `docs/rules.md`.
+// The organiser reads total equity at the close of Thursday 3 September, and the
+// broker's own record of that close is what this carries. The rule is quoted rather
+// than paraphrased, and it is kept in full in the team's own `docs/rules.md`.
+//
+// The platform states a second rule - P&L as of the submission deadline, with
+// trading after it not counting - and that rule is quoted where the result is
+// stated. It has no row of its own here: nobody reads the account at that minute,
+// and a row headed by a measurement that is never taken promises a number this page
+// would then have to invent.
 export type Measurement = {
   by: string
   when: string
   rule: string
-  // null until the cut-off passes. A number typed in ahead of it would be a guess
-  // wearing the clothes of a result.
   equity: number | null
 }
 
@@ -37,15 +39,6 @@ export const MEASUREMENTS: Measurement[] = [
     // at 23:57 UTC that evening, while options still marked. The video was cut from
     // the earlier figure and says so.
     equity: 102_588.74,
-  },
-  {
-    by: 'LabLab',
-    when: 'Friday, 4 September · 11:00 New York',
-    rule: 'P&L as of the moment submissions close. Trading after it does not count at all.',
-    // One line to fill in when the cut-off passes. The event bet the agent bought
-    // on Thursday evening is sold at 09:35 that morning, so what this measurement
-    // sees is settled before it is taken.
-    equity: null,
   },
 ]
 

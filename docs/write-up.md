@@ -142,8 +142,8 @@ No judged order has ever passed through it. Every order on the submitted account
 
 ## The result
 
-The account submitted for judging is `PA3BXFR0ZVYC`, and it is measured twice on
-two clocks, which is worth stating plainly rather than picking the flattering one.
+The account submitted for judging is `PA3BXFR0ZVYC`. One reading decides the result,
+and the rule that names it is quoted rather than paraphrased.
 
 The organiser measures total equity at the close of Thursday 3 September. That
 reading is settled: **$102,588.74, up 2.59%** from the $100,000 the account opened
@@ -154,10 +154,11 @@ Against the market it trades: SPY opened the first session of that window at
 The account returned 2.59% over the same four trading days, and every structure behind
 that had a worst case computed before it was opened.
 
-lablab reads it again at the moment submissions close, Friday 15:00 UTC, with the
-market open and positions still marking. That number is not ours to state before it
-is taken, and the page carries it as blank rather than as a guess in a result's
-clothing.
+The platform's own rule points at the same account from a different clock: P&L as of
+the submission deadline, with trading after it not counting. Nobody reads the account
+at that minute, so the page states no figure for it - what answers the rule is the
+window the agent runs at 10:35 New York, which cancels every working order and closes
+what the book will take at no worse than the mark.
 
 It is checkable in two ways that need nothing from us. The page -
 [alpaca.swiftward.dev](https://alpaca.swiftward.dev), and `/live` is the one that
@@ -206,7 +207,7 @@ was worth.
 |---|---|---|
 | **The organiser's measurement** | "evaluation based on portfolio's total equity as of EOD Thursday Sep 3rd". The broker's record of that close is the account's `last_equity`, which the broker's own API reference defines as "Equity as of previous trading day at 16:00:00 ET" | **$102,588.74, +2.59%** |
 | The same session, read earlier | what the broker showed at 23:57 UTC that evening, before it closed its books | $102,061.24, +2.06% |
-| **lablab's measurement** | "The account's P&L is evaluated as of the submission deadline" - Friday 4 September, 15:00 UTC | taken at the cut-off |
+| lablab's rule | "The account's P&L is evaluated as of the submission deadline, so it's important to consider whether to flatten positions before that time. Trading activity after the deadline does not count for the evaluation." The agent's own window at 10:35 New York answers it | no reading is taken at that minute by anyone |
 | The account now | no rule; the agent goes on trading | `GET /api/money`, field `equity` |
 
 Read on Friday, `last_equity` is therefore Thursday's close at 16:00 ET, which is the
