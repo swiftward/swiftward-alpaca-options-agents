@@ -7,7 +7,7 @@ The risk limits are not in its prompt. It asks a policy engine for them while it
 | | |
 |---|---|
 | **submitted account** | `PA3BXFR0ZVYC`, Alpaca paper - simulated funds, real market data, no real money |
-| **result** | **$102,061.24, up 2.06%** from $100,000, at the close of Thursday 3 September, which is the equity Alpaca measures. Four sessions are not a measurement of a strategy - too short to separate skill from a good draw - and the evidence for the strategy is the 646 trading days committed here |
+| **result** | **$102,061.24, up 2.06%** from $100,000, at the close of Thursday 3 September, which is the equity Alpaca measures. Four trading days are not a measurement of a strategy - too short to separate skill from a good draw - and the evidence for the strategy is the 646 trading days committed here |
 | **the market over the same window** | SPY **+0.76%**, open of 31 August to close of 3 September |
 | **the window** | 4 trading days: 31 August, 1, 2 and 3 September |
 | **check it yourself** | [alpaca.swiftward.dev](https://alpaca.swiftward.dev) reads the broker live; `make account-claims PAGE=...` checks the trading against these documents, with no credential of ours |
@@ -18,7 +18,7 @@ The risk limits are not in its prompt. It asks a policy engine for them while it
 Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026.
 
 Neither number is a backtest and neither is a projection: open the page, or open the
-account, and it is the same book. Nor is four sessions a measurement of a strategy -
+account, and it is the same book. Nor are four trading days a measurement of a strategy -
 too short to separate skill from a good draw - and the evidence for the strategy is
 the 646 trading days committed here rather than the week.
 
@@ -33,10 +33,12 @@ PASS  closing at 0.35 of the credit returns 6722                 6722    6722
 25 claims, 0 failed
 ```
 
-**Watch it work: [alpaca.swiftward.dev](https://alpaca.swiftward.dev)** - the page
-the agent writes to, reading the broker through the same process the agent does.
-What it did, what it meant to do, and where it was stopped; `/live` is the one that
-moves. The five-minute video and the slides are linked from the submission on
+**Watch it work: [alpaca.swiftward.dev](https://alpaca.swiftward.dev)** - the read
+side, serving the submitted account through the same process the agent trades
+through: the account, every position, and every order with its legs. `/live` is the
+page that moves. The same read side, pointed at an agent whose record we keep, also
+serves what that agent did and meant to do - every turn with what woke it, every
+intent before its order, every tool call with its arguments and answer. The five-minute video and the slides are linked from the submission on
 lablab.ai. Point a second command at that page and it checks the trading against
 what these documents say, with no credential of ours:
 

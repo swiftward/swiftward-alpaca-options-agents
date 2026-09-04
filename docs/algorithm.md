@@ -57,18 +57,22 @@ with the numbers it requires declared in its header.
 
 ## What wakes it
 
-The schedule is a declaration, one file per agent (`agent/alpaca-agent-2.yaml`),
-and it is the only place a wake-up time exists. Each session carries a cause in
-words - why it was woken - and a task, never an answer.
+The schedule is a declaration, one file per agent, and it is the only place a
+wake-up time exists. Each session carries a cause in words - why it was woken - and
+a task, never an answer. This is the submitted account's, `agent/alpaca-agent-tikhon.yaml`,
+and that file is the source of truth for every time and number below.
 
 | Session | When | What it is for |
 |---|---|---|
-| `open-check` | 09:35, within 20m | what happened overnight, what is held, what expires today |
-| `entry` / `entry-call` | every 10m, 09:45-15:15, Mon-Thu | the put side and the call side, separately |
-| `defend` | every 15m, 09:40-15:55 | where the price stands against each pair of strikes |
-| `earnings-crush` | 15:20 Wed, `earnings-crush-exit` 09:35 Thu | sell the volatility an announcement inflates, buy it back after |
-| `flatten-before-the-deadline` | 10:15 Fri, `cannot_wait` | the book is emptied before the result is read |
-| `flatten` | 15:35 daily, `cannot_wait` | what risks assignment is closed; what will expire worthless is not |
+| `open-check` | 10:00, within 2h | what happened overnight, what is held, what expires today |
+| `entry-morning` / `entry-midday` / `entry` | 10:20, 12:30 and 14:20, Mon-Thu | three entry windows, each with its own room to start late |
+| `convexity` | every 2h, 09:50-15:00, Mon-Thu | the layer that pays when the market moves hard |
+| `defend` | every 30m, 09:40-15:55 | where the price stands against each pair of strikes, and what that is worth closing |
+| `news-watch` | every 30m, 09:35-15:45 | what has come out, on a cheaper model |
+| `earnings-crush` | 15:20 Wed, `earnings-crush-exit` 09:35 Thu | sell the volatility a report has inflated, buy it back after |
+| `event-convexity-enter` | 15:30 Thu, `event-convexity-exit` 09:35 Fri | buy the gap a scheduled number opens, sell it into the open |
+| `deadline-flatten` | 10:35 Fri | the book is settled before the result is read |
+| `flatten` | 15:40 daily, `cannot_wait` | what risks assignment is closed; what will expire worthless is not |
 
 `cannot_wait` is the exception to one-session-at-a-time: a window that empties the
 book has nowhere to queue, so its task is said into the turn already running. A
@@ -142,8 +146,8 @@ repository, priced with the crossing charged at every entry.
 | Edge threshold | +2 | the grid's peak over 646 days is +3; the horizon that is scored here is days, where refusing to trade settles the result at zero, so +2 takes seventeen per cent more trades for three per cent less total |
 | Days to expiry | 1-5 | one day to expiry pays 10.72 a trade against 2.29 at five, and the gradient is monotone in between |
 | Take-profit share | 0.35 of the credit | on the minute-by-minute path of 597 trades: holding to expiry returns 2,461 with 26% losing; closing at 0.35 returns 6,722 with 9% |
-| Defence on the touch | not used | 672 trades: closing when the price touches the sold strike pays 2.32 against 2.94 for holding. The price passed the strike in 42.7% of trades and only 26.6% ended breached, so the defence pays 108 crossings that bought nothing |
-| Daily fuse | -5% from yesterday's close | above the noise of an ordinary day, below what one position may lose |
+| Where a defence may close | past the BOUGHT strike, never on a touch of the sold one | the same script, `research/exit_rules.py`, measured both: closing on a touch of the sold strike is worse than doing nothing, and closing once the price is through the bought leg - where the loss is already capped - is better than either. The declaration carries the figures its own run produced |
+| Daily fuse | -2% from yesterday's close on the submitted account | above the noise of an ordinary day and below what one position may lose. The number is the account's own, and the declaration says what it was computed from |
 
 The line worth reading twice is the fifth. The obvious defence - close the spread
 when the price reaches the strike you sold - is measurably worse than doing
@@ -195,10 +199,19 @@ nothing it is unsure of.
 - **A same-day spread is not closed early otherwise.** It lives on time decay, and
   closing it early pays the crossing twice while collecting half of what it was
   opened for.
-- **At 15:35 what risks assignment is closed** - a position whose underlying has
-  come nearer to the sold strike than the width of the structure - and the rest is
-  left to expire, because buying back something that will expire worthless pays the
-  crossing for nothing.
+- **At the close, what risks assignment is closed** - a position whose underlying
+  has come nearer to the sold strike than the width of the structure - and the rest
+  is left to expire, because buying back something that will expire worthless pays
+  the crossing for nothing.
+- **Before the result is read, the book is SETTLED rather than emptied.** Every
+  working order is cancelled first, because an order that fills a minute before the
+  cut changes the result at random and nobody decided that. Then each position is
+  weighed against two numbers, both named out loud: what the broker marks it at, and
+  what the worst side of the book would actually give for it. No worse than the mark
+  - close it, that is free. Noticeably worse - leave it, and say by how much. Closing
+  turns a mark into cash and pays the crossing for the privilege; measured on a live
+  pair on 27 August, the broker marked it at -300 and closing it right then cost
+  -500. A clean account is bought with the money we are judged on.
 
 ## What each control can stop, and what it cannot
 
@@ -281,10 +294,12 @@ deniable.
 half and the defence comes round every fifteen minutes; a buy-back crossing a line
 is arithmetic, so a process checks it every thirty seconds.
 
-**Flat before the result is read.** The organiser measures the account at a moment,
-and a position open at that moment enters the result at its mark. A declared window
-empties the book before it, and it carries `cannot_wait` because a window that
-empties the book has nowhere to queue.
+**Settled, not flattened, before the result is read.** The organiser measures the
+account at a moment, and a position open at that moment enters at its mark. So the
+declared window cancels every working order - an accidental fill at the cut is a
+result nobody chose - and then closes only what the book will take at no worse than
+the mark. Closing everything for the look of a clean account pays the crossing out of
+the number being judged.
 
 **Every call written down, including the ones still in flight.** A call whose
 answer never arrived is recorded as `unknown` rather than as done, and `make
