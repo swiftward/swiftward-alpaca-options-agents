@@ -7,7 +7,7 @@ keyboard.
 
 **The model decides what to trade. It never decides what it may lose.**
 
-The three ceilings that bound a loss - what one position may lose, what everything betting the same way may lose together, what the whole book may lose - are not in its prompt and not in its file. It asks for them while it works, sizes to the answer, and sees a tightened ceiling on its next turn without a restart. They live where it cannot reach them, and the service its orders pass through is what refuses one that breaches them: the refusal names the rule, and it lands in the record beside the call it stopped. Its own trading numbers are in its declaration, where an operator can read and change them.
+The three ceilings that bound a loss - what one position may lose, what everything betting the same way may lose together, what the whole book may lose - are not in its prompt and not in its file. It asks for them while it works, sizes to the answer, and sees a tightened ceiling on its next turn without a restart. They live where it cannot reach them: the agent holds a risk-engine address and a token, and no broker key. The engine at that address is what refuses an order that breaches a ceiling - the refusal names the rule, and it lands in the record beside the call it stopped. What holds the route is that address and that credential rather than the network, and `docs/architecture.md` says where a deployment moving real money would put the wall instead. Its own trading numbers are in its declaration, where an operator can read and change them.
 
 A window may name the OCCASION - a company reports on Wednesday, a macro number lands on Friday - because a calendar is not a judgement. What to do about it is the session's: whether there is a trade at all, which structure, which strikes, how large, and whether to sit the window out. Nothing in the declaration says what to buy or sell.
 
@@ -17,7 +17,7 @@ A window may name the OCCASION - a company reports on Wednesday, a macro number 
 | **result** | **$102,061.24, up 2.06%** from $100,000, at the close of Thursday 3 September, which is the equity the organiser measures. Four trading days can compare entries fairly - everyone has the same four - and cannot tell anyone whether a strategy works. For that there are 646 trading days of option prices committed here, and one command that recomputes what they say |
 | **the market over the same window** | SPY **+0.76%**, open of 31 August to close of 3 September |
 | **the window** | 4 trading days: 31 August, 1, 2 and 3 September. Not our choice and not our limit - it is the organiser's measurement window, verbatim: "Monday, August 31 at 9:30 a.m. ET to Friday, September 4 at 9:30 a.m. ET ... evaluation based on portfolio's total equity as of EOD Thursday Sep 3rd". Every entry in this hackathon has the same four days |
-| **check it yourself** | [alpaca.swiftward.dev](https://alpaca.swiftward.dev) reads the broker live; `make account-claims PAGE=...` checks the trading against these documents, with no credential of ours |
+| **check it yourself** | the figure is settled at the broker, not here: open the account by the id above, or [alpaca.swiftward.dev](https://alpaca.swiftward.dev), which reads the broker live through the same process the agent trades through. `make account-claims PAGE=...` then checks the trading against these documents, with no credential of ours |
 | **what is here** | as much test code as code, and every rule in this repository that can refuse a trade has a test that goes red when the rule is removed; 25 of 25 published numbers recompute with no credentials and no network |
 | **the risk engine** | a service of its own, called over an API, standing on the path every order takes. Its rules are declarations rather than code, each carrying how much of itself it tells the agent, and an operator changes one while the agent runs. It is what refuses an order, and the refusals it wrote are in this repository's record beside the calls they stopped - the engine itself is not, and [`docs/architecture.md`](docs/architecture.md) opens with what that means for each claim here |
 
@@ -51,9 +51,8 @@ side, serving the submitted account through the same process the agent trades
 through: the account, every position, and every order with its legs. `/live` is the
 page that moves. The same read side, pointed at an agent whose record we keep, also
 serves what that agent did and meant to do - every turn with what woke it, every
-intent before its order, every tool call with its arguments and answer. The five-minute video and the slides are linked from the submission on
-lablab.ai. Point a second command at that page and it checks the trading against
-what these documents say, with no credential of ours:
+intent before its order, every tool call with its arguments and answer. Point a second command at that page and it checks the trading against what these
+documents say, with no credential of ours:
 
 ```
 make account-claims PAGE=<the page's address>
