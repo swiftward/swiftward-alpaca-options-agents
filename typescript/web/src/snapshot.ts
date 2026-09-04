@@ -1,29 +1,49 @@
-// What the account and the agent looked like, frozen.
+// What the account did, frozen.
 //
 // The landing does NOT call the API. `/live` does, and it is the page to open to
-// see the account move; this one is a poster and has to render the same on a
+// watch the account move; this one is a poster and has to render the same on a
 // judge's screen whether or not the stand is up, whether or not the broker
 // answers, and after the week is over. A landing that shows "the broker did not
 // answer" where its own results should be has argued against itself.
 //
-// Every figure here was taken from the running account and the record behind it,
-// not composed. Refreshed before submission - the date below says when, and a
-// reader who wants the moving version has the link.
-export const TAKEN_AT = '3 September 2026'
+// Every figure here was read off the running account, not composed.
+export const OPENED = 100_000
 
-export const ACCOUNT = {
-  opened: 100_000,
-  // The close of THURSDAY 3 September, which is the figure the organiser measures:
-  // "evaluation based on portfolio's total equity as of EOD Thursday Sep 3rd".
-  // It stood at 102,335.60 at Wednesday's close, and this page carried that number
-  // until the Thursday one was in.
-  equity: 102_061.24,
-  // Kept apart from equity rather than worked out in the component: what the
-  // account is worth and what it earned are two claims, and one of them is the
-  // one being made.
-  profit: 2_061.24,
-  percent: 2.06,
+// THE RESULT IS MEASURED TWICE, by two judges whose clocks differ, and both are
+// named here because a page that showed one number would be answering a question
+// nobody asked. Neither cancels the other.
+//
+// The rules are quoted rather than paraphrased. Alpaca's is from the organiser's
+// written FAQ; LabLab's is their admin's answer in Discord on 26 August, and both
+// are kept in full in the team's own `docs/rules.md`.
+export type Measurement = {
+  by: string
+  when: string
+  rule: string
+  // null until the cut-off passes. A number typed in ahead of it would be a guess
+  // wearing the clothes of a result.
+  equity: number | null
 }
+
+export const MEASUREMENTS: Measurement[] = [
+  {
+    by: 'Alpaca',
+    when: 'end of Thursday, 3 September',
+    rule: 'Total account equity, not cash balance. Open positions enter it at their mark.',
+    // The account stood at 102,335.60 at Wednesday's close and this page carried
+    // that figure until the Thursday one was in.
+    equity: 102_061.24,
+  },
+  {
+    by: 'LabLab',
+    when: 'Friday, 4 September · 11:00 New York',
+    rule: 'P&L as of the moment submissions close. Trading after it does not count at all.',
+    // One line to fill in when the cut-off passes. The event bet the agent bought
+    // on Thursday evening is sold at 09:35 that morning, so what this measurement
+    // sees is settled before it is taken.
+    equity: null,
+  },
+]
 
 // The week as it ran on the account above, counted from the BROKER's own order
 // list rather than from our record - that is the list a judge can open beside this
@@ -39,13 +59,13 @@ export const COUNTS: [string, string][] = [
 
 // Six lines the agent wrote, in its own words, taken from the record unedited.
 //
-// Four of the six are refusals. That is not a selection to look modest: it is the
-// proportion the week actually had, and a page that showed only the entries would
-// be describing a different agent from the one that ran.
+// Three of the six are it deciding not to trade. That is not a selection made to
+// look modest: it is the proportion the week had, and a page showing only the
+// entries would be describing a different agent from the one that ran.
 export const SAID: { at: string; text: string }[] = [
   {
-    at: '3 Sep · 12:31',
-    text: 'I took the task’s overrides with envelope `2026-08-31.1`; all six fresh candidates fell below the required +2 edge, so no trade.',
+    at: '3 Sep · 14:22',
+    text: 'I took the task’s overrides with envelope `2026-08-31.1`; all six fresh candidates were below +2 edge, so no intent or order was filed.',
   },
   {
     at: '3 Sep · 10:22',

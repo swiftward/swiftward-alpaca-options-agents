@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 
 import { Boundary } from './Boundary'
 import { Card, Chip, Eyebrow, Figure, Figures } from './parts'
-import { ACCOUNT, COUNTS, SAID, TAKEN_AT } from './snapshot'
+import { COUNTS, MEASUREMENTS, OPENED, SAID, type Measurement } from './snapshot'
 
 // The landing page: what this is, how it differs, and where to go and look.
 //
@@ -137,24 +137,18 @@ export function Landing() {
 
 
       <Block
-        label="07 · the account"
-        title="One account on Alpaca paper, opened at $100,000 and never reset."
-        explains={`Opened at $100,000 on the kickoff day and never reset. These figures were taken from it on ${TAKEN_AT}; the page that moves is at /live, and it reads the broker through the same process the agent does.`}
+        label="07 · the result"
+        title="Two judges, two clocks, and both are named here."
+        explains="One account, opened at $100,000 on the kickoff day and never reset. The result is taken twice by two measurements that do not agree on when the week ends, so both cut-offs are printed with the rule each of them uses."
       >
         <Card>
-          {/* Two rows rather than one: what the account is worth and what it made
-              are the numbers being claimed, and in a single row the counts wrap
-              and leave the last one standing alone under them. */}
-          <Figures>
-            <Figure name="equity" value={money(ACCOUNT.equity)} hero />
-            <Figure
-              name="since the kickoff"
-              value={`${change(ACCOUNT.profit)} · ${ACCOUNT.percent}%`}
-              tone="gain"
-              hero
-            />
-          </Figures>
-          <div className="mt-4">
+          <ul className="m-0 list-none space-y-4 p-0">
+            {MEASUREMENTS.map((m) => (
+              <Measured key={m.by} of={m} />
+            ))}
+          </ul>
+
+          <div className="mt-8 border-t border-line pt-6">
             <Figures>
               {COUNTS.map(([name, value]) => (
                 <Figure key={name} name={name} value={value} />
@@ -513,6 +507,43 @@ function Block({
         <Boundary says="this section failed">{children}</Boundary>
       </div>
     </section>
+  )
+}
+
+// One measurement: who takes it, when, by what rule, and the number if that
+// moment has passed. A cut-off still ahead shows a dash rather than a figure -
+// the alternative is a number the reader cannot tell from a settled one.
+function Measured({ of }: { of: Measurement }) {
+  const settled = of.equity !== null
+  const profit = settled ? (of.equity as number) - OPENED : 0
+
+  return (
+    <li className="rounded-lg border border-line bg-surface-sunk px-5 py-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+        <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="text-[17px] font-medium text-primary">{of.by}</span>
+          <span className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+            {of.when}
+          </span>
+        </span>
+        <Chip tone={settled ? 'gain' : undefined}>{settled ? 'settled' : 'not yet taken'}</Chip>
+      </div>
+
+      {settled ? (
+        <p className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <span className="text-[32px] font-medium leading-none tracking-[-0.02em] text-primary tabular-nums">
+            {money(of.equity as number)}
+          </span>
+          <span className="text-[17px] font-medium tabular-nums text-gain">
+            {change(profit)} · {((profit / OPENED) * 100).toFixed(2)}%
+          </span>
+        </p>
+      ) : (
+        <p className="mt-3 text-[32px] font-medium leading-none text-muted">&mdash;</p>
+      )}
+
+      <p className="mt-3 text-[15px] leading-relaxed text-secondary">{of.rule}</p>
+    </li>
   )
 }
 
