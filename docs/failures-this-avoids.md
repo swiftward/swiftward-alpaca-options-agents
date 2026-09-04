@@ -39,9 +39,12 @@ instead (`research/README.md`, `research/sweep_backspread.py`).
 
 **Risk limits that live in the prompt.** A ceiling written into an agent's
 instructions is enforced by the model's attention. Here the three ceilings that
-bound a loss are not in the prompt and not in the agent's file: the session asks a
-service for them while it works and is refused by that same service
-(`golang/internal/envelope`, `docs/architecture.md`).
+bound a loss are not in the prompt and not in the agent's file: the session asks for
+them while it works and sizes to the answer (`golang/internal/envelope`), and the
+service its orders pass through is what refuses one that breaches them - the policy
+gateway, reached at `BROKER_MCP_URL` and described in `docs/architecture.md`. Which
+of the three the ladder in this repository re-checks afterwards, and which one it
+does not, is in `docs/algorithm.md`.
 
 **A limit that cannot be changed without a deploy.** An operator who has to rebuild
 an image to tighten a ceiling will not tighten it. Here the next turn reads the new
@@ -86,9 +89,12 @@ and the agent trades the exit that measured better instead
 (`research/exit_rules.py`, `make claims`).
 
 **A guard written for the structures of the day.** A rule that counts legs is right
-while only verticals are held and wrong from the first backspread. Every shape a
-declaration can open is enumerated, and adding one fails a test until somebody says
-what each guard does with it (`golang/internal/structures`, `shapes_test.go`).
+while only verticals are held and wrong from the first backspread - which is what
+this watch did until 31 August, and what a backspread cost it. The guard now asks
+for two legs with equal quantities sold and bought, which a backspread fails by
+construction, and `shapes_test.go` walks every shape a declaration can open so a
+fourth cannot be added until each guard says what it does with it
+(`golang/internal/structures`, `golang/internal/takeprofit/step.go`).
 
 **No plan for the moment the result is read.** A position open at the cut-off enters
 the result at its mark. The window before it cancels every working order - a fill a
@@ -116,8 +122,8 @@ credential or a database between agents has two agents that are one agent to the
 rules, and a restart of either closes the other's open turns. Here a chain is the
 unit: harness, gateway endpoint, broker server, database, page and credential all
 carrying one agent's name, so adding an account adds a chain rather than a setting -
-and four run side by side on the same stack (`compose.yaml`,
-`golang/internal/config/composekeys_test.go`).
+and the stack here runs several side by side, each with its own credential,
+database and page (`compose.yaml`).
 
 **Two agents that cannot be told apart afterwards.** If the record does not name
 which agent made a call, a week of trading is one undifferentiated stream. Every
@@ -147,9 +153,10 @@ a second command checks the trading on that account against these documents
 
 **Documentation that describes an older version of the system.** A document that
 disagrees with the code is worse than no document, because it is believed. The
-declaration the submitted account runs is the source of truth here, the documents
-were read against it line by line, and where the two disagreed the documents were
-wrong and were corrected.
+declaration the submitted account runs is the source of truth here, and the
+documents are read against it: three rounds of that on 3 and 4 September found the
+fuse, the defence rule, the deadline window, the flatten rule and the schedule
+described from another agent's file, and each was corrected to the submitted one.
 
 **A test tier that cannot see the thing it covers.** The stand that questions the
 agent is a separate module, deliberately outside the workspace so it can never share

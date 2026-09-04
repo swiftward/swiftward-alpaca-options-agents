@@ -43,15 +43,24 @@ The ceiling had been 0.45. Across the grid 0.30 was better everywhere, not at on
 point: fewer trades, but enough more expectation per trade to win on the total. At
 0.40 the expectation turns negative — selling that close pays less than it costs.
 
-### The edge threshold: at least +3
+### The edge threshold: +3 is the grid's peak, +2 is what the account runs
 
 `grid.py`, the same run. `edge_points` is what a structure pays above what it has
 to survive, both halves at once: a delta ceiling alone keeps what is far and throws
 away what pays; a credit threshold alone keeps what pays and ignores how often it
 loses.
 
-Two candidates were close, +2 and +3. +3 was taken: it peaks on the total and sits
-further from the sign change, so a small error in the cost model does not flip it.
+Two candidates were close, +2 and +3. On the grid +3 wins: it peaks on the total and
+sits further from the sign change, so a small error in the cost model does not flip
+it.
+
+**The submitted account runs +2, and the reason is the horizon rather than the
+grid.** A grid over 646 days maximises the total, and what is scored here is four
+days, where refusing to trade settles the result at zero. On the grid priced with
+each name's own book, +2 takes 1.00 trades a day for 2,087 and +3 takes 0.85 for
+2,146 - three per cent of the money for seventeen per cent more chances. The
+declaration carries that reasoning where the number stands
+(`agent/alpaca-agent-tikhon.yaml`, `min_edge_points`).
 
 ### The hours the agent enters at: unchanged, and now for a measured reason
 

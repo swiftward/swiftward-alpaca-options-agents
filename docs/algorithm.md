@@ -128,10 +128,11 @@ Two properties are worth naming:
   taken from the price of volatility instead (`screener.Survival`) - and that
   volatility is BORROWED from another expiration on the same underlying, because
   the expiring one has none to read. The candidate says which of the two it used
-  (`edge_from`: `delta` or `borrowed volatility`), the declaration sets a stricter
-  threshold for the borrowed case because a borrowed volatility overstates the edge,
-  and where neither is available the candidate carries no edge at all rather than a
-  guess. Nothing is left unmeasured because one input went missing, and nothing
+  (`edge_from`: `delta` or `borrowed volatility`), the declaration sets a threshold
+  of its own for the borrowed case - `strictly above 0`, and marked PROVISIONAL,
+  because a zero-day expiry has never cleared the edge measure anyway, so there has
+  been no occasion to measure it - and where neither input is available the
+  candidate carries no edge at all rather than a guess. Nothing is left unmeasured because one input went missing, and nothing
   pretends the two are the same measurement.
 
 It is a screen, not a promise, and the code says so where it is defined: delta is a

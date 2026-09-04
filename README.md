@@ -2,7 +2,7 @@
 
 **The model decides what to trade. It never decides what it may lose.**
 
-The three ceilings that bound a loss - what one position may lose, what everything betting the same way may lose together, what the whole book may lose - are not in its prompt and not in its file. It asks a service for them while it works, is refused by that same service when it tries to exceed one, and sees a tightened ceiling on its next turn without a restart. Its own trading numbers are in its declaration, where an operator can read and change them; the ceilings are somewhere it cannot reach.
+The three ceilings that bound a loss - what one position may lose, what everything betting the same way may lose together, what the whole book may lose - are not in its prompt and not in its file. It asks for them while it works, sizes to the answer, and sees a tightened ceiling on its next turn without a restart. They live where it cannot reach them, and the service its orders pass through is what refuses one that breaches them: the refusal names the rule, and it lands in the record beside the call it stopped. Its own trading numbers are in its declaration, where an operator can read and change them.
 
 A window may name the OCCASION - a company reports on Wednesday, a macro number lands on Friday - because a calendar is not a judgement. What to do about it is the session's: whether there is a trade at all, which structure, which strikes, how large, and whether to sit the window out. Nothing in the declaration says what to buy or sell.
 
@@ -13,7 +13,7 @@ A window may name the OCCASION - a company reports on Wednesday, a macro number 
 | **the market over the same window** | SPY **+0.76%**, open of 31 August to close of 3 September |
 | **the window** | 4 trading days: 31 August, 1, 2 and 3 September |
 | **check it yourself** | [alpaca.swiftward.dev](https://alpaca.swiftward.dev) reads the broker live; `make account-claims PAGE=...` checks the trading against these documents, with no credential of ours |
-| **what is here** | 15,467 lines of Go against 19,639 of tests; 587 test functions in 90 files; 25 of 25 published numbers recompute with no credentials and no network; 13 trials against a stand that displaces the real option book |
+| **what is here** | 15,480 lines of Go and 16,947 lines of tests across 501 test functions; the stand that questions it adds 2,692 more and 86 more; 25 of 25 published numbers recompute with no credentials and no network |
 | **the policy gateway** | the service every order passes through, called over an API: rules declared rather than coded, each carrying how much of itself it discloses; an append-only record of what it refused and why; limits changed on a running agent without a restart. [`docs/architecture.md`](docs/architecture.md) shows where it sits and what it answers |
 
 Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026. The
@@ -53,7 +53,7 @@ Three places to go from here:
 - **[`docs/algorithm.md`](docs/algorithm.md)** - how a trade is decided, end to end, and what each control can and cannot stop. Start here.
 - **[`docs/capabilities.md`](docs/capabilities.md)** - every capability, where it lives, and what shows it works.
 - **[`docs/failures-this-avoids.md`](docs/failures-this-avoids.md)** - the ways an options agent goes wrong, and what this one does instead.
-- **[`testbed/`](testbed/README.md)** - the stand that plays the agent conditions the market will not produce on request, the thirteen trials it has run, and what they caught.
+- **[`testbed/`](testbed/README.md)** - the stand that plays the agent conditions the market will not produce on request: thirteen trials, eleven on a staged book and two that displace the real one, and what they caught.
 
 ## What is unusual about it
 
