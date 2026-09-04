@@ -145,7 +145,11 @@ export function Submission() {
           title="The account"
           explains="Named so it can be opened rather than taken on trust, with the reading that decides the result and the rule that defines it."
         >
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div
+            className={`grid gap-4 sm:grid-cols-2 ${
+              MEASUREMENTS.length > 1 ? 'lg:grid-cols-3' : ''
+            }`}
+          >
             <Card>
               <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
                 alpaca paper account
