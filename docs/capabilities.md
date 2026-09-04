@@ -80,7 +80,7 @@ Walking the price is arithmetic on a clock, and it belongs in code.
 |---|---|---|---|
 | The ladder | Walks a decided order toward the worst price the session named and stops there. Two declared strides: `tick` moves one cent a step, `arrive` divides what is left by the steps before patience ends | `golang/internal/execution` | `execution_test.go`, `TestTheStrideIsDeclaredAndTheOldOneStillWalksATick` |
 | The re-check on every concession | A worst price that would fall below the rule the entry was made on is not walked to, so a walk cannot spend its way out of the reason it opened. An exit is never judged this way | `golang/internal/execution/execution.go` | `TestAWorstPriceBelowTheEntryRuleIsNotWalkedTo`, `TestOnlyAnOrderThatPlainlyOpensIsHeldToTheEntryRule` |
-| The per-position ceiling | A resting order that would take the position past its ceiling is cut back | `golang/internal/execution/toobig.go` | `toobig_test.go` |
+| The per-position ceiling | A resting order that would take the position past its ceiling is CANCELLED, and the session is told, so what replaces it is a decision somebody made rather than a size nobody chose | `golang/internal/execution`, `WorstCase` | `toobig_test.go` |
 | The fuse | A day in which the account has fallen by the share the declaration names is over: the fuse refuses further entries | `golang/internal/execution/execution.go`, `Fuse` | `fuse_test.go` |
 | One fill, once | A restart in the middle of a walk does not double a fill | `postgres/migrations/0009_fill_once.sql`, `golang/internal/record` | `record_test.go` |
 

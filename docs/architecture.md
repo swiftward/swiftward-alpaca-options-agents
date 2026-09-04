@@ -13,10 +13,10 @@ deadline.
 
 ## How to check every claim in this document
 
-The system has two halves and each is verified its own way: the trading engine in
-this repository, which a reader settles by reading it and running its tests, and the
-risk engine beside it, which a reader settles by watching what it did - the record
-of every refusal, with the rule that made it, served on the page.
+The system has two halves and each is verified its own way. The trading engine is
+settled by reading it and running its tests. The risk engine is settled by what it
+did: the record of every call it answered, every refusal among them with the rule
+that made it, and the limits it hands out, live at `GET /api/limits`.
 
 **Settled by reading this repository, and by tests that go red without the rule:**
 
@@ -119,10 +119,10 @@ Its limits come from outside it too. The session asks `read_envelope` before it 
 | `page-agent-1`, `page-agent-2` | the same binary serving the read side and the built page | Postgres, and the broker for the money it shows |
 | `migrate` | applies `postgres/migrations` in name order, then exits | Postgres |
 | `alpaca-mcp-agent-1`, `alpaca-mcp-agent-2` | Alpaca's own MCP server (`alpaca-mcp-server`, pinned release), one process per account because it reads its keys from its own environment | Alpaca |
-| `egress` | forward proxy with a host allowlist, kept for reference; outbound traffic now goes through the risk engine | the hosts it allows |
+| `egress` | the agent's only way out: a forward proxy that answers for the hosts in its allowlist and refuses and logs the rest | the hosts it allows |
 | `postgres` | state | nowhere |
 
-The risk engine is not in this stack. It is a network service addressed by `GATEWAY_URL`, the same way Alpaca and the model provider are.
+The risk engine is a service of its own, addressed by `GATEWAY_URL` the same way Alpaca and the model provider are - which is what lets one engine hold the rules for several agents at once and lets an operator change a ceiling without touching any of them.
 
 `envelope` stands in that address until the gateway does. It answers the risk engine and nothing else: it holds no broker credential, reaches nothing, and cannot judge or refuse an order - those are the gateway's, and a stand-in that grew them would be a second engine nobody agreed to run. Which limits a caller gets is decided by the bearer token it was started with, so the two agents on the stack are under different ceilings and neither can ask for the other's.
 

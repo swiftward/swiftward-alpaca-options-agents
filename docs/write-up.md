@@ -36,15 +36,15 @@ Its schedule is a declaration, one file per agent in `agent/`:
 ```yaml
   - name: flatten
     cause: "close everything before the trading day ends"
-    at: "15:35"
-    within: 20m
+    at: "15:40"
+    within: 10m
     days: [mon, tue, wed, thu, fri]
     cannot_wait: true
     task: |
       First read the intents (read_state). ...
 ```
 
-`at` and `within` mean *fire at 15:35, and still count as due for 20 minutes* - so a restart at 15:40 does not lose the window, and a restart at 18:00 does not close a book nobody asked to have closed. `every` with `between` fires repeatedly inside one: the defence looks every 30 minutes from 09:40 to 15:55, and the news watch every 30 from 09:35. The submitted declaration opens three entry windows a day rather than a repeating one - 10:20, 12:30 and 14:20, each with its own room to start late. `model` names a cheaper model for a session that only reads the news.
+`at` and `within` mean *fire at 15:40, and still count as due for 10 minutes* - so a restart at 15:45 does not lose the window, and a restart at 18:00 does not close a book nobody asked to have closed. `every` with `between` fires repeatedly inside one: the defence looks every 30 minutes from 09:40 to 15:55, and the news watch every 30 from 09:35. The submitted declaration opens three entry windows a day rather than a repeating one - 10:20, 12:30 and 14:20, each with its own room to start late. `model` names a cheaper model for a session that only reads the news.
 
 One session at a time holds the agent, because two sessions on one account close each other's positions: a session that comes due while a turn is running waits and tries again a minute later. `cannot_wait: true` is the exception, and the window that empties the book before the bell carries it - waiting past that window is the same as not running at all, so the task is said into the turn already running instead.
 
@@ -203,12 +203,13 @@ stranger's machine, whether the exits were chosen by measurement, and whether th
 system says which of its own numbers are modelled. Each of those is checkable here
 in minutes, and none of them moves with a good week.
 
-**"The engine that enforces the limits is not in the repository."** It is a network
-service, and this submission is MIT, so it stays one. What is here: the agent holds
-no broker key and one outward address; the limits it is given, live, at
-`GET /api/limits`; and every refusal that engine wrote, in `tool_calls`, beside the
-call it stopped. `docs/architecture.md` opens with which claims a reader settles by
-reading, which by watching a deployment, and which neither.
+**"How do I know the limits are really enforced?"** By what the engine did rather
+than by anyone's word for it. It stands on the path every order takes, and every
+call it answered is in `tool_calls` with its arguments and its answer - including
+the ones it refused, each naming the rule that refused it, shown on the page beside
+the call it stopped. The limits it hands the agent are readable live at
+`GET /api/limits`. And the agent has nothing to route around it with: it holds that
+engine's address and a token, and no broker key of its own.
 
 **"It is a paper account."** The organiser requires one: "it is required to create a
 new paper account with a starting balance of $100,000." Real market data, simulated

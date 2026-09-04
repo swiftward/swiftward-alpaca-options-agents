@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "The measurements behind the numbers the agent trades on"
 readme = "README.md"
 authors = [
-    { name = "Tikhon Slasten", email = "slasten32@gmail.com" }
+    { name = "Swiftward" }
 ]
 requires-python = ">=3.11"
 dependencies = [

@@ -51,7 +51,7 @@ parameters:
   # at +2 it is +2.63, at +3 it is +4.14. So until today the rule was loss-making
   # by construction, not by bad luck.
   #
-  # +3 was taken, and that is Kostya's correction to my +2. I chose +2 as one unit
+  # +3 was taken, and that is a correction to the +2 first proposed. +2 was one unit
   # of margin from the sign change, assuming a smooth slope. He computed the TOTAL
   # over the period: +2 gives 638 trades at 2.63 dollars = 1,678; +3 gives 553 at
   # 4.14 = 2,289; +4 gives 1,710. Both neighbours lower means a peak, not the edge
