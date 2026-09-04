@@ -4,7 +4,11 @@ An autonomous agent trades defined-risk option structures on an Alpaca paper acc
 
 ## The AI logic
 
-The agent is a model session with tools, not a script with a model in it. Its schedule is a declaration, one file per agent in `agent/`:
+The agent is a model session with tools, not a script with a model in it.
+
+It runs four layers, and its declaration says which of them it may open at all: a **premium harvest** that sells vertical credit spreads out of the money; a **convexity** layer that buys backspreads so the day the market moves hard is not a day this account only loses; an **earnings crush** that sells the premium a report has inflated, and only when the measurement says the market is paying more for the move than the company has historically made; and an **event convexity** bet that buys the gap a scheduled macro number opens, outright, on the expiration that dies the same day. The account submitted for judging runs all four (`agent/alpaca-agent-tikhon.yaml`, `skills:`); `docs/algorithm.md` takes each apart.
+
+Its schedule is a declaration, one file per agent in `agent/`:
 
 ```yaml
   - name: flatten
