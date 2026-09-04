@@ -3,8 +3,8 @@
 **Declarative AI Trading with Governance, Risk and Compliance**
 
 The agent chooses the trade. It sits alone on a private network, and every call it
-makes is allowed or refused: orders by a risk engine, thinking by a model gateway,
-everything else by a proxy with a list of hosts.
+makes is allowed or refused by a risk engine it cannot edit: orders by that engine,
+thinking by a model gateway, everything else by a proxy with a list of hosts.
 
 It learns from its own record: every session reads what the earlier ones did,
 including the refusals they were given. Its behaviour is a declaration the harness
