@@ -105,19 +105,26 @@ parameters:
   # distance, while size and exit were written out in detail. The agent chose by eye
   # and chose badly.
   #
-  # MEASURED: research/sweep_backspread.py, 28 August 2026. A sweep of placements
-  # across 466 SPY windows in a volatility regime close to the present one (10.5%
-  # annualised), structures priced by Black-Scholes on that same volatility. ANY
-  # placement with the valley closer than 2 sigma has a negative expectancy. On
-  # 28 August the agent sold at 0.57 sigma with the valley at 1.25 sigma and got
-  # -68 dollars per trade; the best placements - selling at 1.5-2.0 sigma with the
-  # valley at 2.5-3.0 - give +10 to +14.
+  # MEASURED: research/sweep_backspread.py, re-run 4 September 2026 after an error
+  # was found and corrected in it - the first version chose its sample of windows
+  # using a volatility that covered the very days it was measuring, and every
+  # figure it produced was flattered. Corrected, across 464 SPY windows in a
+  # volatility regime close to the present one (10.5% annualised), structures
+  # priced by Black-Scholes on that same volatility.
   #
-  # This is not about luck: a valley placed where the market reaches on an ordinary
-  # move eats everything the structure earns the rest of the time. The character of
-  # the layer changes with it - a loss in 2.8% of cases instead of 22%, and 2.2% of
-  # the expectancy coming from the top percent of outcomes instead of 68%. Placed
-  # correctly, a backspread stops being a lottery.
+  # What decides is the GAP between the sold leg and the bought ones, and the
+  # number to read is the MEDIAN rather than the mean. A gap of a quarter sigma
+  # ends in the red in 75 to 98 per cent of windows whatever the valley - median
+  # -621 with the valley at 0.5 sigma, -246 at 1.0, -29 at 1.75 - and what average
+  # it has comes almost entirely out of the best one per cent of windows. Widen the
+  # gap to half a sigma and the same underlying, regime and ceiling give a positive
+  # median: selling at 1.75 with the valley at 2.25 loses in 4% of windows, median
+  # +29.
+  #
+  # The distances below put the sold leg at 1.5 sigma and the valley at 2.5, a gap
+  # of a full sigma, which is inside that region with room to spare. On 28 August
+  # the agent chose by eye - sold at 0.57 sigma with the valley at 1.25 - which is
+  # a quarter-sigma gap, the first group.
   convexity_short_leg_distance: "the sold leg no closer than 1.5 sigma of the move expected by expiry, where sigma is the underlying's volatility (read_volatility_history) times the square root of trading days remaining over 252, times the price"
   # MEASURED: the same sweep on the same day. The valley is the bought strike; the
   # worst outcome stands there.
@@ -504,14 +511,16 @@ sessions:
       the layer had actually been using. It does not hold for the placements this
       declaration now requires, and that is the whole difference.
 
-      Re-measured on 466 windows of SPY in volatility like today's. Mean payoff per
-      structure, the median beside it, and the share of the mean that comes from
-      the best one percent of windows:
+      Re-measured on 464 windows of SPY in volatility like today's, after an error
+      in the sweep was found and corrected. Mean payoff per structure, the median
+      beside it, and how often it loses at all - and read the MEDIAN, because on
+      the close-in placements the mean is a tail:
 
-        sold at 0.50 sigma, valley 0.75   -74.00   median -436   83% of windows lose
-        sold at 0.75 sigma, valley 1.50   -68.24   median +253   23% lose
-        sold at 1.50 sigma, valley 2.50   +13.41   median  +49    7% lose, 3.1% from the tail
-        sold at 1.75 sigma, valley 2.50   +14.18   median  +35    3% lose, 2.2% from the tail
+        sold at 0.25 sigma, gap 0.25, valley 0.50   mean +231   median -622   75% of windows lose
+        sold at 0.75 sigma, gap 0.25, valley 1.00   mean +136   median -246   86% lose
+        sold at 1.75 sigma, gap 0.25, valley 2.00   mean  +63   median  -10   98% lose
+        sold at 0.25 sigma, gap 0.50, valley 0.75   mean  +33   median  +72   33% lose
+        sold at 1.75 sigma, gap 0.50, valley 2.25   mean  +25   median  +29    4% lose
 
       What the agent did on 28 August was the first row: it sold at 0.57 sigma and
       put the valley at 1.25, in the most populated part of the distribution. What
