@@ -22,6 +22,11 @@ documents say: every order a structure rather than a naked leg, every leg declar
 whether it opens or closes, one server behind every order, and no intent recorded
 knowing its limits had not been read.
 
+**Where to see the limits arrive.** In `state.json`, the calls named `read_envelope`
+carry the answer the session was given while it worked: each constraint with its
+rule, and whether the number itself was disclosed or only the rule's existence. That
+is the mechanism the entry rests on, in the form the agent actually received it.
+
 **Read `equity_yesterday` in `money.json` for the judged figure.** The organiser
 measures total account equity at the close of Thursday 3 September, and that is what
 the broker records in that field: **102,588.74**. The `equity` field beside it is

@@ -13,6 +13,21 @@ prices committed in the repository.
 
 Every published number recomputes from one command. **+2.59% against SPY's +0.76%.**
 
+```mermaid
+flowchart LR
+  S["model session<br/>chooses the trade"] -->|"read_envelope"| E["risk engine<br/>what may I lose"]
+  S -->|"place_option_order"| G["risk engine<br/>allows or refuses,<br/>and names the rule"]
+  S -->|"thinking"| Y["model gateway"]
+  S -->|"anything else"| X["proxy<br/>hosts on a list"]
+  G --> M["Alpaca MCP server<br/>holds the only broker key"]
+  M --> A["the account"]
+  S --> R[("the record<br/>intents, calls, refusals")]
+  R --> P["the page<br/>read-only"]
+```
+
+The session holds a risk-engine address and a token and no broker key, so the path
+above is the only one its orders have. `docs/architecture.md` walks it in full.
+
 What it trades: defined-risk option structures on Alpaca - credit spreads out of the
 money, backspreads for the day the market moves hard, and two event bets - four
 trading days a week with nobody at a keyboard.
