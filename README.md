@@ -100,6 +100,16 @@ and a number you can recompute. Nothing about the agent's behaviour changes with
 a line in a file changing first, and that is on purpose: a system that improves
 itself in a way nobody can point at cannot be audited after a bad day.
 
+**The agent is in two cages, and both are enumerable.** The logical one is the
+ceilings it reads and cannot edit. The physical one is the network: the agent sits
+alone on a private network with no route to the internet of its own, and it has
+exactly three ways out, each of them a service that records what went through it -
+the risk engine for orders and market data, the model gateway for its own thinking,
+and a forward proxy for anything else, which answers only for the hosts named in
+`docker/egress/filter.txt` and refuses and logs the rest. Widening that list is a
+change to this repository, not a decision a session can make. There is no fourth
+way, and everything it can reach is a service written down in `compose.yaml`.
+
 **It runs on one server, and any server will do.** The whole stack is a compose
 file - the agent, its broker server, the record, the page, the migrations, the
 egress proxy - so it comes up on a laptop or on the cheapest box a team already

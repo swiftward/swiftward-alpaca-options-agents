@@ -150,6 +150,14 @@ script and the date for a measured one, or `PROVISIONAL` where nobody has measur
 it yet. Every change to how this agent trades is a diff, and every number in it can
 be recomputed (`agent/alpaca-agent-tikhon.yaml`, `provenance_test.go`, `make claims`).
 
+**An agent that can reach anything.** A model given a shell and a network can call
+whatever it likes, and nothing afterwards can say what it called. Here the agent sits
+alone on a private network with three ways out, each a service that records what
+passed through: the risk engine for orders and market data, the model gateway for its
+own thinking, and a forward proxy that answers only for the hosts in an allowlist and
+refuses and logs the rest. Widening the list is a commit, not a turn
+(`compose.yaml`, `docker/egress/filter.txt`, `docs/architecture.md`).
+
 **A stack only its author can run.** A system that needs a particular cloud, a
 managed database or a vendor console is a system nobody else can check. This one is
 a compose file: agent, broker server, record, page, migrations and egress proxy come
