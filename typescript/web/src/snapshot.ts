@@ -45,6 +45,35 @@ export const MEASUREMENTS: Measurement[] = [
   },
 ]
 
+// The account this page is about, published so a judge can open it rather than
+// take the figures on trust. It is what the README submits and what `/live` reads.
+export const ACCOUNT = 'PA3BXFR0ZVYC'
+
+// THE MARKET OVER THE SAME WINDOW. A return means nothing until the reader knows
+// what the market did while it was earned: "+2.06%" is a number, "+2.06% against
+// +0.76%" is a result. Taken from the same market data the agent reads, on the
+// same feed, so the comparison can be checked from where it came from.
+export const BENCHMARK = {
+  name: 'SPY',
+  percent: 0.76,
+  window: 'open of 31 August to close of 3 September',
+  sessions: 4,
+}
+
+// What the sessions themselves did, counted in the stand's own record over the
+// JUDGED TRADING WEEK - the window the organiser measures, Monday to Friday, and
+// the same window the profit beside it is earned in. The record holds a handful
+// of rows from before that window; they are not counted here, because a number
+// standing beside this week's profit has to describe this week.
+//
+// The pair is chosen for the RATIO between them, which is the whole argument: the
+// agent woke 152 times and committed 16. A page showing only the trades describes
+// an agent that always trades.
+export const ACTIVITY: [string, string][] = [
+  ['sessions it ran', '152'],
+  ['intents it filed', '16'],
+]
+
 // The week as it ran on the account above, counted from the BROKER's own order
 // list rather than from our record - that is the list a judge can open beside this
 // page, and the two have to agree. Sessions and intents are not here for the same

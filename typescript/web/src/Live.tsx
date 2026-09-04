@@ -25,7 +25,18 @@ import type {
 import { readEverything } from './api'
 import { Equity } from './Equity'
 import { ago, clock, dollars, percent, signed, took, trim } from './format'
-import { Card, Chip, Empty, Eyebrow, Figure, Figures, Section, Table, Unavailable } from './parts'
+import {
+  Card,
+  Chip,
+  Empty,
+  Eyebrow,
+  Figure,
+  Figures,
+  inline,
+  Section,
+  Table,
+  Unavailable,
+} from './parts'
 
 // Every fifteen seconds. Not a stream: the data changes once a minute or two,
 // and a stream costs complexity that would not pay for itself in a week.
@@ -459,37 +470,6 @@ function TurnCard({
       ))}
     </div>
   )
-}
-
-// The markup in the agent's words.
-//
-// Ours rather than a library's, and that is counted: across the lines collected
-// so far there are exactly `**bold**` (15 times), `` `code` `` (14) and two list
-// items. No headings, no links, no tables, no code blocks. A full parser costs a
-// hundred kilobytes on top of the hundred and eighty already added - a bad trade
-// for two constructs.
-//
-// Anything unfamiliar stays as text: a heading, if one ever appears, will show as
-// a line with a hash - exactly as it does today, and no worse. There can be no
-// HTML injection here: React escapes text on output, and we build nodes rather
-// than a markup string.
-const marks = /(\*\*[^*]+\*\*|`[^`]+`)/g
-
-function inline(text: string) {
-  return text.split(marks).map((piece, index) => {
-    if (piece.startsWith('**') && piece.endsWith('**') && piece.length > 4) {
-      return <strong key={index} className="font-semibold">{piece.slice(2, -2)}</strong>
-    }
-    if (piece.startsWith('`') && piece.endsWith('`') && piece.length > 2) {
-      return (
-        <code key={index} className="rounded bg-surface-sunk px-1 py-0.5 font-mono text-[13px]">
-          {piece.slice(1, -1)}
-        </code>
-      )
-    }
-
-    return piece
-  })
 }
 
 function Spoken({ text }: { text: string }) {

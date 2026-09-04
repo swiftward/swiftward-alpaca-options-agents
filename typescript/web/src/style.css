@@ -30,6 +30,8 @@
 
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
+  --color-mark: var(--mark);
+  --color-mark-ink: var(--mark-ink);
   --color-info: var(--accent-info);
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -67,6 +69,41 @@
 [data-theme='dark'] {
   --gain: #4ecb87;
   --loss: #f0836c;
+}
+
+/* ============================================================
+   The code panel, and it is DARK ON PURPOSE on a page that is fixed light.
+   Not a theme switch and not the `dark:` variant this project forbids - the panel
+   carries its own ground the way a photograph does, so it reads as the file
+   itself rather than as a quotation of it, and it is the one place on the page
+   where the eye is meant to stop.
+
+   These are not roles and they are not gain and loss. A colour here says "this
+   token is a key", never anything about money or state, which is why it is kept
+   out of theme.css beside those two rather than added to the role layer. Nothing
+   but the code panel may use them. Values are GitHub's dark set, whose contrast
+   on this ground is known.
+   ============================================================ */
+@theme inline {
+  --color-code-bg: var(--code-bg);
+  --color-code-chrome: var(--code-chrome);
+  --color-code-edge: var(--code-edge);
+  --color-code-fg: var(--code-fg);
+  --color-code-key: var(--code-key);
+  --color-code-string: var(--code-string);
+  --color-code-number: var(--code-number);
+  --color-code-punct: var(--code-punct);
+}
+
+:root {
+  --code-bg: #0d1117;
+  --code-chrome: #161b22;
+  --code-edge: #21262d;
+  --code-fg: #c9d1d9;
+  --code-key: #79c0ff;
+  --code-string: #a5d6ff;
+  --code-number: #d2a8ff;
+  --code-punct: #8b949e;
 }
 
 /* The optical size is pinned to 32 everywhere, so every element is drawn at the

@@ -30,9 +30,23 @@
      One says the page is live and where to look; one says a number is
      information rather than a state. Profit and loss are below, in their own
      roles, and deliberately not these: a page coloured by one green would mean
-     "it is running" and "we are up" at once. */
-  --signal-500: #12a150;
+     "it is running" and "we are up" at once.
+
+     THE SIGNAL IS THE BRAND BLUE, and it used to be a green a shade off the one
+     profit is written in - which is the exact confusion the paragraph above
+     forbids, sitting in the file that forbids it. It also failed to be readable:
+     white on that green measures 3.37:1, under the 4.5:1 a body of text needs.
+     White on this blue measures 8.08:1, and green is now left saying one thing
+     only, which is money. */
+  --sw-blue-700: #1142c4;
   --info-500: #3b6fe0;
+
+  /* Alpaca's yellow, and it is a MARKER rather than a third signal. Measured:
+     black on it is 13.95:1 and white on it is 1.41:1, so it can only ever be a
+     ground with dark ink on top - as text on this page's own background it comes
+     to 1.41:1, which is invisible. It says "this is the sentence to take away",
+     and it says nothing about state or money. */
+  --sw-yellow-400: #fcd72b;
 
   /* ---------- Radii ---------- */
   --r-xs: 4px;
@@ -63,8 +77,10 @@
   --border-strong: var(--grey-200);
   --divider: var(--grey-150);
 
-  --accent: var(--signal-500);
+  --accent: var(--sw-blue-700);
   --accent-ink: var(--grey-950);
+  --mark: var(--sw-yellow-400);
+  --mark-ink: var(--grey-950);
   --accent-info: var(--info-500);
 
   --focus-ring: var(--info-500);
@@ -91,9 +107,11 @@
   --border-strong: var(--grey-600);
   --divider: var(--grey-700);
 
-  --accent: var(--signal-500);
+  --accent: var(--info-500);
   --accent-ink: var(--grey-0);
+  --mark: var(--sw-yellow-400);
+  --mark-ink: var(--grey-950);
   --accent-info: var(--info-500);
 
-  --focus-ring: var(--signal-500);
+  --focus-ring: var(--info-500);
 }

@@ -1,9 +1,11 @@
-import { ArrowDown, Eye, EyeOff, FileCode, Ruler } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { ArrowDown, CircleSlash, Eye, EyeOff, FileCode, Layers } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+
+import { Link } from 'react-router'
 
 import { Boundary } from './Boundary'
-import { Card, Chip, Eyebrow, Figure, Figures } from './parts'
-import { COUNTS, MEASUREMENTS, OPENED, SAID, type Measurement } from './snapshot'
+import { Card, Chip, Eyebrow, Figure, Figures, inline, Panel } from './parts'
+import { ACCOUNT, ACTIVITY, BENCHMARK, MEASUREMENTS, OPENED, type Measurement } from './snapshot'
 
 // The landing page: what this is, how it differs, and where to go and look.
 //
@@ -40,10 +42,10 @@ export function Landing() {
           <p className="mt-6 max-w-[46ch] text-[20px] leading-[1.35] tracking-[-0.01em] text-secondary">
             A harness that puts intent, a model and policy on one line — so that what the agent
             means to do is written down, what it decides is its own, and{' '}
-            <span className="font-medium text-strong">what it may lose is not its to change.</span>
+            <Mark>what it may lose is not its to change</Mark>.
           </p>
 
-          <Settled />
+          <Actions />
         </div>
 
         <div className="lg:col-span-5">
@@ -51,52 +53,157 @@ export function Landing() {
         </div>
       </div>
 
-      {/* Four numbers in the order the page argues them: what the session does,
-          what holds it, what its numbers rest on. */}
+      {/* THE PLAQUE IS THE ACCOUNT. It used to hold four facts about the system -
+          windows, names, limits, checks - which are all argued at length further
+          down; on the first screen they asked the reader to take an interest
+          before being given a reason to. What the account is worth, what it made,
+          and how much deciding produced it is the reason.
+
+          Equity and the profit come from the same array section 07 prints, and
+          the profit is worked out from the opening balance, so the two places
+          cannot drift apart. */}
       <div className="mt-14">
-        <Figures>
-          <Figure name="windows the file declares" value="13" />
-          <Figure name="names read on every pass" value="284" />
-          <Figure name="risk limits in the prompt" value="0" icon={EyeOff} />
-          <Figure name="published numbers that recompute" value="25 / 25" />
+        <Figures spread>
+          <Figure name="equity" value={money(SETTLED.equity as number)} />
+          <Figure
+            name={`P&L since the $${OPENED.toLocaleString('en-US')} start`}
+            value={`${change((SETTLED.equity as number) - OPENED)} · ${(
+              (((SETTLED.equity as number) - OPENED) / OPENED) *
+              100
+            ).toFixed(2)}%`}
+            tone="gain"
+          />
+          {/* The market goes NEXT TO the profit, not in a footnote, because the
+              two are one claim and reading either alone gets it wrong. */}
+          <Figure
+            name={`${BENCHMARK.name} over the same window`}
+            value={`+${BENCHMARK.percent.toFixed(2)}%`}
+          />
+          {ACTIVITY.map(([name, value]) => (
+            <Figure key={name} name={name} value={value} />
+          ))}
         </Figures>
+
+        {/* ONE CAPTION, not two loose blocks. What stood here was a full-width
+            line of uppercase mono and a four-line paragraph under it, and neither
+            belonged to anything: a reader met them after the numbers had already
+            been read and had no reason to start.
+
+            The account's id earns its place - it is what lets a judge open the
+            account instead of trusting the figures - and so does the sample-size
+            caveat, which is better said by us than raised by a judge. The claim
+            about numbers recomputing came out: it is made in full, with the
+            command that proves it, on the page for judges. */}
+        <p className="mt-4 max-w-[86ch] text-[13px] leading-relaxed text-muted">
+          <span className="font-mono text-secondary">{ACCOUNT}</span> · Alpaca paper ·{' '}
+          {BENCHMARK.sessions} trading days, {BENCHMARK.window}. Four sessions cannot separate skill
+          from a good draw; the evidence for the strategy is the 646 trading days of option prices
+          committed to the repository.
+        </p>
       </div>
 
+      {/* THE THREE THINGS THIS PROJECT HAS THAT THE FIELD DOES NOT.
+          What stood here was longer and softer - three paragraphs a reader skims
+          and remembers none of. Each is now one fact with a number behind it,
+          because a card is read in about four seconds and what is not read is not
+          an argument. The long version of each is in the sections below and in
+          the repository, which is where a reader who wants it goes.
+
+          The limits are NOT one of the three, and that is deliberate: the page
+          makes that claim four times before this block - in the headline, in the
+          sentence under it, on the accented step of the diagram, and for the whole
+          of section 02. What the page did not say anywhere was that a session
+          reads and decides at all. In this field that is the rare half: the usual
+          "agent" is deterministic gates around a single model call. */}
       <div className="mt-16 mb-20 grid gap-4 sm:grid-cols-3">
         <Claim
           icon={FileCode}
-          title="Written, not coded"
-          says="A declaration and five playbooks, all of it prose the session reads as it acts. Changing what the agent does is editing a file."
+          title="A session, not a pipeline"
+          says="The screener prices the permitted field every few minutes. A session then reads its five playbooks and chooses: structure, strikes, size — or no trade at all."
         />
         <Claim
-          icon={Ruler}
-          title="Limits it cannot reach"
-          says="Nothing about risk is in its instructions. An order is refused before it reaches the broker, and there is nothing in the session's reach to edit."
+          icon={Layers}
+          title="The test moves the real book"
+          says="No replay, no simulation. Every price comes from the live broker with one number displaced. At zero displacement it matches the market to the cent."
         />
         <Claim
-          icon={Eye}
-          title="Its refusals, not just its trades"
-          says="What woke it, what it asked the broker, what it concluded — in its own words, including the passes that priced six candidates and took none. A page that shows only the entries is describing a different agent."
+          icon={CircleSlash}
+          title="The rule our data killed"
+          says="Our defence closed a position when the strike was touched. Over 672 trades it lost to doing nothing. We published that and changed the rule."
         />
       </div>
 
+      {/* SECTIONS 01 TO 04 ARE THE FOUR STEPS OF THE DIAGRAM ABOVE, in the order
+          the diagram draws them. The first screen promises a shape; these prove it.
+          Before this the sections were about the harness, the limits, the
+          instrument and the research, which is a different list from the one the
+          picture at the top had just made a reader memorise. */}
+
       <Block
-        label="01 · the harness"
-        title="The file is the agent."
-        explains="A window says when a session starts and what it is asked. It never says what to trade. We edited one while the market was open and the next session read the new rule — no restart, no deploy."
+        label="01 · intent"
+        title="It says what it means to do, before it may do it."
+        explains="A window wakes a session with a CAUSE and a task, never an answer. Nothing in the file says what to trade. What the session then writes down is filed before the order exists, and the order refers back to it."
       >
         <Card>
           <Day />
-          <pre className="mt-8 overflow-x-auto border-t border-line pt-6 font-mono text-[13px] leading-relaxed text-secondary">
-            {SCHEDULE}
-          </pre>
+          <div className="mt-8 border-t border-line pt-6">
+            <Yaml source={SCHEDULE} />
+          </div>
+          {/* WHAT THE FILE BUYS YOU, said under the file itself, and how the thing
+              learns - which is the same sentence, because here they are the same
+              mechanism.
+
+              The word `self-improving` is deliberately absent. It promises a
+              system that rewrites itself, and ours does not: a person edits the
+              file. That is the ADVANTAGE, not the shortfall - a system that
+              improves itself in a way nobody can point at cannot be taken apart
+              after a bad day. Saying `learns` keeps the claim true. */}
+          <Pull>Every change to how it trades is a diff. Every number in it can be recomputed.</Pull>
+          <p className="mt-4 text-[15px] leading-relaxed text-secondary">
+            Everywhere else that is a deploy. Here it is an edit — and that is also how it
+            learns: whole rules are added, rewritten and deleted, not only numbers tuned, and the
+            file records what each change was made on. The defence rule was deleted because 672
+            trades said it lost to doing nothing.
+          </p>
         </Card>
       </Block>
 
       <Block
-        label="02 · the limits"
+        label="02 · the model"
+        title="Six hundred priced by code. Six judged by the model."
+        explains={
+          <>
+            The line is drawn on one question: <Mark>can the answer be wrong in an interesting
+            way?</Mark> Applying one formula six hundred times cannot — that is arithmetic, and it
+            is code. Whether today's news makes a rich structure a trap can, and that is the
+            session's.
+          </>
+        }
+      >
+        <Card>
+          <Funnel />
+          <Pull>Give a model everything and it is a script with a random number generator in it.</Pull>
+        </Card>
+
+        <div className="mt-4">
+          <Card>
+            <Payoff />
+            <p className="mt-7 text-[15px] leading-relaxed text-secondary">
+              What it picks is always bounded: it sold the right to buy SPY at $772 and bought the
+              right to buy at $773. That gap is the whole risk — $0.20 a spread comes in, and no
+              move in the world costs more than the gap less the credit.
+            </p>
+            <Pull>
+              A stop-loss is a hope: it fills where the market lets it. A bought leg is a contract.
+            </Pull>
+          </Card>
+        </div>
+      </Block>
+
+      <Block
+        label="03 · policy"
         title="It knows the wall is there. It does not know where."
-        explains="Every rule carries how much of itself it discloses. Tell a session the size cap and it splits one order into four; tell it only that a rule exists, and there is nothing to route around."
+        explains="Every rule carries how much of itself it discloses. Tell a session the size cap and it splits one order into four; tell it only that a rule exists, and there is nothing to route around. The service the order passes through is what refuses it, and the refusal names the rule."
       >
         <Card>
           <Envelope />
@@ -105,22 +212,35 @@ export function Landing() {
       </Block>
 
       <Block
-        label="03 · what it trades"
-        title="The worst case is arithmetic, and it is known before the order goes out."
-        explains="It sold the right to buy SPY at $772 and bought the right to buy at $773. That gap is the whole risk: $0.20 a spread comes in, and no move in the world costs more than the gap less the credit."
+        label="04 · the order"
+        title="The price is walked. Every concession is re-priced first."
+        explains="The session names the structure, the size and the worst price it will accept. From there code takes over: it walks the limit toward the book a cent at a time, and before every concession it re-computes what the structure would pay at the new price — refusing the concession if it falls below the entry threshold."
       >
         <Card>
-          <Payoff />
+          <Ladder />
+          {/* The gap is NAMED here rather than left for a judge to find. A page that
+              lists only the guards that worked is describing a different system. */}
+          <p className="mt-7 text-[15px] leading-relaxed text-secondary">
+            Two of the three ceilings are re-checked here after the session has done its
+            arithmetic. The third, the one that bounds everything betting the same way, is
+            disclosed to the session and nothing in this code re-checks it — which is the gap
+            3 September ran into, and it is written down rather than left to be found.
+          </p>
           <Pull>
-            A stop-loss is a hope: it fills where the market lets it. A bought leg is a contract.
+            A guard that can only cancel a resting order is an observation, not a limit.
           </Pull>
         </Card>
       </Block>
 
       <Block
-        label="04 · the measurements"
+        label="05 · the measurements"
         title="We deleted our own defence rule."
-        explains="It closed a spread the moment price touched the sold strike, and it felt prudent for four months. Measured across 672 trades, it loses to doing nothing."
+        explains={
+          <>
+            It closed a spread the moment price touched the sold strike, and it felt prudent for
+            four months. Measured across 672 trades, <Mark>it loses to doing nothing</Mark>.
+          </>
+        }
       >
         <Card>
           <Exits />
@@ -130,42 +250,11 @@ export function Landing() {
           </p>
           <Pull>A measurement that only ever agrees with you is not a measurement.</Pull>
         </Card>
+
       </Block>
 
       <Block
-        label="05 · check it yourself"
-        title="One command. No credentials. No network."
-        explains="Every figure this project publishes about its own measurements is recomputed from data committed to the repository. Beside them run thirteen trials that attack the agent rather than confirm it — one failed, and took the rule above with it."
-      >
-        <Card>
-          <div className="rounded-lg border border-line bg-surface-sunk p-5">
-            <p className="font-mono text-[13px] text-muted">$ make claims</p>
-            <pre className="mt-4 overflow-x-auto font-mono text-[13px] leading-relaxed text-secondary">
-              {CLAIMS_OUTPUT}
-            </pre>
-          </div>
-          <p className="mt-6 text-[15px] leading-relaxed text-secondary">
-            Twenty-five claims, none failing. Six are shown; the rest cover the expiry gradient, the
-            per-underlying returns and the cost of crossing the book.
-          </p>
-        </Card>
-      </Block>
-
-
-
-      <Block label="06 · the brief" title="What the hackathon asked for.">
-        <div className="grid gap-4 sm:grid-cols-3">
-          {REQUIRED.map(([asked, met]) => (
-            <Card key={asked}>
-              <Chip>{asked}</Chip>
-              <p className="mt-4 text-[15px] leading-relaxed text-secondary">{met}</p>
-            </Card>
-          ))}
-        </div>
-      </Block>
-
-      <Block
-        label="07 · the result"
+        label="06 · the result"
         title="Two judges, two clocks, and both are named here."
         explains="One account, opened at $100,000 on the kickoff day and never reset. The result is taken twice by two measurements that do not agree on when the week ends, so both cut-offs are printed with the rule each of them uses."
       >
@@ -175,31 +264,17 @@ export function Landing() {
               <Measured key={m.by} of={m} />
             ))}
           </ul>
-
-          <div className="mt-8 border-t border-line pt-6">
-            <Figures>
-              {COUNTS.map(([name, value]) => (
-                <Figure key={name} name={name} value={value} />
-              ))}
-            </Figures>
-          </div>
-
-          <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
-            what it said, unedited
-          </p>
-          <ul className="m-0 mt-4 list-none space-y-px p-0">
-            {SAID.map((line) => (
-              <li key={line.at} className="rounded-md bg-surface-sunk px-4 py-3">
-                <p className="font-mono text-[11px] text-muted">{line.at}</p>
-                <p className="mt-1.5 text-[15px] leading-relaxed text-secondary">{line.text}</p>
-              </li>
-            ))}
-          </ul>
-          <Pull>
-            Three of those six are the session deciding not to trade. That is the proportion the
-            week actually had.
-          </Pull>
         </Card>
+
+        {/* The page ends by handing the reader off. Both figures above are frozen -
+            they have to be, a poster cannot depend on a broker answering - and the
+            honest next sentence is "the moving one is over here". */}
+        <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-3">
+          <LiveLink />
+          <span className="text-[15px] text-secondary">
+            Both figures above are frozen. The account itself is not.
+          </span>
+        </div>
       </Block>
     </main>
   )
@@ -285,55 +360,469 @@ function Flow() {
 
 // The trading day and what the file puts in it. Three entries open the account;
 // what keeps it repeats too often to draw and is said in a line instead.
+type Window = {
+  hour?: number
+  name: string
+  closes?: boolean
+  rule: string
+  said: { at: string; text: string }
+  // The intent as the record holds it, and ONLY where one was actually filed.
+  // Two of the five windows below have one, and they are exactly the two where an
+  // order was sent - which is the section's whole claim, shown rather than said:
+  // no intent, no order.
+  filed?: { structure: string; worst: string }
+}
+
+// One trading day, and what each window is FOR - taken from the declaration's own
+// `cause` field, word for word - beside what the session actually said in it,
+// taken from the record on the stand, unedited.
+//
+// The marks are buttons rather than a hover: a tooltip does not exist on a phone,
+// and half the readers of this page are on one. Choosing a window is also how a
+// keyboard gets at the same thing.
+//
+// THE LINES ARE CHOSEN FOR WHAT THEY SHOW, NOT FOR FALLING ON ONE DAY. The axis is
+// a day as the file declares it; each line carries its own date, and they come
+// from three different ones. An earlier set was four refusals in a row, which read
+// as an agent that never does anything - and where a line had not been looked for
+// at all it said "nothing in the record", which reads as a broken page. Three of
+// the five below are the session ACTING: two orders sent and one position bought
+// back.
+//
+// A line is attached only where its timestamp falls inside that window. Putting a
+// line under the wrong session would be inventing a quotation.
+// The four that sit on the axis: each happens once, at a declared hour.
+type Timed = Window & { hour: number }
+
+const WINDOWS: Timed[] = [
+  {
+    hour: 10.33,
+    name: 'entry',
+    rule: 'morning entry window, taken only when premium is dear',
+    said: {
+      at: '1 September, 10:20',
+      text: 'Used task thresholds (13% credit-to-risk, +3 fresh edge, one underlying) under envelope `2026-08-31.1`. Submitted 123 QQQ Sep 4 717/718 call spreads at −0.29 credit, worst −0.26.',
+    },
+    filed: {
+      structure:
+        'Sell 123 QQQ260904C00717000 (717 calls) and buy 123 QQQ260904C00718000 (718 calls), same-expiry call credit spread; seek 0.29 credit and accept no worse than 0.26 credit.',
+      worst:
+        '$9,102 at a 0.26 credit (74 points risk x 123 contracts x $100), 8.95% of 101719.3 equity; sized to nine-tenths of the envelope’s 10% position maximum under ruleset `2026-08-31.1`.',
+    },
+  },
+  {
+    hour: 12.5,
+    name: 'entry',
+    rule: 'midday entry window: a position taken here lives half a session',
+    said: {
+      at: '1 September, 12:30',
+      text: 'The screener is fresh. The top three candidates by listed edge — therefore the only three I will re-price this turn — are SPY Sep 8 774/775 calls (+3.07), QQQ Sep 2 714/715 calls (+2.33) and IWM Sep 4 295/296 calls (−0.07).',
+    },
+  },
+  {
+    hour: 14.33,
+    name: 'entry',
+    rule: 'the main entry window of the day',
+    said: {
+      at: '31 August, 14:20',
+      text: 'I took the task’s 0.30 delta cap, +3 fresh-edge rule, borrowed-edge >0 rule, and 2% fuse; the envelope governed. After QQQ and SPY failed fresh tests, I submitted 40 META 570/567.5 put spreads at 0.37 credit, worst 0.29; accepted loss $8,840.',
+    },
+    filed: {
+      structure:
+        'Sell 40 META260831P00570000 (570 puts) and buy 40 META260831P00567500 (567.5 puts), same-day vertical credit spread; seek 0.37 credit, accept no worse than 0.29 credit.',
+      worst:
+        '$8,840 at a 0.29 credit (calculated: $221 x 40 contracts; 2.5-point width less $0.29 credit), 8.79% of 100652.95 equity; 90% sizing ceiling is 9% and envelope position maximum is 10% under ruleset `2026-08-31.1`.',
+    },
+  },
+  {
+    hour: 15.67,
+    name: 'flatten',
+    closes: true,
+    rule: 'close what must not be held overnight',
+    said: {
+      at: '2 September, 15:40',
+      text: 'The chain spacing is 2.5 points, so the half-gap threshold is 1.25; SMH `p=549.67` is 5.33 below the 555 short strike. It is not near assignment, so I’m leaving it to expire.',
+    },
+  },
+]
+
+// EVERYTHING THAT IS NOT A TIME OF DAY. The file declares thirteen windows; four
+// of them sit on the axis above because they happen once at a fixed hour, and
+// these five do not - three run on a cadence all day, two only on their own day of
+// the week. They were missing entirely, and with them the picture was claiming a
+// trading day is three entries and a close.
+//
+// A row of pills rather than dashed bands stacked under the axis: five bands would
+// be five lines of furniture, and a pill is a control a reader already knows how
+// to read.
+const OTHERS: Window[] = [
+  {
+    name: 'news · every half hour',
+    rule: 'news check on the underlyings we hold',
+    said: {
+      at: '1 September, 09:35',
+      text: 'Relevant news: oil/U.S.–Iran risk, higher yields, and rising September Fed-hike expectations affected SPY/QQQ; no IWM-specific item. SPY alone is held; at 762.305 it remains 19.305 from the 743 short strike versus the 7.905 trigger threshold. No wake-up or order.',
+    },
+  },
+  {
+    name: 'defence · every half hour',
+    rule: 'the defence rules',
+    said: {
+      at: '31 August, 11:09',
+      text: 'Closing a structure that has given back its credit: buy-back at 0.10 against 0.36 taken, which is 27.8% of the credit given up against the 35% the numbers allow.',
+    },
+  },
+  {
+    name: 'convexity · every two hours',
+    rule: 'convexity layer: a cheap bet on a large move, bounded and known',
+    said: {
+      at: '31 August, 13:51',
+      text: 'I took the task’s 1.5/2.5-sigma placement rules, 2% loss caps and 10% width round-trip cap; the envelope governed. Submitted 2 SPY Sep 2 743/734 put-backspread sets at 0.04 debit, worst 0.05; accepted loss $1,810.',
+    },
+  },
+  {
+    name: 'earnings · Wednesday',
+    rule: 'the earnings window: if a report lands after the close tonight, sell what the unknown has inflated',
+    said: {
+      at: '2 September, 15:20',
+      text: 'The measurement is nearly neutral: fresh AVGO 4 September 370-strike mids imply about 8.09%, against the task’s 8.0% median realized move. The resulting ratio is between the task’s 0.8 buy and 1.3 sell thresholds.',
+    },
+  },
+  {
+    name: 'event bet · Thursday',
+    rule: 'the employment number lands in the morning: buy the gap tonight',
+    said: {
+      at: '3 September, 15:30',
+      text: 'SPY was 773.435; account equity $102,335.60 and positions were empty. Submitted and accepted: 8 Sep-4 773 straddles at $4.00 debit, max loss $3,200; and 174 Sep-4 762P/785C strangles at $0.11 debit, max loss $1,914. Total worst case $5,114, or 4.999% of equity.',
+    },
+  },
+]
+
+
 function Day() {
-  // The three windows that may open the account, and the one that empties it.
-  // `open-check` at 10:00 was here and is not: twenty minutes from the first
-  // entry, its label ran into the next one and the two read as one word.
-  const marks: [number, string][] = [
-    [10.33, 'entry'],
-    [12.5, 'entry'],
-    [14.33, 'entry'],
-    [15.67, 'flatten'],
-  ]
+  // The morning entry opens selected because it is the one window in the day with
+  // a filled trade behind it, and an empty state here would waste the picture.
+  const [chosen, setChosen] = useState<Window>(WINDOWS[0])
   const at = (hour: number) => ((hour - 9.5) / 6.5) * 100
 
   return (
     <figure className="m-0">
       <figcaption className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
-        one trading day, as the file declares it
+        a trading day as the file declares it — choose a window
       </figcaption>
+
       {/* The day scrolls in its own box on a narrow screen rather than pushing the
           card sideways: at 330px the last label sits past the right edge, and a
           page that scrolls horizontally as a whole is worse than a strip that
           does. */}
-      <div className="overflow-x-auto">
-        <div className="relative mt-9 h-px min-w-[420px] bg-line-strong">
-          {marks.map(([hour, name], index) => (
-            <div
-              key={index}
-              className="absolute top-0 -translate-x-1/2"
-              style={{ left: `${at(hour)}%` }}
-            >
-              <div className="mx-auto size-2 -translate-y-1/2 rounded-full bg-accent-ink" />
-              <p className="mt-3 whitespace-nowrap font-mono text-[11px] text-secondary">{name}</p>
+      <div className="overflow-x-auto pb-1">
+        <div className="min-w-[420px]">
+          <div className="relative mt-9 h-px bg-line-strong">
+            {WINDOWS.map((window) => {
+              const on = window === chosen
+              return (
+                <button
+                  key={window.hour}
+                  type="button"
+                  onClick={() => setChosen(window)}
+                  aria-pressed={on}
+                  className="absolute top-0 -translate-x-1/2 cursor-pointer"
+                  style={{ left: `${at(window.hour)}%` }}
+                >
+                  <span
+                    className={`mx-auto block rounded-full transition-all ${
+                      on ? 'size-3.5 ring-4' : 'size-2.5'
+                    } ${
+                      window.closes
+                        ? 'bg-accent-ink ring-accent-ink/15'
+                        : 'bg-accent ring-accent/20'
+                    }`}
+                    style={{ marginTop: on ? '-7px' : '-5px' }}
+                  />
+                  <span
+                    className={`mt-3 block whitespace-nowrap font-mono text-[11px] transition-colors ${
+                      on ? 'text-primary' : 'text-muted hover:text-secondary'
+                    }`}
+                  >
+                    {window.name}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="mt-11 flex justify-between font-mono text-[11px] text-muted">
+            <span>09:30</span>
+            <span>16:00</span>
+          </div>
+
+          {/* Pills, not bare text on a line. As plain text the one that used to be
+              here was indistinguishable from the axis captions around it and
+              nobody would guess it could be chosen. */}
+          <div className="mt-8 border-t border-line pt-5">
+            <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+              and underneath, or on their own day
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {OTHERS.map((window) => {
+                const on = window === chosen
+                return (
+                  <button
+                    key={window.name}
+                    type="button"
+                    onClick={() => setChosen(window)}
+                    aria-pressed={on}
+                    className={`cursor-pointer whitespace-nowrap rounded-full border px-3 py-1.5 font-mono text-[11px] transition-colors ${
+                      on
+                        ? 'border-accent bg-accent text-on-accent'
+                        : 'border-line bg-surface-raised text-muted hover:border-line-strong hover:text-primary'
+                    }`}
+                  >
+                    {window.name}
+                  </button>
+                )
+              })}
             </div>
-          ))}
-        </div>
-        <div className="mt-12 flex min-w-[420px] justify-between font-mono text-[11px] text-muted">
-          <span>09:30</span>
-          <span>16:00</span>
+          </div>
+
+          <p className="mt-5 text-[13px] leading-relaxed text-muted">
+            Thirteen windows in one file. The session sets its own wake-ups on top of them — on a
+            clock, or on a price it wants to hear about.
+          </p>
         </div>
       </div>
-      <p className="mt-6 text-[15px] leading-relaxed text-secondary">
-        Under those, a defence every fifteen minutes and a news watch on a cheaper model. The
-        session sets its own wake-ups on top — on a clock, or on a price it wants to hear about.
-      </p>
+
+      {/* What the chosen window is for, and what it once did. The box keeps a
+          floor under its height so choosing another window does not make the page
+          jump under the reader's hand. */}
+      <div
+        className={`mt-7 min-h-[164px] rounded-lg border border-l-[3px] border-line px-5 py-4 ${
+          chosen.closes ? 'border-l-accent-ink' : 'border-l-accent'
+        }`}
+      >
+        <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+          what the file asks for
+        </p>
+        <p className="mt-2 text-[17px] leading-snug text-primary">{chosen.rule}</p>
+
+        <p className="mt-5 font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+          what it said · {chosen.said.at}
+        </p>
+        <p className="mt-2 text-[15px] leading-relaxed text-secondary">
+          {inline(chosen.said.text)}
+        </p>
+
+        {chosen.filed ? (
+          <div className="mt-6 border-t border-line pt-5">
+            <p className="flex flex-wrap items-center justify-between gap-3 font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+              and this is what it filed before the order existed
+              <Chip tone="accent">envelope read</Chip>
+            </p>
+            <dl className="m-0 mt-4 space-y-3">
+              <div className="flex flex-col gap-1 sm:flex-row sm:gap-5">
+                <dt className="shrink-0 font-mono text-[12px] text-muted sm:w-[86px]">structure</dt>
+                <dd className="m-0 text-[14px] leading-relaxed text-primary">
+                  {chosen.filed.structure}
+                </dd>
+              </div>
+              <div className="flex flex-col gap-1 sm:flex-row sm:gap-5">
+                <dt className="shrink-0 font-mono text-[12px] text-muted sm:w-[86px]">worst case</dt>
+                <dd className="m-0 text-[14px] leading-relaxed text-primary">
+                  {inline(chosen.filed.worst)}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        ) : null}
+      </div>
+
     </figure>
   )
 }
 
 // What comes back when the session asks what it may do. The picture exists for
 // its last row: a rule that admits it is there and withholds its number.
+// A tiny YAML highlighter for the ONE sample this page quotes.
+//
+// Not a library. The same trade the markdown in the agent's words was weighed
+// against and lost: a real highlighter is around a hundred kilobytes to colour
+// four kinds of token in twelve lines, and it would carry grammars for languages
+// this page will never show. This handles exactly the shapes the sample has - a
+// list dash, a key, a quoted string, a bracketed list, the block scalar `|` and
+// the indented prose under it - and anything it does not recognise stays the
+// colour the text already was.
+//
+// There is no injection risk: React nodes are built, never a markup string.
+function Yaml({ source }: { source: string }) {
+  return (
+    <Panel title="alpaca.yaml">
+      <pre className="m-0 font-mono text-[13px] leading-relaxed text-code-fg">
+        {source.split('\n').map((line, index) => (
+          <span key={index} className="block">
+            {colour(line)}
+            {'\n'}
+          </span>
+        ))}
+      </pre>
+    </Panel>
+  )
+}
+
+// One line at a time. Prose under `task: |` is indented four spaces or more and is
+// left as prose - it is English, and colouring it as code would say it is not.
+function colour(line: string) {
+  const key = /^(\s*)(-\s)?([a-z_]+)(:)(.*)$/.exec(line)
+  if (!key || line.startsWith('    ')) {
+    return <span className="text-code-fg">{line}</span>
+  }
+
+  const [, indent, dash, name, colon, rest] = key
+
+  return (
+    <>
+      {indent}
+      {dash ? <span className="text-code-punct">{dash}</span> : null}
+      <span className="text-code-key">{name}</span>
+      <span className="text-code-punct">{colon}</span>
+      {value(rest)}
+    </>
+  )
+}
+
+// What follows the colon: a quoted string, a bracketed list, a duration or clock
+// time, the block marker, or nothing it knows.
+function value(rest: string) {
+  const string = /^(\s*)(".*")$/.exec(rest)
+  if (string) {
+    return (
+      <>
+        {string[1]}
+        <span className="text-code-string">{string[2]}</span>
+      </>
+    )
+  }
+
+  const list = /^(\s*)(\[)(.*)(\])$/.exec(rest)
+  if (list) {
+    return (
+      <>
+        {list[1]}
+        <span className="text-code-punct">{list[2]}</span>
+        <span className="text-code-fg">{list[3]}</span>
+        <span className="text-code-punct">{list[4]}</span>
+      </>
+    )
+  }
+
+  const number = /^(\s*)(\d+[a-z]?)$/.exec(rest)
+  if (number) {
+    return (
+      <>
+        {number[1]}
+        <span className="text-code-number">{number[2]}</span>
+      </>
+    )
+  }
+
+  if (rest.trim() === '|') {
+    return (
+      <>
+        {' '}
+        <span className="text-code-punct">|</span>
+      </>
+    )
+  }
+
+  return <span className="text-code-fg">{rest}</span>
+}
+
+function Funnel() {
+  const stages: [string, string, number, boolean][] = [
+    ['priced by code, ranked by one measure', '~600', 100, false],
+    ['put in front of the session', '6', 12, true],
+    ['taken', '0 or 1', 3, true],
+  ]
+
+  return (
+    <figure className="m-0">
+      <figcaption className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+        one pass, every few minutes
+      </figcaption>
+      <ul className="m-0 mt-5 list-none space-y-4 p-0">
+        {stages.map(([name, count, width, judged]) => (
+          <li key={name}>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+              <span className="text-[15px] text-secondary">{name}</span>
+              <span className="font-mono text-[15px] tabular-nums text-primary">{count}</span>
+            </div>
+            <div className="mt-2 h-2 w-full rounded-full bg-surface-sunk">
+              <div
+                className={`h-2 rounded-full ${judged ? 'bg-accent' : 'bg-accent-ink'}`}
+                style={{ width: `${width}%` }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </figure>
+  )
+}
+
+// The limit walked toward the book, and the two things that stop it. The floor is
+// the price the SESSION named; past it the order is cancelled rather than conceded,
+// which is the difference between patience and desperation.
+function Ladder() {
+  const steps: [string, string][] = [
+    ['0.79', 'placed at the price the session asked for'],
+    ['0.78', 'one cent conceded, re-priced first'],
+    ['0.77', 'one cent conceded, re-priced first'],
+    ['0.76', 'the worst the session named'],
+  ]
+
+  return (
+    <figure className="m-0">
+      <figcaption className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+        the limit walked toward the book
+      </figcaption>
+      <ol className="m-0 mt-5 list-none space-y-1 p-0">
+        {steps.map(([price, what], index) => {
+          const floor = index === steps.length - 1
+          return (
+            <li
+              key={price}
+              className={`flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 rounded-lg border px-4 py-3 ${
+                floor
+                  ? 'border-accent bg-accent text-on-accent'
+                  : 'border-line bg-surface-raised'
+              }`}
+            >
+              <span className="flex items-baseline gap-3">
+                <span
+                  className={`font-mono text-[15px] tabular-nums ${
+                    floor ? 'font-medium' : 'text-primary'
+                  }`}
+                >
+                  {price}
+                </span>
+                <span className={`text-[14px] ${floor ? '' : 'text-secondary'}`}>{what}</span>
+              </span>
+              {floor ? (
+                <span className="rounded-full border border-on-accent/40 px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-[0.04em]">
+                  floor
+                </span>
+              ) : null}
+            </li>
+          )
+        })}
+      </ol>
+      <p className="mt-4 text-[15px] leading-relaxed text-secondary">
+        Below the floor there is no next step: what the book will not take is{' '}
+        <Mark>cancelled, not conceded</Mark>.
+      </p>
+    </figure>
+  )
+}
+
 function Envelope() {
   const rules: [string, string, boolean][] = [
     ['per-position', '10 percent of equity', true],
@@ -351,7 +840,7 @@ function Envelope() {
         {rules.map(([rule, value, disclosed]) => (
           <li
             key={rule}
-            className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 rounded-md bg-surface-sunk px-4 py-3"
+            className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 rounded-lg border border-line bg-surface-raised px-4 py-3"
           >
             <span className="flex items-center gap-3 font-mono text-[13px] text-secondary">
               {disclosed ? (
@@ -456,38 +945,25 @@ const EXITS: [string, number, boolean][] = [
   ['close a full width past the sold strike', 3.46, false],
 ]
 
-const CLAIMS_OUTPUT = `PASS  646 trading days covered          646
-PASS  one day to expiry pays          10.72
-PASS  0.30 delta beats 0.45            True
-PASS  holding pays a trade             2.94
-PASS  closing on the touch             2.32
-PASS  take-profit at 0.35 returns      6722
 
-25 claims, 0 failed`
-
-const SCHEDULE = `- name: defend
-  cause: "checking the defence rules"
-  every: 15m
-  between: ["09:40", "15:55"]
+// A faithful excerpt of the submitted declaration, not a paraphrase of it. The
+// sample here once quoted the DEFENCE window - a rule about counting legs, which
+// is housekeeping - and it said `every: 15m` where the file says 30m, with a cause
+// of its own invention. This is an ENTRY window instead, because it carries the
+// section's claim in the file's own words: even the condition for taking a trade
+// is a judgement to be made, not a number to be met. The `...` marks where the
+// task is cut; nothing inside the quoted lines is altered.
+const SCHEDULE = `- name: entry-morning
+  cause: "morning entry window, taken only when premium is dear"
+  at: "10:20"
+  within: 45m
+  days: [mon, tue, wed, thu]
   task: |
-    First read the intents (read_state). A position whose
-    intent says plainly that it was opened as a CHECK is
-    not to be touched under any circumstances...`
+    ...
+    A morning entry is not taken every day: a whole day of
+    movement lies ahead, so the premium has to be dear by a
+    measure visible in the chain itself.`
 
-const REQUIRED: [string, string][] = [
-  [
-    'autonomous agent',
-    'A model session decides every trade. The schedule says when it runs and what it is asked; the code sends what the session chose and refuses what the limits forbid.',
-  ],
-  [
-    "alpaca's mcp server",
-    'Every order and every price goes through it. The account is read the same way, so what the page shows and what the agent saw are one answer.',
-  ],
-  [
-    'options only',
-    'Vertical spreads and backspreads. Never a naked short option: the largest possible loss is known before the order is sent.',
-  ],
-]
 
 // ============================================================
 // The page's own parts.
@@ -512,7 +988,7 @@ function Block({
 }: {
   label: string
   title: string
-  explains?: string
+  explains?: ReactNode
   children: ReactNode
 }) {
   return (
@@ -534,31 +1010,45 @@ function Block({
 // One measurement: who takes it, when, by what rule, and the number if that
 // moment has passed. A cut-off still ahead shows a dash rather than a figure -
 // the alternative is a number the reader cannot tell from a settled one.
-// The one measurement that is IN, shown on the first screen under the sentence it
-// proves. It reads the same array section 07 does and works the profit out from
-// the opening balance, so there is no second copy of the number to drift: when
-// the second measurement lands, this picks the settled one and stays true.
-function Settled() {
-  const taken = MEASUREMENTS.filter((m) => m.equity !== null)
-  const latest = taken[taken.length - 1]
-  if (!latest) return null
+// The measurement that is IN. One place picks it, so the plaque on the first
+// screen and the section at the foot cannot disagree, and when the second
+// measurement lands nothing here needs editing.
+const SETTLED = MEASUREMENTS.filter((m) => m.equity !== null).slice(-1)[0] ?? MEASUREMENTS[0]
 
-  const equity = latest.equity as number
-  const profit = equity - OPENED
-
+// TWO buttons, not four. The bar above already carries GitHub, and a hero that
+// repeats a link the reader can see six inches higher is spending its most
+// valuable row on nothing. The deck is not written yet, and a button for a page
+// that does not exist is worse than no button.
+//
+// The first is filled because it is the one thing a judge cannot get from any
+// other page: the account moving while they watch. The second is outlined
+// because it orients rather than persuades.
+// Used at the top of the page and again at the foot of it, so it is written once.
+function LiveLink() {
   return (
-    <div className="mt-10 border-l-2 border-accent pl-5">
-      <p className="m-0 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <span className="text-[38px] font-medium leading-none tracking-[-0.02em] text-primary tabular-nums">
-          {money(equity)}
-        </span>
-        <span className="text-[18px] font-medium tabular-nums text-gain">
-          {change(profit)} · {((profit / OPENED) * 100).toFixed(2)}%
-        </span>
-      </p>
-      <p className="mt-2.5 font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
-        {latest.by} · {latest.when} · settled · account opened at {money(OPENED)}
-      </p>
+    <Link
+      to="/live"
+      className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-[15px] font-medium text-on-accent transition-opacity hover:opacity-90"
+    >
+      <span
+        className="inline-block size-1.5 rounded-full bg-on-accent motion-safe:animate-pulse"
+        aria-hidden
+      />
+      See it live
+    </Link>
+  )
+}
+
+function Actions() {
+  return (
+    <div className="mt-9 flex flex-wrap items-center gap-3">
+      <LiveLink />
+      <Link
+        to="/submission"
+        className="inline-flex items-center rounded-lg border border-line-strong px-5 py-2.5 text-[15px] font-medium text-primary transition-colors hover:bg-surface-sunk"
+      >
+        For judges
+      </Link>
     </div>
   )
 }
@@ -568,7 +1058,7 @@ function Measured({ of }: { of: Measurement }) {
   const profit = settled ? (of.equity as number) - OPENED : 0
 
   return (
-    <li className="rounded-lg border border-line bg-surface-sunk px-5 py-4">
+    <li className="rounded-lg border border-line bg-surface-raised px-5 py-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
         <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="text-[17px] font-medium text-primary">{of.by}</span>
@@ -598,9 +1088,24 @@ function Measured({ of }: { of: Measurement }) {
 }
 
 // The line a section is remembered by, at the end of the card that earned it.
+// A marker pen, and the only thing on the page drawn in Alpaca's yellow. One
+// meaning: THIS IS THE SENTENCE TO TAKE AWAY. It is a ground with dark ink on it
+// and never text in the yellow itself - measured, black on it is 13.95:1 and the
+// yellow on this page's own background is 1.41:1, which no reader can see.
+//
+// Four of these on the whole page. A fifth would make it a colour scheme rather
+// than an emphasis, and nothing marked is emphasised.
+function Mark({ children }: { children: ReactNode }) {
+  return (
+    <mark className="rounded-[3px] bg-mark px-1.5 py-0.5 text-mark-ink decoration-clone">
+      {children}
+    </mark>
+  )
+}
+
 function Pull({ children }: { children: ReactNode }) {
   return (
-    <p className="mt-7 border-l-2 border-line-strong pl-4 text-[19px] font-medium leading-[1.4] tracking-[-0.01em] text-primary">
+    <p className="mt-7 border-l-[3px] border-mark pl-4 text-[19px] font-medium leading-[1.4] tracking-[-0.01em] text-primary">
       {children}
     </p>
   )
