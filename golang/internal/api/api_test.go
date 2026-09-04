@@ -299,3 +299,30 @@ func TestAPrerenderedRouteServesItsOwnFile(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), "the landing page")
 }
+
+// An unknown route under /api is a 404. Everything else unknown gets the page,
+// but nothing under /api is ever a browser route, and a caller that asked for
+// JSON was handed "<!doctype html" with a 200 on it.
+func TestAnUnknownApiRouteIsNotThePage(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte("the landing page"), 0o600))
+
+	handler, err := Read{Record: record.NewMemory(), WebDir: dir, Key: testKey, Log: zaptest.NewLogger(t)}.Handler()
+	require.NoError(t, err)
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/api/healthz", nil))
+	require.Equal(t, http.StatusNotFound, rec.Code)
+	assert.NotContains(t, rec.Body.String(), "doctype")
+
+	// The real routes keep winning: the exact pattern beats the prefix.
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/api/state", nil))
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// And a page route is still the page.
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, requestWithKey(http.MethodGet, "/whatever", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "the landing page")
+}

@@ -119,6 +119,23 @@ func (r Read) Handler() (http.Handler, error) {
 		w.WriteHeader(http.StatusOK)
 	})
 
+	// A ROUTE UNDER /api THAT DOES NOT EXIST IS A 404, not the page.
+	//
+	// Everything unknown gets index.html, because the page's routes live in the
+	// browser and a mistyped link should show where you landed. `/api` is the one
+	// place where that is wrong: nothing under it is ever a browser route, so the
+	// answer was a hundred and eighty characters of "<!doctype html" to a caller
+	// that asked for JSON - the exact shape that takes a reader's parser down, and
+	// the one the page's own notes warn about. It also told anything reading this
+	// machine that every path it guessed exists.
+	//
+	// The five real routes are registered as exact paths and still win: this is
+	// the pattern one segment shorter, which net/http only reaches when none of
+	// them matched.
+	mux.HandleFunc("GET /api/", func(w http.ResponseWriter, req *http.Request) {
+		http.Error(w, "no such route: see /llms.txt for the five this serves", http.StatusNotFound)
+	})
+
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, req *http.Request) {
 		current, err := r.Record.Read(req.Context())
 		if err != nil {
