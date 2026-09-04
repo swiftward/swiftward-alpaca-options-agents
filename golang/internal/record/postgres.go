@@ -291,9 +291,21 @@ func (p *Postgres) CloseTurnsLeftOpen(ctx context.Context, at time.Time) (int, e
 func (p *Postgres) Read(ctx context.Context) (State, error) {
 	state := State{Turns: []Turn{}, Calls: []ToolCall{}, Steps: []ExecutionStep{}, Intents: []Intent{}, Said: []Said{}}
 
+	// ONLY THE TURNS THAT SAID SOMETHING, and the newest @shows of those.
+	//
+	// A session wakes on a cadence all day and most of those wakings record nothing
+	// - a news pass with no news, a defence pass with nothing open. They are real,
+	// and they are also the majority: reading them out gave a page of headers with
+	// no content under them, and the few turns that reasoned were buried in it.
+	//
+	// The filter is in the query rather than on the page so the empty ones never
+	// cross the wire, and it doubles as the bound: whatever the cadence does, what
+	// leaves here is @shows turns that have something in them.
 	turns, err := p.pool.Query(ctx,
-		`SELECT turn_ref, thread_ref, started_at, finished_at, model, failure
-		   FROM turns ORDER BY started_at DESC LIMIT @shows`,
+		`SELECT t.turn_ref, t.thread_ref, t.started_at, t.finished_at, t.model, t.failure
+		   FROM turns t
+		  WHERE EXISTS (SELECT 1 FROM said s WHERE s.turn_ref = t.turn_ref)
+		  ORDER BY t.started_at DESC LIMIT @shows`,
 		pgx.NamedArgs{"shows": p.shows})
 	if err != nil {
 		return State{}, fmt.Errorf("read the turns: %w", err)

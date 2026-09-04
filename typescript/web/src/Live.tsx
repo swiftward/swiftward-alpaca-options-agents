@@ -168,7 +168,7 @@ function Page({ all }: { all: Everything }) {
 
       <Section
         title="Every run"
-        explains="When it ran, what woke it, what it asked — and what it concluded. The runs where it looked and did nothing are here too, and they say why."
+        explains="When it ran, what woke it, what it asked — and what it concluded. The runs where it looked and took nothing are here too, and they say why. A waking that recorded no words at all is not: it woke, found nothing to think about, and finished."
       >
         {state ? <Turns state={state} /> : <Empty says="the record is unavailable" />}
       </Section>
@@ -530,22 +530,6 @@ function TurnCard({
       : { text: 'running', colour: 'text-gain', Icon: LoaderCircle }
 
   const refused = calls.filter((call) => call.status !== 'completed').length
-
-  // A turn with nothing to show is a LINE, not a card.
-  //
-  // A card is a frame around content, and an empty one reads as content that
-  // failed to load. This still records that the session woke and how long it took
-  // - the cadence is part of what the section promises - but it stops competing
-  // with the turns that have something to say.
-  const bare = causes.length === 0 && said.length === 0 && calls.length === 0
-  if (bare && !turn.failure) {
-    return (
-      <p className="px-4 py-1.5 font-mono text-[11px] text-muted">
-        {clock(turn.started_at)} · woke and recorded nothing
-        {turn.finished_at ? ` · ${took(turn.started_at, turn.finished_at)}` : ''}
-      </p>
-    )
-  }
 
   return (
     <div className="rounded-lg border border-line bg-surface-raised px-4 py-3">
