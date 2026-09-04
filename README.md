@@ -6,6 +6,8 @@ The risk limits are not in its prompt. It asks a policy engine for them while it
 
 Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026. Everything runs against Alpaca's paper trading environment: simulated funds, real market data, no real money.
 
+**The submitted account, `PA3BXFR0ZVYC`, closed the measured window at $102,061.24 - up 2.06% from the $100,000 it opened with.** That is total equity at the close of Thursday 3 September, which is the figure the organiser measures. It is not a backtest and not a projection: open the page linked below, or open the account, and it is the same book. `make account-claims` checks the trading on it against what these documents say, and needs no credential of ours.
+
 Twenty-five of the numbers this project publishes recompute from data committed here, with no credentials and no network. Which twenty-five, and which numbers are modelled or come from our own account record instead, is listed in `research/README.md`:
 
 ```

@@ -215,8 +215,10 @@ This is the part most systems leave out, and it is the part worth reading.
 | The daily fuse | new risk after the day has gone badly | the risk already in the book |
 | The profit watch | giving a winner back | a loser getting worse; that is the defence's job, and the defence is measured to report rather than close |
 
-Two of those rows cost real money on 3 September, and they are written up rather
-than buried.
+Two of those rows cost money on 3 September - on one of the two development
+accounts in this repository, not on the account submitted for judging - and they
+are written up rather than buried, because the finding is worth more than the
+account it happened on.
 
 A session read a two-wide spread as one wide, sized 119 sets against a $9,298
 ceiling at a true worst case of $20,349, and the order filled at once. Both halves
