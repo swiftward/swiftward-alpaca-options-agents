@@ -13,7 +13,9 @@ with. lablab reads it again when submissions close on Friday at 15:00 UTC, with 
 market open, and that number is not ours to state before it is taken.
 
 Neither is a backtest and neither is a projection: open the page linked below, or
-open the account, and it is the same book. `make account-claims` checks the trading
+open the account, and it is the same book. Nor is four sessions a measurement of a
+strategy - it is too short to separate skill from a good draw, and the evidence for
+the strategy is the 646 trading days committed here rather than the week. `make account-claims` checks the trading
 on it against what these documents say, and needs no credential of ours.
 
 Over the same four sessions the market it trades on moved a fraction of that: SPY

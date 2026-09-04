@@ -129,6 +129,17 @@ structure rather than a naked leg, every leg declaring whether it opens or close
 one server behind every order, and no intent recorded knowing its limits had not
 been read.
 
+**Four sessions do not measure a strategy, and we would rather say so than be asked.**
+A week is too short for the result to separate skill from a good draw: on twenty
+trades an agent with a real edge finishes ahead of a coin flip most of the time but
+not reliably, and nothing about four days changes that arithmetic. What four
+sessions CAN show is whether the machine does what its documents say - whether the
+limits were read, whether the orders were structures, whether every intent was
+recorded before its order - and that is what `make account-claims` checks. The
+evidence for the strategy itself is not the week: it is 646 trading days of option
+prices committed to this repository, priced with the crossing charged at every
+entry, which `make claims` recomputes on your machine in a minute.
+
 The two development accounts in this repository are not submitted and are not the
 subject of that figure. The 3 September finding above happened on one of them, and
 it is published because a defect in where a limit is enforced is worth more to a
