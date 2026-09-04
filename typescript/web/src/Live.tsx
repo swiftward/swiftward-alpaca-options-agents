@@ -9,7 +9,6 @@ import {
   Minus,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router'
 
 import type {
   Everything,
@@ -61,15 +60,7 @@ export function Live() {
   return (
     <main className="mx-auto max-w-6xl px-6 pb-24 pt-10 text-primary">
       <header className="mb-14">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <Eyebrow>[ live · alpaca paper trading ]</Eyebrow>
-          <Link
-            to="/"
-            className="font-mono text-xs uppercase tracking-[0.04em] text-muted hover:text-primary"
-          >
-            ← about
-          </Link>
-        </div>
+        <Eyebrow>[ live · alpaca paper trading ]</Eyebrow>
 
         <h1 className="mt-6 max-w-[20ch] text-[40px] font-medium leading-[1.05] tracking-[-0.024em] text-primary">
           What the agent is doing, right now.

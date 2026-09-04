@@ -18,7 +18,7 @@ import { COUNTS, MEASUREMENTS, OPENED, SAID, type Measurement } from './snapshot
 // line say at a glance what those paragraphs spent a screen on.
 export function Landing() {
   return (
-    <main className="mx-auto max-w-[1100px] px-6 pb-32 pt-20">
+    <main className="mx-auto max-w-[1100px] px-6 pb-32 pt-14">
       {/* THE FIRST SCREEN CARRIES THE CLAIM AND THE EVIDENCE SIDE BY SIDE.
           Before this the headline promised profit and the first number appeared
           seven screens down, in section 07 - a reader who left early left having
@@ -27,13 +27,11 @@ export function Landing() {
           argues in two directions at once instead of scrolling in one. */}
       <div className="grid items-start gap-x-12 gap-y-12 lg:grid-cols-12">
         <div className="lg:col-span-7">
-          <Eyebrow>
-            <span
-              className="mr-2 inline-block size-1.5 -translate-y-px rounded-full bg-accent align-middle motion-safe:animate-pulse"
-              aria-hidden
-            />
-            [ Swiftward Alpaca · Live ]
-          </Eyebrow>
+          {/* The bar above already carries the name and the live dot. Repeating
+              them here said the same thing twice and told a reader nothing; this
+              line now says what the thing IS, which is what a reader arriving
+              from a link actually needs first. */}
+          <Eyebrow>[ Autonomous options agent · Alpaca paper account ]</Eyebrow>
 
           <h1 className="mt-6 max-w-[17ch] text-[46px] font-medium leading-[1.05] tracking-[-0.024em] text-primary sm:text-[58px]">
             It trades options for profit, and it is held to what it may lose.
