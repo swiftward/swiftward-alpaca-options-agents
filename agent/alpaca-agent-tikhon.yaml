@@ -645,9 +645,11 @@ sessions:
   # is loaded once, when the conversation opens; that one loaded without the
   # broker's tools. The session said so plainly - "the required broker tools are
   # not present in this session's tool set... I will not infer the position state
-  # or route around the broker" - and scheduled itself a 10:00 follow-up. The
-  # restart that gave the agent its tools back took that wake-up with it: wake-ups
-  # live in the harness's memory, not in the record.
+  # or route around the broker" - and scheduled itself a 10:00 follow-up. That
+  # wake-up survived the restart that gave the agent its tools back; they are kept
+  # in a file on the work volume rather than in memory, and it fired on time.
+  # This window is the second cover: two things that both try the exit and each
+  # finish quietly if the other got there first.
   #
   # A window that has run does not run again, and the run is remembered by NAME.
   # So the work is asked for again under a new one, inside the hours the exit rule
