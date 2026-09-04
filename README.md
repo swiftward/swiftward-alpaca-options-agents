@@ -7,7 +7,7 @@ The risk limits are not in its prompt. It asks a policy engine for them while it
 | | |
 |---|---|
 | **submitted account** | `PA3BXFR0ZVYC`, Alpaca paper - simulated funds, real market data, no real money |
-| **result** | **$102,061.24, up 2.06%** from $100,000, at the close of Thursday 3 September, which is the equity Alpaca measures |
+| **result** | **$102,061.24, up 2.06%** from $100,000, at the close of Thursday 3 September, which is the equity Alpaca measures. Four sessions are not a measurement of a strategy - too short to separate skill from a good draw - and the evidence for the strategy is the 646 trading days committed here |
 | **the market over the same window** | SPY **+0.76%**, open of 31 August to close of 3 September |
 | **the window** | 4 trading days: 31 August, 1, 2 and 3 September |
 | **check it yourself** | [alpaca.swiftward.dev](https://alpaca.swiftward.dev) reads the broker live; `make account-claims PAGE=...` checks the trading against these documents, with no credential of ours |
@@ -119,13 +119,15 @@ is written down, including the defects that were ours.
 
 ## What it does
 
-The agent trades defined-risk options structures on Alpaca. Every order the SESSION places goes through a policy gateway that does three things a prompt cannot:
+The agent trades defined-risk options structures on Alpaca. The session holds no broker key and one outward address - the policy gateway - and the gateway does three things a prompt cannot:
 
 - **states the limit in the tool description** the agent reads, so the agent plans an order it will be allowed to place;
 - **refuses in a form a program can act on** - the refusal names the boundary that stopped it, so the agent adjusts instead of retrying;
 - **accepts a limit change on a running session** - an operator tightens a ceiling and the live agent sees the new one without a restart.
 
-One order does not take that path, and it is named rather than left to be found: the profit watch closes a structure itself, without a model, and `marketdata.CloseStructure` says why at the point where it crosses the boundary. A close can only make the book smaller, so there is nothing for the gateway to refuse - and rather than rest on that reasoning, every leg carries `position_intent` of `buy_to_close` or `sell_to_close`, so the BROKER rejects the order outright if it would open anything.
+What holds that route is the agent's configuration and its credential rather than the network: on the demonstration stack the agent and Alpaca's own server share a network, so a session that decided to address it directly could, and `docs/architecture.md` says where that separation would have to be made before real money moved.
+
+One order does not take that path either, and it is named rather than left to be found: the profit watch closes a structure itself, without a model, and `marketdata.CloseStructure` says why at the point where it crosses the boundary. A close can only make the book smaller, so there is nothing for the gateway to refuse - and rather than rest on that reasoning, every leg carries `position_intent` of `buy_to_close` or `sell_to_close`, so the BROKER rejects the order outright if it would open anything.
 
 The gateway itself is a network service, addressed by `BROKER_MCP_URL`, and it is not in this repository. `docs/architecture.md` says what it does and where the boundary between it and this code runs.
 

@@ -262,7 +262,7 @@ a model into a fill.
 
 | Number | Where it comes from |
 |---|---|
-| The 3 September incident in `docs/write-up.md`: 119 sets against a $9,298 ceiling at a true worst case of $20,349 | our own record of the judged account, which is not published |
+| The 3 September incident in `docs/write-up.md`: 119 sets against a $9,298 ceiling at a true worst case of $20,349 | our own record of one of the two DEVELOPMENT accounts - not the submitted one - and that record is not published |
 | "+2 takes 1.00 trades a day for 2,087, +3 takes 0.85 for 2,146" | a grid priced with each name's own book; the cost file behind it is not committed |
 | The four observations about this account tier - greeks only on `get_option_snapshot`, no greeks on SPXW, `feed=indicative`, one order for a vertical | measured against the broker on our own account |
 | `entry_windows.py` | needs `data/intraday.jsonl`, which is not committed; the entry-window finding stands on the run recorded above rather than on a rerun |
