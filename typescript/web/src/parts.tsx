@@ -220,7 +220,15 @@ export function Table({ head, rows, empty }: { head: string[]; rows: ReactNode[]
 //
 // The title says WHERE the thing came from, which is the whole reason it is
 // quoted: a reader who wants to check it now knows what to open.
-export function Panel({ title, children }: { title: string; children: ReactNode }) {
+export function Panel({
+  title,
+  aside,
+  children,
+}: {
+  title: string
+  aside?: ReactNode
+  children: ReactNode
+}) {
   return (
     <div className="overflow-hidden rounded-xl border border-code-edge bg-code-bg">
       <div className="flex items-center gap-3 border-b border-code-edge bg-code-chrome px-4 py-2.5">
@@ -230,6 +238,10 @@ export function Panel({ title, children }: { title: string; children: ReactNode 
           <span className="size-2.5 rounded-full bg-code-edge" />
         </span>
         <span className="font-mono text-[12px] text-code-punct">{title}</span>
+        {/* The state of the file being shown, where an editor puts it. A status
+            set ABOVE the panel needs a card of its own to hang on, and a card
+            holding nothing but a panel is a frame around a frame. */}
+        {aside ? <span className="ml-auto">{aside}</span> : null}
       </div>
       <div className="overflow-x-auto p-5">{children}</div>
     </div>
@@ -294,9 +306,17 @@ export function Mark({ children }: { children: ReactNode }) {
 // colour the text already was.
 //
 // There is no injection risk: React nodes are built, never a markup string.
-export function Yaml({ title, source }: { title: string; source: string }) {
+export function Yaml({
+  title,
+  aside,
+  source,
+}: {
+  title: string
+  aside?: ReactNode
+  source: string
+}) {
   return (
-    <Panel title={title}>
+    <Panel title={title} aside={aside}>
       <pre className="m-0 font-mono text-[13px] leading-relaxed text-code-fg">
         {source.split('\n').map((line, index) => (
           <span key={index} className="block">

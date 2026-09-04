@@ -95,7 +95,11 @@ export function Live() {
               }`}
               aria-hidden
             />
-            {readAt ? `read ${clock(readAt.toISOString())} New York` : 'reading…'}
+            {readAt ? (
+              `read ${clock(readAt.toISOString())} New York`
+            ) : (
+              <Bone className="my-[3px] h-2.5 w-32" />
+            )}
           </Chip>
           {failed.map((why) => (
             <Chip key={why} tone="loss">
@@ -105,9 +109,70 @@ export function Live() {
         </p>
       </header>
 
-      {all ? <Page all={all} /> : <Empty says="reading…" />}
+      {all ? <Page all={all} /> : <Loading />}
     </main>
   )
+}
+
+// THE FIRST PAINT, before the five requests answer.
+//
+// It used to be the word "reading…", in the header chip and again in the body, on
+// a page whose whole claim is that it shows rather than tells. The word said
+// nothing the empty page had not already said, and it said it twice.
+//
+// The shapes stand where the real blocks will, so nothing jumps when the data
+// lands - the account's two figures, the curve, and the four counters. Below that
+// the page varies with what the broker returned, and a skeleton that guessed
+// would be a promise the data may not keep.
+//
+// The pulse is on the container rather than on each block: separate animations
+// drift apart within a second and read as a page that is broken rather than
+// loading. `motion-safe` respects a reader who has asked for stillness, and the
+// screen reader gets the word the screen no longer needs.
+function Loading() {
+  return (
+    <div role="status" aria-live="polite" className="motion-safe:animate-pulse">
+      <span className="sr-only">Reading the account.</span>
+
+      <section className="mb-16">
+        <Bone className="h-6 w-52" />
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <Card>
+            <Bone className="h-3 w-20" />
+            <Bone className="mt-4 h-9 w-44 sm:h-11" />
+            <Bone className="mt-5 h-3 w-36" />
+          </Card>
+          <Card>
+            <Bone className="h-3 w-32" />
+            <Bone className="mt-4 h-9 w-52 sm:h-11" />
+            <Bone className="mt-5 h-3 w-40" />
+          </Card>
+        </div>
+        <Bone className="mt-4 h-56 w-full rounded-xl" />
+        <Bone className="mt-3 h-3 w-64" />
+      </section>
+
+      <section>
+        <Bone className="h-6 w-40" />
+        <Bone className="mt-4 h-3 w-full max-w-[560px]" />
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Card key={i}>
+              <Bone className="h-3 w-24" />
+              <Bone className="mt-4 h-7 w-16" />
+              <Bone className="mt-4 h-3 w-full" />
+            </Card>
+          ))}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+// One block of the skeleton. The colour is the sunk surface rather than a grey of
+// its own, so it stays a shade of the card it sits in whichever theme is on.
+function Bone({ className }: { className: string }) {
+  return <span className={`block rounded bg-surface-sunk ${className}`} aria-hidden />
 }
 
 function Page({ all }: { all: Everything }) {
@@ -362,18 +427,25 @@ function asYaml(limits: Limits): string {
 
 function LimitsCard({ limits }: { limits: Limits }) {
   return (
-    // The one marked card on this page: it is the risk engine's own answer, which
-    // is the thing here that exists nowhere else.
-    <Card marked>
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-muted">
-        <Chip tone={limits.governed ? 'gain' : 'loss'}>
+    <Yaml
+      title="risk-engine.yaml"
+      // WHETHER THE ENGINE IS ANSWERING AT ALL, in the title bar beside the file
+      // it answers with. `ungoverned` is the state that matters - it means the
+      // agent is running with nothing refusing it - and both take the panel's own
+      // green and red rather than the page's: `--gain` is mixed for a white ground
+      // and goes muddy on #0d1117.
+      aside={
+        <span
+          className={`inline-flex items-center gap-2 font-mono text-[12px] ${
+            limits.governed ? 'text-code-ok' : 'text-code-alarm'
+          }`}
+        >
+          <span className="size-1.5 rounded-full bg-current" aria-hidden />
           {limits.governed ? 'governed' : 'ungoverned'}
-        </Chip>
-      </div>
-      <div className="mt-4">
-        <Yaml title="risk-engine.yaml" source={asYaml(limits)} />
-      </div>
-    </Card>
+        </span>
+      }
+      source={asYaml(limits)}
+    />
   )
 }
 

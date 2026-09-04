@@ -93,6 +93,8 @@
   --color-code-string: var(--code-string);
   --color-code-number: var(--code-number);
   --color-code-punct: var(--code-punct);
+  --color-code-ok: var(--code-ok);
+  --color-code-alarm: var(--code-alarm);
 }
 
 :root {
@@ -104,6 +106,8 @@
   --code-string: #a5d6ff;
   --code-number: #d2a8ff;
   --code-punct: #8b949e;
+  --code-ok: #3fb950;
+  --code-alarm: #f85149;
 }
 
 /* The optical size is pinned to 32 everywhere, so every element is drawn at the
