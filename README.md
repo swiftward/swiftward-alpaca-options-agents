@@ -235,41 +235,36 @@ were ours.
 
 ## How it is built
 
-**One binary, four roles.** Go, and one program that runs as the harness holding
-the clock, the read side serving the page, the session's own tools, or the service
-that answers what a caller may do. One image, four things, and a deployment picks
-which by naming the roles.
+**One binary, four roles.** Go, and one program that runs as the harness holding the
+clock, the read side serving the page, the session's own tools, or the service that
+answers what a caller may do. A deployment picks which by naming the roles.
 
 **One chain per account.** Harness, gateway endpoint, Alpaca MCP server, database,
-page and credential all carry the same agent's name, so a row in the record, a
-refusal and a container in `docker ps` are read as the same agent without a table.
-Adding an account is adding a chain rather than editing a setting.
+page and credential carry the same agent's name, so a row in the record, a refusal
+and a container in `docker ps` read as the same agent. Adding an account adds a
+chain, not a setting.
 
-**The gate is one command and it is not optional.** `make check` runs the style
-check, an English-only check over every file, the tests, the race detector, and both
-builds. Beside it: `make test-db` runs the record's tests against a real Postgres,
-and `make test-broker` holds the shapes Alpaca answers in against the real server.
-Three GitHub workflows carry it - the gate on every push, the deploy, the published
-images.
+**The gate is one command.** `make check` runs the style check, an English-only check
+over every file, the tests, the race detector and both builds. Beside it `make
+test-db` runs the record against a real Postgres and `make test-broker` holds the
+shapes Alpaca answers in against the real server. Three GitHub workflows carry it:
+the gate on every push, the deploy, the published images.
 
-**Tests as an instrument rather than a decoration.** There is as much test code
-here as code. That is not the point of it: every rule in this repository that can
-refuse a trade has a test that goes red when the rule is removed, and each was checked that way - the
-rule disabled, the test watched to fail, the rule restored. A suite that stays green
-when a gate is deleted has measured nothing. The test stand is a separate Go module,
-deliberately outside the workspace so it can never share a build with the thing it
-questions, and it runs inside the same gate.
+**Tests as an instrument.** Every rule here that can refuse a trade has a test that
+goes red when the rule is removed, and each was checked that way - rule disabled,
+test watched to fail, rule restored. The test stand is a separate Go module, outside
+the workspace so it can never share a build with what it questions, and it runs
+inside the same gate.
 
-**Measured where it mattered.** One MCP session is opened and kept: opening costs
-2.68 seconds and a call on an open one 0.85, and a sweep asks about 290 things - so
-a session per call turned a four-minute pass into seventeen. The screener walks the
-universe in parallel; the profit watch is a thirty-second loop rather than a model
-turn; the record is Postgres, one database per account, with the schema applied by a
-migration service before anything reads it.
+**Measured where it mattered.** Opening an MCP session costs 2.68 seconds and a call
+on an open one 0.85, and a sweep asks about 290 things - so one session is opened and
+kept, turning a seventeen-minute pass into four. The screener walks the universe in
+parallel, the profit watch is a thirty-second loop rather than a model turn, and the
+record is Postgres, one database per account, migrated before anything reads it.
 
 **Everything is written down.** `docs/algorithm.md` takes the trading apart end to
-end, `docs/capabilities.md` maps every capability to the code behind it and the test
-that holds it, `docs/architecture.md` shows how to check every claim it makes, and
+end, `docs/capabilities.md` maps every capability to the code and the test behind it,
+`docs/architecture.md` shows how to check every claim it makes, and
 `research/README.md` says which published numbers recompute, which are modelled, and
 which come from the account.
 
