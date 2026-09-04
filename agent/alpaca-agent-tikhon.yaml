@@ -654,7 +654,7 @@ sessions:
   # A window that has run does not run again, and the run is remembered by NAME.
   # So the work is asked for again under a new one, inside the hours the exit rule
   # already allows: not before 10:00 and not after 10:30.
-  - name: event-convexity-exit-again
+  - name: event-convexity-second-exit
     cause: "the first attempt at this exit ran without the broker's tools and closed nothing"
     at: "10:00"
     within: 30m

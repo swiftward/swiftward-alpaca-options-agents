@@ -1270,7 +1270,15 @@ function Measured({ of }: { of: Measurement }) {
           <span className="text-[32px] font-medium leading-none tracking-[-0.02em] text-primary tabular-nums">
             {money(of.equity as number)}
           </span>
-          <span className="text-[17px] font-medium tabular-nums text-gain">
+          {/* THE COLOUR IS READ OFF THE NUMBER. It was hardcoded green, which was
+              true of the only reading taken - and the second closes on a different
+              day, on an account that goes on trading. `change` already carries the
+              sign on the money; the colour has to agree with it. */}
+          <span
+            className={`text-[17px] font-medium tabular-nums ${
+              profit > 0 ? 'text-gain' : profit < 0 ? 'text-loss' : 'text-secondary'
+            }`}
+          >
             {change(profit)} · {((profit / OPENED) * 100).toFixed(2)}%
           </span>
         </p>

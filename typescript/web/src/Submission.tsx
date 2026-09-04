@@ -295,13 +295,25 @@ function Result({ of }: { of: Measurement }) {
       </p>
 
       {taken ? (
-        <p className="mt-2 flex flex-wrap items-baseline gap-x-3 text-[24px] font-medium leading-none tabular-nums text-gain">
-          +$
-          {profit.toLocaleString('en-US', {
+        /* THE SIGN IS READ OFF THE NUMBER rather than written in. Both readings
+           were green with a plus in front, which was true of the only one taken -
+           and the second closes on a different day, on an account that goes on
+           trading. A loss printed as "+$-318.60" in green is not a formatting
+           slip; it is the page saying the opposite of what happened. */
+        <p
+          className={`mt-2 flex flex-wrap items-baseline gap-x-3 text-[24px] font-medium leading-none tabular-nums ${
+            profit > 0 ? 'text-gain' : profit < 0 ? 'text-loss' : 'text-primary'
+          }`}
+        >
+          {profit < 0 ? '-' : '+'}$
+          {Math.abs(profit).toLocaleString('en-US', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}
-          <span className="text-[17px]">+{((profit / OPENED) * 100).toFixed(2)}%</span>
+          <span className="text-[17px]">
+            {profit < 0 ? '' : '+'}
+            {((profit / OPENED) * 100).toFixed(2)}%
+          </span>
         </p>
       ) : (
         <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
