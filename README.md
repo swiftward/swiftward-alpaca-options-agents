@@ -18,8 +18,8 @@ A window may name the OCCASION - a company reports on Wednesday, a macro number 
 | **the market over the same window** | SPY **+0.76%**, open of 31 August to close of 3 September |
 | **the window** | 4 trading days: 31 August, 1, 2 and 3 September |
 | **check it yourself** | [alpaca.swiftward.dev](https://alpaca.swiftward.dev) reads the broker live; `make account-claims PAGE=...` checks the trading against these documents, with no credential of ours |
-| **what is here** | as much test code as code, and every rule that can refuse a trade has a test that goes red when the rule is removed; 25 of 25 published numbers recompute with no credentials and no network |
-| **the risk engine** | the service every order passes through, called over an API: rules declared rather than coded, each carrying how much of itself it discloses; an append-only record of what it refused and why; limits changed on a running agent without a restart. [`docs/architecture.md`](docs/architecture.md) shows where it sits and what it answers |
+| **what is here** | as much test code as code, and every rule in this repository that can refuse a trade has a test that goes red when the rule is removed; 25 of 25 published numbers recompute with no credentials and no network |
+| **the risk engine** | a service of its own, called over an API, standing on the path every order takes. Its rules are declarations rather than code, each carrying how much of itself it tells the agent, and an operator changes one while the agent runs. It is what refuses an order, and the refusals it wrote are in this repository's record beside the calls they stopped - the engine itself is not, and [`docs/architecture.md`](docs/architecture.md) opens with what that means for each claim here |
 
 Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026. The
 account is measured twice: Alpaca at Thursday's close, above, and lablab again when
@@ -170,8 +170,8 @@ Three GitHub workflows carry it - the gate on every push, the deploy, the publis
 images.
 
 **Tests as an instrument rather than a decoration.** There is as much test code
-here as code. That is not the point of it: every rule that can refuse a trade has a
-test that goes red when the rule is removed, and each was checked that way - the
+here as code. That is not the point of it: every rule in this repository that can
+refuse a trade has a test that goes red when the rule is removed, and each was checked that way - the
 rule disabled, the test watched to fail, the rule restored. A suite that stays green
 when a gate is deleted has measured nothing. The test stand is a separate Go module,
 deliberately outside the workspace so it can never share a build with the thing it

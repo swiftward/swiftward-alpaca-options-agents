@@ -2,9 +2,10 @@
 // and says why it woke it; it never decides what to trade - that is the session's
 // job, and the autonomy requirement rests on the difference.
 //
-// Two causes reach a session: the schedule in the declaration, and a person
-// writing in the chat. A person who writes while the session is working is not
-// made to wait - the message goes into the turn already running.
+// Three causes reach a session: the schedule in the declaration, a wake-up the
+// session asked for itself by time or by price, and a person writing in the chat.
+// A person who writes while the session is working is not made to wait - the
+// message goes into the turn already running.
 package harness
 
 import (
