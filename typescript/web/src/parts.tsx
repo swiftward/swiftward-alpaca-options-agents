@@ -58,7 +58,7 @@ export function Chip({
   tone,
 }: {
   children: ReactNode
-  tone?: 'gain' | 'loss' | 'strong'
+  tone?: 'gain' | 'loss' | 'strong' | 'accent'
 }) {
   const colour =
     tone === 'gain'
@@ -67,7 +67,9 @@ export function Chip({
         ? 'text-loss'
         : tone === 'strong'
           ? 'text-primary'
-          : 'text-muted'
+          : tone === 'accent'
+            ? 'text-accent'
+            : 'text-muted'
 
   return (
     <span

@@ -19,20 +19,38 @@ import { COUNTS, MEASUREMENTS, OPENED, SAID, type Measurement } from './snapshot
 export function Landing() {
   return (
     <main className="mx-auto max-w-[1100px] px-6 pb-32 pt-20">
-      <Eyebrow>[ Swiftward Alpaca · Live ]</Eyebrow>
+      {/* THE FIRST SCREEN CARRIES THE CLAIM AND THE EVIDENCE SIDE BY SIDE.
+          Before this the headline promised profit and the first number appeared
+          seven screens down, in section 07 - a reader who left early left having
+          been told, not shown. The settled figure now sits under the sentence it
+          proves, and the four steps of a window sit beside it, so the screen
+          argues in two directions at once instead of scrolling in one. */}
+      <div className="grid items-start gap-x-12 gap-y-12 lg:grid-cols-12">
+        <div className="lg:col-span-7">
+          <Eyebrow>
+            <span
+              className="mr-2 inline-block size-1.5 -translate-y-px rounded-full bg-accent align-middle motion-safe:animate-pulse"
+              aria-hidden
+            />
+            [ Swiftward Alpaca · Live ]
+          </Eyebrow>
 
-      <h1 className="mt-6 max-w-[19ch] text-[56px] font-medium leading-[1.05] tracking-[-0.024em] text-primary sm:text-[72px]">
-        It trades options for profit, and it is held to what it may lose.
-      </h1>
+          <h1 className="mt-6 max-w-[17ch] text-[46px] font-medium leading-[1.05] tracking-[-0.024em] text-primary sm:text-[58px]">
+            It trades options for profit, and it is held to what it may lose.
+          </h1>
 
-      <p className="mt-7 max-w-[54ch] text-[22px] font-medium leading-[1.25] tracking-[-0.01em] text-secondary">
-        A harness that puts intent, a model and policy on one line — so that what the agent means
-        to do is written down, what it decides is its own, and what it may lose is not its to
-        change.
-      </p>
+          <p className="mt-6 max-w-[46ch] text-[20px] leading-[1.35] tracking-[-0.01em] text-secondary">
+            A harness that puts intent, a model and policy on one line — so that what the agent
+            means to do is written down, what it decides is its own, and{' '}
+            <span className="font-medium text-strong">what it may lose is not its to change.</span>
+          </p>
 
-      <div className="mt-12">
-        <Flow />
+          <Settled />
+        </div>
+
+        <div className="lg:col-span-5">
+          <Flow />
+        </div>
       </div>
 
       {/* Four numbers in the order the page argues them: what the session does,
@@ -41,7 +59,7 @@ export function Landing() {
         <Figures>
           <Figure name="windows the file declares" value="13" />
           <Figure name="names read on every pass" value="284" />
-          <Figure name="risk limits in the prompt" value="0" />
+          <Figure name="risk limits in the prompt" value="0" icon={EyeOff} />
           <Figure name="published numbers that recompute" value="25 / 25" />
         </Figures>
       </div>
@@ -217,45 +235,49 @@ function change(amount: number) {
 // before it and something it cannot reach after it. A list of four bullets says
 // the same words and loses the sequence, which is the whole claim.
 function Flow() {
-  const steps: [string, string, string][] = [
-    ['intent', 'what it means to do, and why', 'written first'],
-    ['the model', 'reads the book, picks the structure, sizes it', 'decides'],
-    ['policy', 'refuses what breaks the envelope', 'holds'],
-    ['the order', 'walked to the book, or cancelled on patience', 'sent'],
+  // Two of the four rows carry a mark, and they answer the two questions a reader
+  // actually arrives with. `decides` is dark because that step is the model and
+  // nothing else - the page is read by people asking where the AI is. `holds`
+  // carries the accent because it is the step nobody else has: the order can be
+  // refused after the model has chosen it, and the session cannot argue.
+  const steps: [string, string, string, 'strong' | 'accent' | undefined][] = [
+    ['intent', 'what it means to do, and why', 'written first', undefined],
+    ['the model', 'reads the book, picks the structure, sizes it', 'decides', 'strong'],
+    ['policy', 'refuses what breaks the envelope', 'holds', 'accent'],
+    ['the order', 'walked to the book, or cancelled on patience', 'sent', undefined],
   ]
 
   return (
-    <figure className="m-0 max-w-[720px]">
-      <div className="rounded-xl border border-line bg-surface-raised p-6">
+    <figure className="m-0">
+      <div className="rounded-xl border border-line bg-surface-raised p-5">
         <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
           one window, from waking to an order
         </p>
-        <ul className="m-0 mt-5 list-none p-0">
-          {steps.map(([name, does, state], index) => (
-            <li
-              key={name}
-              className={`flex flex-wrap items-center justify-between gap-x-6 gap-y-1 py-4 ${
-                index === 0 ? '' : 'border-t border-line'
-              }`}
-            >
-              <span className="flex items-baseline gap-3">
-                <span className="font-mono text-[13px] text-muted">0{index + 1}</span>
-                <span className="text-[17px] font-medium text-primary">{name}</span>
-                <span className="text-[15px] text-secondary">{does}</span>
-              </span>
-              <Chip tone={index === 1 ? 'strong' : undefined}>{state}</Chip>
+        <ul className="m-0 mt-4 list-none p-0">
+          {steps.map(([name, does, state, tone], index) => (
+            <li key={name} className={index === 0 ? 'py-3' : 'border-t border-line py-3'}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-baseline gap-2.5">
+                  <span className="font-mono text-[12px] text-muted tabular-nums">
+                    0{index + 1}
+                  </span>
+                  <span className="text-[16px] font-medium text-primary">{name}</span>
+                </span>
+                <Chip tone={tone}>{state}</Chip>
+              </div>
+              <p className="m-0 mt-1 pl-[30px] text-[14px] leading-snug text-secondary">{does}</p>
             </li>
           ))}
         </ul>
       </div>
-      <div className="flex justify-center py-3 text-muted" aria-hidden>
+      <div className="flex justify-center py-2.5 text-muted" aria-hidden>
         <ArrowDown className="size-5" />
       </div>
-      <div className="rounded-xl border border-line bg-surface-raised px-6 py-5 text-center">
+      <div className="rounded-xl border border-line bg-surface-raised px-5 py-4">
         <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-gain">
           what the account keeps
         </p>
-        <p className="mt-2 text-[19px] font-medium text-primary">
+        <p className="mt-1.5 text-[17px] font-medium leading-snug text-primary">
           The credit, less what the loss was allowed to be
         </p>
       </div>
@@ -514,6 +536,35 @@ function Block({
 // One measurement: who takes it, when, by what rule, and the number if that
 // moment has passed. A cut-off still ahead shows a dash rather than a figure -
 // the alternative is a number the reader cannot tell from a settled one.
+// The one measurement that is IN, shown on the first screen under the sentence it
+// proves. It reads the same array section 07 does and works the profit out from
+// the opening balance, so there is no second copy of the number to drift: when
+// the second measurement lands, this picks the settled one and stays true.
+function Settled() {
+  const taken = MEASUREMENTS.filter((m) => m.equity !== null)
+  const latest = taken[taken.length - 1]
+  if (!latest) return null
+
+  const equity = latest.equity as number
+  const profit = equity - OPENED
+
+  return (
+    <div className="mt-10 border-l-2 border-accent pl-5">
+      <p className="m-0 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span className="text-[38px] font-medium leading-none tracking-[-0.02em] text-primary tabular-nums">
+          {money(equity)}
+        </span>
+        <span className="text-[18px] font-medium tabular-nums text-gain">
+          {change(profit)} · {((profit / OPENED) * 100).toFixed(2)}%
+        </span>
+      </p>
+      <p className="mt-2.5 font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+        {latest.by} · {latest.when} · settled · account opened at {money(OPENED)}
+      </p>
+    </div>
+  )
+}
+
 function Measured({ of }: { of: Measurement }) {
   const settled = of.equity !== null
   const profit = settled ? (of.equity as number) - OPENED : 0
@@ -560,7 +611,7 @@ function Pull({ children }: { children: ReactNode }) {
 function Claim({ icon: Icon, title, says }: { icon: typeof Eye; title: string; says: string }) {
   return (
     <Card>
-      <Icon className="size-5 text-muted" aria-hidden />
+      <Icon className="size-5 text-accent" aria-hidden />
       <h2 className="mt-4 text-[22px] font-medium leading-tight tracking-[-0.01em] text-primary">
         {title}
       </h2>
