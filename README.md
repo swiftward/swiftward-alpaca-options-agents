@@ -51,8 +51,8 @@ side, serving the submitted account through the same process the agent trades
 through: the account, every position, and every order with its legs. `/live` is the
 page that moves. The same read side, pointed at an agent whose record we keep, also
 serves what that agent did and meant to do - every turn with what woke it, every
-intent before its order, every tool call with its arguments and answer. The deck is [`docs/slides.pdf`](docs/slides.pdf), and the five-minute video is on
-the submission page. Point a second command at the live page and it checks the
+intent before its order, every tool call with its arguments and answer. The deck is [`docs/slides.pdf`](docs/slides.pdf) and the video is
+[three minutes on YouTube](https://youtu.be/AWgiXKl8ysI). Point a second command at the live page and it checks the
 trading against what these documents say, with no credential of ours:
 
 ```

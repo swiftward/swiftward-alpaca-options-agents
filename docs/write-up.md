@@ -227,6 +227,13 @@ from data committed here with no credentials and no network, and the ones that
 cannot are named as measured, modelled, or from the account, in
 `research/README.md`.
 
+## Where to look
+
+- The page, live: [alpaca.swiftward.dev](https://alpaca.swiftward.dev), and `/live` is the one that moves.
+- The video, three minutes: [youtu.be/AWgiXKl8ysI](https://youtu.be/AWgiXKl8ysI).
+- The deck, thirteen pages: `docs/slides.pdf`.
+- The account, `PA3BXFR0ZVYC`, at Alpaca - the id is in the entry.
+
 ## How to check any of this
 
 ```
