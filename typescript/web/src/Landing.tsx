@@ -40,7 +40,7 @@ export function Landing() {
           </h1>
 
           <p className="mt-6 max-w-[46ch] text-[20px] leading-[1.35] tracking-[-0.01em] text-secondary">
-            A harness that puts intent, a model and policy on one line — so that what the agent
+            A harness that puts intent, a model and a risk engine on one line — so that what the agent
             means to do is written down, what it decides is its own, and{' '}
             <Mark>what it may lose is not its to change</Mark>.
           </p>
@@ -119,7 +119,7 @@ export function Landing() {
         <Claim
           icon={FileCode}
           title="A session, not a pipeline"
-          says="The screener prices the permitted field every few minutes. A session then reads its five playbooks and chooses: structure, strikes, size — or no trade at all."
+          says="The screener prices the permitted field every few minutes. A session then reads its four playbooks and chooses: structure, strikes, size — or no trade at all."
         />
         <Claim
           icon={Layers}
@@ -168,30 +168,165 @@ export function Landing() {
         </Card>
       </Block>
 
+      {/* THE LEAD NAMES A BOUNDARY, not a talent.
+          Two earlier versions promised more than the section can show. The first
+          asked whether an answer could be "wrong in an interesting way" - a good
+          test inside a design document, where there is a page to unpack it, and a
+          riddle on a landing. The second asked whether a spread was paying more
+          because something was about to happen, which set a reader up for a
+          demonstration of judgement that is not here and should not be: this
+          system takes arithmetic AWAY from the model on purpose, so its record is
+          full of thresholds being applied, and dressing that as cleverness argues
+          against our own case. What the model gets and what it does not is written
+          down, and that is the claim worth making because it can be checked. */}
       <Block
         label="02 · the model"
-        title="Six hundred priced by code. Six judged by the model."
+        title="One session, awake all day, choosing from a short list."
         explains={
           <>
-            The line is drawn on one question: <Mark>can the answer be wrong in an interesting
-            way?</Mark> Applying one formula six hundred times cannot — that is arithmetic, and it
-            is code. Whether today's news makes a rich structure a trap can, and that is the
-            session's.
+            Pricing six hundred spreads is arithmetic, and arithmetic is code. Which structure,
+            which side, whether to sit the window out:{' '}
+            <Mark>the choices have no formula, and they are the session's</Mark>. The ceilings on a
+            loss are not: those come from the risk engine. The file says which is which, so the
+            boundary is one anyone can read.
           </>
         }
       >
         <Card>
           <Funnel />
+          {/* ONE CLAIM, no counts. The version before this spent three lines on
+              152 wake-ups, ten sessions and a thirty-seven-turn thread - true, and
+              measured, but a reader does not arrive wanting our arithmetic. What
+              they need is that the session is not restarted for each window.
+
+              And the claim is exactly what `harness.go` says it is - "one thread
+              with the agent, held open across turns" - so it is the CONVERSATION
+              that persists. Saying the agent "remembers everything" would claim
+              more than that. */}
+          <p className="mt-7 text-[15px] leading-relaxed text-secondary">
+            The six do not arrive at a fresh prompt. A window wakes a conversation held open across
+            turns and hands it the task — so what the session decided this morning is still in
+            front of it when it decides again in the afternoon.
+          </p>
           <Pull>Give a model everything and it is a script with a random number generator in it.</Pull>
         </Card>
 
         <div className="mt-4">
           <Card>
+            <Playbooks />
+            {/* THE PICTURE ALREADY SHOWS THE MECHANISM - each playbook naming what it
+                needs from the file - so the words say what it BUYS instead of
+                repeating it.
+
+                What is NOT said here any more: that two accounts can run the same
+                playbook on different numbers and the difference between them is the
+                experiment. True of how this was built, and the wrong sentence to
+                put beside a submitted P&L - a judge reading that column can take it
+                for several accounts run and the best one entered. The mechanism is
+                the same either way and the auditable half of it is the stronger
+                claim. */}
+            <p className="mt-7 text-[15px] leading-relaxed text-secondary">
+              A playbook has to name the numbers it needs and the declaration supplies them, so
+              nothing about size or risk hides inside a technique: one file holds every number this
+              agent trades on. The window picks the model too — the news pass runs on a smaller one.
+            </p>
+            <Pull>The mechanics live in the playbook. The choices live in the task.</Pull>
+          </Card>
+        </div>
+      </Block>
+
+      {/* ONE NAME FOR ONE THING. This section was called `policy`, the diagram
+          above said `envelope`, and the prose said `the service the order passes
+          through` - three names for the same component, and a reader has to work
+          out that they are one. The repository settled on `risk engine` because a
+          reader who trades already knows what that is; `envelope` is our own word
+          and means nothing outside this team.
+
+          The agent's own quotes still say `envelope`: that is the tool it calls,
+          and an edited quotation is not a quotation. */}
+      <Block
+        label="03 · the risk engine"
+        title="It knows the wall is there. It does not know where."
+        explains="Every rule carries how much of itself it discloses. Tell a session the size cap and it splits one order into four; tell it only that a rule exists, and there is nothing to route around. The risk engine every order passes through is what refuses it, and the refusal names the rule."
+      >
+        <Card>
+          <Envelope />
+          {/* THE POINT THE SECTION LEFT UNSAID: that the engine is not something the
+              session can reach. Without it the page claims a wall and a reader may
+              picture a rule the agent could talk its way past. */}
+          <p className="mt-7 text-[15px] leading-relaxed text-secondary">
+            The engine is a service of its own, on the path every order takes. Nothing in the
+            session&apos;s reach edits it — and an operator can tighten a rule while the agent is
+            running, with the next turn seeing the new one.
+          </p>
+          <Pull>A prompt is a request. An engine that holds the order is a wall.</Pull>
+        </Card>
+
+        {/* ONE REFUSAL, because a section about a wall that never shows it stopping
+            anything is asking to be taken on trust. The simplest of the week: the
+            engine requires the limits to be read immediately before acting, and
+            this intent had not. */}
+        <div className="mt-4">
+          <Card>
+            <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+              what the engine returned · 2 September
+            </p>
+            {/* THE ENGINE'S OWN WORDS, taken from the failed call rather than from
+                the agent's account of it. It explains its own rule better than we
+                do, and it is the proof of the sentence in the card above: limits
+                change while a conversation runs. */}
+            <p className="mt-3 border-l-[3px] border-accent pl-5 text-[17px] leading-relaxed text-primary">
+              {inline(
+                '“call `read_envelope` in this turn before recording an intent: limits change while a conversation runs, and an answer from an earlier turn is not this turn’s answer”',
+              )}
+            </p>
+
+            <p className="mt-6 font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+              and what the session did about it
+            </p>
+            <p className="mt-3 text-[15px] leading-relaxed text-secondary">
+              I&apos;m re-reading the envelope now, then I&apos;ll re-record the same stated trade
+              only if the limits remain valid.
+            </p>
+
+            <p className="mt-6 text-[15px] leading-relaxed text-secondary">
+              Nothing was wrong with the trade. The order simply never reached the broker, because
+              the limits it was sized against had been read a few turns earlier — and a few turns
+              is long enough for them to have changed.
+            </p>
+          </Card>
+        </div>
+      </Block>
+
+      <Block
+        label="04 · the order"
+        title="The price is walked. Every concession is re-priced first."
+        explains="The session names the worst price it will accept. From there it is code: the limit walks toward the book, re-priced before every concession, so it cannot concede its way into a trade that no longer clears."
+      >
+        <Card>
+          <Ladder />
+          {/* The gap is NAMED here rather than left for a judge to find. A page that
+              lists only the guards that worked is describing a different system. */}
+          <p className="mt-7 text-[15px] leading-relaxed text-secondary">
+            Two of the three ceilings are checked again here. The third — everything betting the
+            same way — is not, and we write that down rather than leave it to be found.
+          </p>
+          <Pull>
+            A guard that can only cancel a resting order is an observation, not a limit.
+          </Pull>
+        </Card>
+
+        {/* THE WORST CASE WAS FIXED BEFORE THIS STEP, which is why the walking is
+            about price and never about risk. This card was in section 02 and did
+            not belong: what a spread IS is a fact about the instrument, not about
+            how the model decides. Here it answers the question the section raises
+            - what is actually being sent, and what can it cost. */}
+        <div className="mt-4">
+          <Card>
             <Payoff />
             <p className="mt-7 text-[15px] leading-relaxed text-secondary">
-              What it picks is always bounded: it sold the right to buy SPY at $772 and bought the
-              right to buy at $773. That gap is the whole risk — $0.20 a spread comes in, and no
-              move in the world costs more than the gap less the credit.
+              It sold the right to buy SPY at $772 and bought the right to buy at $773. That gap is
+              the whole risk: no move in the world costs more than it, less the credit.
             </p>
             <Pull>
               A stop-loss is a hope: it fills where the market lets it. A bought leg is a contract.
@@ -201,62 +336,59 @@ export function Landing() {
       </Block>
 
       <Block
-        label="03 · policy"
-        title="It knows the wall is there. It does not know where."
-        explains="Every rule carries how much of itself it discloses. Tell a session the size cap and it splits one order into four; tell it only that a rule exists, and there is nothing to route around. The service the order passes through is what refuses it, and the refusal names the rule."
+        label="05 · how it is tested"
+        title="Built to attack it, not to agree with it."
+        explains="Every rule here that can refuse a trade has a test that FAILS when the rule is removed. A suite that stays green when a gate is deleted has measured nothing."
       >
         <Card>
-          <Envelope />
-          <Pull>A prompt is a request. A service that holds the order is a wall.</Pull>
-        </Card>
-      </Block>
-
-      <Block
-        label="04 · the order"
-        title="The price is walked. Every concession is re-priced first."
-        explains="The session names the structure, the size and the worst price it will accept. From there code takes over: it walks the limit toward the book a cent at a time, and before every concession it re-computes what the structure would pay at the new price — refusing the concession if it falls below the entry threshold."
-      >
-        <Card>
-          <Ladder />
-          {/* The gap is NAMED here rather than left for a judge to find. A page that
-              lists only the guards that worked is describing a different system. */}
+          <Stand />
           <p className="mt-7 text-[15px] leading-relaxed text-secondary">
-            Two of the three ceilings are re-checked here after the session has done its
-            arithmetic. The third, the one that bounds everything betting the same way, is
-            disclosed to the session and nothing in this code re-checks it — which is the gap
-            3 September ran into, and it is written down rather than left to be found.
+            On top of that, any tool the stand serves can be made to answer with a stated message
+            for a stated stretch. A market that misbehaves is only half of what breaks an agent.
           </p>
-          <Pull>
-            A guard that can only cancel a resting order is an observation, not a limit.
-          </Pull>
-        </Card>
-      </Block>
-
-      <Block
-        label="05 · the measurements"
-        title="We deleted our own defence rule."
-        explains={
-          <>
-            It closed a spread the moment price touched the sold strike, and it felt prudent for
-            four months. Measured across 672 trades, <Mark>it loses to doing nothing</Mark>.
-          </>
-        }
-      >
-        <Card>
-          <Exits />
+          <Pull>The other half is a tool that goes quiet, and it leaves no trace: nothing crashes.</Pull>
           <p className="mt-7 text-[15px] leading-relaxed text-secondary">
-            Price passed the sold strike in 42.7% of trades and only 26.6% ended breached. The rule
-            was paying for 108 crossings that bought nothing.
+            Thirteen trials have run through it. Two defects it caught this week had passed a green
+            suite: a cadence measuring 45.002 and 89.999 seconds where 45 was declared, and an order
+            that lived nineteen minutes against a patience of eight. No judged order has ever gone
+            through the stand — every order on this account went to Alpaca&apos;s own server.
           </p>
-          <Pull>A measurement that only ever agrees with you is not a measurement.</Pull>
         </Card>
 
+        {/* THE RULES ARE ATTACKED THE SAME WAY, and this is what that cost us. The
+            section used to be this card alone under the heading `the measurements`,
+            which promised several and showed one. */}
+        <div className="mt-4">
+          <Card>
+            <p className="text-[15px] leading-relaxed text-secondary">
+              The rules are attacked the same way. Ours closed a spread the moment price touched the
+              sold strike, and it felt prudent for four months. Measured across 672 trades,{' '}
+              <Mark>it loses to doing nothing</Mark>.
+            </p>
+            <div className="mt-7">
+              <Exits />
+            </div>
+            <p className="mt-7 text-[15px] leading-relaxed text-secondary">
+              Price passed the sold strike in 42.7% of trades and only 26.6% ended breached. The
+              rule was paying for 108 crossings that bought nothing, so we deleted it.
+            </p>
+            <Pull>A measurement that only ever agrees with you is not a measurement.</Pull>
+          </Card>
+        </div>
       </Block>
 
+      {/* THE THREE IDLE DAYS ARE STATED, not left to be noticed. The account was
+          opened on the kickoff day - which is the one rule about accounts this
+          hackathon has - and its first order went out three days later, when the
+          organiser's own measurement window opens. Both facts were already on the
+          page, in different places, and a reader had to put them together; said in
+          one breath they answer the question before it is asked, and there is
+          nothing in the gap: one funding of 100,000 and no activity of any kind
+          until the Monday. */}
       <Block
         label="06 · the result"
         title="Two judges, two clocks, and both are named here."
-        explains="One account, opened at $100,000 on the kickoff day and never reset. The result is taken twice by two measurements that do not agree on when the week ends, so both cut-offs are printed with the rule each of them uses."
+        explains="One account, opened and funded with $100,000 on the kickoff day and never reset. Its first order went out on the Monday, when the measurement window opens. The result is then taken twice by two clocks that disagree on when the week ends, so both cut-offs are printed with the rule each uses."
       >
         <Card>
           <ul className="m-0 list-none space-y-4 p-0">
@@ -264,6 +396,23 @@ export function Landing() {
               <Measured key={m.by} of={m} />
             ))}
           </ul>
+
+          {/* THE MARKET, in the section that IS the result. It was on the first
+              screen and nowhere else, so a reader who scrolled straight to the
+              word `result` met a return with nothing to weigh it against and had
+              to remember a number from seven screens up.
+
+              It sits under the list rather than inside a row because it belongs to
+              the settled window and not to both: the second measurement closes on
+              a different clock. */}
+          <p className="mt-6 border-t border-line pt-5 text-[15px] leading-relaxed text-secondary">
+            Over the settled window — {BENCHMARK.sessions} sessions, {BENCHMARK.window} — the market
+            it trades went{' '}
+            <span className="font-medium tabular-nums text-strong">
+              +{BENCHMARK.percent.toFixed(2)}%
+            </span>
+            , read from the same market data the agent reads.
+          </p>
         </Card>
 
         {/* The page ends by handing the reader off. Both figures above are frozen -
@@ -316,7 +465,7 @@ function Flow() {
   const steps: [string, string, string, 'strong' | 'accent' | undefined][] = [
     ['intent', 'what it means to do, and why', 'written first', undefined],
     ['the model', 'reads the book, picks the structure, sizes it', 'decides', 'strong'],
-    ['policy', 'refuses what breaks the envelope', 'holds', 'accent'],
+    ['the risk engine', 'refuses what breaks the limits', 'holds', 'accent'],
     ['the order', 'walked to the book, or cancelled on patience', 'sent', undefined],
   ]
 
@@ -616,7 +765,7 @@ function Day() {
           <div className="mt-6 border-t border-line pt-5">
             <p className="flex flex-wrap items-center justify-between gap-3 font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
               and this is what it filed before the order existed
-              <Chip tone="accent">envelope read</Chip>
+              <Chip tone="accent">limits read</Chip>
             </p>
             <dl className="m-0 mt-4 space-y-3">
               <div className="flex flex-col gap-1 sm:flex-row sm:gap-5">
@@ -736,6 +885,87 @@ function value(rest: string) {
   return <span className="text-code-fg">{rest}</span>
 }
 
+// The four playbooks: what each one DOES, in its own file's words, and the numbers
+// it asks the declaration for.
+//
+// `read-my-envelope` was in this list and is not any more. It is a skill the agent
+// is granted like the others, but it holds no technique - it goes and asks the
+// risk engine what this account may lose - and a row for it inside a list of
+// playbooks made the count wrong and the caption argue with itself.
+//
+// Opening one at a time rather than showing all four descriptions at once: the
+// point of the picture is the COLUMN of demands, and four paragraphs under it bury
+// that. The first is open so the pattern is visible without a click.
+const PLAYBOOKS: [string, string, string][] = [
+  [
+    'premium-harvest',
+    'short_leg_delta · min_edge_points · +2 more',
+    'Sell a vertical credit spread and let time decay pay for it.',
+  ],
+  [
+    'convexity',
+    'convexity_short_leg_distance · convexity_valley_distance · +6 more',
+    'Buy a backspread for near nothing, so the day the market moves hard is not a day this account only loses.',
+  ],
+  [
+    'earnings-crush',
+    'crush_worst_case_share · crush_implied_over_realized',
+    'Sell the premium a company’s report has inflated — and only when the measurement says the market is paying more for the move than the company has historically made.',
+  ],
+  [
+    'event-convexity',
+    'event_bet_share · event_exit_by',
+    'Buy the gap a scheduled number opens: entered the afternoon before, closed in the first hour after.',
+  ],
+]
+
+function Playbooks() {
+  const [open, setOpen] = useState(0)
+
+  return (
+    <figure className="m-0">
+      <figcaption className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+        four playbooks, and what each asks the declaration for
+      </figcaption>
+      <ul className="m-0 mt-5 list-none space-y-1 p-0">
+        {PLAYBOOKS.map(([name, wants, does], index) => {
+          const on = index === open
+          return (
+            <li
+              key={name}
+              className={`rounded-lg border border-l-[3px] px-4 py-3 transition-colors ${
+                on ? 'border-line border-l-accent bg-surface-raised' : 'border-line border-l-line bg-surface-raised'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => setOpen(index)}
+                aria-expanded={on}
+                className="flex w-full cursor-pointer flex-col gap-1 text-left sm:flex-row sm:items-baseline sm:justify-between sm:gap-6"
+              >
+                <span
+                  className={`text-[15px] transition-colors ${
+                    on ? 'font-medium text-primary' : 'text-secondary'
+                  }`}
+                >
+                  {name}
+                </span>
+                <span className="font-mono text-[12px] leading-relaxed text-secondary">{wants}</span>
+              </button>
+              {on ? (
+                <p className="m-0 mt-3 text-[15px] leading-relaxed text-secondary">{does}</p>
+              ) : null}
+            </li>
+          )
+        })}
+      </ul>
+    </figure>
+  )
+}
+
+// One pass of the screener. The bars are to scale, because the RATIO is the point:
+// the same formula six hundred times is arithmetic and belongs to code, and what
+// reaches the session is short enough for judgement to be spent on it.
 function Funnel() {
   const stages: [string, string, number, boolean][] = [
     ['priced by code, ranked by one measure', '~600', 100, false],
@@ -768,97 +998,100 @@ function Funnel() {
   )
 }
 
-// The limit walked toward the book, and the two things that stop it. The floor is
-// the price the SESSION named; past it the order is cancelled rather than conceded,
-// which is the difference between patience and desperation.
-function Ladder() {
-  const steps: [string, string][] = [
-    ['0.79', 'placed at the price the session asked for'],
-    ['0.78', 'one cent conceded, re-priced first'],
-    ['0.77', 'one cent conceded, re-priced first'],
-    ['0.76', 'the worst the session named'],
-  ]
+// THE REAL WALK, from `execution_steps`: the QQQ order of 31 August, four
+// concessions of a cent each down to the floor the session named, and then a
+// cancel because the book still would not take it.
+//
+// The version before this one had invented middle steps between two real ones,
+// which is the worst kind of illustration: it sits beside true numbers and cannot
+// be told from them. `showing` is what the book was offering at that moment, and
+// it is the column that explains why a concession was made at all.
+const WALK: [string, string, boolean][] = [
+  ['−0.19 → −0.18', 'book showing −0.08', false],
+  ['−0.18 → −0.17', 'book showing −0.17', false],
+  ['−0.17 → −0.16', 'book showing −0.11', false],
+  ['−0.16 → −0.15', 'the floor the session named', true],
+]
 
+function Ladder() {
   return (
     <figure className="m-0">
-      <figcaption className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
-        the limit walked toward the book
+      <figcaption className="flex flex-wrap items-center justify-between gap-3 font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+        one order walked to its floor
+        <span>31 august · QQQ 722 / 722.5</span>
       </figcaption>
       <ol className="m-0 mt-5 list-none space-y-1 p-0">
-        {steps.map(([price, what], index) => {
-          const floor = index === steps.length - 1
-          return (
-            <li
-              key={price}
-              className={`flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 rounded-lg border px-4 py-3 ${
-                floor
-                  ? 'border-accent bg-accent text-on-accent'
-                  : 'border-line bg-surface-raised'
-              }`}
-            >
-              <span className="flex items-baseline gap-3">
-                <span
-                  className={`font-mono text-[15px] tabular-nums ${
-                    floor ? 'font-medium' : 'text-primary'
-                  }`}
-                >
-                  {price}
-                </span>
-                <span className={`text-[14px] ${floor ? '' : 'text-secondary'}`}>{what}</span>
-              </span>
-              {floor ? (
-                <span className="rounded-full border border-on-accent/40 px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-[0.04em]">
-                  floor
-                </span>
-              ) : null}
-            </li>
-          )
-        })}
+        {WALK.map(([step, note, floor]) => (
+          <li
+            key={step}
+            className={`flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 rounded-lg border px-4 py-3 ${
+              floor ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface-raised'
+            }`}
+          >
+            <span className={`font-mono text-[15px] tabular-nums ${floor ? 'font-medium' : 'text-primary'}`}>
+              {step}
+            </span>
+            <span className={`font-mono text-[13px] ${floor ? '' : 'text-secondary'}`}>{note}</span>
+          </li>
+        ))}
+        <li className="mt-1 rounded-lg border border-dashed border-line px-4 py-3 text-[15px] text-secondary">
+          cancelled — the book still would not take it
+        </li>
       </ol>
+      {/* The diagram's last row already says the order was cancelled, so this line
+          does not repeat it: it names the RULE behind that row and gives the one
+          thing the picture cannot show - that the same mechanism also fills. */}
       <p className="mt-4 text-[15px] leading-relaxed text-secondary">
-        Below the floor there is no next step: what the book will not take is{' '}
-        <Mark>cancelled, not conceded</Mark>.
+        What the book will not take is <Mark>cancelled, not conceded</Mark> — though another order
+        the same day conceded a single cent and filled.
       </p>
     </figure>
   )
 }
 
 function Envelope() {
-  const rules: [string, string, boolean][] = [
-    ['per-position', '10 percent of equity', true],
-    ['one side of the market', '35 percent of equity', true],
-    ['whole portfolio', '80 percent of equity', true],
-    ['how often it may open', 'exists · withheld', false],
+  const rules: [string, string, string][] = [
+    ['per-position', '10 percent of equity', 'value'],
+    ['one side of the market', '35 percent of equity', 'value'],
+    ['whole portfolio', '80 percent of equity', 'value'],
+    ['which expirations', '0 to 5 trading days', 'boundary'],
+    ['how often it may open', 'a refusal on it is final', 'existence'],
   ]
 
   return (
     <figure className="m-0">
       <figcaption className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
-        what read_envelope answers, in every turn that acts
+        what the risk engine answers when asked, in every turn that acts
       </figcaption>
       <ul className="m-0 mt-5 list-none space-y-1 p-0">
-        {rules.map(([rule, value, disclosed]) => (
-          <li
-            key={rule}
-            className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 rounded-lg border border-line bg-surface-raised px-4 py-3"
-          >
-            <span className="flex items-center gap-3 font-mono text-[13px] text-secondary">
-              {disclosed ? (
-                <Eye className="size-4 shrink-0 text-muted" aria-hidden />
-              ) : (
-                <EyeOff className="size-4 shrink-0 text-muted" aria-hidden />
-              )}
-              {rule}
-            </span>
-            <span
-              className={`font-mono text-[13px] tabular-nums ${
-                disclosed ? 'text-primary' : 'text-muted'
-              }`}
+        {rules.map(([rule, value, level]) => {
+          const shown = level !== 'existence'
+          return (
+            <li
+              key={rule}
+              className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1 rounded-lg border border-line bg-surface-raised px-4 py-3"
             >
-              {value}
-            </span>
-          </li>
-        ))}
+              <span className="flex items-center gap-3 font-mono text-[13px] text-secondary">
+                {shown ? (
+                  <Eye className="size-4 shrink-0 text-muted" aria-hidden />
+                ) : (
+                  <EyeOff className="size-4 shrink-0 text-muted" aria-hidden />
+                )}
+                {rule}
+              </span>
+              <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span
+                  className={`font-mono text-[13px] tabular-nums ${
+                    shown ? 'text-primary' : 'text-muted'
+                  }`}
+                >
+                  {value}
+                </span>
+                <Chip>{level}</Chip>
+              </span>
+            </li>
+          )
+        })}
       </ul>
     </figure>
   )
@@ -868,6 +1101,17 @@ function Envelope() {
 // sold strike, level at the loss above the bought one, and a slope between. A
 // reader with no options background sees in one look that BOTH ends are flat -
 // which is what defined risk means and what the prose took five sentences to say.
+// The payoff, coloured by what it MEANS rather than drawn in one line.
+//
+// Two things were wrong with the version before this. The line was a single black
+// stroke, so profit and loss looked like one continuous thing when they are the
+// two halves the picture exists to separate. And the horizontal dashes were the
+// break-even level with nothing to say so - a reader saw a line and had to guess.
+//
+// Geometry: y=34 is the credit kept, y=172 the worst case, y=60 is zero. The
+// payoff crosses zero at x=270, which is SPY 772.20 - the sold strike plus the
+// 0.20 that came in. Green above that crossing, red below it, and the two shaded
+// areas are the same claim as the line.
 function Payoff() {
   return (
     <figure className="m-0">
@@ -876,20 +1120,42 @@ function Payoff() {
       </figcaption>
       <svg
         viewBox="0 0 640 200"
-        className="mt-5 w-full text-line-strong"
+        className="mt-5 w-full"
         role="img"
-        aria-label="The payoff of the spread: it keeps 2,340 dollars while SPY finishes below 772, falls between 772 and 773, and loses 9,360 dollars above 773."
+        aria-label="The payoff of the spread: it keeps 2,340 dollars while SPY finishes below 772.20, and loses more the higher it finishes, down to 9,360 dollars above 773."
       >
-        <line x1="0" y1="60" x2="640" y2="60" stroke="currentColor" strokeDasharray="3 4" />
-        <line x1="240" y1="16" x2="240" y2="184" stroke="currentColor" strokeWidth="1" />
-        <line x1="400" y1="16" x2="400" y2="184" stroke="currentColor" strokeWidth="1" />
-        <polyline
-          points="0,34 240,34 400,172 640,172"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          className="text-primary"
-        />
+        <g className="text-gain">
+          <path d="M0,34 L240,34 L270,60 L0,60 Z" fill="currentColor" opacity="0.12" />
+          <polyline
+            points="0,34 240,34 270,60"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+        </g>
+
+        <g className="text-loss">
+          <path d="M270,60 L400,172 L640,172 L640,60 Z" fill="currentColor" opacity="0.1" />
+          <polyline
+            points="270,60 400,172 640,172"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinejoin="round"
+          />
+        </g>
+
+        <g className="text-line-strong">
+          <line x1="240" y1="16" x2="240" y2="184" stroke="currentColor" strokeWidth="1" />
+          <line x1="400" y1="16" x2="400" y2="184" stroke="currentColor" strokeWidth="1" />
+          <line x1="0" y1="60" x2="640" y2="60" stroke="currentColor" strokeDasharray="3 4" />
+        </g>
+
+        {/* The crossing is MARKED here and NAMED below, in HTML. A label inside the
+            drawing scales with the drawing: at 640 units across it measured 14px on
+            a desktop and 4px on a phone, which is not a label. */}
+        <circle cx="270" cy="60" r="3.5" className="text-muted" fill="currentColor" />
       </svg>
       <div className="mt-4 flex flex-wrap justify-between gap-x-6 gap-y-1 font-mono text-[11px] text-muted">
         <span className="text-gain">keeps $2,340</span>
@@ -897,6 +1163,11 @@ function Payoff() {
         <span>773 · bought</span>
         <span className="text-loss">loses $9,360</span>
       </div>
+      {/* Only what the drawing cannot say. Green above and red below is what the
+          drawing IS, and the dot needs no naming once the dashes have one. */}
+      <p className="mt-4 text-[15px] leading-relaxed text-secondary">
+        The dashes are break even: SPY at 772.20, the strike it sold plus the 0.20 that came in.
+      </p>
     </figure>
   )
 }
@@ -904,6 +1175,43 @@ function Payoff() {
 // The three exits on the 672 trades the history holds. Bars rather than a table:
 // the whole point is that the middle one is SHORTER than doing nothing, and a
 // column of dollar signs makes the reader work that out for himself.
+// The stand, and why it is not a backtest. Every row is from `docs/write-up.md`.
+//
+// The last row is the property the whole instrument rests on and is marked as
+// such: if the overlay did not equal the live market at zero displacement, nothing
+// it showed at any other displacement would mean anything.
+const STAND: [string, string, boolean][] = [
+  ['every quote', 'from the live broker, now', false],
+  ['one number', 'displaced along a curve', false],
+  ['every contract', 'repriced from that move, by its own live volatility', false],
+  ['at zero displacement', 'equal to the live market, to the cent', true],
+]
+
+function Stand() {
+  return (
+    <figure className="m-0">
+      <figcaption className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+        not a backtest · what the agent is shown
+      </figcaption>
+      <ul className="m-0 mt-5 list-none space-y-1 p-0">
+        {STAND.map(([name, what, rests]) => (
+          <li
+            key={name}
+            className={`flex flex-col gap-1 rounded-lg border border-l-[3px] px-4 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6 ${
+              rests ? 'border-line border-l-accent bg-surface-raised' : 'border-line border-l-line bg-surface-raised'
+            }`}
+          >
+            <span className="font-mono text-[13px] text-muted">{name}</span>
+            <span className={`text-[15px] ${rests ? 'font-medium text-primary' : 'text-secondary'}`}>
+              {what}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </figure>
+  )
+}
+
 function Exits() {
   const most = 3.46
 
