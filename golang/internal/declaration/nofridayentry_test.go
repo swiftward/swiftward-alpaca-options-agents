@@ -64,7 +64,12 @@ func opensAPosition(name string) bool {
 		}
 		// `earnings-crush-exit` and `event-convexity-exit` close what those
 		// windows opened, and closing on the Friday is what the deadline asks for.
-		if strings.HasSuffix(name, "-exit") {
+		//
+		// `-exit` is read as a SEGMENT of the name rather than only its end, so a
+		// second attempt at the same close - `event-convexity-exit-again` - is still
+		// a closing window. A name that merely ends in something else is not
+		// excused: the segment has to be there.
+		if strings.HasSuffix(name, "-exit") || strings.Contains(name, "-exit-") {
 			return false
 		}
 
