@@ -20,8 +20,7 @@ the structures it reads - `research/data/candidates_bt.parquet`, the 327,634
 spreads the rule could have seen over 646 trading days - are committed here for
 exactly that reason. A claim that fails there is a claim we have to correct.
 
-The honest summary first, because it is the part that is easy to leave out. Count it
-yourself:
+Count the marks yourself:
 
 ```
 grep -c MEASURED agent/*.yaml

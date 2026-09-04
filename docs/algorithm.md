@@ -222,8 +222,6 @@ nothing it is unsure of.
 
 ## What each control can stop, and what it cannot
 
-This is the part most systems leave out, and it is the part worth reading.
-
 | Control | Stops | Does not stop |
 |---|---|---|
 | Defined risk by construction | an unbounded loss. Every structure's worst case is known before it is opened and the broker holds the collateral for it | the worst case arriving |
@@ -260,9 +258,6 @@ means all three ceilings enforced synchronously by the gateway, before
 that walks the price.
 
 ## The practices this is built on, and why each one is there
-
-None of these is clever. Each is what a desk does, and each is here because the
-alternative has a name and a cost.
 
 **Size from the loss, never from the premium.** A position is sized from what it
 can lose at expiry - `(width - the worst credit) x 100` a set - rather than from

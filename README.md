@@ -1,5 +1,10 @@
 # swiftward-alpaca-options-agents
 
+An autonomous agent that sells and buys defined-risk option structures on Alpaca -
+credit spreads out of the money, backspreads for the day the market moves hard, and
+two event bets - and that runs four trading days a week without anybody at a
+keyboard.
+
 **The model decides what to trade. It never decides what it may lose.**
 
 The three ceilings that bound a loss - what one position may lose, what everything betting the same way may lose together, what the whole book may lose - are not in its prompt and not in its file. It asks for them while it works, sizes to the answer, and sees a tightened ceiling on its next turn without a restart. They live where it cannot reach them, and the service its orders pass through is what refuses one that breaches them: the refusal names the rule, and it lands in the record beside the call it stopped. Its own trading numbers are in its declaration, where an operator can read and change them.
@@ -48,99 +53,81 @@ what these documents say, with no credential of ours:
 make account-claims PAGE=<the page's address>
 ```
 
-Three places to go from here:
+Where to go from here:
 
 - **[`docs/algorithm.md`](docs/algorithm.md)** - how a trade is decided, end to end, and what each control can and cannot stop. Start here.
 - **[`docs/capabilities.md`](docs/capabilities.md)** - every capability, where it lives, and what shows it works.
 - **[`docs/failures-this-avoids.md`](docs/failures-this-avoids.md)** - the ways an options agent goes wrong, and what this one does instead.
-- **[`testbed/`](testbed/README.md)** - the stand that plays the agent conditions the market will not produce on request: thirteen trials, eleven on a staged book and two that displace the real one, and what they caught.
+- **[`testbed/`](testbed/README.md)** - the stand that plays the agent conditions the market will not produce on request: thirteen trials, eleven on a staged book and two that displace the real one.
+- **[`docs/architecture.md`](docs/architecture.md)** - how the pieces fit together, and how to check every claim it makes.
+- **[`research/README.md`](research/README.md)** - which published numbers recompute, which are modelled, and which come from the account.
 
-## What is unusual about it
+## What it is
 
-Each of these can be checked rather than taken on trust.
+**The agent is a file.** One declaration per agent holds every session with the
+reason it exists and the window it may run in, which playbooks that agent may load
+at all, and every number it trades on. Each number carries where it came from -
+`MEASURED`, `FROM THE RULES` or `PROVISIONAL` - and a test refuses an unmarked one.
+Edit the file with the market open and the next session reads it: no restart, no
+deploy, no image. Nothing in it says what to buy or sell; a window may name the
+occasion - a company reporting, a macro release - because a calendar is not a
+judgement.
 
-**The agent is a file, and changing what it does is editing that file.** One
-declaration per agent holds every session with the reason it exists, the window it
-may run in and what it is asked; which playbooks that agent may load at all; and
-every number it trades on - the delta ceiling, the edge threshold, the take-profit
-share, the day's fuse, how the execution ladder walks. Each of those numbers
-carries a mark saying where it came from, `MEASURED`, `FROM THE RULES` or
-`PROVISIONAL`, and a test refuses an unmarked one. Nothing in it says what to
-trade. Edit it while the market is open and the next session reads the new rule -
-no restart, no deploy, no image.
+**Three things wake it, and it remembers all of them.** The schedule; a person
+writing in the chat; and a wake-up the session set for itself - `wake me at 15:45`,
+`wake me when SPY trades under 760` - which survive a restart, because a promise
+nobody kept is worse than one never made. One conversation runs across all three, so
+the session that closes a position remembers opening it. A window may name a cheaper
+model for work that does not need the expensive one: the one that only reads the
+news does.
 
-**The model decides what to trade and nothing else.** Pricing six hundred
-structures and walking a limit price a cent at a time are arithmetic on a clock,
-and they are code. Reading the news, judging whether two positions are really the
-same bet, sitting an hour out - those are judgement, and they are the session's.
-The line is drawn on one question, and `docs/algorithm.md` opens by naming it.
+**Its limits are read, not told.** The three ceilings that bound a loss are in no
+prompt and no file of the agent's. It asks for them while it works, and the risk
+engine its orders pass through refuses one that breaches them, naming the rule. Each
+rule also carries how much of itself it discloses: a boundary hands over the number,
+existence says only that a rule is there. Tell a session the cap and it splits one
+order into four; tell it a rule exists and there is nothing to route around.
 
-**Its limits are read, not told.** No ceiling the agent sizes with is written in
-its prompt. It asks a service for them at runtime, is refused by that same service
-when it tries to exceed them, and sees a tightened limit on its next turn without a
-restart.
+**The model decides what to trade and nothing else.** Pricing six hundred structures
+and walking a limit price a cent at a time are arithmetic on a clock - they are code.
+Reading the news, judging whether two positions are really one bet, sitting an hour
+out: judgement, and the session's. The line is drawn on one question, and
+`docs/algorithm.md` opens by naming it.
 
-**The thresholds are measurements, and the awkward ones are published.** 646
-trading days of option prices are committed here, priced with the crossing charged
-at every entry. One result says the obvious defence - close when the price reaches
-the strike you sold - is worse than doing nothing, by 0.62 a trade, and explains
-why. The agent does the counter-intuitive thing the measurement points at, and
-`make claims` recomputes the measurement on your machine in a minute.
-
-**The agent trades the exit the measurement chose, and the number behind it is
-labelled for what it is.** Of three exits measured over 672 trades, closing on a
-touch of the sold strike is the worst - 2.32 a trade against 2.94 for doing nothing
-- and closing a full width PAST the sold strike, through the bought leg where the
-loss is already capped, is the best at 3.46. The defence closes only there. And the
-3.46 is modelled rather than traded: option prices through time exist in our data
-only in the entry window, so a deep in-the-money spread is repriced by Black-Scholes
-at a volatility held constant from entry. `research/README.md` lists which of our
-published numbers are measured, which are modelled, and which come from the account,
-so nobody has to guess which kind they are reading.
-
-**The crossing is charged before anything is ranked.** The screener walks the
-permitted universe in parallel, and every pairing pays the cost of getting in before
-it is compared with any other: half the bid-ask of both legs, because an order goes
-out at the midpoint and is walked toward the book, and half is what it concedes in
-expectation - 0.0229 on average over this project's own 34 fills. That is not
-fastidiousness. Over 646 trading days the same rule with and without the crossing
-charged differ by more than the whole strategy earns, and the research behind every
-threshold charges the FULL crossing, so the published expectancy is a floor rather
-than a forecast. What survives is ranked by one measure that weighs what a structure
-pays against how often it survives, and it keeps working on the day of expiry -
-where the broker computes no delta and most of the money is - by taking the same
-quantity from the price of volatility instead.
+**The crossing is charged before anything is ranked.** Every pairing pays the cost of
+getting in before it is compared with any other - half the bid-ask of both legs,
+because an order goes out at the midpoint and is walked toward the book, and half is
+what it concedes in expectation, 0.0229 on average over this project's own 34 fills.
+Over 646 trading days the same rule with and without that charge differ by more than
+the whole strategy earns, and the research behind every threshold charges the full
+crossing, so the published expectancy is a floor. What survives is ranked by one
+measure weighing what a structure pays against how often it survives - and it keeps
+working on expiry day, where the broker computes no delta and most of the money is.
 
 **Filling it is arithmetic, and arithmetic is not the model's job.** The session
-names the structure, the size and the worst price it will accept. From there a
-ladder walks the limit toward the book - a cent a step, or the distance left
-divided by the steps before patience ends - stops at the price the session named,
-and cancels what the book will not take. Before every concession it re-prices the
-structure from that pass's own quotes and refuses the give if it falls below the
-rule the entry was made on: the order keeps the price that cleared the rule, and
-only the concession is refused. A turn of the agent costs a minute and a half; a
-limit price moving by a cent has to happen in seconds; each is done by the thing
-that is good at it.
+names the structure, the size and the worst price it accepts. A ladder walks the
+limit toward the book - a cent a step, or the distance left divided by the steps
+before patience ends, whichever the declaration says - stops at the price the session
+named, and cancels what the book will not take. Before every concession it re-prices
+the structure from that pass's quotes and refuses a give that breaks the rule the
+entry was made on.
+
+**The thresholds are measurements, and the awkward ones are published.** 646 trading
+days of option prices are committed here. One result says the obvious defence -
+closing when the price reaches the strike you sold - is worse than doing nothing, by
+0.62 a trade, and explains why; the agent trades the exit that measured better
+instead. The number behind that better exit is modelled rather than traded, and
+`research/README.md` lists which of our published numbers are measured, which are
+modelled, and which come from the account, so nobody has to guess which they are
+reading. `make claims` recomputes twenty-five of them on your machine in a minute.
 
 **The instrument that questions it is separate from it.** A stand beside the agent
 takes the REAL option book and moves one number along a curve, repricing every
-contract by its own live implied volatility - at zero displacement it equals the
-live market to the cent. Thirteen trials have gone through it, and what they caught
-is written down, including the defects that were ours.
-
-## What it does
-
-The agent trades defined-risk options structures on Alpaca. The session holds no broker key and one outward address - the risk engine - and that engine does three things a prompt cannot:
-
-- **states the limit in the tool description** the agent reads, so the agent plans an order it will be allowed to place;
-- **refuses in a form a program can act on** - the refusal names the boundary that stopped it, so the agent adjusts instead of retrying;
-- **accepts a limit change on a running session** - an operator tightens a ceiling and the live agent sees the new one without a restart.
-
-What holds that route is the agent's configuration and its credential rather than the network: on the demonstration stack the agent and Alpaca's own server share a network, so a session that decided to address it directly could, and `docs/architecture.md` says where that separation would have to be made before real money moved.
-
-One order does not take that path either, and it is named rather than left to be found: the profit watch closes a structure itself, without a model, and `marketdata.CloseStructure` says why at the point where it crosses the boundary. A close can only make the book smaller, so there is nothing for the gateway to refuse - and rather than rest on that reasoning, every leg carries `position_intent` of `buy_to_close` or `sell_to_close`, so the BROKER rejects the order outright if it would open anything.
-
-The gateway is a service of its own, reached at `BROKER_MCP_URL`, and that is what lets it do the three things above: it stands on the path every order takes, it is the only thing that can refuse one, and it keeps the record of what it refused. Its rules are declarations rather than code, each carrying how much of itself it tells the agent, and an operator changes one while the agent is running. `docs/architecture.md` shows where it sits and what it answers.
+contract by its own live implied volatility - at zero displacement it equals the live
+market to the cent. Any tool it serves can also be taken away mid-session, because a
+tool that goes quiet while the market moves leaves no trace. Thirteen trials have
+gone through it, and what they caught is written down, including the defects that
+were ours.
 
 ## How it is built
 
@@ -153,11 +140,6 @@ which by naming the roles.
 page and credential all carry the same agent's name, so a row in the record, a
 refusal and a container in `docker ps` are read as the same agent without a table.
 Adding an account is adding a chain rather than editing a setting.
-
-**Everything the agent trades on is declared.** The sessions and their windows, the
-playbooks it may load, every number with the mark saying where it came from, how the
-execution ladder walks. A declaration edited while the market is open reaches the
-next session with no restart and no deploy.
 
 **The gate is one command and it is not optional.** `make check` runs the style
 check, an English-only check over every file, the tests, the race detector, and both
