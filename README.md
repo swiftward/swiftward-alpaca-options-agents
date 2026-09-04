@@ -143,81 +143,59 @@ Where to go from here:
 
 ## What it is
 
-**The agent is a file.** One declaration per agent holds every session with the
-reason it exists and the window it may run in, which playbooks that agent may load
-at all, and every number it trades on. Each number carries where it came from -
-`MEASURED`, `FROM THE RULES` or `PROVISIONAL` - and a test refuses an unmarked one.
-Edit the file with the market open and the next session reads it: no restart, no
-deploy, no image. Nothing in it says what to buy or sell; a window may name the
-occasion - a company reporting, a macro release - because a calendar is not a
-judgement.
+**The agent is a file.** One declaration holds every session with the reason it
+exists and the window it may run in, the playbooks it may load, and every number it
+trades on. Each number carries where it came from - `MEASURED`, `FROM THE RULES` or
+`PROVISIONAL` - and a test refuses an unmarked one. Edit it with the market open and
+the next session reads it: no restart, no deploy, no image. Nothing in it says what
+to buy or sell.
 
-**A new technique is a file, not a release.** A playbook is a `SKILL.md` with a
-front matter naming the numbers it needs; a declaration grants it to an agent by
-name. The agent lays out exactly the skills its declaration names and refuses to
-start when one of them asks for a number the declaration does not give - so a
-technique cannot arrive half-configured, and the set an agent carries is narrowed
-deliberately, because every skill's description goes into every turn's prompt.
-Adding a way to trade is writing a file and naming it; nothing is compiled and
-nothing is deployed.
+**A new technique is a file, not a release.** A playbook is a `SKILL.md` whose front
+matter names the numbers it needs; a declaration grants it by name. An agent whose
+declaration is missing one of those numbers refuses to start, so a technique cannot
+arrive half-configured. Adding a way to trade is writing a file and naming it.
 
-**How it learns is a file, not a model that drifts.** A measurement changes a
-number, the number lives in the declaration, and the declaration says where it came
-from - `MEASURED` with the script and the date, `FROM THE RULES`, or `PROVISIONAL`
-where nobody has measured it yet. The defence rule here was deleted because 672
-trades said it lost to doing nothing; the delta ceiling moved from 0.45 to 0.30 on a
-grid over 646 days; the backspread placement was rewritten when the sweep behind it
-turned out to have chosen its own sample. Every one of those is a diff you can read
-and a number you can recompute. Nothing about the agent's behaviour changes without
-a line in a file changing first, and that is on purpose: a system that improves
-itself in a way nobody can point at cannot be audited after a bad day.
+**How it learns is a file.** A measurement changes a number, the number lives in the
+declaration, and the declaration says which measurement produced it. The defence rule
+was deleted because 672 trades said it lost to doing nothing; the delta ceiling moved
+from 0.45 to 0.30 on a grid over 646 days; the backspread placement was rewritten
+when the sweep behind it turned out to have chosen its own sample. Each is a diff you
+can read and a number you can recompute.
 
-**The agent is in two cages, and both are enumerable.** The logical one is the
-ceilings it reads and cannot edit. The physical one is the network: the agent sits
-alone on a private network with no route to the internet of its own, and it has
-exactly three ways out, each of them a service that records what went through it -
-the risk engine for orders and market data, the model gateway for its own thinking,
-and a forward proxy for anything else, which answers only for the hosts named in
-`docker/egress/filter.txt` and refuses and logs the rest. Widening that list is a
-change to this repository, not a decision a session can make, and everything the
-agent can reach is a service written down in `compose.yaml` - which is what makes
-the reach enumerable rather than merely bounded. `docs/architecture.md` names what
-is on that private network beside it, and where a deployment moving real money would
-put a wall that configuration cannot.
+**The agent is in two cages, both enumerable.** The logical one is the ceilings it
+reads and cannot edit. The physical one is the network: it sits alone with no route
+of its own to the internet and exactly three ways out, each a service that records
+what went through it - the risk engine for orders and market data, the model gateway
+for its thinking, a forward proxy for the rest, which answers only for the hosts in
+`docker/egress/filter.txt`. Widening that list is a commit, not a decision a session
+can make, and everything the agent can reach is a service named in `compose.yaml`.
 
-**It runs on one server, and any server will do.** The whole stack is a compose
-file - the agent, its broker server, the record, the page, the migrations, the
-egress proxy - so it comes up on a laptop or on the cheapest box a team already
-rents. No managed service, no vendor console, nothing to provision. `make local-up`
-builds it from this checkout; `make prod-up` runs the same stack from published
-images.
+**It runs on one server, and any server will do.** The whole stack is a compose file:
+agent, broker server, record, page, migrations, egress proxy. `make local-up` builds
+it from this checkout, `make prod-up` runs it from published images. No managed
+service, no vendor console.
 
 **Three things wake it, and it remembers all of them.** The schedule; a person
-writing in the chat; and a wake-up the session set for itself - `wake me at 15:45`,
-`wake me when SPY trades under 760` - which survive a restart, because a promise
-nobody kept is worse than one never made. One conversation runs across all three, so
-the session that closes a position remembers opening it. A window may name a cheaper
-model for work that does not need the expensive one: the one that only reads the
-news does.
+writing in the chat; and a wake-up the session set itself - `wake me at 15:45`, `wake
+me when SPY trades under 760` - which survives a restart. One conversation runs
+across all three, so the session that closes a position remembers opening it. A
+window may name a cheaper model: the one that only reads the news does.
 
 **Its limits are read, not told.** The three ceilings that bound a loss are in no
 prompt and no file of the agent's. It asks for them while it works, and the risk
 engine its orders pass through refuses one that breaches them, naming the rule. Each
-rule also carries how much of itself it discloses: a boundary hands over the number,
+rule carries how much of itself it discloses: a boundary hands over the number,
 existence says only that a rule is there. Tell a session the cap and it splits one
 order into four; tell it a rule exists and there is nothing to route around.
 
-**Declared, and then guaranteed rather than hoped for.** The rule this agent trades
-by is one configuration; anything in it can be declared differently. What does not
-change is which half of the work is code: that a window fires when due and is dead
-outside the room it was given, that two sessions never hold the account together,
-that a wake-up survives a restart, that an agent whose skill needs a number the
-declaration does not give refuses to start, that a decided order is walked and
-cancelled by the stride and patience declared, that a winner is bought back at the
-declared share every thirty seconds with no turn and no model, and that a resting
-order breaching a ceiling is cancelled. `docs/algorithm.md` sets the three columns
-side by side - what is declared, what the engine guarantees, what the session is
-trusted with.
+**Declared, then guaranteed rather than hoped for.** Anything in the rule this agent
+trades by can be declared differently. What does not change is which half is code: a
+window fires when due and is dead outside its room, two sessions never hold the
+account together, a wake-up survives a restart, a skill missing a number refuses to
+start, a decided order is walked and cancelled by the declared stride and patience, a
+winner is bought back at the declared share every thirty seconds with no turn and no
+model, and a resting order breaching a ceiling is cancelled. `docs/algorithm.md` sets
+the three columns side by side.
 
 **The model decides what to trade and nothing else.** Pricing six hundred structures
 and walking a limit price a cent at a time are arithmetic on a clock - they are code.
