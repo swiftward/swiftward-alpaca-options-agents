@@ -88,9 +88,14 @@ is a comparison and not a forecast.
 
 Two properties are worth naming:
 
-- **It costs what it costs.** `credit_after_cost` is the credit less the crossing,
-  so a structure that pays well and is expensive to enter shows a low edge by
-  itself, with no separate threshold on the cost.
+- **It costs what it costs.** `credit_after_cost` is the credit less HALF the
+  crossing, so a structure that pays well and is expensive to enter shows a low
+  edge by itself, with no separate threshold on the cost. Half rather than the
+  whole because that is what the book actually took: measured over this project's
+  own 34 fills on 26 August, 0.0229 was conceded on average against the price first
+  asked, and 20 of the 34 filled at that price exactly. The research charges the
+  FULL crossing instead, which is the conservative direction and is why the
+  measured expectancy is a floor rather than a forecast.
 - **It works on the day of expiry, where most of the money is.** The broker
   computes no delta on the day a contract expires, so the same quantity is taken
   from the price of volatility instead (`screener.Survival`), and the candidate says
@@ -179,19 +184,35 @@ This is the part most systems leave out, and it is the part worth reading.
 | Control | Stops | Does not stop |
 |---|---|---|
 | Defined risk by construction | an unbounded loss. Every structure's worst case is known before it is opened and the broker holds the collateral for it | the worst case arriving |
-| The gateway's ceilings | an order that would breach a limit, before the broker sees it | a limit that was right and a world that moved |
-| The ladder's per-position ceiling | an oversized order **while it is still resting** | an order that fills instantly - it can only cancel what is there to cancel |
+| The gateway | a tool call it is not willing to forward, before the broker sees it, naming the rule that refused it | a limit that was right and a world that moved. What it enforces is its own; this repository shows what it DISCLOSES |
+| The ladder's per-position ceiling | a resting order that has grown too large for the account it sits on | an order that fills instantly - it can only cancel what is there to cancel |
+| The ladder's portfolio ceiling | the same, for everything held together | the same |
+| The side ceiling, `same_direction_max_loss` | nothing in this code. It is disclosed to the session and the session sizes to it | itself: unlike the other two it is **not** wired into the ladder, so nothing here re-checks it after the session has done its arithmetic. That is the gap 3 September ran into, and it is named here rather than left to be found |
 | `execution.Unbounded` | an order whose loss has no floor | nothing else: it is a shape check |
 | The daily fuse | new risk after the day has gone badly | the risk already in the book |
 | The profit watch | giving a winner back | a loser getting worse; that is the defence's job, and the defence is measured to report rather than close |
 
-The third row is the one that cost real money on 3 September, and it is written up
-rather than buried: a session read a two-wide spread as one wide, sized 119 sets
-against a $9,298 ceiling at a true worst case of $20,349, and the order filled at
-once. Both halves of our own arithmetic were right and neither was in the path. A
-limit that lives with the caller is advice however carefully it is computed; the
-refusal has to belong to the thing the order passes through. That is the change,
-and it belongs in the engine rather than in a prompt.
+Two of those rows cost real money on 3 September, and they are written up rather
+than buried.
+
+A session read a two-wide spread as one wide, sized 119 sets against a $9,298
+ceiling at a true worst case of $20,349, and the order filled at once. Both halves
+of our own arithmetic were right - the sizing used the wrong width, and
+`execution.WorstCase`, which parses the strikes out of the contracts rather than
+trusting anyone's number, had it right - and neither was in the path of the order.
+
+The same turn's own intent shows the second: it recorded $18,192 of call-side risk
+already open and added $9,163 more by its own reckoning, which it judged to be
+inside the side ceiling. At the true worst case the sum is $38,541 against a side
+ceiling near $36,600, so it was outside. Nothing after the session re-checked that
+sum, because the side ceiling is the one limit the ladder is not given.
+
+The conclusion is the same for both, and it is a design conclusion rather than a
+bug report: **a limit that lives with the caller is advice, however carefully it is
+computed. The refusal has to belong to the thing the order passes through** - which
+means all three ceilings enforced synchronously by the gateway, before
+`place_option_order` is forwarded, rather than re-checked afterwards by the thing
+that walks the price.
 
 ## Why it is built to be checked rather than believed
 
