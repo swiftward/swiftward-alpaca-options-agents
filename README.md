@@ -65,6 +65,16 @@ Three places to go from here:
 
 Four things, and each one can be checked rather than taken on trust.
 
+**The agent is a file, and changing what it does is editing that file.** One
+declaration per agent holds every session with the reason it exists, the window it
+may run in and what it is asked; which playbooks that agent may load at all; and
+every number it trades on - the delta ceiling, the edge threshold, the take-profit
+share, the day's fuse, how the execution ladder walks. Each of those numbers
+carries a mark saying where it came from, `MEASURED`, `FROM THE RULES` or
+`PROVISIONAL`, and a test refuses an unmarked one. Nothing in it says what to
+trade. Edit it while the market is open and the next session reads the new rule -
+no restart, no deploy, no image.
+
 **The model decides what to trade and nothing else.** Pricing six hundred
 structures and walking a limit price a cent at a time are arithmetic on a clock,
 and they are code. Reading the news, judging whether two positions are really the

@@ -239,6 +239,63 @@ means all three ceilings enforced synchronously by the gateway, before
 `place_option_order` is forwarded, rather than re-checked afterwards by the thing
 that walks the price.
 
+## The practices this is built on, and why each one is there
+
+None of these is clever. Each is what a desk does, and each is here because the
+alternative has a name and a cost.
+
+**Size from the loss, never from the premium.** A position is sized from what it
+can lose at expiry - `(width - the worst credit) x 100` a set - rather than from
+what it collects. Sizing from the credit is how an account discovers that twenty
+small winners were funded by one loser it could not carry.
+
+**One order for a structure, never two.** A vertical goes as a single
+`place_option_order` with `order_class=mleg` and a negative limit price for a
+credit. Two orders means a window in which half a structure exists, and half a
+credit spread is a naked short.
+
+**Executable prices, never the midpoint.** Every candidate is priced at the sides
+of the book an order would cross. The midpoint is the price of a trade nobody did.
+
+**The worst case before the order, not after the fill.** `execution.WorstCase`
+prices an order's payoff at every strike parsed out of its own contracts, so the
+number is the contracts' and not the caller's arithmetic. `execution.Unbounded`
+refuses a shape whose loss has no floor at all.
+
+**A ceiling on the position, on the side, and on the book.** Three limits rather
+than one, because twenty positions each inside its own ceiling still put the whole
+account at risk, and because everything betting the same way loses together - which
+is exactly what happened here on 3 September.
+
+**A fuse on the day, not only on the trade.** Below a declared share of yesterday's
+close, entries stop for the rest of the day. It measures "the day is bad" rather
+than "this trade is going wrong", and it does not touch the defence or the profit
+watch: the book is still managed, only new risk stops.
+
+**Intent before order, in the record.** The thesis, the structure and the accepted
+loss are written down before anything is sent, so what was declared can be checked
+against what was done. A fill with nothing behind it is visible rather than
+deniable.
+
+**A winner is closed by a clock, not by a turn.** A model turn costs a minute and a
+half and the defence comes round every fifteen minutes; a buy-back crossing a line
+is arithmetic, so a process checks it every thirty seconds.
+
+**Flat before the result is read.** The organiser measures the account at a moment,
+and a position open at that moment enters the result at its mark. A declared window
+empties the book before it, and it carries `cannot_wait` because a window that
+empties the book has nowhere to queue.
+
+**Every call written down, including the ones still in flight.** A call whose
+answer never arrived is recorded as `unknown` rather than as done, and `make
+reconcile` asks the broker afterwards which it was. An order in that state may or
+may not have reached the broker, and the record does not choose.
+
+**One credential per agent, and the page's cannot trade.** The record names which
+agent made each call; one agent can be stopped without touching the other; and the
+surface a stranger can open holds a credential that can read and cannot order,
+because a page that could trade is a page whose leak is a trade.
+
 ## Why it is built to be checked rather than believed
 
 Every rule above that can refuse a trade carries a test that FAILS when the rule is
