@@ -93,6 +93,13 @@ call, its arguments and the answer (`tool_calls`).
 
 ## About the trading itself
 
+**A week made by one position.** A single large bet that lands returns more than a
+season of disciplined trading, and the two are indistinguishable in a percentage. Here
+every position is sized to a share of equity the agent reads from the risk engine while
+it works, one side of the market has a ceiling of its own, and the whole book has a
+third - so the week's result is the sum of structures rather than the outcome of a bet.
+The record lists every one of them with the intent written before it.
+
 **Sizing from the premium rather than from the loss.** Sizing on what a structure
 collects is how an account discovers that twenty small winners were funded by one
 loser it could not carry. Size here comes from the worst case at expiry, computed
