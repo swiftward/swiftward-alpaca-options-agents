@@ -344,11 +344,15 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 		return State{}, fmt.Errorf("read what was put in front of the turns: %w", err)
 	}
 
+	// BY THE TURNS JUST READ, like the causes above, and for the same reason. A
+	// limit of its own took the newest rows of THIS table, which are not the rows
+	// belonging to those turns: the oldest turns in the window then arrived with no
+	// calls at all, and the page drew them as turns where nothing happened.
 	calls, err := p.pool.Query(ctx,
 		`SELECT call_ref, turn_ref, server, tool, arguments, started_at, finished_at,
 		        status, failure, answer
-		   FROM tool_calls ORDER BY started_at DESC LIMIT @shows`,
-		pgx.NamedArgs{"shows": p.shows})
+		   FROM tool_calls WHERE turn_ref = ANY(@refs) ORDER BY started_at DESC`,
+		pgx.NamedArgs{"refs": refs})
 	if err != nil {
 		return State{}, fmt.Errorf("read the calls: %w", err)
 	}
@@ -433,10 +437,13 @@ func (p *Postgres) Read(ctx context.Context) (State, error) {
 	// zero lines against sixteen rows in the table. The turn headers were drawn all
 	// the same, so the gap read as "the agent is silent" rather than "we did not
 	// ask".
+	// By the turns just read, for the reason given at the calls above. This one
+	// mattered most: a turn without its words is a turn that looks silent, and half
+	// of what this page is for is the words.
 	said, err := p.pool.Query(ctx,
 		`SELECT turn_ref, at, text
-		   FROM said ORDER BY at DESC LIMIT @shows`,
-		pgx.NamedArgs{"shows": p.shows})
+		   FROM said WHERE turn_ref = ANY(@refs) ORDER BY at DESC`,
+		pgx.NamedArgs{"refs": refs})
 	if err != nil {
 		return State{}, fmt.Errorf("read what was said: %w", err)
 	}

@@ -97,12 +97,19 @@ Smoothing (`type="monotone"`) is forbidden; `linear` only. A fill lifts the
 account instantly; smoothing turned a vertical step into a gentle rise over six
 hours - earnings spread across time that never happened.
 
-A gap in the record breaks the line rather than being joined by a straight one.
-The measurements run every five minutes; on 27 August ten hours passed between
-two neighbouring rows, and a line through the hole showed steady growth where we
-measured nothing. The threshold is computed from the median of the measurements
-themselves - a number typed by hand would survive a change of schedule in
-silence.
+A gap in the record is joined rather than broken, and what makes that honest is
+the WINDOW rather than the drawing. The chart starts where the judged week starts,
+and inside that week there is no gap: the only two this record holds are the hours
+the deployment was down before trading began, on days when the account stood at
+its opening balance and nothing was happening to miss.
+
+It was the other way round until 4 September, and the reason is worth keeping: on
+27 August ten hours passed between two neighbouring rows, and a line through the
+hole showed steady growth where we measured nothing. A break said "we do not know
+here", which was true. It also left a white notch that reads as a chart which
+failed to draw, and a reader cannot tell that from a deployment that was down.
+The cost of the trade is real and named in `Equity.tsx`: if the deployment goes
+down mid-week, the segment across the hole will claim a measurement nobody took.
 
 A judge reads the chart as evidence. A pretty curve drawn in between the points
 is numbers that were never on the account.

@@ -4,7 +4,7 @@ import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
 import { Boundary } from './Boundary'
-import { Card, Chip, Eyebrow, Figure, Figures, inline, Panel } from './parts'
+import { Card, Chip, Eyebrow, Figure, Figures, inline, Mark, Yaml } from './parts'
 import { ACCOUNT, ACTIVITY, BENCHMARK, MEASUREMENTS, OPENED, type Measurement } from './snapshot'
 
 // The landing page: what this is, how it differs, and where to go and look.
@@ -147,7 +147,7 @@ export function Landing() {
         <Card>
           <Day />
           <div className="mt-8 border-t border-line pt-6">
-            <Yaml source={SCHEDULE} />
+            <Yaml title="alpaca.yaml" source={SCHEDULE} />
           </div>
           {/* WHAT THE FILE BUYS YOU, said under the file itself, and how the thing
               learns - which is the same sentence, because here they are the same
@@ -791,100 +791,6 @@ function Day() {
 
 // What comes back when the session asks what it may do. The picture exists for
 // its last row: a rule that admits it is there and withholds its number.
-// A tiny YAML highlighter for the ONE sample this page quotes.
-//
-// Not a library. The same trade the markdown in the agent's words was weighed
-// against and lost: a real highlighter is around a hundred kilobytes to colour
-// four kinds of token in twelve lines, and it would carry grammars for languages
-// this page will never show. This handles exactly the shapes the sample has - a
-// list dash, a key, a quoted string, a bracketed list, the block scalar `|` and
-// the indented prose under it - and anything it does not recognise stays the
-// colour the text already was.
-//
-// There is no injection risk: React nodes are built, never a markup string.
-function Yaml({ source }: { source: string }) {
-  return (
-    <Panel title="alpaca.yaml">
-      <pre className="m-0 font-mono text-[13px] leading-relaxed text-code-fg">
-        {source.split('\n').map((line, index) => (
-          <span key={index} className="block">
-            {colour(line)}
-            {'\n'}
-          </span>
-        ))}
-      </pre>
-    </Panel>
-  )
-}
-
-// One line at a time. Prose under `task: |` is indented four spaces or more and is
-// left as prose - it is English, and colouring it as code would say it is not.
-function colour(line: string) {
-  const key = /^(\s*)(-\s)?([a-z_]+)(:)(.*)$/.exec(line)
-  if (!key || line.startsWith('    ')) {
-    return <span className="text-code-fg">{line}</span>
-  }
-
-  const [, indent, dash, name, colon, rest] = key
-
-  return (
-    <>
-      {indent}
-      {dash ? <span className="text-code-punct">{dash}</span> : null}
-      <span className="text-code-key">{name}</span>
-      <span className="text-code-punct">{colon}</span>
-      {value(rest)}
-    </>
-  )
-}
-
-// What follows the colon: a quoted string, a bracketed list, a duration or clock
-// time, the block marker, or nothing it knows.
-function value(rest: string) {
-  const string = /^(\s*)(".*")$/.exec(rest)
-  if (string) {
-    return (
-      <>
-        {string[1]}
-        <span className="text-code-string">{string[2]}</span>
-      </>
-    )
-  }
-
-  const list = /^(\s*)(\[)(.*)(\])$/.exec(rest)
-  if (list) {
-    return (
-      <>
-        {list[1]}
-        <span className="text-code-punct">{list[2]}</span>
-        <span className="text-code-fg">{list[3]}</span>
-        <span className="text-code-punct">{list[4]}</span>
-      </>
-    )
-  }
-
-  const number = /^(\s*)(\d+[a-z]?)$/.exec(rest)
-  if (number) {
-    return (
-      <>
-        {number[1]}
-        <span className="text-code-number">{number[2]}</span>
-      </>
-    )
-  }
-
-  if (rest.trim() === '|') {
-    return (
-      <>
-        {' '}
-        <span className="text-code-punct">|</span>
-      </>
-    )
-  }
-
-  return <span className="text-code-fg">{rest}</span>
-}
-
 // The four playbooks: what each one DOES, in its own file's words, and the numbers
 // it asks the declaration for.
 //
@@ -963,9 +869,6 @@ function Playbooks() {
   )
 }
 
-// One pass of the screener. The bars are to scale, because the RATIO is the point:
-// the same formula six hundred times is arithmetic and belongs to code, and what
-// reaches the session is short enough for judgement to be spent on it.
 function Funnel() {
   const stages: [string, string, number, boolean][] = [
     ['priced by code, ranked by one measure', '~600', 100, false],
@@ -1396,21 +1299,6 @@ function Measured({ of }: { of: Measurement }) {
 }
 
 // The line a section is remembered by, at the end of the card that earned it.
-// A marker pen, and the only thing on the page drawn in Alpaca's yellow. One
-// meaning: THIS IS THE SENTENCE TO TAKE AWAY. It is a ground with dark ink on it
-// and never text in the yellow itself - measured, black on it is 13.95:1 and the
-// yellow on this page's own background is 1.41:1, which no reader can see.
-//
-// Four of these on the whole page. A fifth would make it a colour scheme rather
-// than an emphasis, and nothing marked is emphasised.
-function Mark({ children }: { children: ReactNode }) {
-  return (
-    <mark className="rounded-[3px] bg-mark px-1.5 py-0.5 text-mark-ink decoration-clone">
-      {children}
-    </mark>
-  )
-}
-
 function Pull({ children }: { children: ReactNode }) {
   return (
     <p className="mt-7 border-l-[3px] border-mark pl-4 text-[19px] font-medium leading-[1.4] tracking-[-0.01em] text-primary">

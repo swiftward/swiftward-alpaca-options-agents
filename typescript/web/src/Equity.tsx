@@ -28,15 +28,25 @@ const whole = (value: number) =>
   value.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
 
 // A gap in the record. The measurements run every five minutes; while the
-// deployment was down, ten hours passed between neighbouring rows. A line drawn
-// through such a hole shows steady growth - earnings spread across time in which
-// we measured nothing at all. So an empty value goes into the hole and the line
-// breaks: a break reads as "we do not know here", which is true.
+// deployment was down, ten hours passed between neighbouring rows.
 //
-// The threshold is computed from the data rather than assigned: the measurement
-// schedule can change, and a number typed by hand would survive that change in
-// silence.
-const gapAt = 4
+// THE CHART SHOWS THE JUDGED WINDOW, not the whole record.
+//
+// The account was funded on the kickoff day and sat at exactly 100,000 until the
+// Monday; the organiser measures from Monday 31 August, 09:30 New York. Both of
+// the two gaps this record contains fall in those idle days - the deployment was
+// down for two hours and then for twelve - and there is not a third after them.
+const WINDOW_OPENS = Date.parse('2026-08-31T13:30:00Z')
+
+// A hole in the record is drawn ACROSS, not broken at. A break left a white notch
+// that reads as a chart which failed to draw, and a reader cannot tell that from a
+// deployment that was down.
+//
+// What makes that safe is the window above rather than the drawing: inside the
+// judged week there is no hole, and the three days that held the only two are
+// outside it. If the deployment ever goes down mid-week, the segment across the
+// hole will claim a measurement that was not taken - that is the cost, and it is
+// written here rather than left for somebody to discover in the chart.
 
 type Point = {
   // Time as a number, not a string: the axis builds its scale on hours, not on
@@ -58,7 +68,13 @@ function roundStep(least: number): number {
   return power * 10
 }
 
-export function Equity({ line }: { line: Snapshot[] }) {
+export function Equity({ line: recorded }: { line: Snapshot[] }) {
+  // Cut to the window - but only if the cut leaves a line. On a fresh deployment,
+  // or a week that has not reached the Monday, the whole record is better than an
+  // empty frame.
+  const windowed = (recorded ?? []).filter((point) => Date.parse(point.recorded_at) >= WINDOW_OPENS)
+  const line = windowed.length >= 2 ? windowed : recorded
+
   // An empty list, not null - that is the contract on the data side. But a page a
   // judge opens has no right to die outright even if the contract is broken.
   if ((line ?? []).length < 2) {
@@ -85,17 +101,7 @@ export function Equity({ line }: { line: Snapshot[] }) {
     equity: point.equity as number | null,
   }))
 
-  const between = read.slice(1).map((point, index) => point.at - read[index].at).sort((a, b) => a - b)
-  const usual = between[Math.floor(between.length / 2)] ?? 0
-  const points: Point[] = []
-  let gaps = 0
-  for (const [index, point] of read.entries()) {
-    if (index > 0 && usual > 0 && point.at - read[index - 1].at > usual * gapAt) {
-      points.push({ at: (point.at + read[index - 1].at) / 2, equity: null })
-      gaps++
-    }
-    points.push(point)
-  }
+  const points: Point[] = read
 
   // The scale runs from the minimum to the maximum, not from zero. The account
   // stands near a hundred thousand and moves by a hundred dollars: a scale from
@@ -163,7 +169,7 @@ export function Equity({ line }: { line: Snapshot[] }) {
               stroke={stroke}
               strokeWidth={2}
               fill="url(#equity-fill)"
-              connectNulls={false}
+              connectNulls
               // There are more than five hundred points: a dot on each would
               // fill the chart entirely. One is left - under the cursor.
               dot={false}
@@ -176,7 +182,6 @@ export function Equity({ line }: { line: Snapshot[] }) {
       <figcaption className="mt-2 text-xs text-muted">
         {line.length} readings, {clock(line[0].recorded_at)} — {clock(line[line.length - 1].recorded_at)}
         {highest === lowest ? ' · unchanged' : ` · low ${dollars(lowest)} · high ${dollars(highest)}`}
-        {gaps > 0 && ` · ${gaps} ${gaps === 1 ? 'break' : 'breaks'} where nothing was recorded`}
       </figcaption>
     </figure>
   )

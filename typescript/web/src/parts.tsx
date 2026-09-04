@@ -20,20 +20,30 @@ export function Eyebrow({ children }: { children: ReactNode }) {
   return <p className="m-0 font-mono text-xs uppercase tracking-[0.04em] text-muted">{children}</p>
 }
 
+// A HEADING, not a label. This titled with an Eyebrow - 12px mono, uppercase,
+// muted - on the reasoning that a dashboard's title names a panel the reader is
+// already looking at. That holds for somebody operating the page, and not for the
+// reader it is actually built for: a judge reads it from the top like a document,
+// and six identical grey labels give them nothing to steer by.
+//
+// It stays smaller than the landing's, which has to stop a stranger scrolling
+// past. This one only has to be found.
 export function Section({
   title,
   explains,
   children,
 }: {
   title: string
-  explains?: string
+  explains?: ReactNode
   children: ReactNode
 }) {
   return (
     <section className="mb-16">
-      <Eyebrow>{title}</Eyebrow>
+      <h2 className="text-[26px] font-medium leading-tight tracking-[-0.015em] text-primary">
+        {title}
+      </h2>
       {explains ? (
-        <p className="mt-2 max-w-[920px] text-[15px] leading-relaxed text-secondary">{explains}</p>
+        <p className="mt-3 max-w-[920px] text-[15px] leading-relaxed text-secondary">{explains}</p>
       ) : null}
       {/* Every section under its own boundary, and here rather than at the call
           site: otherwise the protection goes to whichever sections somebody
@@ -52,9 +62,15 @@ export function Section({
 // separation and the page read as one flat sheet. The shadow is two layers: a
 // hairline that sits the card on the ground, and a wide soft one that lifts it.
 // Kept faint on purpose - a shadow a reader can name is louder than the content.
-export function Card({ children }: { children: ReactNode }) {
+export function Card({ children, marked }: { children: ReactNode; marked?: boolean }) {
+  // `marked` is the accent rail the landing uses on the card that carries the
+  // section's evidence. One per page at most: a rail on everything is a border.
   return (
-    <div className="rounded-xl border border-line bg-surface-raised p-6 shadow-[0_1px_2px_rgba(16,18,22,0.04),0_12px_32px_-16px_rgba(16,18,22,0.14)]">
+    <div
+      className={`rounded-xl border bg-surface-raised p-6 shadow-[0_1px_2px_rgba(16,18,22,0.04),0_12px_32px_-16px_rgba(16,18,22,0.14)] ${
+        marked ? 'border-line border-l-[3px] border-l-accent' : 'border-line'
+      }`}
+    >
       {children}
     </div>
   )
@@ -248,3 +264,131 @@ export function inline(text: string) {
     return piece
   })
 }
+
+// A marker pen, and the only thing on the page drawn in Alpaca's yellow. One
+// meaning: THIS IS THE SENTENCE TO TAKE AWAY. It is a ground with dark ink on it
+// and never text in the yellow itself - measured, black on it is 13.95:1 and the
+// yellow on this page's own background is 1.41:1, which no reader can see.
+//
+// Four of these on the whole page. A fifth would make it a colour scheme rather
+// than an emphasis, and nothing marked is emphasised.
+export function Mark({ children }: { children: ReactNode }) {
+  return (
+    <mark className="rounded-[3px] bg-mark px-1.5 py-0.5 text-mark-ink decoration-clone">
+      {children}
+    </mark>
+  )
+}
+
+// A tiny YAML highlighter. Two pages quote YAML now: the declaration on the
+// landing, and the risk engine's own answer on the live page.
+//
+// Not a library. The same trade the markdown in the agent's words was weighed
+// against and lost: a real highlighter is around a hundred kilobytes to colour
+// four kinds of token in twelve lines, and it would carry grammars for languages
+// this page will never show. This handles exactly the shapes the sample has - a
+// list dash, a key, a quoted string, a bracketed list, the block scalar `|` and
+// the indented prose under it - and anything it does not recognise stays the
+// colour the text already was.
+//
+// There is no injection risk: React nodes are built, never a markup string.
+export function Yaml({ title, source }: { title: string; source: string }) {
+  return (
+    <Panel title={title}>
+      <pre className="m-0 font-mono text-[13px] leading-relaxed text-code-fg">
+        {source.split('\n').map((line, index) => (
+          <span key={index} className="block">
+            {colour(line)}
+            {'\n'}
+          </span>
+        ))}
+      </pre>
+    </Panel>
+  )
+}
+
+// One line at a time. Prose under `task: |` is indented four spaces or more and is
+// left as prose - it is English, and colouring it as code would say it is not.
+function colour(line: string) {
+  // A comment is the one thing here that is not data, and it says so by taking
+  // the colour of punctuation.
+  if (line.trim().startsWith('#')) {
+    return <span className="text-code-punct">{line}</span>
+  }
+
+  // Prose used to be recognised by its indent - four spaces or more - which was
+  // right for the one sample this handled and wrong the moment a second arrived:
+  // nested YAML keys are indented too, and every one of them lost its colour.
+  //
+  // The regex settles it instead. A key is lower-case letters straight up against
+  // a colon, and English prose does not look like that: `A morning entry` starts
+  // with a capital, `movement lies ahead` has a space before its colon.
+  const key = /^(\s*)(-\s)?([a-z_]+)(:)(.*)$/.exec(line)
+  if (!key) {
+    return <span className="text-code-fg">{line}</span>
+  }
+
+  const [, indent, dash, name, colon, rest] = key
+
+  return (
+    <>
+      {indent}
+      {dash ? <span className="text-code-punct">{dash}</span> : null}
+      <span className="text-code-key">{name}</span>
+      <span className="text-code-punct">{colon}</span>
+      {value(rest)}
+    </>
+  )
+}
+
+// What follows the colon: a quoted string, a bracketed list, a duration or clock
+// time, the block marker, or nothing it knows.
+function value(rest: string) {
+  const string = /^(\s*)(".*")$/.exec(rest)
+  if (string) {
+    return (
+      <>
+        {string[1]}
+        <span className="text-code-string">{string[2]}</span>
+      </>
+    )
+  }
+
+  const list = /^(\s*)(\[)(.*)(\])$/.exec(rest)
+  if (list) {
+    return (
+      <>
+        {list[1]}
+        <span className="text-code-punct">{list[2]}</span>
+        <span className="text-code-fg">{list[3]}</span>
+        <span className="text-code-punct">{list[4]}</span>
+      </>
+    )
+  }
+
+  const number = /^(\s*)(\d+[a-z]?)$/.exec(rest)
+  if (number) {
+    return (
+      <>
+        {number[1]}
+        <span className="text-code-number">{number[2]}</span>
+      </>
+    )
+  }
+
+  if (rest.trim() === '|') {
+    return (
+      <>
+        {' '}
+        <span className="text-code-punct">|</span>
+      </>
+    )
+  }
+
+  return <span className="text-code-fg">{rest}</span>
+}
+
+
+// One pass of the screener. The bars are to scale, because the RATIO is the point:
+// the same formula six hundred times is arithmetic and belongs to code, and what
+// reaches the session is short enough for judgement to be spent on it.

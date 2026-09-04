@@ -10,6 +10,9 @@
 const readSide = import.meta.env.VITE_STATE_URL ?? ''
 
 export type Account = {
+  // The broker has always sent this and the type did not declare it. It is what a
+  // judge opens the account with, so the page says it.
+  number: string
   equity: number
   // Optional because the broker does not always answer with it, and a change
   // measured against a missing yesterday is NaN on the page rather than an error
@@ -96,6 +99,9 @@ export type Constraint = {
   disclosure: string
   value?: unknown
   unit?: string
+  // What a rule says about itself when it discloses no number. The engine has
+  // always sent it and the type did not declare it.
+  says?: string
 }
 
 export type Limits = {

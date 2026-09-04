@@ -3,8 +3,6 @@ import {
   ArrowUpRight,
   CircleAlert,
   CircleCheck,
-  Eye,
-  EyeOff,
   LoaderCircle,
   Minus,
 } from 'lucide-react'
@@ -24,7 +22,7 @@ import type {
 } from './api'
 import { readEverything } from './api'
 import { Equity } from './Equity'
-import { ago, clock, dollars, percent, signed, took, trim } from './format'
+import { ago, clock, dollars, marketOpen, percent, signed, took, trim } from './format'
 import {
   Card,
   Chip,
@@ -33,9 +31,11 @@ import {
   Figure,
   Figures,
   inline,
+  Mark,
   Section,
   Table,
   Unavailable,
+  Yaml,
 } from './parts'
 
 // Every fifteen seconds. Not a stream: the data changes once a minute or two,
@@ -82,12 +82,20 @@ export function Live() {
         </p>
 
         <p className="mt-6 flex flex-wrap items-center gap-2">
-          <Chip tone={failed.length > 0 ? 'loss' : 'gain'}>
+          {/* WHICH ACCOUNT. The landing names it and this page did not, though this
+              is the one a judge opens to check the figures against the broker. It
+              comes from the broker's own answer, not from a constant. */}
+          {all?.money.ok ? <Chip>{all.money.value.account.number}</Chip> : null}
+          {/* The dot is the SIGNAL that this page moves, so it takes the accent.
+              It was green, which on every other page here means money. */}
+          <Chip tone={failed.length > 0 ? 'loss' : undefined}>
             <span
-              className={`size-1.5 rounded-full ${failed.length > 0 ? 'bg-loss' : 'animate-pulse bg-gain'}`}
+              className={`size-1.5 rounded-full ${
+                failed.length > 0 ? 'bg-loss' : 'animate-pulse bg-accent'
+              }`}
               aria-hidden
             />
-            {readAt ? `read ${clock(readAt.toISOString())}` : 'reading…'}
+            {readAt ? `read ${clock(readAt.toISOString())} New York` : 'reading…'}
           </Chip>
           {failed.map((why) => (
             <Chip key={why} tone="loss">
@@ -129,14 +137,20 @@ function Page({ all }: { all: Everything }) {
 
       {state ? (
         <Section title="At a glance"
-        explains="The week in numbers: how often it woke, what it sent, what it holds.">
+        explains="The week in numbers: what it sent, what filled, what it filed, and what it is holding now.">
           <Counters state={state} money={money} />
         </Section>
       ) : null}
 
       <Section
         title="Limits it discovered"
-        explains="None of this is written into the agent’s instructions. It asks what it may do while it works, and this is the same answer it gets — down to the rule that admits it exists and withholds its number."
+        explains={
+          <>
+            <Mark>None of this is written into the agent’s instructions.</Mark> It asks what it may
+            do while it works, and this is the same answer it gets — down to the rule that admits
+            it exists and withholds its number.
+          </>
+        }
       >
         {all.limits.ok ? <LimitsCard limits={all.limits.value} /> : <Unavailable why={all.limits.why} />}
       </Section>
@@ -163,10 +177,6 @@ function Page({ all }: { all: Everything }) {
 }
 
 function Account({ money, line }: { money: Money; line?: Snapshot[] }) {
-  const yesterday = money.account.equity_yesterday
-  const day = yesterday === undefined ? undefined : money.account.equity - yesterday
-  const dayShare = yesterday ? (day ?? 0) / yesterday : 0
-
   // P&L from the START, not from yesterday's close. It is the first thing the
   // work is judged by, and until now the page did not carry it at all: it showed
   // the change over a day, which has nothing to do with the week's result.
@@ -180,31 +190,61 @@ function Account({ money, line }: { money: Money; line?: Snapshot[] }) {
   const totalShare = opened ? (total ?? 0) / opened : 0
 
   return (
-    <Figures>
-      {/* The number the page is opened for. One on the whole page. */}
-      <Figure name="equity" value={dollars(money.account.equity)} hero />
-      {total === undefined ? null : (
-        <Figure
-          name="profit since the start"
-          value={`${signed(total)} (${percent(totalShare)})`}
-          tone={total > 0 ? 'gain' : total < 0 ? 'loss' : undefined}
-          icon={total > 0 ? ArrowUpRight : total < 0 ? ArrowDownRight : Minus}
-          hero
-        />
-      )}
-      {/* The arrow is not decoration: colour alone is unreadable to those who do
-          not distinguish it, and a second cue fixes that. */}
-      {day === undefined ? null : (
-        <Figure
-          name="today"
-          value={`${signed(day)} (${percent(dayShare)})`}
-          tone={day > 0 ? 'gain' : day < 0 ? 'loss' : undefined}
-          icon={day > 0 ? ArrowUpRight : day < 0 ? ArrowDownRight : Minus}
-        />
-      )}
-      <Figure name="cash" value={dollars(money.account.cash)} />
-      <Figure name="buying power" value={dollars(money.account.buying_power)} />
-    </Figures>
+    // TWO NUMBERS, ONE TO A CARD. Five stood in one row and the two that matter
+    // had to be found among them.
+    //
+    // `today` and `buying power` are gone. The day's change is a different measure
+    // from the one this account is judged by - a week - and on a page read once it
+    // invites the wrong comparison; buying power is a broker's artefact, four times
+    // the cash at this options level, and says nothing about the work. Nothing is
+    // hidden by their absence: every move including the drawdowns is in the curve
+    // below, and the open positions carry their own losses.
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Card>
+        <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">equity</p>
+        <p className="mt-2 text-[32px] font-medium leading-none tracking-[-0.024em] text-primary tabular-nums sm:text-[44px]">
+          {dollars(money.account.equity)}
+        </p>
+        <p className="mt-4 font-mono text-[12px] text-muted">
+          {dollars(money.account.cash)} of it in cash
+        </p>
+      </Card>
+
+      <Card>
+        <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
+          profit since the start
+        </p>
+        {total === undefined ? (
+          <p className="mt-2 text-[44px] font-medium leading-none text-muted">&mdash;</p>
+        ) : (
+          <>
+            <p
+              className={`mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[32px] font-medium leading-none tracking-[-0.024em] tabular-nums sm:text-[44px] ${
+                total > 0 ? 'text-gain' : total < 0 ? 'text-loss' : 'text-primary'
+              }`}
+            >
+              {/* The arrow is a second cue beside the colour, for readers who do
+                  not distinguish it. */}
+              {total > 0 ? (
+                <ArrowUpRight className="size-6 shrink-0 self-center sm:size-8" aria-hidden />
+              ) : total < 0 ? (
+                <ArrowDownRight className="size-6 shrink-0 self-center sm:size-8" aria-hidden />
+              ) : (
+                <Minus className="size-6 shrink-0 self-center sm:size-8" aria-hidden />
+              )}
+              {signed(total)}
+              {/* The share belongs BESIDE the sum, not in the caption under it:
+                  they are one claim, and a reader weighing the result should not
+                  have to travel to find half of it. Smaller, same colour. */}
+              <span className="text-[18px] tracking-[-0.01em] sm:text-[22px]">{percent(totalShare)}</span>
+            </p>
+            <p className="mt-4 font-mono text-[12px] text-muted">
+              from {dollars(opened as number)} at the first reading
+            </p>
+          </>
+        )}
+      </Card>
+    </div>
   )
 }
 
@@ -235,92 +275,153 @@ function FromHistory({ line }: { line: Snapshot[] }) {
   )
 }
 
+// `runs` and `failed` used to stand here and both were wrong: they counted a list
+// the record returns with a ceiling on it, so a week of 152 runs showed as 50. The
+// four that remain are whole - three come from the broker, and the intents are
+// every one there has been.
+//
+// One to a card, because a row of bare numbers makes a reader guess what each is
+// counting. `filled` used to be green: on every other page here green means money,
+// and a count of orders is not money.
 function Counters({ state, money }: { state: State; money?: Money }) {
-  const refused = (state.turns ?? []).filter((turn) => turn.failure).length
-  const sent = money?.orders?.length ?? 0
-  const filled = money?.orders?.filter((order) => order.status === 'filled').length ?? 0
+  const counted: [string, string, string][] = [
+    [
+      'orders sent',
+      String(money?.orders?.length ?? 0),
+      'Everything the broker received, cancellations included.',
+    ],
+    [
+      'filled',
+      String(money?.orders?.filter((order) => order.status === 'filled').length ?? 0),
+      'What the book actually took.',
+    ],
+    [
+      'intents',
+      String((state.intents ?? []).length),
+      'Filed before an order could exist: no intent, no order.',
+    ],
+    [
+      'positions',
+      String(money?.positions?.length ?? 0),
+      'Open right now, valued at the broker’s own mark.',
+    ],
+  ]
 
   return (
-    <Figures>
-      <Figure name="runs" value={String((state.turns ?? []).length)} />
-      <Figure name="failed" value={String(refused)} tone={refused > 0 ? 'loss' : undefined} />
-      <Figure name="orders sent" value={String(sent)} />
-      <Figure name="filled" value={String(filled)} tone={filled > 0 ? 'gain' : undefined} />
-      <Figure name="intents" value={String((state.intents ?? []).length)} />
-      <Figure name="positions" value={String(money?.positions?.length ?? 0)} />
-    </Figures>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {counted.map(([name, value, says]) => (
+        <Card key={name}>
+          <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">{name}</p>
+          <p className="mt-2 text-[32px] font-medium leading-none tracking-[-0.02em] text-primary tabular-nums">
+            {value}
+          </p>
+          <p className="mt-3 text-[14px] leading-snug text-secondary">{says}</p>
+        </Card>
+      ))}
+    </div>
   )
+}
+
+// THE ANSWER AS IT ARRIVES, in the shape it arrives in.
+//
+// It used to be a list with an eye beside each rule, headed by the agent's own
+// identity and the tool name - `alpaca-agent-1`, `PLACE_OPTION_ORDER` - neither of
+// which means anything to a reader who has not read our code. What is left is the
+// answer itself, and it is already technical: hyphenated rule names, a unit, a
+// range with braces. Setting it as what it is says more than dressing it down.
+//
+// `disclosure` is the field this whole section is about, and in YAML it says
+// itself: `existence` where a number is withheld, `boundary` where one is given -
+// and the withheld rule visibly has no `value` line at all.
+//
+// Built from the live answer, not written here. The one thing shortened is the
+// list of underlyings, and the comment above it says by how much.
+function asYaml(limits: Limits): string {
+  const lines = [`ruleset: "${limits.ruleset_version}"`, 'constraints:']
+
+  for (const rule of limits.constraints ?? []) {
+    lines.push(`  - rule: ${rule.rule}`)
+    lines.push(`    disclosure: ${rule.disclosure}`)
+
+    if (rule.value !== undefined) {
+      if (Array.isArray(rule.value)) {
+        lines.push(`    # ${rule.value.length} names, four shown`)
+        lines.push(`    value: [${rule.value.slice(0, 4).join(', ')}]`)
+      } else if (typeof rule.value === 'object') {
+        lines.push(`    value: ${JSON.stringify(rule.value)}`)
+      } else {
+        lines.push(`    value: ${rule.value}`)
+      }
+    }
+    if (rule.unit) lines.push(`    unit: ${rule.unit}`)
+    if (rule.says) lines.push(`    says: "${rule.says}"`)
+  }
+
+  return lines.join('\n')
 }
 
 function LimitsCard({ limits }: { limits: Limits }) {
   return (
-    <Card>
+    // The one marked card on this page: it is the risk engine's own answer, which
+    // is the thing here that exists nowhere else.
+    <Card marked>
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-muted">
-        <span className="font-medium text-primary">{limits.identity}</span>
-        <Chip>{limits.tool}</Chip>
-        <Chip>ruleset {limits.ruleset_version}</Chip>
         <Chip tone={limits.governed ? 'gain' : 'loss'}>
           {limits.governed ? 'governed' : 'ungoverned'}
         </Chip>
       </div>
-      <ul className="mt-3 space-y-1.5">
-        {(limits.constraints ?? []).map((rule) => (
-          <li key={rule.rule} className="flex items-baseline gap-2 text-sm">
-            {/* An open eye means the number is named; a struck-through one means
-                the rule reports that it exists and discloses no number. That is
-                the mechanism we are showing, and it must read at a glance. */}
-            {rule.disclosure === 'boundary' && rule.value !== undefined ? (
-              <Eye aria-label="number disclosed" className="mt-0.5 size-3.5 shrink-0 text-muted" />
-            ) : (
-              <EyeOff aria-label="number withheld" className="mt-0.5 size-3.5 shrink-0 text-muted" />
-            )}
-            <span className="min-w-0 break-words">
-            <span className="text-muted">{rule.rule}: </span>
-            {rule.disclosure === 'boundary' && rule.value !== undefined ? (
-              <span>
-                {shorten(JSON.stringify(rule.value))}
-                {rule.unit ? ` ${rule.unit}` : ''}
-              </span>
-            ) : (
-              // A rule that reports it EXISTS and discloses no number. This is
-              // not a gap in the data but a degree of disclosure, and it shows.
-              <span className="italic text-muted">
-                {rule.disclosure === 'existence' ? 'exists · number withheld' : 'withheld'}
-              </span>
-            )}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <div className="mt-4">
+        <Yaml title="risk-engine.yaml" source={asYaml(limits)} />
+      </div>
     </Card>
   )
 }
 
+// A TABLE, because these are six rows of the same four measurements and a list
+// made a reader parse each one out of a sentence. `edge` is the column that
+// decides - the number the entry rule is read against - so it is last, where the
+// eye lands, and a negative one is coloured.
 function SweepCard({ sweep }: { sweep: Sweep }) {
   const candidates = sweep.candidates ?? []
   if (candidates.length === 0) return <Empty says="no sweep yet, or it found nothing" />
 
+  const shown = candidates.slice(0, 6)
+
   return (
-    <Card>
-      <div className="flex flex-wrap items-baseline gap-x-4 text-xs text-muted">
+    <div>
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted">
         <span className="font-medium text-primary">
-          {candidates.length} structures
+          {candidates.length} priced
+          {shown.length < candidates.length ? ` · the ${shown.length} best shown` : ''}
         </span>
         <Chip>swept {ago(sweep.taken_at)}</Chip>
+        {marketOpen() ? null : <Chip>market closed — the screener runs while it is open</Chip>}
       </div>
-      <ul className="mt-3 space-y-1.5 text-sm">
-        {candidates.slice(0, 6).map((one) => (
-          <li key={`${one.underlying}${one.type}${one.short_strike}${one.long_strike}`}>
-            <span className="font-medium">{one.underlying}</span>{' '}
-            <span className="text-muted">
-              {one.type} {one.short_strike}/{one.long_strike}
-            </span>{' '}
-            — credit {one.credit.toFixed(2)} against risk {one.risk.toFixed(2)}
-            {one.edge_points === undefined ? '' : `, edge ${one.edge_points.toFixed(1)}`}
-          </li>
-        ))}
-      </ul>
-    </Card>
+
+      <Table
+        head={['underlying', 'structure', 'credit', 'risk', 'edge']}
+        rows={shown.map((one) => [
+          <span className="font-medium">{one.underlying}</span>,
+          <span className="text-secondary">
+            {one.type} {one.short_strike}/{one.long_strike}
+          </span>,
+          <span className="tabular-nums">{one.credit.toFixed(2)}</span>,
+          <span className="tabular-nums">{one.risk.toFixed(2)}</span>,
+          one.edge_points === undefined ? (
+            <span className="text-muted">—</span>
+          ) : (
+            <span
+              className={`font-medium tabular-nums ${
+                one.edge_points < 0 ? 'text-loss' : 'text-primary'
+              }`}
+            >
+              {one.edge_points.toFixed(1)}
+            </span>
+          ),
+        ])}
+        empty="no sweep yet, or it found nothing"
+      />
+    </div>
   )
 }
 
@@ -430,11 +531,32 @@ function TurnCard({
 
   const refused = calls.filter((call) => call.status !== 'completed').length
 
+  // A turn with nothing to show is a LINE, not a card.
+  //
+  // A card is a frame around content, and an empty one reads as content that
+  // failed to load. This still records that the session woke and how long it took
+  // - the cadence is part of what the section promises - but it stops competing
+  // with the turns that have something to say.
+  const bare = causes.length === 0 && said.length === 0 && calls.length === 0
+  if (bare && !turn.failure) {
+    return (
+      <p className="px-4 py-1.5 font-mono text-[11px] text-muted">
+        {clock(turn.started_at)} · woke and recorded nothing
+        {turn.finished_at ? ` · ${took(turn.started_at, turn.finished_at)}` : ''}
+      </p>
+    )
+  }
+
   return (
     <div className="rounded-lg border border-line bg-surface-raised px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-[11px] text-muted">
         <span>{clock(turn.started_at)}</span>
-        <span className="font-medium text-primary">{causes[0]?.woken_by ?? 'unknown'}</span>
+        {/* No name rather than a placeholder. `unknown` told a reader nothing and
+            read as a fault; a turn whose cause did not arrive still has its time,
+            its length and its words, and those say more than the word does. */}
+        {causes[0]?.woken_by ? (
+          <span className="font-medium text-primary">{causes[0].woken_by}</span>
+        ) : null}
         {causes.slice(1).map((cause) => (
           <Chip key={cause.id}>
             {'+ '}
@@ -504,6 +626,3 @@ function Spoken({ text }: { text: string }) {
 
 // A list of two hundred underlyings fills the screen and says nothing. The start
 // of the list says everything: that it exists and what kind of thing is in it.
-function shorten(value: string): string {
-  return value.length > 90 ? `${value.slice(0, 90)}…` : value
-}
