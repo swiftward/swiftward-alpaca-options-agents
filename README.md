@@ -14,7 +14,7 @@ A window may name the OCCASION - a company reports on Wednesday, a macro number 
 | **the window** | 4 trading days: 31 August, 1, 2 and 3 September |
 | **check it yourself** | [alpaca.swiftward.dev](https://alpaca.swiftward.dev) reads the broker live; `make account-claims PAGE=...` checks the trading against these documents, with no credential of ours |
 | **what is here** | 15,467 lines of Go against 19,639 of tests; 587 test functions in 90 files; 25 of 25 published numbers recompute with no credentials and no network; 13 trials against a stand that displaces the real option book |
-| **the risk engine** | a service the agent calls over an API: rules declared rather than coded, each carrying how much of itself it discloses; an append-only record of what it refused and why; limits changed on a running agent without a restart. [`docs/architecture.md`](docs/architecture.md) shows where it sits and what it answers |
+| **the policy gateway** | the service every order passes through, called over an API: rules declared rather than coded, each carrying how much of itself it discloses; an append-only record of what it refused and why; limits changed on a running agent without a restart. [`docs/architecture.md`](docs/architecture.md) shows where it sits and what it answers |
 
 Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026. The
 account is measured twice: Alpaca at Thursday's close, above, and lablab again when

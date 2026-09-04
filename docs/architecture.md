@@ -6,7 +6,7 @@ Two networks, one binary with four roles, and one chain repeated per account. Th
 
 The system has two halves and each is verified its own way: the trading engine in
 this repository, which a reader settles by reading it and running its tests, and the
-risk engine beside it, which a reader settles by watching what it did - the record
+policy gateway beside it, which a reader settles by watching what it did - the record
 of every refusal, with the rule that made it, served on the page.
 
 **Settled by reading this repository, and by tests that go red without the rule:**
@@ -29,7 +29,7 @@ of every refusal, with the rule that made it, served on the page.
 | The whole read path holds under four callers at once | `make rehearse`, which prints what was refused |
 | The account traded the way these documents describe | `make account-claims PAGE=...`, which reads the page and needs nothing of ours |
 
-The risk engine is a service with an API, and that is what makes the second table
+The policy gateway is a service with an API, and that is what makes the second table
 possible: it stands on the path every order takes, it is the only thing that can
 refuse one, and it writes down what it refused and which rule refused it. Its rules
 are declarations rather than code, each carrying how much of itself it tells the
