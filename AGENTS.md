@@ -25,7 +25,8 @@ No client of ours is named in this repository, and nothing is copied here out of
 
 ## People
 
-Nobody on the team is named here either, and a record of something going wrong
+Nobody on the team is named here either, with one exception: `LICENSE`, where the
+copyright names the four people who wrote this. A record of something going wrong
 names the behaviour rather than whose agent produced it. A trial that caught a
 session repeating itself is worth keeping; who was at the keyboard is not part of
 the finding, and to a reader who does not know us it reads as blame.
