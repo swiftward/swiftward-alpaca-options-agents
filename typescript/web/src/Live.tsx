@@ -13,7 +13,6 @@ import type {
   Limits,
   Money,
   Said,
-  Snapshot,
   State,
   Sweep,
   ToolCall,
@@ -21,6 +20,7 @@ import type {
   TurnCause,
 } from './api'
 import { readEverything } from './api'
+import { MEASUREMENTS, OPENED } from './snapshot'
 import { Equity } from './Equity'
 import { ago, clock, dollars, marketOpen, percent, signed, took, trim } from './format'
 import {
@@ -28,8 +28,6 @@ import {
   Chip,
   Empty,
   Eyebrow,
-  Figure,
-  Figures,
   inline,
   Mark,
   Section,
@@ -84,7 +82,7 @@ export function Live() {
         <Eyebrow>[ live · alpaca paper trading ]</Eyebrow>
 
         <h1 className="mt-6 max-w-[20ch] text-[40px] font-medium leading-[1.05] tracking-[-0.024em] text-primary">
-          What the agent is doing, right now.
+          The account at the close it is judged on.
         </h1>
         <p className="mt-4 max-w-[52ch] text-[20px] font-medium leading-[1.25] tracking-[-0.01em] text-secondary">
           Every run it makes, every limit it was handed, and every conclusion it reached — in
@@ -211,19 +209,7 @@ function Page({ all }: { all: Everything }) {
   return (
     <>
       <Section title={ACCOUNT_SECTION}>
-        {all.money.ok ? (
-          <Account money={all.money.value} line={all.equity.ok ? all.equity.value : undefined} />
-        ) : (
-          // The broker is silent - but the profit is computed from OUR history,
-          // and that arrived. Showing a failure over data we do have hides from
-          // the reader the one thing they opened the page for.
-          <>
-            {all.equity.ok ? <FromHistory line={all.equity.value} /> : null}
-            <div className="mt-4">
-              <Unavailable why={all.money.why} />
-            </div>
-          </>
-        )}
+        <Measured />
         <div className="mt-4">
           {all.equity.ok ? <Equity line={all.equity.value} /> : <Unavailable why={all.equity.why} />}
         </div>
@@ -269,37 +255,30 @@ function Page({ all }: { all: Everything }) {
   )
 }
 
-function Account({ money, line }: { money: Money; line?: Snapshot[] }) {
-  // P&L from the START, not from yesterday's close. It is the first thing the
-  // work is judged by, and until now the page did not carry it at all: it showed
-  // the change over a day, which has nothing to do with the week's result.
-  //
-  // It is measured from the first recorded measurement, not from an imagined
-  // hundred thousand: an account can be opened with a different sum, and a guessed
-  // number on a page read for its numbers is worse than a missing one. The caption
-  // says what it was measured from.
-  const opened = (line ?? [])[0]?.equity
-  const total = opened === undefined ? undefined : money.account.equity - opened
-  const totalShare = opened ? (total ?? 0) / opened : 0
+// THE ACCOUNT AS IT WAS MEASURED, not as it stands.
+//
+// The organiser reads total equity at the close of Thursday 3 September, and that
+// reading is what the entry is judged on. The account goes on trading afterwards,
+// so a live figure here answers a different question under the same heading - one
+// number on the deck, another on this page, and a reader with no way to tell which
+// is the result.
+//
+// The figure comes from `snapshot.ts`, the same constant the landing and the
+// judges' page render, so all three pages carry one number.
+function Measured() {
+  const measured = MEASUREMENTS[0]
+  const equity = measured.equity ?? 0
+  const total = equity - OPENED
 
   return (
-    // TWO NUMBERS, ONE TO A CARD. Five stood in one row and the two that matter
-    // had to be found among them.
-    //
-    // `today` and `buying power` are gone. The day's change is a different measure
-    // from the one this account is judged by - a week - and on a page read once it
-    // invites the wrong comparison; buying power is a broker's artefact, four times
-    // the cash at this options level, and says nothing about the work. Nothing is
-    // hidden by their absence: every move including the drawdowns is in the curve
-    // below, and the open positions carry their own losses.
     <div className="grid gap-4 sm:grid-cols-2">
       <Card>
         <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">equity</p>
         <p className="mt-2 text-[32px] font-medium leading-none tracking-[-0.024em] text-primary tabular-nums sm:text-[44px]">
-          {dollars(money.account.equity)}
+          {dollars(equity)}
         </p>
         <p className="mt-4 font-mono text-[12px] text-muted">
-          {dollars(money.account.cash)} of it in cash
+          {measured.by}, {measured.when}
         </p>
       </Card>
 
@@ -307,67 +286,28 @@ function Account({ money, line }: { money: Money; line?: Snapshot[] }) {
         <p className="font-mono text-[11px] uppercase tracking-[0.04em] text-muted">
           profit since the start
         </p>
-        {total === undefined ? (
-          <p className="mt-2 text-[44px] font-medium leading-none text-muted">&mdash;</p>
-        ) : (
-          <>
-            <p
-              className={`mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[32px] font-medium leading-none tracking-[-0.024em] tabular-nums sm:text-[44px] ${
-                total > 0 ? 'text-gain' : total < 0 ? 'text-loss' : 'text-primary'
-              }`}
-            >
-              {/* The arrow is a second cue beside the colour, for readers who do
-                  not distinguish it. */}
-              {total > 0 ? (
-                <ArrowUpRight className="size-6 shrink-0 self-center sm:size-8" aria-hidden />
-              ) : total < 0 ? (
-                <ArrowDownRight className="size-6 shrink-0 self-center sm:size-8" aria-hidden />
-              ) : (
-                <Minus className="size-6 shrink-0 self-center sm:size-8" aria-hidden />
-              )}
-              {signed(total)}
-              {/* The share belongs BESIDE the sum, not in the caption under it:
-                  they are one claim, and a reader weighing the result should not
-                  have to travel to find half of it. Smaller, same colour. */}
-              <span className="text-[18px] tracking-[-0.01em] sm:text-[22px]">{percent(totalShare)}</span>
-            </p>
-            <p className="mt-4 font-mono text-[12px] text-muted">
-              from {dollars(opened as number)} at the first reading
-            </p>
-          </>
-        )}
+        <p
+          className={`mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[32px] font-medium leading-none tracking-[-0.024em] tabular-nums sm:text-[44px] ${
+            total > 0 ? 'text-gain' : total < 0 ? 'text-loss' : 'text-primary'
+          }`}
+        >
+          {total > 0 ? (
+            <ArrowUpRight className="size-7 shrink-0 sm:size-9" aria-hidden />
+          ) : total < 0 ? (
+            <ArrowDownRight className="size-7 shrink-0 sm:size-9" aria-hidden />
+          ) : (
+            <Minus className="size-7 shrink-0 sm:size-9" aria-hidden />
+          )}
+          {signed(total)}
+          <span className="text-[18px] font-normal sm:text-[22px]">{percent(total / OPENED)}</span>
+        </p>
+        <p className="mt-4 font-mono text-[12px] text-muted">
+          from {dollars(OPENED)} at the first reading
+        </p>
       </Card>
     </div>
   )
 }
-
-// The account from our own record, when the broker does not answer. The numbers
-// are the same and come from the same series as the curve; the only difference is
-// that "now" here is the last recorded measurement rather than a live answer from
-// the broker, and the caption says so.
-function FromHistory({ line }: { line: Snapshot[] }) {
-  const points = line ?? []
-  if (points.length === 0) return null
-
-  const opened = points[0].equity
-  const now = points[points.length - 1].equity
-  const total = now - opened
-  const share = opened === 0 ? 0 : total / opened
-
-  return (
-    <Figures>
-      <Figure name="equity (last reading)" value={dollars(now)} hero />
-      <Figure
-        name="profit since the start"
-        value={`${signed(total)} (${percent(share)})`}
-        tone={total > 0 ? 'gain' : total < 0 ? 'loss' : undefined}
-        icon={total > 0 ? ArrowUpRight : total < 0 ? ArrowDownRight : Minus}
-        hero
-      />
-    </Figures>
-  )
-}
-
 // `runs` and `failed` used to stand here and both were wrong: they counted a list
 // the record returns with a ceiling on it, so a week of 152 runs showed as 50. The
 // four that remain are whole - three come from the broker, and the intents are

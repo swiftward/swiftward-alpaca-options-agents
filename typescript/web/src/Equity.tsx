@@ -81,7 +81,14 @@ export function Equity({ line: recorded }: { line: Snapshot[] }) {
   // Cut to the window - but only if the cut leaves a line. On a fresh deployment,
   // or a week that has not reached the Monday, the whole record is better than an
   // empty frame.
-  const windowed = (recorded ?? []).filter((point) => Date.parse(point.recorded_at) >= WINDOW_OPENS)
+  // The line ENDS at the measurement. The account goes on trading afterwards and
+  // that is said on the page, but a curve running past the close under a figure
+  // taken at it invites the reader to read the last point as the result.
+  const windowed = (recorded ?? []).filter((point) => {
+    const at = Date.parse(point.recorded_at)
+
+    return at >= WINDOW_OPENS && at <= MEASURED_AT
+  })
   const line = windowed.length >= 2 ? windowed : recorded
 
   // An empty list, not null - that is the contract on the data side. But a page a
@@ -195,8 +202,8 @@ export function Equity({ line: recorded }: { line: Snapshot[] }) {
         {line.length} readings, {clock(line[0].recorded_at)} — {clock(line[line.length - 1].recorded_at)}
         {highest === lowest ? ' · unchanged' : ` · low ${dollars(lowest)} · high ${dollars(highest)}`}
         <br />
-        Between the two marks is the window the organiser measures; the account keeps
-        trading past the second one, and so does this line.
+        The window the organiser measures, open to close. The account goes on trading
+        after it; this line stops where the measurement was taken.
       </figcaption>
     </figure>
   )
