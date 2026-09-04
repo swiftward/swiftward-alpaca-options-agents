@@ -96,6 +96,46 @@ minute before the cut is a result nobody chose - and then closes only what the b
 will take at no worse than the mark, because closing everything pays the crossing
 out of the number being judged.
 
+## About the shape of the system
+
+**An agent you have to program.** When behaviour lives in code, changing what an
+agent does is a code change, a review and a deploy - so it is changed rarely, by the
+person who can build it, and never during a market. Here the behaviour is a
+declaration: the sessions and their causes, the windows, the playbooks that agent
+may load, every number it trades on. An operator edits it with the market open and
+the next session reads it (`agent/alpaca-agent-tikhon.yaml`, `declaration/watch.go`).
+
+**Risk logic inside the process that trades.** When the thing that decides and the
+thing that constrains are the same program, a bug in one is a bug in the other, and
+the constraint is only ever as strong as the code that could route around it. Here
+the ceilings come from a service outside the agent, reached over an API, which
+refuses the call rather than advising against it (`docs/architecture.md`).
+
+**One agent, one account, and no way to add a second.** A design that shares a
+credential or a database between agents has two agents that are one agent to the
+rules, and a restart of either closes the other's open turns. Here a chain is the
+unit: harness, gateway endpoint, broker server, database, page and credential all
+carrying one agent's name, so adding an account adds a chain rather than a setting -
+and four run side by side on the same stack (`compose.yaml`,
+`golang/internal/config/composekeys_test.go`).
+
+**Two agents that cannot be told apart afterwards.** If the record does not name
+which agent made a call, a week of trading is one undifferentiated stream. Every
+call here carries the credential that made it, the record names its account, and one
+agent can be stopped without touching the other (`record_account`, `db/account_test.go`).
+
+**One model, wired in.** A session that can only run on one provider cannot be moved
+when that provider is slow, expensive or down, and cannot use a cheaper model for
+work that does not need the expensive one. Here the model is named per session in
+the declaration - the window that only reads the news runs on a cheaper one - and
+the calls go through a gateway addressed by configuration
+(`agent/alpaca-agent-tikhon.yaml`, `model:`).
+
+**Nothing written down about what did NOT happen.** A system that records its fills
+records its successes. The refusals are the more useful half: what the agent tried,
+what stopped it, and which rule. They are in the same table as everything else and
+on the page beside the call each one stopped (`tool_calls`).
+
 ## About what a reader can do with the repository
 
 **A history that starts at the submission.** One squashed commit says nothing about
