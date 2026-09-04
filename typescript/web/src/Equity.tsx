@@ -2,6 +2,7 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -37,6 +38,14 @@ const whole = (value: number) =>
 // the two gaps this record contains fall in those idle days - the deployment was
 // down for two hours and then for twelve - and there is not a third after them.
 const WINDOW_OPENS = Date.parse('2026-08-31T13:30:00Z')
+
+// The other end of it. The organiser measures "portfolio's total equity as of EOD
+// Thursday Sep 3rd", and the broker's own reference defines the field that carries
+// it - `last_equity` - as "Equity as of previous trading day at 16:00:00 ET".
+//
+// The line does not stop here. The agent goes on trading after the measurement, so
+// the chart goes on drawing, and the two marks say which part of it was measured.
+const MEASURED_AT = Date.parse('2026-09-03T20:00:00Z')
 
 // A hole in the record is drawn ACROSS, not broken at. A break left a white notch
 // that reads as a chart which failed to draw, and a reader cannot tell that from a
@@ -157,6 +166,9 @@ export function Equity({ line: recorded }: { line: Snapshot[] }) {
               content={<Balance opened={opened} />}
               cursor={{ stroke: 'var(--color-line-strong)', strokeDasharray: gridDots }}
             />
+            <ReferenceLine x={WINDOW_OPENS} {...edge('window opens')} />
+            <ReferenceLine x={MEASURED_AT} {...edge('measured')} />
+
             <Area
               // linear, not monotone. Smoothing is prettier, but it DRAWS DATA
               // IN: a fill lifts the account instantly, and monotone turned that
@@ -182,10 +194,25 @@ export function Equity({ line: recorded }: { line: Snapshot[] }) {
       <figcaption className="mt-2 text-xs text-muted">
         {line.length} readings, {clock(line[0].recorded_at)} — {clock(line[line.length - 1].recorded_at)}
         {highest === lowest ? ' · unchanged' : ` · low ${dollars(lowest)} · high ${dollars(highest)}`}
+        <br />
+        Between the two marks is the window the organiser measures; the account keeps
+        trading past the second one, and so does this line.
       </figcaption>
     </figure>
   )
 }
+
+// Both marks are drawn the same way, so neither reads as the more important one.
+const edge = (label: string) => ({
+  stroke: 'var(--color-line-strong)',
+  strokeDasharray: '4 4',
+  label: {
+    value: label,
+    position: 'insideTop' as const,
+    fill: 'var(--color-muted)',
+    fontSize: 10,
+  },
+})
 
 // The popup under the cursor. It shows not only the balance but the difference
 // from the start: "$100,041.20" on its own does not say whether that is much,
