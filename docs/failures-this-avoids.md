@@ -44,7 +44,8 @@ publishes the refusals, and the record keeps the call each one stopped.
 **A number with no way to check it.** Publishing a figure and its method is not the
 same as publishing a figure anyone can reproduce. `make claims` recomputes
 twenty-five of them from data committed to this repository, with no credentials and
-no network; it was verified by cloning into an empty directory and running it there.
+no network. Clone into an empty directory and run it there: everything it needs is
+in the clone.
 
 **A number without the market beside it.** A return means nothing until the reader
 knows what the market did in the same window. The first screen carries both, from

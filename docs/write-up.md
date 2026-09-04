@@ -224,12 +224,11 @@ above. Every entry has the same four. What the four days settle is whether the
 machine behaves as documented, which `make account-claims` checks; what settles the
 strategy is 646 days, which `make claims` recomputes.
 
-**"Someone else returned more."** Over four sessions, almost certainly - and over
-four sessions a return ranks draws rather than systems. A handful of trades is not
-enough to separate an edge from a good week: an agent with a genuine 60% edge
-finishes ahead of a coin flip only about seven times in ten over twenty trades, and
-nobody here had twenty. That arithmetic applies to the largest number in this field
-as much as to ours, and the entry that posted it says so about its own result.
+**"Four sessions is a small sample."** It is the window the organiser set, and every
+entry has the same four - so the comparison between entries is fair whatever the
+sample says about any one strategy. What this entry adds beside the number is 646
+trading days of committed option prices and one command that recomputes what they
+say.
 
 What four sessions CAN rank is what is not luck: whether the worst case of every
 position was computed before the order went out, whether the limits came from
