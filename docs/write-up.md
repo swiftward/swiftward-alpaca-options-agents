@@ -117,7 +117,13 @@ and the difference is a decision, not an oversight.
 
 Every rule IN THIS REPOSITORY that can refuse a trade carries a test that FAILS when the rule is removed - the ladder's cancellations, the worst-price re-check, the profit watch's guard on structure shapes. The gateway's own refusals are tested where the gateway lives, which is not here. That is the property worth having: a suite that stays green when a gate is deleted has measured nothing. Each gate above was checked that way - the rule disabled, the test watched to go red, the rule restored.
 
-Beside the code there is a test stand that replays market conditions and failures against the agent - the ones a real market will not produce on demand - and measures what the agent does in response. It is not a backtest and not a trading simulator. What it has caught, and the thirteen trials behind it, are in `testbed/README.md`.
+Beside the code stands an instrument built to attack the agent rather than confirm it, and it is not a backtest: it replays no history and predicts no price.
+
+It works two ways. A staged market takes prices, clock and option book from a file, for the questions a real market will not produce on request - the price arriving at a sold strike, one leg of a spread assigned, a tool that stops answering mid-session. An overlay does the harder thing: every read goes to the REAL broker and one number is displaced along a curve, with each contract repriced from that move by its own live implied volatility. At zero displacement the overlay equals the live market to the cent, which is the property the whole stand rests on. So the agent can be shown a fall that did not happen today, at prices that are otherwise real, and watched.
+
+Either way a fault can be laid on top: any tool the stand serves can be made to answer with a stated message for a stated stretch, because a market that misbehaves is only half of what breaks an agent - the other half is a tool that goes quiet while the market keeps moving, and that half leaves no trace, since nothing crashes. A scenario that would mislead is refused at load rather than run: steps out of order, a price of nothing, a fault naming no tools.
+
+Thirteen trials have gone through it and each says what separates a right answer from a wrong one. What they caught is in `testbed/README.md`, including a guard of ours that decided what to close by counting legs - right while only verticals were held, wrong from the first backspread.
 
 Two defects the suite had passed green were found this week by running this repository's binary against a stand outside it: an execution cadence measuring 45.002 and 89.999 seconds where 45 was declared, and an order that lived nineteen minutes against a patience of eight. Both are now held by tests that go red without the fix - `TestSchedulerJitterDoesNotDecideWhetherAnOrderSteps` and `TestAMissedPassCostsADelayAndNotTheCancellation` in `golang/internal/execution`.
 
