@@ -1,11 +1,21 @@
 # swiftward-alpaca-options-agents
 
-An autonomous agent that sells and buys defined-risk option structures on Alpaca -
-credit spreads out of the money, backspreads for the day the market moves hard, and
-two event bets - and that runs four trading days a week without anybody at a
-keyboard.
+**Declarative AI Trading with Governance, Risk and Compliance**
 
-**The model decides what to trade. It never decides what it may lose.**
+The agent chooses the trade. It sits alone on a private network, and every call it
+makes is allowed or refused: orders by a risk engine, thinking by a model gateway,
+everything else by a proxy with a list of hosts.
+
+It learns from its own record: every session reads what the earlier ones did,
+including the refusals they were given. Its behaviour is a declaration the harness
+executes, and every number in it comes from analysis of 646 trading days of option
+prices committed in the repository.
+
+Every published number recomputes from one command. **+2.59% against SPY's +0.76%.**
+
+What it trades: defined-risk option structures on Alpaca - credit spreads out of the
+money, backspreads for the day the market moves hard, and two event bets - four
+trading days a week with nobody at a keyboard.
 
 The three ceilings that bound a loss - what one position may lose, what everything betting the same way may lose together, what the whole book may lose - are not in its prompt and not in its file. It asks for them while it works, sizes to the answer, and sees a tightened ceiling on its next turn without a restart. They live where it cannot reach them: the agent holds a risk-engine address and a token, and no broker key. The engine at that address is what refuses an order that breaches a ceiling - the refusal names the rule, and it lands in the record beside the call it stopped. What holds the route is that address and that credential rather than the network, and `docs/architecture.md` says where a deployment moving real money would put the wall instead. Its own trading numbers are in its declaration, where an operator can read and change them.
 

@@ -1,6 +1,12 @@
-# An options agent that trades inside limits it can read
+# Declarative AI Trading with Governance, Risk and Compliance
 
-An autonomous agent trades defined-risk option structures on an Alpaca paper account. A schedule decides *when* it runs and tells it *why*; the agent decides *what* to trade. Everything it did and everything it meant to do is written down as it happens, and the demo page shows both.
+The agent chooses the trade. It sits alone on a private network, and every call it makes is allowed or refused: orders by a risk engine, thinking by a model gateway, everything else by a proxy with a list of hosts.
+
+It learns from its own record: every session reads what the earlier ones did, including the refusals they were given. Its behaviour is a declaration the harness executes, and every number in it comes from analysis of 646 trading days of option prices committed in the repository.
+
+Every published number recomputes from one command. **+2.59% against SPY's +0.76%.**
+
+It trades defined-risk option structures on an Alpaca paper account. A schedule decides *when* it runs and tells it *why*; the agent decides *what* to trade. Everything it did and everything it meant to do is written down as it happens, and the demo page shows both.
 
 ## Three contributions, and where each is proven
 
