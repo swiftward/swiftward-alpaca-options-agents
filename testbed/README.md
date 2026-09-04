@@ -30,10 +30,12 @@ Two ways to move a market, and the difference matters:
   were held, wrong from the first backspread (`trials/profit-watch`, and the test
   that now refuses a new shape without a verdict,
   `golang/internal/takeprofit/shapes_test.go`).
-- A defence that looks every fifteen minutes at a corridor the price stands inside
+- A defence that looked every fifteen minutes at a corridor the price stands inside
   for a median of fourteen. On 415 traverses of SPY this year no scheduled check
   fell inside the corridor on 132 of them (`trials/strike-corridor`,
-  `trials/defence-corridor.py`).
+  `trials/defence-corridor.py`). The declaration that trial was run against has since
+  moved to a half-hour cadence, which makes the arithmetic worse rather than better
+  and is why the rule it defends now closes past the bought strike instead.
 - A session that reported a failed gate check twice, eleven minutes apart, and then
   did nothing while the position stood undefended. It had already happened before
   it was made into a trial (`trials/broken-gate`).

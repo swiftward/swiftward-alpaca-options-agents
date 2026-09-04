@@ -16,7 +16,7 @@ request and dies after the answer.
 - **The broker's keys** and a login for the agent - both below.
 
 Closer to the exchange is better. A pass goes through hundreds of underlyings and
-is bounded by requests per minute, and the defence decides on price every fifteen
+is bounded by requests per minute, and the defence decides on price every thirty
 minutes: an extra hundred milliseconds per request stretches a pass enough that
 the list goes stale before it is refreshed.
 

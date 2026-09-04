@@ -12,6 +12,11 @@ The single thing that keeps its original wording is a quotation: a source quoted
 
 Run `make check`. It is the whole gate in one command: the style check, the language check above, the tests, the race detector, and both builds. Push only on a green one.
 
+A commit message says what changed and why. It carries no link to the session that
+made it and no co-author line for the tool that helped: this history is read by
+people deciding whether to trust the code, and a machine's signature in every
+message tells them nothing about the change.
+
 Do not lean on anything that runs after the push. The language check in particular is the one no other gate can stand in for - `go vet` and the tests pass happily on a comment in another language, and a line that reaches the history is published, not queued.
 
 ## Clients
