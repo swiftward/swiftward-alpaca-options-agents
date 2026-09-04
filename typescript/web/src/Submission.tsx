@@ -15,9 +15,10 @@ const REPOSITORY = 'https://github.com/swiftward/swiftward-alpaca-options-agents
 // root is four ways of saying "go and read it", and a judge with a quarter of an
 // hour reads none of them.
 const DOCS = `${REPOSITORY}/blob/main/docs`
-// Filled in when the deck is published. An empty address renders as a card that is
-// plainly waiting rather than a link that goes nowhere.
-const DECK = ''
+// The deck travels with the repository rather than on somebody's drive: it is a
+// file in the tree, so it opens when the repository does and cannot go missing
+// behind an expired share.
+const DECK = `${REPOSITORY}/blob/main/typescript/web/public/slides.pdf`
 
 const CLAIMS_OUTPUT = `PASS  646 trading days covered          646
 PASS  one day to expiry pays          10.72
@@ -124,7 +125,7 @@ export function Submission() {
         <Opens to="/live" name="The account, live" says="It moves while you watch it." inside />
         <Opens to={VIDEO} name="The video" says="Five minutes, and it runs." />
         <Opens to={REPOSITORY} name="The source" says="The whole history, MIT." />
-        <Opens to={DECK} name="The deck" says="Published shortly." />
+        <Opens to={DECK} name="The deck" says="Thirteen pages: what it trades, what each control stops, and the account it is judged on." />
       </div>
 
       <div className="mt-16">
