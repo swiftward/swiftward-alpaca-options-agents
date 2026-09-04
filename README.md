@@ -13,7 +13,7 @@ The risk limits are not in its prompt. It asks a policy engine for them while it
 | **check it yourself** | [alpaca.swiftward.dev](https://alpaca.swiftward.dev) reads the broker live; `make account-claims PAGE=...` checks the trading against these documents, with no credential of ours |
 | **the second clock** | lablab measures again when submissions close, Friday 15:00 UTC, market open. That number is not ours to state before it is taken |
 | **what is here** | 15,467 lines of Go against 19,639 of tests; 587 test functions in 90 files; 25 of 25 published numbers recompute with no credentials and no network; 13 trials against a stand that displaces the real option book |
-| **what is not here** | the policy gateway that enforces the limits is a network service and closed source. [`docs/architecture.md`](docs/architecture.md) opens with the line between what you can check here and what needs a running deployment |
+| **the risk engine** | a service the agent calls over an API: rules declared rather than coded, each carrying how much of itself it discloses; an append-only record of what it refused and why; limits changed on a running agent without a restart. [`docs/architecture.md`](docs/architecture.md) shows where it sits and what it answers |
 
 Built for the Alpaca AI Trading Agents Hackathon, 28 August - 4 September 2026.
 
@@ -129,7 +129,51 @@ What holds that route is the agent's configuration and its credential rather tha
 
 One order does not take that path either, and it is named rather than left to be found: the profit watch closes a structure itself, without a model, and `marketdata.CloseStructure` says why at the point where it crosses the boundary. A close can only make the book smaller, so there is nothing for the gateway to refuse - and rather than rest on that reasoning, every leg carries `position_intent` of `buy_to_close` or `sell_to_close`, so the BROKER rejects the order outright if it would open anything.
 
-The gateway itself is a network service, addressed by `BROKER_MCP_URL`, and it is not in this repository. `docs/architecture.md` says what it does and where the boundary between it and this code runs.
+The gateway is a service of its own, reached at `BROKER_MCP_URL`, and that is what lets it do the three things above: it stands on the path every order takes, it is the only thing that can refuse one, and it keeps the record of what it refused. Its rules are declarations rather than code, each carrying how much of itself it tells the agent, and an operator changes one while the agent is running. `docs/architecture.md` shows where it sits and what it answers.
+
+## How it is built
+
+**One binary, four roles.** Go, and one program that runs as the harness holding
+the clock, the read side serving the page, the session's own tools, or the service
+that answers what a caller may do. One image, four things, and a deployment picks
+which by naming the roles.
+
+**One chain per account.** Harness, gateway endpoint, Alpaca MCP server, database,
+page and credential all carry the same agent's name, so a row in the record, a
+refusal and a container in `docker ps` are read as the same agent without a table.
+Adding an account is adding a chain rather than editing a setting.
+
+**Everything the agent trades on is declared.** The sessions and their windows, the
+playbooks it may load, every number with the mark saying where it came from, how the
+execution ladder walks. A declaration edited while the market is open reaches the
+next session with no restart and no deploy.
+
+**The gate is one command and it is not optional.** `make check` runs the style
+check, an English-only check over every file, the tests, the race detector, and both
+builds. Beside it: `make test-db` runs the record's tests against a real Postgres,
+and `make test-broker` holds the shapes Alpaca answers in against the real server.
+Three GitHub workflows carry it - the gate on every push, the deploy, the published
+images.
+
+**Tests as an instrument rather than a decoration.** 587 test functions across 90
+files, 19,639 lines of them against 15,467 lines of Go. Every rule that can refuse a
+trade has a test that goes red when the rule is removed, and that was checked by
+removing each rule and watching it fail. The test stand is a separate Go module,
+deliberately outside the workspace so it can never share a build with the thing it
+questions, and it runs inside the same gate.
+
+**Measured where it mattered.** One MCP session is opened and kept: opening costs
+2.68 seconds and a call on an open one 0.85, and a sweep asks about 290 things - so
+a session per call turned a four-minute pass into seventeen. The screener walks the
+universe in parallel; the profit watch is a thirty-second loop rather than a model
+turn; the record is Postgres, one database per account, with the schema applied by a
+migration service before anything reads it.
+
+**Everything is written down.** `docs/algorithm.md` takes the trading apart end to
+end, `docs/capabilities.md` maps every capability to the code behind it and the test
+that holds it, `docs/architecture.md` shows how to check every claim it makes, and
+`research/README.md` says which published numbers recompute, which are modelled, and
+which come from the account.
 
 ## Layout
 

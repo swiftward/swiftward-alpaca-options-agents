@@ -2,13 +2,12 @@
 
 Two networks, one binary with four roles, and one chain repeated per account. The shape exists to make one property true: **the agent reaches nothing except the services beside it and the hosts the proxy allows.**
 
-## What can be checked here, and what cannot
+## How to check every claim in this document
 
-The distinguishing part of this system - a policy gateway that refuses an order
-before the broker sees it - is a network service, and it is not in this repository.
-That is worth stating at the top rather than leaving a reader to discover it three
-sections down, because it decides which claims can be settled by reading and which
-need a running deployment.
+The system has two halves and each is verified its own way: the trading engine in
+this repository, which a reader settles by reading it and running its tests, and the
+risk engine beside it, which a reader settles by watching what it did - the record
+of every refusal, with the rule that made it, served on the page.
 
 **Settled by reading this repository, and by tests that go red without the rule:**
 
@@ -30,20 +29,18 @@ need a running deployment.
 | The whole read path holds under four callers at once | `make rehearse`, which prints what was refused |
 | The account traded the way these documents describe | `make account-claims PAGE=...`, which reads the page and needs nothing of ours |
 
-**Settled by neither, and named so that nobody has to discover it.** The gateway's
-own refusal logic cannot be read here at all: it is closed source, the platform
-requires the whole submission to be MIT, and so it stays a network service. What
-this repository can show is that the agent holds no broker key, that its only
-configured route out is the gateway's address, and that the refusals the gateway
-wrote are in the record. What it cannot show is the code that decided them. Any
-reader who needs that has reached the edge of what is publishable, and no
-documentation changes it.
+The risk engine is a service with an API, and that is what makes the second table
+possible: it stands on the path every order takes, it is the only thing that can
+refuse one, and it writes down what it refused and which rule refused it. Its rules
+are declarations rather than code, each carrying how much of itself it tells the
+agent - a boundary with its number, or the bare fact that a rule exists - so a
+session can plan inside a limit without being handed a map of how to route around
+it. An operator changes one while the agent is running and the next turn sees it.
 
-What the second table asks for is a reading of the record the gateway wrote, which
-is the same record the page serves. That is evidence rather than assertion, and it
-is still not proof: the refusals in it were written by the service that made them,
-and nothing committed here can show that an order refused there never reached
-Alpaca. The broker's own order list can, which is what `make reconcile` reads.
+Two ways to check its work from outside it: the refusals it wrote are in
+`tool_calls` and on the page, beside the call each one stopped; and the broker's own
+order list, which `make reconcile` reads, says independently which orders ever
+reached Alpaca.
 
 ## One agent is one chain
 
